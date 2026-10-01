@@ -1,0 +1,43 @@
+# ── 依赖与构建产物：镜像内多阶段会自行安装/重新编译，不必进入 build context ──
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+
+# 运行时数据 & 本地产物：容器首启自动生成，绝不上传
+backend/data/canvases
+backend/data/oss
+backend/data/smallImage
+backend/data/web
+backend/data/serve
+backend/data/toonflow.db
+backend/data/db2.sqlite*
+backend/build
+frontend/dist
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# 工作区杂物、文档与非分发内容
+.git
+.gitignore
+.gitattributes
+.DS_Store
+*.log
+deploy/
+docs/
+CLAUDE.md
+PRD_Template.md
+客户需求差距分析.md
+*.md
+!README.md
+
+# 仅排除【仓库根目录】下的大型原始素材(XOI logo 设计稿等),不影响 backend/frontend 子目录内的任何资源
+/XOI_logo.ico
+/XOI_logo.png
+/XOI_logo.psd
+/XOi.jpg
+/XOi片尾.mp4
+/2wm.png
+/exported_image.svg
+/start.sh
+/LICENSE
+/NOTICES.txt

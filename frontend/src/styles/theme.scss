@@ -1,0 +1,566 @@
+// 苹果风格毛玻璃极简主题
+// 适配 XOi 玻璃 Logo，清新科技、轻量化 AI 创作工具
+// 参考 Apple Design (WWDC 2018) - Materials & Depth
+
+:root {
+  // 主色调 - 跟随 TDesign 主题 token
+  --bg-primary: var(--td-bg-color-page);
+  --bg-secondary: var(--td-bg-color-container);
+  --bg-tertiary: var(--td-bg-color-secondarycontainer);
+  --bg-card: var(--td-bg-color-container);
+
+  // 渐变色调 - 粉→紫→蓝→青
+  --accent-gradient: linear-gradient(135deg, #f472b6, #a78bfa, #60a5fa, #34d399);
+  --accent-primary: #f57400;
+  --accent-secondary: #ff9b45;
+  --accent-pink: #ffb36b;
+  --accent-teal: #f6a15b;
+  --accent-light: rgba(245, 116, 0, 0.08);
+  --accent-glow: rgba(245, 116, 0, 0.15);
+
+  // 文字颜色 - 跟随 TDesign 主题 token
+  --text-primary: var(--td-text-color-primary);
+  --text-secondary: var(--td-text-color-secondary);
+  --text-tertiary: var(--td-text-color-placeholder);
+  --text-accent: var(--td-brand-color);
+
+  // 边框 - 跟随 TDesign 主题 token
+  --border-primary: var(--td-border-level-1-color);
+  --border-hover: var(--td-brand-color-3);
+  --border-focus: var(--td-brand-color);
+
+  // 阴影 - 跟随 TDesign 阴影层级
+  --shadow-sm: var(--td-shadow-1);
+  --shadow-md: var(--td-shadow-2);
+  --shadow-lg: var(--td-shadow-3);
+  --shadow-glow: var(--td-shadow-1);
+
+  // 玻璃拟态（保留兼容）
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-blur: blur(20px);
+
+  // ========== 材质系统 ==========
+  // 材质背景 - 统一映射到 TDesign 容器色（实色卡片，现代 SaaS 风格）
+  --material-ultra-thin: var(--td-bg-color-secondarycontainer);   // 极轻材质 - 装饰性元素
+  --material-thin: var(--td-bg-color-container);                   // 轻材质 - 工具栏
+  --material-regular: var(--td-bg-color-container);                // 标准材质 - 侧边栏、面板
+  --material-thick: var(--td-bg-color-container);                  // 厚材质 - 弹窗、抽屉
+  --material-thicker: var(--td-bg-color-container);                // 更厚材质 - 模态框
+
+  // 模糊效果 - 不同强度 + 饱和度增强（苹果核心公式）
+  --blur-light: blur(10px) saturate(150%);             // 轻模糊 - 卡片、小元素
+  --blur-medium: blur(20px) saturate(180%);            // 中模糊 - 工具栏、面板
+  --blur-heavy: blur(30px) saturate(200%);             // 强模糊 - 侧边栏、弹窗
+  --blur-ultra: blur(40px) saturate(220%);             // 超强模糊 - 模态框背景
+
+  // 材质边框 - 跟随 TDesign 边框层级
+  --material-border-light: var(--td-border-level-1-color);
+  --material-border-medium: var(--td-border-level-2-color);
+  --material-border-heavy: var(--td-border-level-2-color);
+
+  // 字体
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+
+  // 圆角
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  // 过渡 - 苹果风格 spring 曲线
+  --transition-fast: 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-slow: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-material: 0.3s cubic-bezier(0.16, 1, 0.3, 1);  // 材质化动画专用
+}
+
+// 全局样式
+* {
+  box-sizing: border-box;
+}
+
+body {
+  /* 现代 SaaS 风格：使用 TDesign 页面底色，跟随亮/暗主题 */
+  background: var(--td-bg-color-page);
+  background-attachment: fixed;
+  color: var(--td-text-color-primary);
+  font-family: var(--font-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ========== 毛玻璃背景字体优化 ==========
+// 确保在半透明背景上的文字清晰可读
+// 参考 Apple Design: "Vibrancy keeps text legible over changing backgrounds"
+
+// 毛玻璃背景上的文字优化
+.glass-text,
+.menu .item .title,
+.toolbar,
+.property-panel .field label {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.05);  // 微小阴影增加可读性
+}
+
+// 无障碍支持 - 减少透明度
+@media (prefers-reduced-transparency: reduce) {
+  .menu,
+  .view,
+  .toolbar,
+  .property-panel,
+  .card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: var(--bg-card) !important;
+  }
+}
+
+// 无障碍支持 - 高对比度
+@media (prefers-contrast: more) {
+  .menu,
+  .view,
+  .toolbar,
+  .property-panel,
+  .card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: white !important;
+    border: 2px solid var(--text-primary) !important;
+  }
+}
+
+// 玻璃拟态效果 - 苹果风格材质
+.glass {
+  background: var(--material-regular);
+  backdrop-filter: var(--blur-medium);
+  -webkit-backdrop-filter: var(--blur-medium);
+  border: 1px solid var(--material-border-medium);
+  border-top: 1px solid var(--material-border-heavy);  // 顶部高光
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.glass-strong {
+  background: var(--material-thick);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--material-border-heavy);
+  border-top: 1px solid rgba(255, 255, 255, 0.6);  // 更强的顶部高光
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+// 渐变文字
+.gradient-text {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+// 渐变边框 - 温润渐变描边
+.gradient-border {
+  position: relative;
+  border: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: var(--accent-gradient);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.6;
+    transition: opacity var(--transition-normal);
+  }
+
+  &:hover::before {
+    opacity: 1;
+  }
+}
+
+// 按钮样式
+.btn-primary {
+  background: var(--accent-gradient);
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+  color: white;
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 10px 24px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  box-shadow: var(--shadow-sm);
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md), var(--shadow-glow);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.btn-secondary {
+  background: var(--material-thin);
+  backdrop-filter: var(--blur-light);
+  -webkit-backdrop-filter: var(--blur-light);
+  color: var(--text-primary);
+  border: 1px solid var(--material-border-light);
+  border-radius: var(--radius-full);
+  padding: 10px 24px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-material);
+
+  &:hover {
+    border-color: var(--border-hover);
+    background: var(--accent-light);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+
+  &:hover {
+    background: var(--accent-light);
+    color: var(--text-primary);
+  }
+}
+
+// 卡片样式 - 苹果风格轻材质
+.card {
+  background: var(--material-regular);
+  backdrop-filter: var(--blur-light);
+  -webkit-backdrop-filter: var(--blur-light);
+  border: 1px solid var(--material-border-light);
+  border-top: 1px solid var(--material-border-medium);  // 顶部高光
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-material);
+
+  &:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    backdrop-filter: var(--blur-medium);  // 悬停时增强模糊
+  }
+}
+
+// 输入框 - 苹果风格轻材质
+input, textarea, select {
+  background: var(--material-thin);
+  backdrop-filter: var(--blur-light);
+  -webkit-backdrop-filter: var(--blur-light);
+  border: 1px solid var(--material-border-light);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-family: var(--font-primary);
+  font-size: 14px;
+  transition: all var(--transition-material);
+
+  &:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+}
+
+// 链接
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  transition: all var(--transition-normal);
+
+  &:hover {
+    color: var(--accent-secondary);
+  }
+}
+
+// 滚动条
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: var(--radius-full);
+
+  &:hover {
+    background: var(--text-tertiary);
+  }
+}
+
+// 动画
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+// ========== 苹果风格材质化动画 ==========
+// 参考 Apple Design: "Materialize, don't just fade"
+// 模糊 + 缩放 + 透明度 组合动画，营造材质到达感
+
+@keyframes materialize-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes materialize-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+    filter: blur(10px);
+  }
+}
+
+// 材质化过渡类
+.material-enter-active {
+  animation: materialize-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.material-leave-active {
+  animation: materialize-out 0.2s ease;
+}
+
+// 工具类
+.animate-fade-in {
+  animation: fade-in 0.3s ease;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease;
+}
+
+// 悬停效果
+.hover-lift {
+  transition: all var(--transition-normal);
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+.hover-glow {
+  transition: all var(--transition-normal);
+
+  &:hover {
+    box-shadow: var(--shadow-glow);
+  }
+}
+
+// 标签/胶囊
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: var(--accent-light);
+  color: var(--text-accent);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all var(--transition-normal);
+
+  &:hover {
+    background: var(--accent-glow);
+  }
+}
+
+// 分割线
+.divider {
+  height: 1px;
+  background: var(--border-primary);
+  margin: 16px 0;
+}
+
+// 柔和光晕
+.soft-glow {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity var(--transition-slow);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  &:hover::after {
+    opacity: 1;
+  }
+}
+
+// ============================================================
+// 全局按钮现代化 —— 苹果风格
+// 柔和蓝紫渐变（淡紫 #a78bfa → 天蓝 #60a5fa）+ 深墨蓝文字，
+// 通透轻盈、对比充足。仅覆盖 variant=base 的主题按钮；
+// outline/danger/success 不受影响。
+// ============================================================
+$t-btn-brand-from: #a78bfa;   // 淡薰衣草
+$t-btn-brand-to: #60a5fa;     // 天空蓝
+$t-btn-ink: #2e1f6d;          // 深墨靛（保证亮底上的可读性）
+
+button.t-button.t-button--variant-base,
+.t-button.t-button--variant-base {
+
+  /* 主色按钮 */
+  &.t-button--theme-primary {
+    background-color: $t-btn-brand-to;
+    background-image: linear-gradient(135deg, $t-btn-brand-from, $t-btn-brand-to);
+    border: none;
+    color: $t-btn-ink !important;
+    -webkit-text-fill-color: $t-btn-ink;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    border-radius: 14px;
+    box-shadow:
+      0 4px 14px rgba(124, 108, 240, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 -1px 0 rgba(46, 31, 109, 0.08);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.25s ease,
+                filter 0.25s ease;
+
+    &:not(.t-is-disabled):not(:disabled):hover {
+      transform: translateY(-1px);
+      filter: brightness(1.04) saturate(1.06);
+      box-shadow:
+        0 8px 22px rgba(96, 165, 250, 0.34),
+        inset 0 1px 0 rgba(255, 255, 255, 0.55);
+      background-image: linear-gradient(
+        135deg,
+        lighten($t-btn-brand-from, 4%),
+        lighten($t-btn-brand-to, 3%)
+      );
+    }
+
+    &:not(.t-is-disabled):not(:disabled):active {
+      transform: translateY(0);
+      box-shadow:
+        0 3px 10px rgba(124, 108, 240, 0.26),
+        inset 0 1px 0 rgba(255, 255, 255, 0.30);
+    }
+
+    &.t-is-disabled,
+    &:disabled {
+      opacity: 0.6;
+      background-image: none;
+      background-color: #e7e9f4;
+      color: rgba(46, 31, 109, 0.5) !important;
+      -webkit-text-fill-color: rgba(46, 31, 109, 0.5);
+      box-shadow: none;
+      transform: none;
+      cursor: not-allowed;
+    }
+
+    /* 图标颜色跟随深墨字 */
+    svg { stroke: $t-btn-ink; fill: none; [fill] { fill: $t-btn-ink; } }
+    .i-icon path[fill="currentColor"] { fill: $t-btn-ink; }
+  }
+
+  /* 默认中性按钮（灰白）—— 柔化处理 */
+  &.t-button--theme-default {
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+
+    &:not(.t-is-disabled):not(:disabled):hover {
+      background-color: #fff;
+      border-color: rgba(167, 139, 250, 0.45);
+      color: #6d54c8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    }
+    &:not(.t-is-disabled):not(:disabled):active {
+      transform: translateY(0);
+    }
+  }
+}
+
+/* 小尺寸主按钮自动更圆润一些 */
+button.t-button.t-size-s.t-button--theme-primary.t-button--variant-base {
+  border-radius: 999px;
+}

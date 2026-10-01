@@ -1,0 +1,21 @@
+services:
+  xoi:
+    build: .                 # 本地构建；若已有推送好的镜像可改 image 并删除此行下方 build 配置
+    image: xoi:v1            # 构建产物标签
+    container_name: xoi
+    restart: unless-stopped
+    ports:
+      # 左边宿主机端口(可用 PORT=.env 覆盖),右边容器内固定端口
+      - "${PORT:-10588}:10588"
+    environment:
+      NODE_ENV: prod
+      # 管理员账号仅在【首次初始化数据库】时生效，之后修改请在系统设置里改密
+      XOI_ADMIN_USERNAME: ${XOI_ADMIN_USERNAME:-admin}
+      XOI_ADMIN_PASSWORD: ${XOI_ADMIN_PASSWORD:-admin123}
+      TZ: Asia/Shanghai
+    volumes:
+      # 持久化数据库/OSS资源/画布数据；程序资产由入口脚本从镜像种子实时同步进来
+      - xoi-data:/app/backend/data
+
+volumes:
+  xoi-data:
