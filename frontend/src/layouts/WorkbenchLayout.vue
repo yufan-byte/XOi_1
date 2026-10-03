@@ -346,7 +346,7 @@ const rightBtnList = ref([
   { type: "btn", path: "/cornerScape", label: "角色场景", description: "提取并生成角色、场景和道具", icon: "i-user" },
   { type: "btn", path: "/production", label: "分镜成片", description: "制作分镜、画面、视频并合成成片", icon: "i-play" },
   { type: "divider", label: "" },
-  { type: "btn", path: "/assets", label: "项目素材", description: "集中查看项目生成的全部素材", icon: "i-folder-open" },
+  { type: "btn", path: "/assets", label: "项目素材", description: "查看当前项目生成的全部素材", icon: "i-folder-open", projectScoped: true },
 ]);
 
 const router = useRouter();
@@ -380,14 +380,14 @@ const canvasEditorOpen = ref(false);
 const isCanvasFullscreen = computed(() => route.path === '/canvas' && canvasEditorOpen.value);
 const canvasNavOpen = ref(false);
 // 项目内页面：仅在打开项目后的这些页面显示顶栏（面包屑 + 项目快捷入口）
-const projectPages = ['/novel', '/scriptAgent', '/script', '/cornerScape', '/production', '/assets'];
+const projectPages = ['/novel', '/scriptAgent', '/script', '/cornerScape', '/production'];
 const isProjectPage = computed(() => projectPages.includes(route.path));
 const { t } = useI18n();
 function menuLabel(menu: any) { return menu?.label || (menu?.labelKey ? t(menu.labelKey) : ''); }
-const activeMenu = ref(route.fullPath);
+const activeMenu = ref(route.path);
 
 watch(
-  () => route.fullPath,
+  () => route.path,
   (newPath) => {
     activeMenu.value = newPath;
     canvasNavOpen.value = false;
@@ -400,6 +400,11 @@ function handleClick(menu: any) {
   uiPrefs.collapseSidebarForNavigation();
   if (menu.canvasCenter) {
     router.push({ path: "/canvas" });
+    activeMenu.value = menu.path;
+    return;
+  }
+  if (menu.projectScoped && project.value?.id) {
+    router.push({ path: menu.path, query: { projectId: String(project.value.id) } });
     activeMenu.value = menu.path;
     return;
   }

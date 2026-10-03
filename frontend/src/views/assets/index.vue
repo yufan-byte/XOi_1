@@ -1,13 +1,19 @@
 <template>
-  <div class="assets">
+  <div class="assets" :class="{ projectOverviewPage: isProjectOverview }">
     <!-- 三库融合顶层切换：项目素材（生产要素）/ 我的作品（生成产物）/ 画布素材（创作素材）。方案见 docs/项目资产库-三库融合方案.md -->
     <div class="libTabs" v-if="!selectorMode">
       <button type="button" :class="{ on: libTab === 'project' }" @click="libTab = 'project'"><t-icon name="folder-open" />项目素材</button>
       <button type="button" :class="{ on: libTab === 'works' }" @click="libTab = 'works'"><t-icon name="user-circle" />我的作品</button>
       <button type="button" :class="{ on: libTab === 'canvas' }" @click="libTab = 'canvas'"><t-icon name="layers" />画布素材</button>
     </div>
-    <section class="assetHero" v-if="libTab === 'project'"><div><span>XOi STORY WORKSPACE · ASSETS</span><h1>资产中心</h1><p>集中管理漫剧项目中的角色、道具、场景、素材与声音。</p></div><div class="assetHeroArt" aria-hidden="true"><i>ROLE</i><i>SCENE</i><b>+</b></div></section>
-    <div class="assetScopeBar" v-if="libTab === 'project'">
+    <library-projects v-if="libTab === 'project' && isProjectOverview" />
+    <div class="assetProjectNav" v-if="!selectorMode && !isProjectOverview">
+      <button type="button" @click="backToProjectLibrary"><t-icon name="chevron-left" />全部项目</button>
+      <span>/</span>
+      <strong>{{ project?.name || "当前项目" }}</strong>
+    </div>
+    <section class="assetHero" v-if="libTab === 'project' && !isProjectOverview"><div><span>XOi STORY WORKSPACE · ASSETS</span><h1>{{ project?.name || "项目" }} · 资产中心</h1><p>这里只管理当前项目的角色、道具、场景、素材与声音。</p></div><div class="assetHeroArt" aria-hidden="true"><i>ROLE</i><i>SCENE</i><b>+</b></div></section>
+    <div class="assetScopeBar" v-if="libTab === 'project' && !isProjectOverview">
       <div class="scopeIntro">
         <strong>资产归属</strong>
         <span>素材文件只保存一份，可被多个剧本复用</span>
@@ -23,7 +29,7 @@
       <t-tag v-if="assetScope === 'all'" theme="warning" variant="light">列表中的“归属剧本”会明确标注来源</t-tag>
       <t-tag v-else-if="assetScope === 'shared'" theme="success" variant="light">适合跨剧本复用的角色、场景和素材</t-tag>
     </div>
-    <div class="data" v-if="libTab === 'project'">
+    <div class="data" v-if="libTab === 'project' && !isProjectOverview">
       <t-tabs v-model="assetOptions" @change="selectAssetOptions">
         <t-tab-panel v-for="(item, index) in themeData" :key="index" :value="item.value">
           <template #label>
@@ -491,7 +497,8 @@ import settingStore from "@/stores/setting";
 import { sendToCanvas } from "@/utils/sendToCanvas";
 import libraryWorks from "./components/libraryWorks.vue";
 import libraryCanvas from "./components/libraryCanvas.vue";
-import { useRoute } from "vue-router";
+import libraryProjects from "./components/libraryProjects.vue";
+import { useRoute, useRouter } from "vue-router";
 
 /** 顶层三库切换：project=项目素材（原有功能） / works=我的作品（mc_works） / canvas=画布素材（atelier IndexedDB） */
 const libTab = ref<"project" | "works" | "canvas">("project");
@@ -562,11 +569,15 @@ async function checkCanvasSaveResult() {
   }
 }
 
-onMounted(async () => {
+async function loadProjectAssetView() {
+  if (isProjectOverview.value) return;
+  if (!(await ensureAssetProjectContext())) return;
   await checkCanvasSaveResult()
   await loadScriptOptions()
   loadCurrentTabData();
-});
+}
+
+onMounted(loadProjectAssetView);
 
 onUnmounted(() => {
   stopPolling();
@@ -575,6 +586,38 @@ onUnmounted(() => {
 
 const { project } = storeToRefs(projectStore());
 const route = useRoute();
+const router = useRouter();
+const selectedProjectId = computed(() => Number(route.query.projectId) || null);
+const isProjectOverview = computed(() => !props.selectorMode && selectedProjectId.value == null);
+
+async function ensureAssetProjectContext() {
+  const projectId = selectedProjectId.value;
+  if (!projectId) return !!project.value?.id;
+  if (Number(project.value?.id) === projectId) return true;
+  try {
+    const { data } = await axios.post("/project/getSingleProject", { id: projectId });
+    const item = Array.isArray(data) ? data[0] : null;
+    if (!item) throw new Error("项目不存在或无权访问");
+    project.value = item;
+    return true;
+  } catch (error: any) {
+    window.$message?.error(error?.message || "项目加载失败");
+    await router.replace("/assets");
+    return false;
+  }
+}
+
+function backToProjectLibrary() {
+  router.push("/assets");
+}
+
+watch(
+  () => route.query.projectId,
+  async () => {
+    libTab.value = "project";
+    await loadProjectAssetView();
+  },
+);
 type AssetScope = "all" | "shared" | "script";
 const assetScope = ref<AssetScope>(route.query.scriptId || route.query.episode ? "script" : "all");
 const selectedScriptId = ref<number | undefined>(Number(route.query.scriptId || route.query.episode) || undefined);
@@ -1885,6 +1928,7 @@ async function getBigImageUrl(row: Asset, fn: Function) {
 <style lang="scss">
 .assets {
   box-sizing:border-box; padding:22px 32px 24px; background:radial-gradient(circle at 92% 0,rgba(255,174,119,.15),transparent 22%),linear-gradient(180deg,#faf9fb,#f5f5f7);
+  &.projectOverviewPage { display: block; padding: 0; overflow: auto; }
   .assetHero { position:relative; min-height:132px; flex:none; margin-bottom:14px; padding:25px 31px; overflow:hidden; border:1px solid rgba(89,76,148,.11); border-radius:23px; background:radial-gradient(circle at 86% 10%,rgba(255,151,91,.27),transparent 25%),linear-gradient(132deg,#fff,#f6f2ff 58%,#fff3ea); box-shadow:0 15px 38px rgba(58,49,99,.07); }
   .assetHero>div:first-child{position:relative;z-index:2}.assetHero span{color:#e76c2d;font-size:10px;font-weight:750;letter-spacing:.17em}.assetHero h1{margin:8px 0 5px;color:#292733;font-size:32px;line-height:1.05;letter-spacing:-.04em}.assetHero p{margin:0;color:#777482;font-size:13px}
   .assetHeroArt{position:absolute;top:17px;right:5%;display:flex;align-items:center;gap:7px;transform:rotate(-5deg)}.assetHeroArt i{display:grid;place-items:center;width:82px;height:88px;border-radius:17px;color:#fff;font-size:10px;font-style:normal;font-weight:700;letter-spacing:.1em;box-shadow:0 14px 28px rgba(66,53,108,.15)}.assetHeroArt i:first-child{background:linear-gradient(145deg,#8d7ce8,#5c50b7)}.assetHeroArt i:nth-child(2){margin-top:17px;background:linear-gradient(145deg,#ff9b61,#e75f42)}.assetHeroArt b{position:absolute;left:72px;top:36px;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#fff;color:#544d70;box-shadow:0 7px 15px rgba(60,53,89,.16)}
@@ -1951,6 +1995,35 @@ async function getBigImageUrl(row: Asset, fn: Function) {
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 8px 22px rgba(42, 39, 58, 0.045);
+}
+
+.assetProjectNav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #9a969f;
+  font-size: 13px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 9px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #6f6b77;
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      color: #e9632b;
+      background: #fff1e9;
+    }
+  }
+
+  strong { color: #34313d; }
 }
 
 .scopeIntro {
