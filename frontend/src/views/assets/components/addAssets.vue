@@ -46,6 +46,7 @@ const props = defineProps<{
     remark: string;
     prompt: string;
   };
+  scriptId?: number | null;
 }>();
 const addAssetsShow = defineModel<boolean>({
   default: false,
@@ -85,6 +86,7 @@ function onConfirm() {
             type: props.type,
             projectId: project.value?.id,
             prompt: props.formData.prompt,
+            scriptId: props.scriptId ?? undefined,
           })
           .then(() => {
             window.$message.success($t("workbench.assets.add.addSuccess"));

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { error, success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
+import { assertScriptInProject, linkAssetToScript } from "@/utils/assetScope";
 
 const router = express.Router();
 
@@ -70,10 +71,13 @@ const requestSchema = {
   name: z.string(),
   prompt: z.string(),
   base64: z.string().optional().nullable(),
+  scriptId: z.number().optional().nullable(),
 };
 
 export default router.post("/", validateFields(requestSchema), async (req, res) => {
-  const { projectId, model, resolution, id, type, name, prompt, base64 } = req.body;
+  const { projectId, model, resolution, id, type, name, prompt, base64, scriptId } = req.body;
+  await assertScriptInProject(projectId, scriptId);
+  await linkAssetToScript(id, scriptId);
   const userId = (req as any).user?.id;
 
   // 检查积分是否足够（不扣分，只检查）

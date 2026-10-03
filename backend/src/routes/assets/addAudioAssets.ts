@@ -1,6 +1,7 @@
 import express from "express";
 import u from "@/utils";
 import { z } from "zod";
+import { assertScriptInProject, linkAssetToScript } from "@/utils/assetScope";
 import { success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 const router = express.Router();
@@ -20,9 +21,11 @@ export default router.post(
         name: z.string(),
       }),
     ),
+    scriptId: z.number().optional().nullable(),
   }),
   async (req, res) => {
-    const { name, describe, projectId, assetsItem } = req.body;
+    const { name, describe, projectId, assetsItem, scriptId } = req.body;
+    await assertScriptInProject(projectId, scriptId);
     await Promise.all(
       assetsItem.map(async (i: { src?: string; base64: string; prompt: string }) => {
         if (i.base64) {
@@ -51,6 +54,7 @@ export default router.post(
       projectId,
       startTime: Date.now(),
     });
+    await linkAssetToScript(id, scriptId);
     for (const item of assetsItem) {
       const [assetsId] = await u.db("o_assets").insert({
         prompt: item.prompt,

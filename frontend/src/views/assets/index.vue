@@ -7,6 +7,22 @@
       <button type="button" :class="{ on: libTab === 'canvas' }" @click="libTab = 'canvas'"><t-icon name="layers" />画布素材</button>
     </div>
     <section class="assetHero" v-if="libTab === 'project'"><div><span>XOi STORY WORKSPACE · ASSETS</span><h1>资产中心</h1><p>集中管理漫剧项目中的角色、道具、场景、素材与声音。</p></div><div class="assetHeroArt" aria-hidden="true"><i>ROLE</i><i>SCENE</i><b>+</b></div></section>
+    <div class="assetScopeBar" v-if="libTab === 'project'">
+      <div class="scopeIntro">
+        <strong>资产归属</strong>
+        <span>素材文件只保存一份，可被多个剧本复用</span>
+      </div>
+      <t-select v-model="assetScope" style="width: 148px" @change="handleScopeChange">
+        <t-option value="all" label="全部剧本" />
+        <t-option value="shared" label="项目公共库" />
+        <t-option value="script" label="指定剧本" />
+      </t-select>
+      <t-select v-if="assetScope === 'script'" v-model="selectedScriptId" style="width: 260px" placeholder="选择剧本" @change="handleScriptChange">
+        <t-option v-for="item in scriptOptions" :key="item.id" :value="item.id" :label="item.name" />
+      </t-select>
+      <t-tag v-if="assetScope === 'all'" theme="warning" variant="light">列表中的“归属剧本”会明确标注来源</t-tag>
+      <t-tag v-else-if="assetScope === 'shared'" theme="success" variant="light">适合跨剧本复用的角色、场景和素材</t-tag>
+    </div>
     <div class="data" v-if="libTab === 'project'">
       <t-tabs v-model="assetOptions" @change="selectAssetOptions">
         <t-tab-panel v-for="(item, index) in themeData" :key="index" :value="item.value">
@@ -178,6 +194,12 @@
                     <span :class="{ 'generating-text': row.promptState === '生成中' }">{{ row.prompt }}</span>
                   </div>
                 </template>
+                <template #scriptNames="{ row }">
+                  <t-tag v-if="row.scriptNames?.length" size="small" variant="light" theme="primary">
+                    {{ row.scriptNames.join("、") }}
+                  </t-tag>
+                  <span v-else class="sharedAssetLabel">项目公共库</span>
+                </template>
                 <template #previewWithLoading="{ row }">
                   <div class="previewCell">
                     <div v-if="row.state === '生成中'" class="imageTrigger generatingImage">
@@ -279,6 +301,10 @@
                 </template>
                 <template #startTime="{ row }">
                   <span>{{ dayjs(row.startTime).format("YYYY-MM-DD HH:mm:ss") }}</span>
+                </template>
+                <template #scriptNames="{ row }">
+                  <t-tag v-if="row.scriptNames?.length" size="small" variant="light" theme="primary">{{ row.scriptNames.join("、") }}</t-tag>
+                  <span v-else class="sharedAssetLabel">项目公共库</span>
                 </template>
                 <template #operation="{ row }">
                   <t-space :size="0">
@@ -397,10 +423,11 @@
       :type="assetOptions"
       :title="tabNameMap[assetOptions]"
       :formData="formData"
+      :scriptId="assetScope === 'script' ? selectedScriptId : null"
       @getFilteredData="getFilteredData(assetOptions)" />
-    <generateImage v-model="generateImageShow" @update="loadCurrentTabData" :formData="currentAssetData" />
+    <generateImage v-model="generateImageShow" @update="loadCurrentTabData" :formData="currentAssetData" :scriptId="assetScope === 'script' ? selectedScriptId : null" />
 
-    <addAudioAssets v-model="addAudioShow" v-if="addAudioShow" :formData="audioFormData" @getFilteredData="getFilteredData(assetOptions)" />
+    <addAudioAssets v-model="addAudioShow" v-if="addAudioShow" :formData="audioFormData" :scriptId="assetScope === 'script' ? selectedScriptId : null" @getFilteredData="getFilteredData(assetOptions)" />
     <t-dialog
       v-model:visible="mediaPreviewShow"
       :header="mediaPreviewName || $t('workbench.assets.mediaPreview')"
@@ -464,6 +491,7 @@ import settingStore from "@/stores/setting";
 import { sendToCanvas } from "@/utils/sendToCanvas";
 import libraryWorks from "./components/libraryWorks.vue";
 import libraryCanvas from "./components/libraryCanvas.vue";
+import { useRoute } from "vue-router";
 
 /** 顶层三库切换：project=项目素材（原有功能） / works=我的作品（mc_works） / canvas=画布素材（atelier IndexedDB） */
 const libTab = ref<"project" | "works" | "canvas">("project");
@@ -536,6 +564,7 @@ async function checkCanvasSaveResult() {
 
 onMounted(async () => {
   await checkCanvasSaveResult()
+  await loadScriptOptions()
   loadCurrentTabData();
 });
 
@@ -545,6 +574,40 @@ onUnmounted(() => {
 });
 
 const { project } = storeToRefs(projectStore());
+const route = useRoute();
+type AssetScope = "all" | "shared" | "script";
+const assetScope = ref<AssetScope>(route.query.scriptId || route.query.episode ? "script" : "all");
+const selectedScriptId = ref<number | undefined>(Number(route.query.scriptId || route.query.episode) || undefined);
+const scriptOptions = ref<Array<{ id: number; name: string }>>([]);
+
+async function loadScriptOptions() {
+  if (!project.value?.id) return;
+  try {
+    const { data } = await axios.post("/script/getScrptApi", { projectId: Number(project.value.id) });
+    scriptOptions.value = (Array.isArray(data) ? data : []).map((item: any) => ({ id: Number(item.id), name: item.name || `剧本 ${item.id}` }));
+    if (selectedScriptId.value && !scriptOptions.value.some((item) => item.id === selectedScriptId.value)) {
+      selectedScriptId.value = undefined;
+      assetScope.value = "all";
+    }
+  } catch (error) {
+    console.warn("加载剧本列表失败:", error);
+    scriptOptions.value = [];
+    if (assetScope.value === "script") assetScope.value = "all";
+  }
+}
+
+function handleScopeChange(value: any) {
+  if (value === "script" && !selectedScriptId.value && scriptOptions.value.length) {
+    selectedScriptId.value = scriptOptions.value[0].id;
+  }
+  pagination.value.page = 1;
+  loadCurrentTabData();
+}
+
+function handleScriptChange() {
+  pagination.value.page = 1;
+  loadCurrentTabData();
+}
 
 const allThemeData = [
   {
@@ -610,6 +673,7 @@ interface Asset {
   imageId: number;
   promptState: string;
   filePath: string;
+  scriptNames?: string[];
 }
 const tableData = ref<Asset[]>([]);
 // 分页配置
@@ -627,11 +691,13 @@ async function getFilteredData(type: string) {
   try {
     loading.value = true;
     const { data } = await axios.post("/assets/getAssetsApi", {
-      projectId: project.value?.id,
+      projectId: Number(project.value?.id),
       type: type,
       name: searchText.value || undefined,
       page: pagination.value.page,
       limit: pagination.value.pageSize,
+      scope: assetScope.value,
+      scriptId: assetScope.value === "script" ? selectedScriptId.value : undefined,
     });
 
     tableData.value = data.data || [];
@@ -703,9 +769,10 @@ async function handleAdd(type: string) {
     reader.onload = async (e) => {
       const base64 = reader.result as string;
       await axios.post("/assets/uploadClip", {
-        projectId: project.value?.id,
+        projectId: Number(project.value?.id),
         base64Data: base64,
         name: file.name,
+        scriptId: assetScope.value === "script" ? selectedScriptId.value : undefined,
       });
       window.$message.success($t("workbench.assets.uploadSuccess"));
       getFilteredData(assetOptions.value);
@@ -920,6 +987,14 @@ const columns: TableProps["columns"] = [
     ellipsis: true,
   },
   {
+    colKey: "scriptNames",
+    title: "归属剧本",
+    width: 180,
+    align: "left",
+    ellipsis: true,
+    cell: "scriptNames",
+  },
+  {
     colKey: "prompt",
     title: $t("workbench.assets.colPrompt"),
     width: 200,
@@ -1030,6 +1105,7 @@ const clipColumns: TableProps["columns"] = [
     align: "left",
     ellipsis: true,
   },
+  { colKey: "scriptNames", title: "归属剧本", width: 180, align: "left", ellipsis: true, cell: "scriptNames" },
   {
     colKey: "remark",
     title: $t("workbench.assets.colRemark"),
@@ -1076,6 +1152,7 @@ const audioColumns: TableProps["columns"] = [
     align: "left",
     ellipsis: true,
   },
+  { colKey: "scriptNames", title: "归属剧本", width: 180, align: "left", ellipsis: true, cell: "scriptNames" },
   {
     colKey: "startTime",
     title: $t("workbench.assets.colCreateTime"),
@@ -1860,6 +1937,48 @@ async function getBigImageUrl(row: Asset, fn: Function) {
       font-weight: 600;
       box-shadow: 0 7px 16px rgba(239, 100, 48, 0.18);
     }
+  }
+}
+
+.assetScopeBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 16px;
+  margin: 0 0 14px;
+  border: 1px solid #e8e7ec;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 22px rgba(42, 39, 58, 0.045);
+}
+
+.scopeIntro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-right: auto;
+  color: #777482;
+  font-size: 12px;
+
+  strong {
+    color: #2d2a37;
+    font-size: 14px;
+  }
+}
+
+.sharedAssetLabel {
+  color: #8a8791;
+  font-size: 12px;
+}
+
+@media (max-width: 850px) {
+  .assetScopeBar {
+    flex-wrap: wrap;
+  }
+
+  .scopeIntro {
+    flex-basis: 100%;
   }
 }
 </style>

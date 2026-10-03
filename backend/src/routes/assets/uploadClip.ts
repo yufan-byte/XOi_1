@@ -4,6 +4,7 @@ import { success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { z } from "zod";
 import { v4 as uuid } from "uuid";
+import { assertScriptInProject, linkAssetToScript } from "@/utils/assetScope";
 const router = express.Router();
 
 // 根据 base64 头部获取文件扩展名
@@ -33,9 +34,11 @@ export default router.post(
     base64Data: z.string(),
     type: z.string().optional().default("clip"),
     name: z.string(),
+    scriptId: z.number().optional().nullable(),
   }),
   async (req, res) => {
-    const { base64Data, projectId, type = "clip", name } = req.body;
+    const { base64Data, projectId, type = "clip", name, scriptId } = req.body;
+    await assertScriptInProject(projectId, scriptId);
     const ext = getExtFromBase64(base64Data);
     const savePath = `/${projectId}/assets/${uuid()}.${ext}`;
 
@@ -55,6 +58,7 @@ export default router.post(
     await u.db("o_assets").where("id", id).update({
       imageId: imageId,
     });
+    await linkAssetToScript(id, scriptId);
     res.status(200).send(success("上传成功"));
   },
 );

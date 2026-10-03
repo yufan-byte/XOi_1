@@ -89,6 +89,7 @@ const props = defineProps<{
       describe?: string;
     }[];
   };
+  scriptId?: number | null;
 }>();
 const addAssetsShow = defineModel<boolean>({
   default: false,
@@ -218,6 +219,7 @@ function onConfirm() {
         describe: props.formData.sex + "|" + props.formData.describe,
         projectId: project.value?.id ?? 0,
         assetsItem,
+        scriptId: props.scriptId ?? undefined,
       };
       console.log(props.formData.id);
       if (props.formData.id) {

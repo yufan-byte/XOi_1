@@ -153,6 +153,7 @@ const props = defineProps<{
     prompt?: string;
     src: string;
   };
+  scriptId?: number | null;
 }>();
 
 //显示生成图片的弹窗
@@ -242,6 +243,7 @@ async function handleGenerate() {
       model: selectValue.value,
       id: props.formData.id,
       resolution: resolution.value,
+      scriptId: props.scriptId ?? undefined,
     });
     window.$message.success($t("workbench.assets.gen.assetGenSuccess"));
     if (data.pointsDeducted) {
