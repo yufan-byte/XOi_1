@@ -285,6 +285,22 @@
             <i-toolkit size="16px" /><span class="toolLabel">Skill</span>
             <span v-if="selectedSkills.length" class="skillCount">{{ selectedSkills.length }}</span>
           </button>
+          <div class="modelSlot" aria-label="选择对话模型">
+            <span class="modelSlotLabel">模型</span>
+            <modelSelect
+              v-model="selectedModelValue"
+              v-model:label="selectedModelLabel"
+              type="text"
+              size="small"
+              placeholder="选择模型"
+              @change="onPickModel" />
+            <ModelCostHint
+              v-if="selectedModelValue"
+              class="composerCostHint"
+              :model="selectedModelName"
+              type="text"
+              :input-length="inputValue.length" />
+          </div>
           <div class="composerSetting">
             <button type="button" class="settingPill" title="图片设置" @click="openComposerSetting('image')">▧ <span>{{ imageQuality }} · {{ imageSize }}</span></button>
             <div v-if="openSetting === 'image'" class="settingMenu mediaSettingMenu imageSettingMenu">
@@ -386,6 +402,8 @@ import inspirationFantasy from "@/assets/visual-presets/guochao-fantasy.png";
 // 与 layouts/WorkbenchLayout.isImmersive 共享同源布尔令内外两层同步联动杜绝脱节(详见 @/stores/uiPrefs.ts)。
 import uiPrefsStore from "@/stores/uiPrefs";
 import userStore from "@/stores/user";
+import modelSelect from "@/components/modelSelect.vue";
+import ModelCostHint from "@/components/ModelCostHint.vue";
 const { baseUrl } = storeToRefs(settingStore());
 // Pinia 同 id 单例：此处拿到的 uiPrefs 与 WorkbenchLayout 内读到的指向同一份 reactive state，
 // 任一处翻 toggle 都会让本地伪工具条显隐与外层 topMenu 显隐成对联动。
@@ -501,6 +519,7 @@ function openCanvasWithPrompt(preset = inputValue.value.trim()) {
       skills: activeSkillOptions.value.map((skill) => ({ path: skill.path, name: skill.name, group: skill.group })),
       image: { size: imageSize.value, quality: imageQuality.value },
       video: { size: videoSize.value, quality: videoQuality.value },
+      model: selectedModelValue.value || "",
       reasoning: reasoningEnabled.value,
       assets: composerAttachments.value,
       source: "aiAssistant",
@@ -1030,7 +1049,7 @@ async function handleSend() {
         // paths and injects the SKILL.md bodies into the system context.
         // Send paths directly instead of UI/MCP presentation objects so the
         // selected skill cannot be silently dropped during JSON transport.
-        body: JSON.stringify({ content, messages: historyMessages.slice(0, -1), skills: activeSkillOptions.value.map((skill) => skill.path) }),
+        body: JSON.stringify({ content, messages: historyMessages.slice(0, -1), skills: activeSkillOptions.value.map((skill) => skill.path), model: selectedModelValue.value || undefined }),
         signal: abortController.signal,
       },
     );
@@ -1221,6 +1240,7 @@ const selectedModelValue = ref<string>(
 const selectedModelLabel = ref<string>(
   typeof localStorage !== "undefined" ? localStorage.getItem(MODEL_LBL_KEY) || "" : "",
 );
+const selectedModelName = computed(() => String(selectedModelValue.value || "").split(/:(.+)/)[1] || String(selectedModelValue.value || ""));
 function onPickModel(value: string /* , _detail?: any */) {
   try {
     localStorage.setItem(MODEL_VAL_KEY, value);
@@ -1660,10 +1680,14 @@ function useInspiration(prompt: string) {
 }
 .execPillArrow{opacity:.55;display:inline-flex;align-items:center;}
 .composerSetting{position:relative;display:inline-flex;min-width:0}.settingPill{display:inline-flex;align-items:center;gap:5px;max-width:124px;height:30px;padding:0 10px;border:0;border-radius:999px;background:rgba(245,245,245,.88);color:var(--text-primary,#333);font-size:12px;cursor:pointer}.settingPill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.settingMenu{position:absolute;z-index:60;left:0;bottom:36px;display:flex;flex-wrap:wrap;gap:5px;width:180px;padding:10px;border:1px solid rgba(0,0,0,.1);border-radius:12px;background:#fff;box-shadow:0 12px 30px rgba(0,0,0,.16)}.settingMenu strong{width:100%;font-size:12px;color:#777}.settingMenu button{padding:5px 8px;border:0;border-radius:7px;background:#f2f2f2;color:#444;font-size:11px;cursor:pointer}.settingMenu button.selected{background:#202020;color:#fff}.reasoningButton.active{background:#ece5ff;color:#6741d9}
-.modelSlot{min-width:130px;}
+.modelSlot{position:relative;display:inline-flex;align-items:center;gap:6px;min-width:190px;}
+.modelSlotLabel{flex:none;color:#8b8790;font-size:11px;}
 .modelSlot :deep(.t-select__wrap),.modelSlot :deep(.t-select){
-  border-radius:200px!important;
+  width:150px;border-radius:11px!important;
 }
+.modelSlot :deep(.t-input){height:34px!important;border-radius:11px!important;background:#f4f4f5!important;border-color:transparent!important;font-size:12px!important;}
+.modelSlot :deep(.modelCostHint){display:none!important;}
+.composerCostHint{position:absolute;left:0;top:38px;z-index:2;white-space:nowrap;pointer-events:none;}
 .sendButton,.stopButton{
   flex-shrink:0;width:38px;height:38px;border-radius:19px;border:none;
   display:inline-flex;align-items:center;justify-content:center;
@@ -1729,7 +1753,7 @@ function useInspiration(prompt: string) {
 .emptyMode .editorRow.hasInput .promptCycleHint{display:none}
 .emptyMode .editorRow textarea::placeholder{color:#9d9d9d}
 .emptyMode .toolbarLeft,.emptyMode .toolbarRight{align-self:center;height:32px}
-.emptyMode .modelSlot{display:none}
+.emptyMode .modelSlot{display:inline-flex}
 .emptyMode .sendButton,.emptyMode .stopButton{width:32px;height:32px;border-radius:50%;background:#f1f1f1!important;color:#aaa!important;box-shadow:none}
 .emptyMode .sendButton:not(:disabled){background:#202020!important;color:#fff!important}
 .emptyMode .activeSkills{display:none}
@@ -1948,17 +1972,17 @@ function useInspiration(prompt: string) {
 .emptyMode .creationTabs button.active{background:#222;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.16)}
 .emptyMode .mascotPreview{display:none}
 
-.upstreamComposer,.emptyMode .upstreamComposer{top:auto;width:100%;min-height:156px;margin:8px 0 20px;padding:16px 18px 12px;grid-template-rows:minmax(82px,auto) 40px;gap:6px;border:1px solid #dddddf;border-radius:22px;background:#fff;box-shadow:0 14px 38px rgba(30,32,38,.09)}
+.upstreamComposer,.emptyMode .upstreamComposer{top:auto;width:100%;min-height:214px;margin:8px 0 20px;padding:16px 18px 12px;grid-template-rows:minmax(138px,auto) 44px;gap:8px;border:1px solid #dddddf;border-radius:22px;background:#fff;box-shadow:0 14px 38px rgba(30,32,38,.09)}
 .upstreamComposer:focus-within,.emptyMode .upstreamComposer:focus-within{border-color:#b8b8bd;box-shadow:0 16px 42px rgba(30,32,38,.12),0 0 0 3px rgba(35,35,38,.04)}
-.upstreamComposer .editorRow,.emptyMode .upstreamComposer .editorRow{min-height:82px;max-height:220px;padding:2px 4px;gap:6px}
-.upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow textarea{height:64px;min-height:64px;padding:5px 4px 0;font-size:16px;line-height:26px}
-.upstreamComposer .editorRow:not(.hasInput) textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{height:64px;min-height:64px;padding:5px 4px 0}
+.upstreamComposer .editorRow,.emptyMode .upstreamComposer .editorRow{min-height:138px;max-height:260px;padding:2px 4px;gap:6px}
+.upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow textarea{height:108px;min-height:108px;padding:5px 4px 0;font-size:16px;line-height:28px}
+.upstreamComposer .editorRow:not(.hasInput) textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{height:108px;min-height:108px;padding:5px 4px 0}
 .upstreamComposer .editorRow .promptCycleHint,.emptyMode .upstreamComposer .editorRow .promptCycleHint{left:8px;right:8px;top:7px;height:34px;min-height:34px;gap:9px}
 .upstreamComposer .editorRow.hasSkills .promptCycleHint,.emptyMode .upstreamComposer .editorRow.hasSkills .promptCycleHint{top:44px}
 .promptSpark{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:9px;background:#fff1e7;color:#e76308;font-size:13px}
 .upstreamComposer .promptCycleHint .promptCycleLabel,.emptyMode .upstreamComposer .promptCycleHint .promptCycleLabel{flex:1;color:#73737a;font-size:15px;line-height:28px}
 .upstreamComposer .promptCycleHint kbd,.emptyMode .upstreamComposer .promptCycleHint kbd{width:auto;height:25px;padding:0 8px;border-color:#e0e0e3;background:#f7f7f8;color:#929298;line-height:25px}
-.upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarLeft,.upstreamComposer .toolbarRight,.emptyMode .upstreamComposer .toolbarRight{height:40px;gap:6px}
+.upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarLeft,.upstreamComposer .toolbarRight,.emptyMode .upstreamComposer .toolbarRight{height:44px;gap:6px}
 .upstreamComposer .roundIconBtn.assetTrigger,.upstreamComposer .roundIconBtn.skillButton,.upstreamComposer .roundIconBtn.reasoningButton{width:auto;height:34px;gap:7px;padding:0 11px;border-radius:11px;background:#f4f4f5;color:#4a4a50;font-size:13px}
 .upstreamComposer .roundIconBtn.assetTrigger:hover,.upstreamComposer .roundIconBtn.skillButton:hover,.upstreamComposer .roundIconBtn.reasoningButton:hover{background:#eaeaec;color:#1f1f22}
 .upstreamComposer .roundIconBtn.skillButton.active,.upstreamComposer .roundIconBtn.reasoningButton.active{background:#fff0e6;color:#d95700}
@@ -1983,10 +2007,11 @@ function useInspiration(prompt: string) {
   .emptyMode .mioraHero{height:66px;margin-top:12px}
   .emptyMode .creationTabs{overflow-x:auto}.emptyMode .creationTabs button{min-width:108px}
   .emptyMode .upstreamComposer{min-height:142px;margin-top:10px;padding:12px;grid-template-rows:minmax(66px,auto) auto}
-  .emptyMode .composerMascot{right:8px;top:-82px;width:128px;height:88px}
+  .emptyMode .composerMascot{right:18px;top:-126px;width:168px;height:116px}
   .upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarLeft{flex-wrap:wrap;height:auto}
   .toolLabel{display:none}
   .upstreamComposer .roundIconBtn.assetTrigger,.upstreamComposer .roundIconBtn.skillButton,.upstreamComposer .roundIconBtn.reasoningButton{width:34px;padding:0}
+  .modelSlot{min-width:0}.modelSlotLabel{display:none}.modelSlot :deep(.t-select__wrap),.modelSlot :deep(.t-select){width:130px}.composerCostHint{display:none!important}
   .upstreamComposer .settingPill{max-width:118px;padding:0 9px;font-size:11px}
 }
 </style>

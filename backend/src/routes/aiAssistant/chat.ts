@@ -36,30 +36,42 @@ async function buildSkillsContext(input: unknown): Promise<string> {
 }
 
 // 模型选择由管理员统一配置，凭据按当前 new-api 用户动态取得。
-async function getAiConfig(userId: number): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
+async function getAiConfig(userId: number, requestedModel?: unknown): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
   const agentConfig = await u.db("o_agentDeploy").where("key", "universalAi").first();
   if (!agentConfig) return null;
   const configured = String(agentConfig.modelName || agentConfig.model || "").trim();
   if (!configured) return null;
   const separator = configured.indexOf(":");
   const vendorId = separator >= 0 ? configured.slice(0, separator) : String(agentConfig.vendorId || "newapi");
-  const model = separator >= 0 ? configured.slice(separator + 1) : configured;
+  let model = separator >= 0 ? configured.slice(separator + 1) : configured;
   assertAllowedVendor(vendorId);
   if (vendorId !== "newapi") throw new Error("AI 助手必须配置为 NewAPI 模型");
+  if (requestedModel) {
+    const requested = String(requestedModel).trim();
+    const requestedSeparator = requested.indexOf(":");
+    const requestedVendor = requestedSeparator >= 0 ? requested.slice(0, requestedSeparator) : "";
+    const requestedName = requestedSeparator >= 0 ? requested.slice(requestedSeparator + 1) : requested;
+    if (requestedVendor !== "newapi" || !requestedName) throw new Error("所选模型不是 NewAPI 可用模型");
+    const available = await u.vendor.getModelList("newapi");
+    if (!available.some((item: any) => String(item?.modelName || "") === requestedName && item?.type === "text")) {
+      throw new Error("所选模型当前不可用，请重新选择");
+    }
+    model = requestedName;
+  }
   const credentials = await getUserGatewayCredentials(userId);
   return { ...credentials, model };
 }
 
 // 流式对话接口
 router.post("/stream", async (req, res) => {
-  const { content, messages = [], skills = [] } = req.body;
+  const { content, messages = [], skills = [], model: requestedModel } = req.body;
   const userId = (req as any).user?.id;
 
   if (!content) {
     return res.status(400).json(error("内容不能为空"));
   }
 
-  const aiConfig = await getAiConfig(Number(userId));
+  const aiConfig = await getAiConfig(Number(userId), requestedModel);
   if (!aiConfig) {
     return res.status(400).json(error("未配置AI模型，请联系管理员在设置中配置供应商和Agent"));
   }
@@ -161,14 +173,14 @@ router.post("/stream", async (req, res) => {
 
 // 非流式对话接口（备用）
 router.post("/", async (req, res) => {
-  const { content, messages = [] } = req.body;
+  const { content, messages = [], model: requestedModel } = req.body;
   const userId = (req as any).user?.id;
 
   if (!content) {
     return res.status(400).json(error("内容不能为空"));
   }
 
-  const aiConfig = await getAiConfig(Number(userId));
+  const aiConfig = await getAiConfig(Number(userId), requestedModel);
   if (!aiConfig) {
     return res.status(400).json(error("未配置AI模型，请联系管理员在设置中配置供应商和Agent"));
   }
