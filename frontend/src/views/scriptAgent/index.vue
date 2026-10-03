@@ -574,10 +574,12 @@ function onConfirm(value: string) {
 
 const showThink = ref(false);
 onMounted(async () => {
-  const { data } = await axios.post(`/project/getModelDetails`, { key: "scriptAgent" });
-  agentModelName.value = data?.modelName || data?.name || "";
-  if (data && data.think) {
-    showThink.value = true;
+  try {
+    const { data } = await axios.post(`/project/getModelDetails`, { key: "scriptAgent" });
+    agentModelName.value = data?.modelName || data?.name || "";
+    if (data && data.think) showThink.value = true;
+  } catch {
+    // 未配置 Agent 模型时仍允许用户查看项目内容，发送时由聊天错误卡提示具体原因。
   }
 });
 
