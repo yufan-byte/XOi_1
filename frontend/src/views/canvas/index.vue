@@ -79,7 +79,10 @@ function buildIframeSrc(): string {
   } catch (e) {
     console.error("[canvas-shell] hash 参数解析失败:", e);
   }
-  return `/atelier-canvas/index.html${query}`;
+  // 画布中心是 iframe 的默认入口；旧的黑色品牌落地页只保留给上游独立访问，
+  // 从 XOi 工作台进入时直接打开与主站一致的项目中心。引导参数仍放在 search，
+  // 这样 bridge 可以在 React 启动前消费，hash 则交给 React Router。
+  return `/atelier-canvas/index.html${query}#/canvas`;
 }
 </script>
 
@@ -88,7 +91,7 @@ function buildIframeSrc(): string {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: #181817;
+  background: #f7f7f5;
 }
 
 .atelier-canvas-iframe {
@@ -105,7 +108,7 @@ function buildIframeSrc(): string {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #181817;
+  background: #f7f7f5;
   z-index: 100;
 }
 .canvas-loading-spinner {
@@ -118,7 +121,7 @@ function buildIframeSrc(): string {
 }
 .canvas-loading-text {
   margin-top: 16px;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(35, 35, 35, 0.65);
   font-size: 14px;
 }
 @keyframes spin {

@@ -14,9 +14,18 @@ export function AppTopNav() {
     const { pathname } = useLocation();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [workspaceNavOpen, setWorkspaceNavOpen] = useState(false);
-    const hideHeader = /^\/canvas\/[^/]+/.test(pathname);
+    const hideHeader = /^\/canvas(?:\/|$)/.test(pathname);
     const slug = pathname.split("/").filter(Boolean)[0];
     const activeToolSlug = navigationTools.some((tool) => tool.slug === slug) ? (slug as NavigationToolSlug) : undefined;
+    useEffect(() => {
+        if (window.parent !== window) {
+            window.parent.postMessage({
+                type: "xoi:canvas-route",
+                editor: /^\/canvas\/[^/]+/.test(pathname),
+                path: pathname,
+            }, window.location.origin);
+        }
+    }, [pathname]);
     useEffect(() => {
         const onWorkspaceNavState = (event: MessageEvent) => {
             if (event.origin !== window.location.origin || event.data?.type !== "xoi:workbench-nav-state") return;

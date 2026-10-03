@@ -34,13 +34,20 @@
               role="button"
               tabindex="0"
               :aria-label="menuLabel(menu)"
-              :aria-current="activeMenu == menu.path || (menu.canvasNew && (activeMenu === '/canvas' || activeMenu.startsWith('/canvas?new='))) ? 'page' : undefined"
-              :class="{ active: activeMenu == menu.path || (menu.canvasNew && (activeMenu === '/canvas' || activeMenu.startsWith('/canvas?new='))) }"
+              :aria-current="activeMenu == menu.path || (menu.canvasCenter && activeMenu.startsWith('/canvas')) ? 'page' : undefined"
+              :class="{ active: activeMenu == menu.path || (menu.canvasCenter && activeMenu.startsWith('/canvas')) }"
               @click="handleClick(menu)"
               @keydown.enter="handleClick(menu)"
               @keydown.space.prevent="handleClick(menu)">
               <component :is="menu.icon" class="icon" />
               <span class="item-title" v-show="!menuCollapsed">{{ menuLabel(menu) }}</span>
+              <button
+                v-if="menu.canvasCenter && !menuCollapsed"
+                type="button"
+                class="item-action"
+                aria-label="新建画布"
+                title="新建画布"
+                @click.stop="handleNewCanvas">+</button>
             </div>
           </t-tooltip>
         </template>
@@ -322,7 +329,7 @@ function closeUsageFrameOnMessage(event: MessageEvent) {
 const baseMenu = [
   { type: "group", label: "创作工作台" },
   { type: "btn", path: "/project", label: "剧本一键创作", icon: "i-movie-board" },
-  { type: "btn", path: "/canvas", label: "新建画布", icon: "i-edit", canvasNew: true },
+  { type: "btn", path: "/canvas", label: "无限画布", icon: "i-edit", canvasCenter: true },
   { type: "btn", path: "/aiAssistant", label: "Agent 智能创作", icon: "i-magic" },
   { type: "btn", path: "/director3d", label: "导演工作台", icon: "i-camera-one" },
   { type: "group", label: "创作资源" },
@@ -367,8 +374,10 @@ const isImmersive = computed(() =>
   ['/aiAssistant', '/director3d', '/canvas', '/editor'].includes(route.path)
     && !(route.path === '/aiAssistant' && uiPrefs.aiAssistantChromeVisible)
 );
-// 画布本身拥有一套站内导航，因此默认使用全宽焦点模式；外层工作台导航按需以浮层打开。
-const isCanvasFullscreen = computed(() => route.path === '/canvas');
+// 画布中心保留外层侧栏，只有打开具体画布编辑器后才进入全屏沉浸模式。
+// 编辑器路由在 iframe 内，通过 postMessage 同步到这里。
+const canvasEditorOpen = ref(false);
+const isCanvasFullscreen = computed(() => route.path === '/canvas' && canvasEditorOpen.value);
 const canvasNavOpen = ref(false);
 // 项目内页面：仅在打开项目后的这些页面显示顶栏（面包屑 + 项目快捷入口）
 const projectPages = ['/novel', '/scriptAgent', '/script', '/cornerScape', '/production', '/assets'];
@@ -382,22 +391,26 @@ watch(
   (newPath) => {
     activeMenu.value = newPath;
     canvasNavOpen.value = false;
+    if (newPath !== '/canvas') canvasEditorOpen.value = false;
   },
 );
 
 function handleClick(menu: any) {
   if (menu.needProject && !project.value) return;
   uiPrefs.collapseSidebarForNavigation();
-  if (menu.canvasNew) {
-    // 新建画布一键直达：不再落画布首页多点一次。?new=1 由画布外壳透传进 iframe，
-    // atelier 侧自动建空白项目并进编辑器（upstream-canvas-bridge.runUpstreamXoiNewCanvas）。
-    // t= nonce：已停在画布页时再点一次也要触发外壳的 fullPath watch（重复导航会被 router 去重）。
-    router.push({ path: "/canvas", query: { new: "1", source: "xoi", from: "workbench", t: String(Date.now()) } });
+  if (menu.canvasCenter) {
+    router.push({ path: "/canvas" });
     activeMenu.value = menu.path;
     return;
   }
   router.push(menu.path);
   activeMenu.value = menu.path;
+}
+
+function handleNewCanvas() {
+  uiPrefs.collapseSidebarForNavigation();
+  router.push({ path: "/canvas", query: { new: "1", source: "xoi", from: "workbench", t: String(Date.now()) } });
+  activeMenu.value = "/canvas";
 }
 
 type TeamRole = "owner" | "member" | "none";
@@ -455,9 +468,15 @@ function toggleCanvasWorkspaceNav(event: MessageEvent) {
   }
 }
 
+function syncCanvasRoute(event: MessageEvent) {
+  if (event.origin !== window.location.origin || event.data?.type !== 'xoi:canvas-route') return;
+  canvasEditorOpen.value = event.data.editor === true;
+}
+
 onMounted(() => {
   document.addEventListener('pointerdown', closeFootMenuOnOutside);
   window.addEventListener('message', toggleCanvasWorkspaceNav);
+  window.addEventListener('message', syncCanvasRoute);
   window.addEventListener('message', closeTopupFrameOnMessage);
   window.addEventListener('message', closeUsageFrameOnMessage);
   // 余额来自 new-api quota（/api/login/self 折算元），壳层挂载时拉一次，
@@ -470,6 +489,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', closeFootMenuOnOutside);
   window.removeEventListener('message', toggleCanvasWorkspaceNav);
+  window.removeEventListener('message', syncCanvasRoute);
   window.removeEventListener('message', closeTopupFrameOnMessage);
   window.removeEventListener('message', closeUsageFrameOnMessage);
 });
@@ -2117,9 +2137,11 @@ async function handleUpdateProfile() {
   position: fixed;
   inset: 0;
   z-index: 10001;
-  background: rgba(18, 18, 24, 0.3);
-  backdrop-filter: blur(10px) saturate(1.05);
-  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  // 遮罩只负责压低背景对比度，不再做整页模糊；iframe 已经完全透明，
+  // 这样不会出现「iframe 外再套一层黑色矩形/阴影」的双层观感。
+  background: rgba(18, 18, 24, 0.18);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3210,6 +3232,12 @@ async function handleUpdateProfile() {
 .main .menu .item .icon { position: relative; z-index: 1; transition: color .22s ease, transform .22s cubic-bezier(.2,.8,.2,1), filter .22s ease; }
 .main .menu .item .icon svg path { stroke-width: 2.35px; }
 .main .menu .item .item-title { position: relative; z-index: 1; }
+.main .menu .item-action {
+  position: relative; z-index: 2; margin-left: auto; width: 28px; height: 28px;
+  border: 0; border-radius: 9px; background: transparent; color: #888;
+  font-size: 21px; line-height: 26px; cursor: pointer; transition: all .18s ease;
+}
+.main .menu .item-action:hover { background: #202020; color: #fff; transform: scale(1.05); }
 .main .menu .item:hover .icon { color: #111; transform: scale(1.1); filter: drop-shadow(0 0 5px rgba(255,255,255,.82)); }
 .main .menu .active { background: #ffffff !important; box-shadow: 0 2px 8px rgba(0, 0, 0, .07), 0 0 0 1px rgba(0, 0, 0, .05); }
 .main .menu .active .icon { color: #f57400 !important; filter: none; }
@@ -3218,8 +3246,8 @@ async function handleUpdateProfile() {
 .main .menu .logoBox .collapse-btn { background: #e7e7e7; border-color: #d3d3d3; color: #3e3e3e; transition: transform .2s ease, background .2s ease, color .2s ease; }
 .main .menu .logoBox .collapse-btn:hover { background: #202020; color: #fff; transform: scale(1.06); }
 
-/* Canvas focus mode: the canvas owns the full viewport. The outer navigation is an on-demand overlay,
-   so it never steals canvas space while the user is arranging nodes. */
+/* Canvas editor focus mode: the project center keeps the normal XOi workbench shell;
+   only the actual node editor owns the full viewport. */
 .main.canvas-fullscreen .menu { display: none; }
 .main.canvas-fullscreen .view { width: auto; }
 .main.canvas-fullscreen.canvas-nav-open .menu {

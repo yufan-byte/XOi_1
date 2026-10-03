@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { App, Button } from "antd";
 import { Download, FileUp, Plus } from "lucide-react";
@@ -19,12 +19,18 @@ export default function CanvasPage() {
     const { message } = App.useApp();
     const router = useRouter();
     const inputRef = useRef<HTMLInputElement>(null);
+    const [search, setSearch] = useState("");
     const hydrated = useCanvasStore((state) => state.hydrated);
     const projects = useCanvasStore((state) => state.projects);
     const createProject = useCanvasStore((state) => state.createProject);
     const importProject = useCanvasStore((state) => state.importProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
+    const visibleProjects = useMemo(() => {
+        const keyword = search.trim().toLowerCase();
+        if (!keyword) return projects;
+        return projects.filter((project) => project.name.toLowerCase().includes(keyword));
+    }, [projects, search]);
 
     const enterProject = (id: string) => {
         router.push(`/canvas/${id}`);
@@ -57,12 +63,13 @@ export default function CanvasPage() {
     };
 
     return (
-        <main className="h-full overflow-auto bg-background text-stone-950 dark:text-stone-100">
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
-                <header className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-6 dark:border-stone-800">
-                    <div>
-                        <p className="text-xs text-stone-500">画布库</p>
-                        <h1 className="mt-3 text-3xl font-semibold">无限画布</h1>
+        <main className="h-full overflow-auto bg-[#f7f7f5] text-stone-950 dark:bg-background dark:text-stone-100">
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-6 py-8 lg:px-10">
+                <header className="flex flex-wrap items-end justify-between gap-5 rounded-[26px] border border-stone-200/80 bg-white px-7 py-7 shadow-[0_10px_30px_rgba(36,34,29,0.05)] dark:border-stone-800 dark:bg-stone-950">
+                    <div className="min-w-[240px]">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#f57400]">XOi Canvas Studio</p>
+                        <h1 className="mt-3 text-3xl font-semibold tracking-tight">无限画布</h1>
+                        <p className="mt-2 max-w-xl text-sm leading-6 text-stone-500">把提示词、参考图和生成结果放在同一个空间里，随时回来继续创作。</p>
                     </div>
                     <div className="flex items-center gap-2">
                         {selectedIds.length ? (
@@ -89,16 +96,34 @@ export default function CanvasPage() {
                     </div>
                 </header>
 
+                {hydrated && projects.length ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-lg font-semibold">最近使用</h2>
+                            <p className="mt-1 text-xs text-stone-500">共 {projects.length} 个画布</p>
+                        </div>
+                        <label className="flex h-10 min-w-[220px] items-center rounded-full border border-stone-200 bg-white px-4 text-sm text-stone-500 shadow-sm dark:border-stone-800 dark:bg-stone-950">
+                            <span className="mr-2 text-stone-400">⌕</span>
+                            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索画布" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-stone-400" />
+                        </label>
+                    </div>
+                ) : null}
+
                 {!hydrated ? (
                     <section className="flex min-h-[360px] items-center justify-center border-y border-stone-200 text-sm text-stone-500 dark:border-stone-800">正在加载画布...</section>
-                ) : projects.length ? (
+                ) : visibleProjects.length ? (
                     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                        {projects.map((project) => (
+                        {visibleProjects.map((project) => (
                             <CanvasProjectCard key={project.id} project={project} />
                         ))}
                     </div>
+                ) : projects.length ? (
+                    <section className="flex min-h-[260px] flex-col items-center justify-center rounded-[24px] border border-dashed border-stone-300 bg-white/70 text-center dark:border-stone-700 dark:bg-stone-950/60">
+                        <h2 className="text-lg font-medium">没有匹配的画布</h2>
+                        <p className="mt-2 text-sm text-stone-500">换一个关键词试试，或者新建一个画布。</p>
+                    </section>
                 ) : (
-                    <section className="flex min-h-[360px] flex-col items-center justify-center border-y border-stone-200 text-center dark:border-stone-800">
+                    <section className="flex min-h-[360px] flex-col items-center justify-center rounded-[24px] border border-dashed border-stone-300 bg-white/70 text-center dark:border-stone-700 dark:bg-stone-950/60">
                         <h2 className="text-xl font-medium">还没有画布</h2>
                         <p className="mt-3 text-sm text-stone-500">新建一个画布后，就可以独立保存节点、连线和画布外观。</p>
                         <Button type="primary" className="mt-6" icon={<Plus className="size-4" />} onClick={createAndEnter}>
