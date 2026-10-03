@@ -39,7 +39,7 @@ function makeProductionAgentStore(projectId: string) {
 
     const episodesId = ref<number>();
 
-    const { connected, messages, chat, stopGenerate, socket, status, reconnect, connect, disconnect } = useChat({
+    const { connected, messages, chat, stopGenerate, socket, status, lastError, reconnect, connect, disconnect } = useChat({
       url: `${settingStore().baseUrl}/socket/productionAgent`,
       auth: () => ({
         isolationKey: `${projectId}:productionAgent:${episodesId.value}`,
@@ -503,6 +503,7 @@ function makeProductionAgentStore(projectId: string) {
       stopGenerate,
       socket,
       status,
+      lastError,
       flowData,
       setFlowData,
       getFlowData,

@@ -18,7 +18,7 @@ function makeScriptAgentStore(projectId: string) {
         });
 
         const selectedSkills = ref<string[]>([]);
-        const { connected, messages, chat: sendChat, stopGenerate, socket, status, disconnect, connect } = useChat({
+        const { connected, messages, chat: sendChat, stopGenerate, socket, status, lastError, disconnect, connect, reconnect } = useChat({
           url: `${settingStore().baseUrl}/socket/scriptAgent`,
           auth: () => ({
             isolationKey: `${projectId}:scriptAgent`,
@@ -81,7 +81,7 @@ function makeScriptAgentStore(projectId: string) {
         }
 
         const chat = (content: string) => sendChat(content, undefined, [...selectedSkills.value]);
-        return { connected, messages, chat, selectedSkills, stopGenerate, socket, status, planData, setPlanData, connect, disconnect, thinkLevel, updateThinkConfig };
+        return { connected, messages, chat, selectedSkills, stopGenerate, socket, status, lastError, planData, setPlanData, connect, reconnect, disconnect, thinkLevel, updateThinkConfig };
       });
 }
 

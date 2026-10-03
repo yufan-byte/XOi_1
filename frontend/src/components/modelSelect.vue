@@ -33,8 +33,8 @@
   </t-select>
   <div v-if="selectedPriceText" class="modelCostHint" role="status">
     <span class="modelCostDot" aria-hidden="true"></span>
-    <span>本模型参考价：<strong>{{ selectedPriceText }}</strong></span>
-    <span class="modelCostNote">实际按 NewAPI 用量结算</span>
+    <span>本次预计：<strong>{{ selectedPriceText }}</strong></span>
+    <span class="modelCostNote">最终按 NewAPI 实际用量结算</span>
   </div>
 </template>
 
@@ -96,6 +96,14 @@ const pricingRows = ref<PricingRow[]>([]);
 const pricingLoaded = ref(false);
 const priceByModel = computed(() => new Map(pricingRows.value.map((row) => [row.model_name, row])));
 
+function pricingRow(modelName: string) {
+  const normalized = String(modelName || "").trim().toLowerCase();
+  return priceByModel.value.get(modelName) || pricingRows.value.find((item) => {
+    const candidate = String(item.model_name || "").trim().toLowerCase();
+    return candidate === normalized || candidate.split(/:(.+)/)[1] === normalized;
+  });
+}
+
 function formatYuan(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "";
   const digits = value >= 1 ? 2 : 4;
@@ -103,7 +111,7 @@ function formatYuan(value: number) {
 }
 
 function priceText(modelName: string) {
-  const row = priceByModel.value.get(modelName);
+  const row = pricingRow(modelName);
   if (!row) return "";
   const expr = row.billing_expr || "";
   // 计费表达式来自 NewAPI：图片/音频的 param()/p* 形态使用 1e6 缩放，

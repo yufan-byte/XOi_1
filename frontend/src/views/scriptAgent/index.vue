@@ -41,6 +41,14 @@
               :status="message.status"
               allowContentSegmentCustom></t-chat-message>
           </t-chat-list>
+          <div v-if="chatError" class="chatErrorCard" role="alert">
+            <div class="chatErrorIcon">!</div>
+            <div class="chatErrorBody">
+              <strong>这次请求没有完成</strong>
+              <span>{{ chatError }}</span>
+            </div>
+            <button type="button" @click="retryConnection">重连</button>
+          </div>
           <t-chat-sender
             class="inputBox"
             :disabled="status === 'pending' || status === 'streaming'"
@@ -121,6 +129,9 @@
               </button>
             </template>
           </t-chat-sender>
+          <div v-if="agentModelName" class="costHintRow">
+            <ModelCostHint :model="agentModelName" type="text" :input-length="inputValue.length" />
+          </div>
           <!-- 连接状态胶囊：取代原本悬浮左上角的 i-dot，落到底部发送栏之下 -->
           <div class="connStatus" :class="{ on: connected, off: !connected }">
             <i class="ind"></i><span>{{ connected ? "已连接" : "未连接" }}</span>
@@ -260,6 +271,7 @@ import type { ToolbarNames } from "md-editor-v3";
 import { MdPreview } from "md-editor-v3";
 import settingStore from "@/stores/setting";
 import NextStepBar from "@/components/pipeline/NextStepBar.vue";
+import ModelCostHint from "@/components/ModelCostHint.vue";
 const { themeSetting } = storeToRefs(settingStore());
 import { Splitpanes, Pane } from "splitpanes";
 import axios from "@/utils/axios";
@@ -270,10 +282,15 @@ import editMdPreivew from "@/components/editMdPreivew.vue";
 import scriptAgentStore from "@/stores/scriptAgent";
 import ipBodyUrl from "@/assets/photosynthesis-effect-mark.png";
 const router = useRouter();
-const { connected, messages, status, planData, thinkLevel, selectedSkills } = storeToRefs(scriptAgentStore());
+const { connected, messages, status, lastError, planData, thinkLevel, selectedSkills } = storeToRefs(scriptAgentStore());
 import userStore from "@/stores/user";
 import { guardProjectType } from "@/utils/pipelineGuard";
 const isGenerating = computed(() => status.value === 'pending' || status.value === 'streaming');
+const chatError = computed(() => {
+  const latest = messages.value[messages.value.length - 1] as any;
+  if (latest?.role !== "assistant" || latest?.status !== "error") return lastError.value;
+  return lastError.value || latest?.ext?.error || (latest ? "请求失败，请检查模型配置后重试" : "");
+});
 const showCreativeSkills = ref(false);
 const creativeSkillQuery = ref('');
 const creativeSkillsLoading = ref(false);
@@ -320,9 +337,9 @@ const thinkLevelOptions = [
   { label: $t("workbench.scriptAgent.thinkLevel.deep"), value: 2 },
   { label: $t("workbench.scriptAgent.thinkLevel.extreme"), value: 3 },
 ];
-import productionAgentStore from "@/stores/productionAgent";
 const currentTable = ref(1);
 const inputValue = ref("");
+const agentModelName = ref("");
 const toolbars: ToolbarNames[] = [
   "bold",
   "underline",
@@ -445,10 +462,14 @@ function handleReconnect() {
     cancelBtn: $t("workbench.scriptAgent.msg.cancel"),
     theme: "warning",
     onConfirm: async () => {
-      productionAgentStore().reconnect();
+      scriptAgentStore().reconnect();
       dialog.destroy();
     },
   });
+}
+
+function retryConnection() {
+  scriptAgentStore().reconnect();
 }
 
 const loadingHistory = ref(false);
@@ -554,6 +575,7 @@ function onConfirm(value: string) {
 const showThink = ref(false);
 onMounted(async () => {
   const { data } = await axios.post(`/project/getModelDetails`, { key: "scriptAgent" });
+  agentModelName.value = data?.modelName || data?.name || "";
   if (data && data.think) {
     showThink.value = true;
   }
@@ -1554,6 +1576,19 @@ function toggleAllCards() {
   }
 }
 .scriptAgent{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;padding:20px 30px;background:linear-gradient(180deg,#fbfbfc,#f6f7fa)}.scriptAgent .guideBanner{padding:20px 24px;border-radius:20px;background:linear-gradient(135deg,#eef4ff,#f5efff 58%,#fff3e9);border-color:rgba(105,101,191,.13);box-shadow:0 12px 30px rgba(54,51,91,.06)}.scriptAgent .guideBanner .guideContent .guideTitle{font-size:18px;color:#292b38}.scriptAgent .guideBanner .guideContent .guideDesc{font-size:13px;color:#737682}.scriptAgent .guideBanner .guideFlow,.scriptAgent .guideBanner .guideFeature,.scriptAgent .guideBanner .guideTip{background:rgba(255,255,255,.7);border-radius:13px}.scriptAgent .data :deep(.operate .box){border-radius:20px;background:#fff;border-color:#e8e9ed;box-shadow:0 12px 34px rgba(37,40,57,.07)}.scriptAgent :deep(.t-button--theme-primary){background:#24252b;border-color:#24252b;border-radius:11px}
+</style>
+
+<style scoped>
+.scriptAgent > .data { flex: 1 1 auto; min-height: 0; height: auto !important; }
+.scriptAgent > .data :deep(.splitpanes__pane) { min-height: 0; overflow: hidden; }
+.scriptAgent .operate { min-height: 0; }
+.scriptAgent .operate .box { min-height: 0; }
+.scriptAgent .costHintRow { display:flex; align-items:center; min-height:24px; padding:0 16px 5px; background:#fffdfb; }
+.scriptAgent .chatErrorCard { display:flex; align-items:center; gap:9px; margin:0 12px 8px; padding:9px 11px; border:1px solid #f0c8bd; border-radius:11px; background:#fff6f3; color:#8c4330; font-size:11px; }
+.scriptAgent .chatErrorIcon { display:grid; place-items:center; width:18px; height:18px; flex:none; border-radius:50%; background:#e87551; color:#fff; font-weight:700; }
+.scriptAgent .chatErrorBody { display:flex; flex:1; min-width:0; flex-direction:column; gap:2px; }
+.scriptAgent .chatErrorBody span { overflow:hidden; color:#a36e60; text-overflow:ellipsis; white-space:nowrap; }
+.scriptAgent .chatErrorCard button { flex:none; padding:4px 9px; border:1px solid #e3a18e; border-radius:7px; background:#fff; color:#b74d2f; cursor:pointer; }
 </style>
 
 <style>

@@ -100,6 +100,8 @@ export function useChat(options: UseChatOptions) {
   const socket = shallowRef<Socket | null>(null);
   const connected = ref(false);
   const connecting = ref(false);
+  /** 面向用户的最近一次连接/请求错误；业务页面可直接展示并提供重试入口。 */
+  const lastError = ref("");
   const messages = ref<ChatMessagesData[]>([]);
   const currentMessageId = ref<string | null>(null);
   const status = ref<"idle" | "pending" | "streaming">("idle");
@@ -543,6 +545,7 @@ export function useChat(options: UseChatOptions) {
     // 错误处理
     socket.value.on("error", (error: { code: string; message: string }) => {
       console.error("[Chat Error]", error);
+      lastError.value = error?.message || "请求未完成，请稍后重试";
       onError?.(error);
     });
 
@@ -550,6 +553,7 @@ export function useChat(options: UseChatOptions) {
     socket.value.on("connect", () => {
       connected.value = true;
       connecting.value = false;
+      lastError.value = "";
       onConnect?.();
     });
 
@@ -563,6 +567,7 @@ export function useChat(options: UseChatOptions) {
     socket.value.on("connect_error", (error) => {
       connected.value = false;
       connecting.value = false;
+      lastError.value = "实时连接失败，请检查登录状态或点击重连";
       console.error("[Chat Connect Error]", error);
     });
   };
@@ -647,7 +652,25 @@ export function useChat(options: UseChatOptions) {
 
     messages.value.push(userMessage);
 
-    return emit("chat", { content, attachments, skills });
+    if (!socket.value?.connected) {
+      lastError.value = "实时连接尚未建立，请点击“重连”后再发送";
+      messages.value.push({
+        id: `error_${Date.now()}`,
+        role: "assistant",
+        status: "error",
+        datetime: new Date().toISOString(),
+        content: [{ type: "text", data: lastError.value, status: "error" }],
+        ext: { error: lastError.value },
+      } as ChatMessagesData);
+      return false;
+    }
+
+    lastError.value = "";
+    const sent = emit("chat", { content, attachments, skills });
+    if (!sent) {
+      lastError.value = "消息发送失败，请点击“重连”后重试";
+    }
+    return sent;
   };
 
   const stopGenerate = (messageId?: string) => {
@@ -734,6 +757,7 @@ export function useChat(options: UseChatOptions) {
     socket,
     connected,
     connecting,
+    lastError,
     status,
     messages,
     currentMessageId,

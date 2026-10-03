@@ -13,10 +13,12 @@ export default router.post(
   async (req, res) => {
     const { key } = req.body;
     const data = await u.db("o_agentDeploy").select("o_agentDeploy.*").where("o_agentDeploy.key", key).first();
-    const [id, modelName] = data ? data.modelName.split(/:(.+)/) : [];
+    if (!data?.modelName) return res.status(400).send(error(`${key} 尚未配置模型`));
+    const [id, modelName] = data.modelName.split(/:(.+)/);
+    if (!id || !modelName) return res.status(400).send(error(`${key} 模型配置格式无效`));
     const models = await u.vendor.getModelList(id);
     const model = models.find((m) => m.modelName === modelName);
-    if (!model) return res.status(400).send(error("未找到模型"));
+    if (!model) return res.status(400).send(error(`未找到模型：${data.modelName}`));
     res.status(200).send(success(model));
   },
 );

@@ -27,6 +27,11 @@
           </template> -->
         </t-chat-message>
       </t-chat-list>
+      <div v-if="chatError" class="chatErrorCard" role="alert">
+        <span class="errorDot">!</span>
+        <span class="errorText">{{ chatError }}</span>
+        <button type="button" @click="productionAgentStore().reconnect()">重连</button>
+      </div>
       <t-chat-sender
         class="inputBox"
         :disabled="status === 'pending' || status === 'streaming' || !connected"
@@ -37,6 +42,7 @@
         @stop="handleStop">
         <template #footer-prefix>
           <div class="ac" style="gap: 5px">
+            <ModelCostHint v-if="agentModelName" :model="agentModelName" type="text" :input-length="inputValue.length" compact />
             <t-popup trigger="click" placement="top-left">
               <t-button shape="square" variant="outline" size="small">
                 <template #icon>
@@ -97,8 +103,9 @@ import _ from "lodash";
 import axios from "@/utils/axios";
 import productionAgentStore from "@/stores/productionAgent";
 import projectStore from "@/stores/project";
+import ModelCostHint from "@/components/ModelCostHint.vue";
 const { project } = storeToRefs(projectStore());
-const { connected, messages, status, episodesId, loadingHistory, thinkLevel } = storeToRefs(productionAgentStore());
+const { connected, messages, status, lastError, episodesId, loadingHistory, thinkLevel } = storeToRefs(productionAgentStore());
 const thinkLevelOptions = [
   { label: $t("workbench.scriptAgent.thinkLevel.off"), value: 0 },
   { label: $t("workbench.scriptAgent.thinkLevel.light"), value: 1 },
@@ -111,6 +118,12 @@ const props = defineProps({ title: String });
 const emit = defineEmits(["close"]);
 
 const inputValue = ref("");
+const agentModelName = ref("");
+const chatError = computed(() => {
+  const latest = messages.value[messages.value.length - 1] as any;
+  if (lastError.value) return lastError.value;
+  return latest?.role === "assistant" && latest?.status === "error" ? latest?.ext?.error || "请求没有完成，请重连后重试" : "";
+});
 
 function handleSend(text: string) {
   productionAgentStore().chat(text);
@@ -183,9 +196,12 @@ watchEffect(() => {
 
 const showThink = ref(false);
 onMounted(async () => {
-  const { data } = await axios.post(`/project/getModelDetails`, { key: "productionAgent" });
-  if (data && data.think) {
-    showThink.value = true;
+  try {
+    const { data } = await axios.post(`/project/getModelDetails`, { key: "productionAgent" });
+    agentModelName.value = data?.modelName || data?.name || "";
+    if (data && data.think) showThink.value = true;
+  } catch {
+    // 未配置生产 Agent 时仍允许打开工作台，发送时会在面板内给出具体错误。
   }
 });
 watch(connected, (newVal) => {
@@ -198,19 +214,21 @@ watch(connected, (newVal) => {
 <style lang="scss" scoped>
 .rightChatBox {
   position: absolute;
-  top: 10px;
-  right: 0;
-  bottom: 10px;
+  top: 74px;
+  right: 12px;
+  bottom: 72px;
   display: flex;
   flex-direction: column;
   z-index: 9999;
-  min-width: 400px;
-  height: calc(100% - 20px);
-  margin-right: 5px;
-  border-radius: 10px;
+  min-width: 360px;
+  max-width: min(520px, calc(100vw - 32px));
+  height: auto;
+  margin-right: 0;
+  border-radius: 18px;
   border: 1px solid var(--td-border-level-1-color);
   background-color: var(--td-bg-color-container);
-  overflow-y: auto;
+  overflow: hidden;
+  box-shadow: -8px 10px 30px rgba(43, 38, 52, 0.12);
 
   .resizeHandle {
     user-select: none;
@@ -225,10 +243,11 @@ watch(connected, (newVal) => {
       background-color: var(--td-bg-color-container-hover);
     }
   }
-  box-shadow: -4px 2px 10px var(--td-shadow-1);
   .chatBox {
     width: 100%;
-    height: calc(100% - 50px);
+    height: auto;
+    min-height: 0;
+    flex: 1;
     display: flex;
     flex-direction: column;
     padding-left: 8px;
@@ -236,13 +255,19 @@ watch(connected, (newVal) => {
       padding-right: 8px;
     }
   }
+  .chatBox :deep(.t-chat) { display:flex; flex:1; min-height:0; flex-direction:column; }
+  .chatBox :deep(.t-chat__list) { flex:1; min-height:0; overflow:auto; }
+  .chatErrorCard { display:flex; align-items:center; gap:8px; margin:0 10px 8px 2px; padding:8px 10px; border:1px solid #f0c8bd; border-radius:10px; background:#fff6f3; color:#8c4330; font-size:11px; }
+  .errorDot { display:grid; place-items:center; width:18px; height:18px; flex:none; border-radius:50%; background:#e87551; color:#fff; font-weight:700; }
+  .errorText { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chatErrorCard button { flex:none; padding:4px 9px; border:1px solid #e3a18e; border-radius:7px; background:#fff; color:#b74d2f; cursor:pointer; }
   :deep(.t-chat__list) {
     padding-right: 8px;
   }
   .header {
-    height: 40px;
+    height: 48px;
     line-height: 40px;
-    padding: 0 10px;
+    padding: 0 14px;
     flex-shrink: 0;
     .text {
       font-size: 18px;

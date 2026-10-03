@@ -9,7 +9,7 @@ async function verifyToken(rawToken: string): Promise<Boolean> {
   if (!setting) return false;
   const { value: tokenKey } = setting;
   if (!rawToken) return false;
-  const token = rawToken.replace("Bearer ", "");
+  const token = rawToken.replace(/^(Bearer\s+)+/i, "").trim();
   try {
     jwt.verify(token, tokenKey as string);
     return true;
