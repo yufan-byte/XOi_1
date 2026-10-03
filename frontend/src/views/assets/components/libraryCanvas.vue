@@ -13,6 +13,9 @@
         <t-button theme="primary" size="small" @click="goCanvas">打开画布</t-button>
       </div>
     </div>
+    <div class="libHint">
+      画布素材是可复用的创作素材；要在剧本、分镜或生图流程里使用，请在素材卡片上点击“存入项目素材”。
+    </div>
 
     <div v-if="loading" class="libState"><t-loading size="small" text="读取画布素材…" /></div>
 
@@ -27,6 +30,7 @@
         <div class="libThumb" @click="openPreview(a)">
           <img v-if="a.kind === 'image'" :src="urlOf(a)" loading="lazy" alt="" />
           <video v-else-if="a.kind === 'video'" :src="urlOf(a)" muted preload="metadata" />
+          <audio v-else-if="a.kind === 'audio'" :src="urlOf(a)" controls preload="metadata" />
           <div v-else class="libTextThumb">{{ textExcerpt(a) }}</div>
           <span class="libKindBadge">{{ kindLabel(a.kind) }}</span>
         </div>
@@ -52,6 +56,7 @@
       <div class="libPreviewBody">
         <img v-if="previewAsset?.kind === 'image'" :src="previewAsset && urlOf(previewAsset)" />
         <video v-else-if="previewAsset?.kind === 'video'" :src="previewAsset && urlOf(previewAsset)" controls autoplay />
+        <audio v-else-if="previewAsset?.kind === 'audio'" :src="previewAsset && urlOf(previewAsset)" controls autoplay />
         <pre v-else>{{ previewAsset?.data?.content || "（无文本内容）" }}</pre>
         <div class="libPreviewNote" v-if="previewAsset?.note">{{ previewAsset.note }}</div>
         <div class="libPreviewTags" v-if="previewAsset?.tags?.length">
@@ -85,7 +90,7 @@ import { sendToCanvas } from "@/utils/sendToCanvas";
 
 interface CanvasAsset {
   id: string;
-  kind: "text" | "image" | "video";
+  kind: "text" | "image" | "video" | "audio";
   title: string;
   coverUrl: string;
   tags: string[];
@@ -102,7 +107,7 @@ const router = useRouter();
 const loading = ref(true);
 const assets = ref<CanvasAsset[]>([]);
 const searchText = ref("");
-const kindFilter = ref<"all" | "image" | "video" | "text">("all");
+const kindFilter = ref<"all" | "image" | "video" | "audio" | "text">("all");
 const savingId = ref("");
 const previewAsset = ref<CanvasAsset | null>(null);
 const previewVisible = ref(false);
@@ -112,6 +117,7 @@ const kindChips = [
   { value: "all", label: "全部" },
   { value: "image", label: "图片" },
   { value: "video", label: "视频" },
+  { value: "audio", label: "音频" },
   { value: "text", label: "文本" },
 ] as const;
 
@@ -122,6 +128,9 @@ function ownerTag(): string {
 }
 function stateStore() {
   return localforage.createInstance({ name: `xoi-atelier-${ownerTag()}:state`, storeName: "app_state" });
+}
+function legacyStateStore() {
+  return localforage.createInstance({ name: "infinite-canvas", storeName: "app_state" });
 }
 function filesStore(storeName: "image_files" | "media_files") {
   return localforage.createInstance({ name: `xoi-atelier-${ownerTag()}:files`, storeName });
@@ -140,7 +149,12 @@ function isStableUrl(url?: string) {
 async function loadAssets() {
   loading.value = true;
   try {
-    const raw = await stateStore().getItem<string>(assetStoreKey());
+    // 新版按用户分桶；老用户若尚未打开过新版画布，临时读取旧仓并回写新版。
+    let raw = await stateStore().getItem<string>(assetStoreKey());
+    if (!raw) {
+      raw = await legacyStateStore().getItem<string>("infinite-canvas:asset_store");
+      if (raw) await stateStore().setItem(assetStoreKey(), raw);
+    }
     if (!raw) {
       assets.value = [];
       return;
@@ -165,14 +179,22 @@ async function resolveUrls() {
       const key: string = a.data?.storageKey || "";
       if (isRemoteKey(key)) map[a.id] = key;
       else if (typeof a.data?.dataUrl === "string" && a.data.dataUrl.startsWith("data:image/")) map[a.id] = a.data.dataUrl;
-      else if (key) map[a.id] = await blobUrl(filesStore("image_files"), key);
-      else if (typeof a.coverUrl === "string" && isRemoteKey(a.coverUrl)) map[a.id] = a.coverUrl;
-    } else if (a.kind === "video") {
+      else if (key) {
+        map[a.id] = await blobUrl(filesStore("image_files"), key);
+        if (!map[a.id]) map[a.id] = await blobUrl(localforage.createInstance({ name: "infinite-canvas", storeName: "image_files" }), key);
+      }
+      if (!map[a.id] && typeof a.data?.dataUrl === "string" && isRemoteKey(a.data.dataUrl)) map[a.id] = a.data.dataUrl;
+      if (!map[a.id] && typeof a.coverUrl === "string" && isRemoteKey(a.coverUrl)) map[a.id] = a.coverUrl;
+    } else if (a.kind === "video" || a.kind === "audio") {
       const url: string = a.data?.url || a.coverUrl || "";
       const key: string = a.data?.storageKey || "";
       if (isRemoteKey(url)) map[a.id] = url;
       else if (isRemoteKey(key)) map[a.id] = key;
-      else if (key) map[a.id] = await blobUrl(filesStore("media_files"), key);
+      else if (key) {
+        map[a.id] = await blobUrl(filesStore("media_files"), key);
+        if (!map[a.id]) map[a.id] = await blobUrl(localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" }), key);
+      }
+      if (!map[a.id] && isRemoteKey(a.coverUrl)) map[a.id] = a.coverUrl;
     }
   }
   objectUrls.value = map;
@@ -204,7 +226,7 @@ const filteredAssets = computed(() => {
     .sort((x, y) => String(y.updatedAt || "").localeCompare(String(x.updatedAt || "")));
 });
 
-const kindLabel = (kind: string) => (kind === "image" ? "图片" : kind === "video" ? "视频" : "文本");
+const kindLabel = (kind: string) => (kind === "image" ? "图片" : kind === "video" ? "视频" : kind === "audio" ? "音频" : "文本");
 const textExcerpt = (a: CanvasAsset) => (a.data?.content || "").slice(0, 120) || "（空文本）";
 
 function requireProjectId(): number | null {
@@ -241,7 +263,7 @@ function onSendToCanvas(a: CanvasAsset) {
 function onDownload(a: CanvasAsset) {
   const url = urlOf(a);
   if (!url) return;
-  const ext = a.kind === "video" ? ".mp4" : ".png";
+  const ext = a.kind === "video" ? ".mp4" : a.kind === "audio" ? ".mp3" : ".png";
   void downloadUrl(url, `${a.title || "canvas-asset"}${ext}`);
 }
 
@@ -274,8 +296,16 @@ function openPreview(a: CanvasAsset) {
   previewVisible.value = true;
 }
 
-onMounted(loadAssets);
+onMounted(() => {
+  void loadAssets();
+  // IndexedDB 不会触发 storage 事件；回到资产页或切回窗口时主动重读，
+  // 让“画布保存 → 资产库查看”不需要用户手动刷新浏览器。
+  window.addEventListener("focus", refresh);
+  document.addEventListener("visibilitychange", refresh);
+});
 onBeforeUnmount(() => {
+  window.removeEventListener("focus", refresh);
+  document.removeEventListener("visibilitychange", refresh);
   Object.values(objectUrls.value).forEach((u) => u.startsWith("blob:") && URL.revokeObjectURL(u));
 });
 
@@ -319,6 +349,12 @@ defineExpose({ openPreview });
   margin-left: auto;
   display: flex;
   gap: 8px;
+}
+.libHint {
+  padding: 0 4px;
+  color: #8b8798;
+  font-size: 12px;
+  line-height: 1.6;
 }
 .libState {
   display: flex;

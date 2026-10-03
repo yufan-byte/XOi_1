@@ -23,6 +23,12 @@ function upstreamAliasPlugin(): Plugin {
             if (importer?.startsWith(upstreamWebDir) && source === "next/link") {
                 return resolve(webDir, "src/shims/next-link.tsx");
             }
+            // 上游画布的持久化存储必须复用 XOi 宿主的用户分桶。
+            // 否则画布写入 infinite-canvas，外层资产中心读取 xoi-atelier-u*:state，
+            // 两个入口会各自看到一套素材。
+            if (importer?.startsWith(upstreamWebDir) && source === "@/xoi/owner") {
+                return resolve(webDir, "src/xoi/owner.ts");
+            }
             if (importer?.startsWith(upstreamWebDir) && source.startsWith("@/")) {
                 // 注：配置弹窗的 XOi 化直接改上游文件（infinite-canvas-main/.../app-config-modal.tsx），
                 // 因为这层 resolveId 拦不到它的真实解析链（实测 0 命中），别再在这里做单文件覆盖。

@@ -9,6 +9,7 @@ import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/im
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
 import { fetchUserAssetData, syncUserAssetData } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
+import { ownerKey } from "@/xoi/owner";
 
 export type AssetKind = "text" | "image" | "video" | "audio";
 export type TextAsset = AssetBase<"text"> & { data: { content: string } };
@@ -41,7 +42,8 @@ type AssetStore = {
     cleanupImages: (extra?: unknown, storageKeys?: ReadonlyMap<string, string>, ownerToken?: string) => void;
 };
 
-const ASSET_STORE_KEY = "infinite-canvas:asset_store";
+const ASSET_STORE_KEY = ownerKey("infinite-canvas:asset_store");
+const LEGACY_ASSET_STORE_KEY = "infinite-canvas:asset_store";
 let activeAssetSyncToken = "";
 let accountAssetSyncEnabled = false;
 let isHydratingAccountAssets = false;
@@ -67,8 +69,23 @@ async function resolveStoredAsset(asset: Asset): Promise<Asset> {
 const assetStorage: PersistStorage<AssetStore> = {
     getItem: async (name) => {
         const value = await localForageStorage.getItem(name);
-        if (!value) return null;
-        const parsed = JSON.parse(value) as StorageValue<AssetStore>;
+        let parsed: StorageValue<AssetStore> | null = value ? JSON.parse(value) as StorageValue<AssetStore> : null;
+
+        // 一次性接管旧版未分桶素材，避免用户升级后“我的素材”凭空消失。
+        if (!parsed) {
+            try {
+                const legacyStore = localforage.createInstance({ name: "infinite-canvas", storeName: "app_state" });
+                const legacyValue = await legacyStore.getItem<string>(LEGACY_ASSET_STORE_KEY);
+                if (legacyValue) {
+                    parsed = JSON.parse(legacyValue) as StorageValue<AssetStore>;
+                    await localForageStorage.setItem(name, JSON.stringify(parsed));
+                }
+            } catch {
+                // 旧仓不存在或数据损坏时按空库启动，不阻断画布。
+            }
+        }
+        if (!parsed) return null;
+        parsed.state.assets = Array.isArray(parsed.state.assets) ? parsed.state.assets : [];
         parsed.state.assets = await Promise.all(parsed.state.assets.map(resolveStoredAsset));
         return parsed;
     },
