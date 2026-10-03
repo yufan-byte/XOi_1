@@ -2,23 +2,15 @@ import express from "express";
 import { success, error } from "@/lib/responseFormat";
 import { db } from "@/utils/db";
 import initDB from "@/lib/initDB";
+import { dropTables, listBusinessTables } from "@/utils/dbAdmin";
 
 const router = express.Router();
 
 export default router.post("/", async (req, res) => {
   if (req.body?.confirm !== "DELETE_ALL_DATA") return res.status(400).send(error("需要明确确认清空数据"));
   try {
-    // 获取所有表名
-    const tables: { name: string }[] = await db.raw(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'knex_%'`,
-    );
-
-    // 禁用外键约束，逐一删除所有表
-    await db.raw("PRAGMA foreign_keys = OFF");
-    for (const table of tables) {
-      await db.schema.dropTableIfExists(table.name);
-    }
-    await db.raw("PRAGMA foreign_keys = ON");
+    // PG 没有 PRAGMA 关外键那一套；DROP ... CASCADE 自己会处理依赖
+    await dropTables(await listBusinessTables());
 
     // 重新初始化数据库
     await initDB(db as any);

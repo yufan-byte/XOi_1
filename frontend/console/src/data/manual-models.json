@@ -1,0 +1,376 @@
+{
+  "_comment": "非 aicost 线路的手工卡片（ccdan 等文字模型）。extra-models.json 只放 aicost 线路并受 ops/model-sync/tests/test_frontend_cards.py 校验，所以分开放。buildCatalog 最后合并本文件，同 id 以本文件为准。",
+  "models": [
+    {
+      "available": true,
+      "billing_mode": "token_metered",
+      "billing_unit": "token",
+      "capabilities": [
+        "text",
+        "vision"
+      ],
+      "category": "chat",
+      "context_window": 1050000,
+      "description": "GT-5.6 标准版，综合推理、写作与代码能力均衡，支持看图与工具调用，适合日常复杂任务。",
+      "description_en": "GT's next-generation flagship chat model with comprehensively upgraded reasoning and writing, plus adjustable thinking depth.",
+      "description_zh": "GT-5.6 标准版，综合推理、写作与代码能力均衡，支持看图与工具调用，适合日常复杂任务。",
+      "display_name": "GT-5.6",
+      "display_name_en": "GT-5.6",
+      "display_name_zh": "GT-5.6",
+      "health_score": 99,
+      "icon_key": "openai",
+      "id": "gpt-5.6",
+      "input_price_per_million": 5.3162199999999995,
+      "output_price_per_million": 42.529759999999996,
+      "param_schema": {
+        "attachments": {
+          "affects_l2": false,
+          "description": "图片直接可用; 视频 / 音频 / 文档(PDF 等)按文件类型自动派发对应 content block, 但**模型能否读懂**以该模型 capabilities 声明为准 (video / document). 仅接受公开访问 URL — 本地文件先传 POST /v1/files 换 URL.",
+          "max_items": 10,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "reasoning_effort": {
+          "affects_l2": true,
+          "default": "medium",
+          "description": "思考深度. low 最快最便宜, xhigh 最深最贵.",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "options": [
+            {
+              "label": "低",
+              "label_en": "Low",
+              "value": "low"
+            },
+            {
+              "is_default": true,
+              "label": "中",
+              "label_en": "Medium",
+              "value": "medium"
+            },
+            {
+              "label": "高",
+              "label_en": "High",
+              "value": "high"
+            },
+            {
+              "label": "极高",
+              "label_en": "X-High",
+              "value": "xhigh"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "web_search": {
+          "affects_l2": false,
+          "default": false,
+          "description": "开启联网搜索 (GT tool: web_search_preview).",
+          "required": false,
+          "type": "bool",
+          "ui_widget": "switch"
+        }
+      },
+      "provider": "OPE",
+      "public_id": "gpt-5.6",
+      "sort_weight": 390,
+      "supported_vendors": [
+        "DTE",
+        "DPW",
+        "GEE",
+        "BB6",
+        "MEG",
+        "MXH",
+        "OLX",
+        "TIA",
+        "TMC",
+        "TOA",
+        "TKG",
+        "VEC"
+      ],
+      "tags": [
+        "chat",
+        "reasoning",
+        "openai"
+      ],
+      "type": "chat",
+      "deprecated": false
+    },
+    {
+      "available": true,
+      "billing_mode": "token_metered",
+      "billing_unit": "token",
+      "capabilities": [
+        "text",
+        "vision"
+      ],
+      "category": "chat",
+      "context_window": 500000,
+      "description": "GK-4.6 最新一代，推理更强、响应快，支持看图与工具调用。",
+      "description_en": "GK-4.5 flagship — Opus-class capability with far higher token efficiency (~4x fewer tokens per task), top-tier tool use and agentic automation at a fraction of the cost.",
+      "description_zh": "GK-4.6 最新一代，推理更强、响应快，支持看图与工具调用。",
+      "display_name": "GK-4.6",
+      "display_name_en": "GK-4.6",
+      "display_name_zh": "GK-4.6",
+      "health_score": 100,
+      "icon_key": "grok",
+      "id": "grok-4.6",
+      "input_price_per_million": 4.252976,
+      "output_price_per_million": 12.758928000000001,
+      "param_schema": {
+        "attachments": {
+          "affects_l2": false,
+          "description": "图片直接可用; 视频 / 音频 / 文档(PDF 等)按文件类型自动派发对应 content block, 但**模型能否读懂**以该模型 capabilities 声明为准 (video / document). 仅接受公开访问 URL — 本地文件先传 POST /v1/files 换 URL.",
+          "max_items": 10,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "reasoning_effort": {
+          "affects_l2": false,
+          "default": "high",
+          "description": "推理深度 (low=快/便宜, high=深思考/默认)。grok-4.5 始终推理, 仅调深度。",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "options": [
+            {
+              "label": "低",
+              "label_en": "Low",
+              "value": "low"
+            },
+            {
+              "label": "中",
+              "label_en": "Medium",
+              "value": "medium"
+            },
+            {
+              "is_default": true,
+              "label": "高",
+              "label_en": "High",
+              "value": "high"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        }
+      },
+      "provider": "XAI",
+      "public_id": "grok-4.6",
+      "sort_weight": 780,
+      "supported_vendors": [
+        "DPW",
+        "MXH",
+        "OLX",
+        "TKG"
+      ],
+      "tags": [
+        "chat",
+        "grok",
+        "xai",
+        "reasoning",
+        "agentic"
+      ],
+      "type": "chat",
+      "deprecated": false
+    },
+    {
+      "available": true,
+      "billing_mode": "token_metered",
+      "billing_unit": "token",
+      "capabilities": [
+        "text",
+        "vision"
+      ],
+      "category": "chat",
+      "context_window": 500000,
+      "description": "GK-4.5 旗舰，Opus 级能力但 token 效率大幅领先（同任务 token 消耗约为竞品 1/4），工具调用与 Agentic 自动化表现顶尖，性价比突出。",
+      "description_en": "GK-4.5 flagship — Opus-class capability with far higher token efficiency (~4x fewer tokens per task), top-tier tool use and agentic automation at a fraction of the cost.",
+      "description_zh": "GK-4.5 旗舰，Opus 级能力但 token 效率大幅领先（同任务 token 消耗约为竞品 1/4），工具调用与 Agentic 自动化表现顶尖，性价比突出。",
+      "display_name": "GK-4.5",
+      "display_name_en": "GK-4.5",
+      "display_name_zh": "GK-4.5",
+      "health_score": 100,
+      "icon_key": "grok",
+      "id": "grok-4.5",
+      "input_price_per_million": 4.252976,
+      "output_price_per_million": 12.758928000000001,
+      "param_schema": {
+        "attachments": {
+          "affects_l2": false,
+          "description": "图片直接可用; 视频 / 音频 / 文档(PDF 等)按文件类型自动派发对应 content block, 但**模型能否读懂**以该模型 capabilities 声明为准 (video / document). 仅接受公开访问 URL — 本地文件先传 POST /v1/files 换 URL.",
+          "max_items": 10,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "reasoning_effort": {
+          "affects_l2": false,
+          "default": "high",
+          "description": "推理深度 (low=快/便宜, high=深思考/默认)。grok-4.5 始终推理, 仅调深度。",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "options": [
+            {
+              "label": "低",
+              "label_en": "Low",
+              "value": "low"
+            },
+            {
+              "label": "中",
+              "label_en": "Medium",
+              "value": "medium"
+            },
+            {
+              "is_default": true,
+              "label": "高",
+              "label_en": "High",
+              "value": "high"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        }
+      },
+      "provider": "XAI",
+      "public_id": "grok-4.5",
+      "sort_weight": 780,
+      "supported_vendors": [
+        "DPW",
+        "MXH",
+        "OLX",
+        "TKG"
+      ],
+      "tags": [
+        "chat",
+        "grok",
+        "xai",
+        "reasoning",
+        "agentic"
+      ],
+      "type": "chat",
+      "deprecated": false
+    },
+    {
+      "available": true,
+      "billing_mode": "token_metered",
+      "billing_unit": "token",
+      "capabilities": [
+        "text",
+        "vision"
+      ],
+      "category": "chat",
+      "context_window": 1000000,
+      "description": "CL Opus 4.6 顶级模型，擅长高难度推理、高质量写作与长上下文专家任务，原生 1M 上下文。",
+      "description_en": "CL Opus 4.6 premium model for hard reasoning, high-quality writing, and long-context expert work, with native 1M context.",
+      "description_zh": "CL Opus 4.6 顶级模型，擅长高难度推理、高质量写作与长上下文专家任务，原生 1M 上下文。",
+      "display_name": "CL Opus 4.6",
+      "display_name_en": "CL Opus 4.6",
+      "display_name_zh": "CL Opus 4.6",
+      "health_score": 87,
+      "icon_key": "anthropic",
+      "id": "claude-opus-4-6",
+      "input_price_per_million": 10.632439999999999,
+      "output_price_per_million": 53.1622,
+      "param_schema": {
+        "attachments": {
+          "affects_l2": false,
+          "description": "图片直接可用; 视频 / 音频 / 文档(PDF 等)按文件类型自动派发对应 content block, 但**模型能否读懂**以该模型 capabilities 声明为准 (video / document). 仅接受公开访问 URL — 本地文件先传 POST /v1/files 换 URL.",
+          "max_items": 10,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "enable_thinking": {
+          "affects_l2": false,
+          "default": false,
+          "description": "开启深度思考 (vendor 自动识别 reasoning).",
+          "required": false,
+          "type": "bool",
+          "ui_widget": "switch"
+        },
+        "reasoning_effort": {
+          "affects_l2": true,
+          "description": "深度思考强度。Agent Runtime 通过 CL 系列原生 thinking 配置下发。",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "options": [
+            {
+              "label": "低",
+              "label_en": "Low",
+              "value": "low"
+            },
+            {
+              "label": "中",
+              "label_en": "Medium",
+              "value": "medium"
+            },
+            {
+              "label": "高",
+              "label_en": "High",
+              "value": "high"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "thinking": {
+          "affects_l2": true,
+          "default": "false",
+          "description": "CL 系列推理模式开关. true 开启 -thinking 子档.",
+          "enum": [
+            "true",
+            "false"
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "switch"
+        },
+        "web_search": {
+          "affects_l2": false,
+          "default": false,
+          "description": "开启联网搜索, 实时信息接入响应.",
+          "required": false,
+          "type": "bool",
+          "ui_widget": "switch"
+        }
+      },
+      "provider": "ANT",
+      "public_id": "claude-opus-4-6",
+      "sort_weight": 960,
+      "supported_vendors": [
+        "952",
+        "GEE",
+        "MEG",
+        "OLX",
+        "OTA",
+        "TKG"
+      ],
+      "tags": [
+        "chat",
+        "anthropic",
+        "reasoning",
+        "long-context"
+      ],
+      "type": "chat",
+      "deprecated": false
+    }
+  ]
+}

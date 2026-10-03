@@ -23,7 +23,9 @@
 
 <script setup lang="ts">
 import { AVCanvas } from "@webav/av-canvas";
-import { MP4Clip, AudioClip, ImgClip, VisibleSprite, renderTxt2ImgBitmap } from "@webav/av-cliper";
+import { Combinator, OffscreenSprite, MP4Clip, AudioClip, ImgClip, VisibleSprite, renderTxt2ImgBitmap } from "@webav/av-cliper";
+import axios from "@/utils/axios";
+import projectStore from "@/stores/project";
 import { usePlaybackStore, useTracksStore } from "vue-clip-track";
 import type { Clip, MediaClip, SubtitleClip, TextClip, TransitionClip, Track } from "vue-clip-track";
 import { getTransitionRenderer } from "./utils/transitionRenderers";
@@ -63,7 +65,11 @@ interface TransitionInfo {
 const emit = defineEmits<{
   (e: "play"): void;
   (e: "pause"): void;
+  (e: "output-saved", payload: any): void;
 }>();
+
+/** 当前分集（由 production/index.vue provide），成片按集归档 */
+const episodesIdRef = inject("episodesId", null) as { value?: number } | null;
 
 // AVCanvas 调试数据类型
 export interface AVCanvasDebugData {
@@ -224,6 +230,16 @@ function getEffectiveDuration(): number {
   const storeDuration = playbackStore.duration * 1e6;
   // 使用两者中的较大值，确保有有效时长
   return Math.max(spriteDuration, storeDuration, 0);
+}
+
+/**
+ * 真正「有内容」的时长（微秒）——导出边界必须用它。
+ * playbackStore.duration 在自动装配后被兜底成 ≥10s，直接拿去导出会多一截黑尾。
+ */
+function getContentDuration(): number {
+  const spriteDuration = getMaxSpriteDuration();
+  if (spriteDuration > 0) return spriteDuration;
+  return Math.max(playbackStore.duration, 0) * 1e6;
 }
 
 // 计算属性：将微秒转换为秒
@@ -1475,12 +1491,155 @@ function handleSeek(event: Event) {
 }
 
 // 导出视频
-async function exportVideo() {
+// ═══════════════ 导出（真导出：整片 / 选区 / 按镜头分段） ═══════════════
+/**
+ * 为什么不用 avCanvas.createCombinator()：
+ * 它固定合成「画布上现有的全部 sprite」，入点出点、区间裁剪一个都传不进去 ——
+ * 这就是上一版「弹窗里调了范围、导出来一模一样」的根因。
+ * 这里自己按区间构造 Combinator：不碰画布上的 sprite，逐段独立合成。
+ */
+
+/** 导出画质：与预览一致的分辨率，8Mbps / 30fps（WebCodecs 硬编，可接受的速度/体积比） */
+const EXPORT_BITRATE = 8_000_000;
+const EXPORT_FPS = 30;
+
+/** 导出进度（多段导出时 ratio 已折算成整体进度） */
+interface ExportProgress {
+  ratio: number;
+  label: string;
+}
+interface ExportOptions {
+  mode?: "full" | "range" | "segments";
+  /** 秒。mode=range 时生效 */
+  start?: number;
+  end?: number;
+  onProgress?: (p: ExportProgress) => void;
+  shouldCancel?: () => boolean;
+}
+interface ExportResult {
+  files: number;
+  bytes: number;
+}
+
+interface ExportSegment {
+  name: string;
+  start: number;
+  end: number;
+}
+
+class ExportCancelled extends Error {
+  constructor() {
+    super("已取消导出");
+    this.name = "AbortError";
+  }
+}
+
+/**
+ * 合成一段区间，返回 MP4 Blob。
+ *
+ * 关键点是 offset 的算法：合成器取帧用的是 `输出时间 - sprite.time.offset`，
+ * 所以把 offset 整体减去「区间起点」就等价于把这段素材按区间重排；
+ * 当素材起点落在区间之前时 offset 为负，此时输出第 0 帧取到的就是素材的相对位置 —— 头裁剪自然成立，
+ * 不需要去改 clip 内部的入点。
+ */
+async function composeRange(
+  startSec: number,
+  endSec: number,
+  onRatio: (ratio: number) => void,
+  shouldCancel?: () => boolean,
+): Promise<Blob> {
+  const startUs = Math.round(startSec * 1e6);
+  const endUs = Math.round(endSec * 1e6);
+  const spanUs = endUs - startUs;
+  if (spanUs <= 20_000) throw new Error("导出区间太短（至少 0.02 秒）");
+
+  const combinator = new Combinator({
+    width: props.canvasWidth,
+    height: props.canvasHeight,
+    bitrate: EXPORT_BITRATE,
+    fps: EXPORT_FPS,
+    bgColor: "#000000",
+  });
+
+  let added = 0;
+  for (const sprite of clipSpriteMap.values()) {
+    const { offset: s0, duration, playbackRate } = sprite.time;
+    if (duration <= 0) continue;
+    // 与区间没有交集：整段丢弃（不要靠负偏移让它「漏」进输出）
+    if (s0 + duration <= startUs || s0 >= endUs) continue;
+
+    const os = new OffscreenSprite(sprite.getClip());
+    sprite.copyStateTo(os);
+    os.time = { offset: s0 - startUs, duration, playbackRate };
+    await combinator.addSprite(os);
+    added += 1;
+  }
+  if (!added) throw new Error("所选区间内没有可导出的内容");
+
+  combinator.on("OutputProgress", (r) => onRatio(Math.max(0, Math.min(1, r))));
+
+  const chunks: Uint8Array[] = [];
+  const reader = combinator.output({ maxTime: spanUs }).getReader();
+  try {
+    for (;;) {
+      if (shouldCancel?.()) throw new ExportCancelled();
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+  } catch (e) {
+    try {
+      await reader.cancel();
+    } catch {
+      /* 已取消，忽略 */
+    }
+    combinator.destroy();
+    throw e;
+  }
+  return new Blob(chunks as BlobPart[], { type: "video/mp4" });
+}
+
+/** 主轨（或第一条视频轨）上的镜头分段，按开始时间排序 */
+function collectSegments(): ExportSegment[] {
+  const main =
+    tracksStore.tracks.find((t) => (t as any).isMain) ?? tracksStore.tracks.find((t) => t.type === "video");
+  if (!main) return [];
+  return main.clips
+    .filter((c) => c.type === "video" && c.endTime - c.startTime > 0.05)
+    .sort((a, b) => a.startTime - b.startTime)
+    .map((c) => ({ name: (c as any).name || "镜头", start: c.startTime, end: c.endTime }));
+}
+
+function baseFilename(): string {
+  const name = projectStore().project?.name || "成片";
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+  return `${name}-${stamp}`;
+}
+
+/** 触发浏览器下载。连续多段导出时浏览器可能提示「是否允许多个下载」，属正常 */
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/**
+ * 导出成片。
+ * - full      整条时间线
+ * - range     指定区间（秒）
+ * - segments  主轨每个镜头一个文件
+ */
+async function exportVideo(opts: ExportOptions = {}): Promise<ExportResult> {
   if (!avCanvas) {
-    throw new Error($t('workbench.production.editVideo.avCanvasNotInit'));
+    throw new Error($t("workbench.production.editVideo.avCanvasNotInit"));
   }
   if (clipSpriteMap.size === 0) {
-    throw new Error($t('workbench.production.editVideo.noExportContent'));
+    throw new Error($t("workbench.production.editVideo.noExportContent"));
   }
 
   // 导出前暂停播放
@@ -1490,27 +1649,100 @@ async function exportVideo() {
     playbackStore.pause();
   }
 
-  const combinator = await avCanvas.createCombinator();
-  const chunks: Uint8Array[] = [];
-  const reader = combinator.output().getReader();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
+  const { onProgress, shouldCancel } = opts;
+  const mode = opts.mode ?? "full";
+
+  if (mode === "segments") {
+    const segments = collectSegments();
+    if (!segments.length) throw new Error("主轨上还没有可分段的镜头");
+    const base = baseFilename();
+    let bytes = 0;
+    for (let i = 0; i < segments.length; i += 1) {
+      const seg = segments[i];
+      const tag = `第 ${i + 1}/${segments.length} 段 · ${seg.name}`;
+      const blob = await composeRange(
+        seg.start,
+        seg.end,
+        (r) => onProgress?.({ ratio: (i + r) / segments.length, label: `正在导出${tag}` }),
+        shouldCancel,
+      );
+      bytes += blob.size;
+      saveBlob(blob, `${base}-${seg.name.replace(/[\s/\\]+/g, "")}.mp4`);
+      onProgress?.({ ratio: (i + 1) / segments.length, label: `${tag} 已下载` });
+      void archiveOutput(blob, { label: seg.name, durationSec: seg.end - seg.start });
+    }
+    return { files: segments.length, bytes };
   }
-  const blob = new Blob(chunks as BlobPart[], { type: "video/mp4" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `WebAV-export-${Date.now()}.mp4`;
-  a.click();
-  URL.revokeObjectURL(url);
+
+  const fullDurationSec = getContentDuration() / 1e6;
+  if (fullDurationSec <= 0) throw new Error("时间线上还没有内容");
+
+  let start = 0;
+  let end = fullDurationSec;
+  if (mode === "range") {
+    start = Math.max(0, Math.min(opts.start ?? 0, fullDurationSec));
+    end = Math.max(start, Math.min(opts.end ?? fullDurationSec, fullDurationSec));
+    if (end - start <= 0.02) throw new Error("选区太短，先在时间线上拉一个区间");
+  }
+
+  const blob = await composeRange(start, end, (r) => onProgress?.({ ratio: r, label: "正在合成…" }), shouldCancel);
+  saveBlob(blob, `${baseFilename()}.mp4`);
+  onProgress?.({ ratio: 1, label: "已下载，正在归档…" });
+  void archiveOutput(blob, { durationSec: end - start });
+  return { files: 1, bytes: blob.size };
+}
+
+/** 单次归档上限，与后端 routes/production/output/saveOutput.ts 的 MAX_OUTPUT_BYTES 保持一致（全局 JSON body 限 25mb） */
+const MAX_ARCHIVE_BYTES = 18 * 1024 * 1024;
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("读取成片失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * 把刚合成的成片存回项目。失败只提示，不影响用户已到手的本地文件；
+ * 项目因此有了终点态：成片节点能看到、项目资产库能找到、换设备登录仍在。
+ */
+async function archiveOutput(blob: Blob, meta: { label?: string; durationSec?: number } = {}) {
+  const projectIdNum = Number(projectStore().project?.id);
+  if (!projectIdNum) return;
+
+  if (blob.size > MAX_ARCHIVE_BYTES) {
+    window.$message.warning(`成片 ${(blob.size / 1024 / 1024).toFixed(1)}MB 超过自动归档上限，已下载到本地但未存入项目资产库`, 6000);
+    return;
+  }
+
+  const suffix = meta.label ? ` · ${meta.label}` : "";
+  try {
+    const base64Data = await blobToBase64(blob);
+    const { data } = await axios.post("/production/output/saveOutput", {
+      projectId: projectIdNum,
+      episodesId: episodesIdRef?.value ?? undefined,
+      base64Data,
+      name: `${projectStore().project?.name ?? "成片"}${suffix} · ${new Date().toLocaleString()}`,
+      duration: Math.round(meta.durationSec ?? getContentDuration() / 1e6),
+      resolution: `${props.canvasWidth}x${props.canvasHeight}`,
+      source: "webcodecs",
+    });
+    window.$message.success(`成片已存档到项目资产库${suffix}`);
+    emit("output-saved", data);
+  } catch (e) {
+    const msg = (e as any)?.message ?? "上传失败";
+    window.$message.warning(`成片未能归档：${msg}（本地文件已下载）`, 6000);
+  }
 }
 
 // 暴露 AVCanvas 实例供外部使用
 defineExpose({
   avCanvas: computed(() => avCanvas),
   exportVideo,
+  /** 当前时间线真正的内容时长（秒）—— 导出弹窗用它算时长/体积 */
+  contentDuration: computed(() => getContentDuration() / 1e6),
   addSprite: async (sprite: any) => {
     if (avCanvas) {
       await avCanvas.addSprite(sprite);

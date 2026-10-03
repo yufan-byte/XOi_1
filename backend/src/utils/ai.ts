@@ -4,6 +4,8 @@ import axios from "axios";
 import { transform } from "sucrase";
 import u from "@/utils";
 import { checkAndDeductPoints, refundPoints } from "./points";
+import { requireGatewayUserId } from "@/lib/gateway/context";
+import { assertAllowedVendor, getUserGatewayCredentials } from "@/lib/gateway/newapi";
 
 /**
  * 修复工具调用参数格式的中间件
@@ -146,6 +148,7 @@ async function getVendorTemplateFn(
 async function getVendorTemplateFn(fnName: Exclude<FnName, "textRequest">, modelName: `${string}:${string}`): Promise<(input: any) => any>;
 async function getVendorTemplateFn(fnName: FnName, modelName: `${string}:${string}`): Promise<any> {
   const [id, name] = modelName.split(/:(.+)/);
+  assertAllowedVendor(id);
   const vendorConfigData = await u.db("o_vendorConfig").where("id", id).first();
   if (!vendorConfigData) throw new Error(`未找到供应商配置 id=${id}`);
   const modelList = await u.vendor.getModelList(id);
@@ -155,7 +158,13 @@ async function getVendorTemplateFn(fnName: FnName, modelName: `${string}:${strin
   const jsCode = transform(code, { transforms: ["typescript"] }).code;
   const running = u.vm(jsCode);
   if (running.vendor) {
-    Object.assign(running.vendor.inputValues, JSON.parse(vendorConfigData.inputValues ?? "{}"));
+    const configuredInputs = JSON.parse(vendorConfigData.inputValues ?? "{}");
+    if (id === "newapi") {
+      const credentials = await getUserGatewayCredentials(requireGatewayUserId());
+      Object.assign(running.vendor.inputValues, configuredInputs, credentials);
+    } else {
+      Object.assign(running.vendor.inputValues, configuredInputs);
+    }
     running.vendor.models = modelList;
   }
   const fn = running[fnName];

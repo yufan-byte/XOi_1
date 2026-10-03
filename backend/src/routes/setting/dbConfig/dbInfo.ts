@@ -1,22 +1,18 @@
 import express from "express";
 import { success, error } from "@/lib/responseFormat";
 import { db } from "@/utils/db";
+import { listBusinessTables } from "@/utils/dbAdmin";
 
 const router = express.Router();
 
 export default router.get("/", async (req, res) => {
   try {
-    const tables: { name: string }[] = await db.raw(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'knex_%'`,
-    );
-
     const tableInfo = [];
-    for (const table of tables) {
-      const countResult = await db.raw(`SELECT COUNT(*) as count FROM "${table.name}"`);
-      tableInfo.push({
-        name: table.name,
-        rowCount: countResult[0]?.count ?? 0,
-      });
+    for (const name of await listBusinessTables()) {
+      // PG 的 count(*) 是 bigint，pg 驱动会回成字符串，这里显式转 int；
+      // 另外 raw() 在 pg 下返回 { rows }，不是数组
+      const countResult = await db.raw(`SELECT COUNT(*)::int AS count FROM "${name}"`);
+      tableInfo.push({ name, rowCount: countResult?.rows?.[0]?.count ?? 0 });
     }
 
     res.status(200).send(success(tableInfo));

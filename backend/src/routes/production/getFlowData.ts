@@ -6,6 +6,36 @@ import { validateFields } from "@/middleware/middleware";
 const router = express.Router();
 import { FlowData } from "@/agents/productionAgent/tools";
 
+/**
+ * 当前集已归档的成片（前端浏览器合成后回传 saveOutput 写入 o_output）。
+ * 挂在 flowData.output 上，供「成片」节点与进度带的第五段使用。
+ * 不写进 FlowData 的 zod schema —— 那是 Agent 的工具契约，多一个 key 会污染提示词与工具枚举。
+ */
+async function loadOutputs(projectId: number, episodesId: number) {
+  const rows = await u.db("o_output").where("projectId", projectId).andWhere("episodesId", episodesId).orderBy("createTime", "desc");
+  return Promise.all(
+    rows.map(async (o: any) => {
+      let fileUrl = "";
+      if (o.filePath) {
+        try {
+          fileUrl = await u.oss.getFileUrl(o.filePath);
+        } catch {
+          fileUrl = "";
+        }
+      }
+      return {
+        id: o.id,
+        name: o.name ?? "",
+        url: fileUrl,
+        duration: o.duration ?? 0,
+        size: o.size ?? 0,
+        resolution: o.resolution ?? "",
+        createTime: o.createTime ?? 0,
+      };
+    }),
+  );
+}
+
 export default router.post(
   "/",
   validateFields({
@@ -82,6 +112,7 @@ export default router.post(
         //   items: [],
         // },
       };
+      (flowData as any).output = await loadOutputs(projectId, episodesId);
       return res.status(200).send(success(flowData));
     } else {
       try {
@@ -154,6 +185,7 @@ export default router.post(
           }))
           .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
         flowData.script = scriptData?.content ?? "";
+        (flowData as any).output = await loadOutputs(projectId, episodesId);
         res.status(200).send(success(flowData));
       } catch (err) {
         res.status(400).send(error());

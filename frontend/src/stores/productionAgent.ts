@@ -233,13 +233,18 @@ function makeProductionAgentStore(projectId: string) {
     }
     async function batchGenerateStoryboard(allIds: number[], compulsory: boolean = false) {
       try {
-        const { data } = await axios.post("/production/storyboard/batchGenerateImage", {
+        const { data, message } = await axios.post("/production/storyboard/batchGenerateImage", {
           scriptId: episodesId.value,
           projectId: projectId,
           storyboardIds: allIds,
           concurrentCount: settingStore().otherSetting.assetsBatchGenereateSize,
           compulsory,
         });
+        // 后端在「有分镜拿不到角色/场景参考图」时会用 message 带出处警（不是默认的“成功”）。
+        // 以前这种情形是静默 filter 掉参考图，AI 凭空生成、UI 一个字都不提示。
+        if (message && message !== "成功") {
+          window.$message.warning(message, 6000);
+        }
         if (data) {
           if (flowData.value.storyboard.length === 0) {
             flowData.value.storyboard = data;

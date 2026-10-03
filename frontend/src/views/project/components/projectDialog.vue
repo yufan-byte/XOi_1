@@ -4,7 +4,8 @@
       class="createProjectDialog"
       placement="center"
       v-model:visible="addProjectShow"
-      :header="isEdit ? $t('workbench.project.dialog.editTitle') : $t('workbench.project.dialog.addTitle')"
+      :header="false"
+      :close-btn="false"
       width="min(1180px, 94vw)"
       @confirm="handleOk"
       @close-btn-click="handleCancel"
@@ -899,9 +900,9 @@ function handleDirectorManualCoverFileChange(e: Event) {
   gap: 14px;
   margin: -8px 0 22px;
   padding: 16px 18px;
-  border: 1px solid rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(245, 116, 0, 0.14);
   border-radius: 14px;
-  background: linear-gradient(110deg, rgba(238, 242, 255, 0.8), rgba(248, 250, 252, 0.72));
+  background: linear-gradient(110deg, rgba(255, 243, 230, 0.8), rgba(250, 249, 245, 0.72));
 
   .dialogIntroMark {
     width: 38px;
@@ -909,8 +910,8 @@ function handleDirectorManualCoverFileChange(e: Event) {
     display: grid;
     place-items: center;
     border-radius: 11px;
-    color: #6366f1;
-    background: rgba(99, 102, 241, 0.12);
+    color: #c25a22;
+    background: rgba(245, 116, 0, 0.12);
   }
   .dialogIntroTitle { font-size: 16px; font-weight: 700; color: var(--text-primary); }
   .dialogIntroText { margin-top: 4px; color: var(--text-tertiary); font-size: 12px; }
@@ -920,9 +921,6 @@ function handleDirectorManualCoverFileChange(e: Event) {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   min-height: 680px;
-  border: 1px solid #dcd9d2;
-  border-radius: 14px;
-  overflow: hidden;
   background: #fcfbf8;
 }
 
@@ -937,13 +935,13 @@ function handleDirectorManualCoverFileChange(e: Event) {
 
 .createStepsEyebrow { color: #817b70; font-size: 10px; letter-spacing: .16em; font-weight: 700; }
 .createStepsTitle { margin: 8px 0 34px; font-size: 24px; font-weight: 700; letter-spacing: -.04em; }
-.step { display: flex; gap: 12px; align-items: flex-start; padding: 14px 10px; margin-bottom: 6px; color: #8f8cae; border-radius: 12px; }
-.step span { font-size: 11px; font-weight: 700; color: #777391; padding-top: 2px; }
+.step { display: flex; gap: 12px; align-items: flex-start; padding: 14px 10px; margin-bottom: 6px; color: #8f8a80; border-radius: 12px; }
+.step span { font-size: 11px; font-weight: 700; color: #79746a; padding-top: 2px; }
 .step strong { display: block; color: inherit; font-size: 13px; }
-.step small { display: block; margin-top: 4px; color: #777391; font-size: 11px; }
-.step.active { color: #fff; background: rgba(167, 139, 250, .18); box-shadow: inset 3px 0 #a78bfa; }
-.step.active span { color: #c4b5fd; }
-.step.active small { color: #bbb5da; }
+.step small { display: block; margin-top: 4px; color: #79746a; font-size: 11px; }
+.step.active { color: #fff; background: rgba(245, 116, 0, .16); box-shadow: inset 3px 0 #f57400; }
+.step.active span { color: #ffc59b; }
+.step.active small { color: #e2c9b2; }
 .createStepsFooter { margin-top: auto; padding-top: 16px; border-top: 1px solid #d3cfc6; color: #817b70; font-size: 11px; line-height: 1.7; }
 .setupNote { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #d6d1c7; border-radius: 8px; background: #f7f6f2; }
 .setupNote strong { color: #2c2a26; font-size: 14px; }
@@ -965,20 +963,26 @@ function handleDirectorManualCoverFileChange(e: Event) {
   box-shadow: 0 24px 80px rgba(42, 38, 31, .18);
 }
 
-/* 新建项目使用工作区自身的色块作为唯一容器，去掉 TDesign 默认白色外框。 */
-:deep(.createProjectDialog.t-dialog) {
-  background: transparent;
-  border: 0;
-  border-radius: 18px;
-  box-shadow: none;
+/* 新建项目弹窗：TDesign 会把自定义 class 落在 __ctx 包裹层而非 .t-dialog 卡片上，
+   必须用后代选择器。让弹窗卡片本身成为工作区容器（单一卡片），不再有外层白框。 */
+:deep(.createProjectDialog .t-dialog) {
+  background: #fcfbf8;
+  border: 1px solid #dcd9d2;
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(42, 38, 31, .18);
+  overflow: hidden;
 
-  .t-dialog__header,
-  .t-dialog__footer {
+  .t-dialog__header {
     background: transparent;
-    border-color: transparent;
+    border-bottom: 1px solid #e2dfd8;
   }
 
   .t-dialog__body { background: transparent; }
+
+  .t-dialog__footer {
+    background: transparent;
+    border-top: 1px solid #e2dfd8;
+  }
 }
 
 :deep(.t-dialog__header) {
@@ -1057,10 +1061,10 @@ function handleDirectorManualCoverFileChange(e: Event) {
       background: transparent;
     }
     &::-webkit-scrollbar-thumb {
-      background: rgba(124, 108, 240, 0.28);
+      background: rgba(245, 116, 0, 0.28);
       border-radius: 999px;
       &:hover {
-        background: rgba(124, 108, 240, 0.48);
+        background: rgba(242, 100, 50, 0.48);
       }
     }
   }
@@ -1090,10 +1094,10 @@ function handleDirectorManualCoverFileChange(e: Event) {
       background: transparent;
     }
     &::-webkit-scrollbar-thumb {
-      background: rgba(124, 108, 240, 0.28);
+      background: rgba(245, 116, 0, 0.28);
       border-radius: 999px;
       &:hover {
-        background: rgba(124, 108, 240, 0.48);
+        background: rgba(242, 100, 50, 0.48);
       }
     }
   }
@@ -1125,7 +1129,7 @@ function handleDirectorManualCoverFileChange(e: Event) {
     /* 不再做几何缩放/平移，避免内部的查看等浮层按钮跟着“跑” */
     &:active {
       box-shadow: 0 4px 12px rgba(31, 27, 72, 0.12);
-      border-color: rgba(167, 139, 250, 0.6);
+      border-color: rgba(245, 116, 0, 0.6);
     }
 
     &.active {
@@ -1205,7 +1209,7 @@ function handleDirectorManualCoverFileChange(e: Event) {
 
       &:hover {
         background-image: none !important;
-        background-color: rgba(96, 165, 250, 0.95) !important;
+        background-color: rgba(255, 155, 69, 0.95) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff;
         transform: scale(1.08);
@@ -1314,7 +1318,7 @@ function handleDirectorManualCoverFileChange(e: Event) {
 
       &:hover {
         background-image: none !important;
-        background-color: rgba(167, 139, 250, 0.95) !important;
+        background-color: rgba(245, 116, 0, 0.95) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff;
         /* 锁住居中 transform：阻止全局主色规则的 :hover{transform:translateY(-1px)}
@@ -1323,8 +1327,8 @@ function handleDirectorManualCoverFileChange(e: Event) {
         /* 不再用 scale 放大；仅靠阴影+外光环表达反馈，形状位置恒定 */
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.4),
-          0 6px 16px rgba(124, 108, 240, 0.52),
-          0 0 0 3px rgba(167, 139, 250, 0.25);
+          0 6px 16px rgba(242, 100, 50, 0.52),
+          0 0 0 3px rgba(245, 116, 0, 0.25);
         i-preview-open,
         svg,
         svg path { stroke: #fff; }
@@ -1335,10 +1339,10 @@ function handleDirectorManualCoverFileChange(e: Event) {
       &:active {
         transform: translate(-50%, -50%) !important;
         background-image: none !important;
-        background-color: rgba(124, 108, 240, 0.92) !important;
+        background-color: rgba(242, 100, 50, 0.92) !important;
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.4),
-          0 3px 10px rgba(124, 108, 240, 0.5);
+          0 3px 10px rgba(242, 100, 50, 0.5);
       }
     }
   }
@@ -1574,7 +1578,7 @@ function handleDirectorManualCoverFileChange(e: Event) {
       background: transparent;
     }
     &::-webkit-scrollbar-thumb {
-      background: rgba(124, 108, 240, 0.28);
+      background: rgba(245, 116, 0, 0.28);
       border-radius: 999px;
     }
   }
@@ -1610,8 +1614,8 @@ function handleDirectorManualCoverFileChange(e: Event) {
       color: rgba(15, 23, 42, 0.45);
       transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
       &:hover {
-        background: rgba(167, 139, 250, 0.14);
-        color: #2e1f6d;
+        background: rgba(245, 116, 0, 0.14);
+        color: #c25a22;
         transform: rotate(90deg);
       }
     }
@@ -1625,7 +1629,7 @@ function handleDirectorManualCoverFileChange(e: Event) {
       background: transparent;
     }
     &::-webkit-scrollbar-thumb {
-      background: rgba(124, 108, 240, 0.28);
+      background: rgba(245, 116, 0, 0.28);
       border-radius: 999px;
     }
   }
@@ -1641,18 +1645,23 @@ function handleDirectorManualCoverFileChange(e: Event) {
   }
 }
 
-/* 必须放在所有通用 .t-dialog 规则之后，避免被主题样式重新刷回白色。 */
-:deep(.createProjectDialog.t-dialog) {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
+/* 必须放在所有通用 .t-dialog 规则之后，避免被主题样式重新刷回白色。
+   注意：createProjectDialog 落在 __ctx 层，用后代选择器命中弹窗卡片。 */
+:deep(.createProjectDialog .t-dialog) {
+  background: #fcfbf8 !important;
+  border: 1px solid #dcd9d2 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 80px rgba(42, 38, 31, .18) !important;
+  overflow: hidden;
 
   .t-dialog__header,
   .t-dialog__body,
   .t-dialog__footer {
     background: transparent !important;
-    border-color: transparent !important;
   }
+
+  .t-dialog__header { border-bottom: 1px solid #e2dfd8 !important; }
+  .t-dialog__footer { border-top: 1px solid #e2dfd8 !important; }
 }
 
 // 按钮交互优化

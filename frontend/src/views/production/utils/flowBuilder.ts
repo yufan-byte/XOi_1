@@ -9,7 +9,7 @@ const NODE_IDS = {
   storyboardTable: "storyboardTable",
   storyboard: "storyboard",
   workbench: "workbench",
-  poster: "poster",
+  output: "output",
 } as const;
 
 type NodeId = (typeof NODE_IDS)[keyof typeof NODE_IDS];
@@ -63,6 +63,17 @@ interface VideoList {
   trackId: number;
 }
 
+/** 成片：浏览器合成导出后归档到 o_output 的整片（后端 getFlowData 挂在 flowData.output 上） */
+export interface OutputItem {
+  id: number;
+  name: string;
+  url: string;
+  duration: number;
+  size: number;
+  resolution: string;
+  createTime: number;
+}
+
 export interface FlowData {
   script: string;
   scriptPlan: string;
@@ -72,6 +83,7 @@ export interface FlowData {
   workbench: {
     videoList: VideoList[];
   };
+  output?: OutputItem[];
 }
 
 export type NodePositions = Record<string, { x: number; y: number }>;
@@ -173,19 +185,19 @@ export function useFlowBuilder(flowData: Ref<FlowData>, nodePositions: Ref<NodeP
           },
         },
       },
-      // 6. Poster 节点
-      // {
-      //   id: ids.poster,
-      //   type: "poster",
-      //   dragHandle: ".dragHandle",
-      //   position: positions[ids.poster] || { x: 0, y: 0 },
-      //   data: {
-      //     items: data.poster?.items ?? [],
-      //     handleIds: {
-      //       target: `${ids.poster}-target`,
-      //     },
-      //   },
-      // },
+      // 6. Output 节点：成片（前端合成后归档到 o_output —— 这条流水线的终点态）
+      {
+        id: ids.output,
+        type: "output",
+        dragHandle: ".dragHandle",
+        position: positions[ids.output] || { x: 0, y: 0 },
+        data: {
+          items: data.output ?? [],
+          handleIds: {
+            target: `${ids.output}-target`,
+          },
+        },
+      },
     ];
 
     return allNodes;
@@ -245,16 +257,16 @@ export function useFlowBuilder(flowData: Ref<FlowData>, nodePositions: Ref<NodeP
         animated: false,
         style: edgeStyle,
       },
-      // Workbench -> Poster
-      // {
-      //   id: `${ids.workbench}-${ids.poster}`,
-      //   source: ids.workbench,
-      //   target: ids.poster,
-      //   sourceHandle: `${ids.workbench}-source`,
-      //   targetHandle: `${ids.poster}-target`,
-      //   animated: false,
-      //   style: edgeStyle,
-      // },
+      // Workbench -> Output
+      {
+        id: `${ids.workbench}-${ids.output}`,
+        source: ids.workbench,
+        target: ids.output,
+        sourceHandle: `${ids.workbench}-source`,
+        targetHandle: `${ids.output}-target`,
+        animated: false,
+        style: edgeStyle,
+      },
     ];
 
     return allEdges;

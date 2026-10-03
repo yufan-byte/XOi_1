@@ -1,6 +1,19 @@
 // import "./logger";
 import "./err";
 import "./env";
+
+/* ---------------------------------------------------------------------
+ * 代理环境变量免疫：后端要直连上游供应商（agnes 等）与本机 new-api，
+ * 任何 HTTP(S) 代理注入都会把 https 请求降级成明文打到 443 端口
+ * （报「plain HTTP request was sent to HTTPS port」或莫名其妙的
+ * 「Invalid token」）。WorkBuddy 等沙箱会给子进程透明注入代理变量，
+ * env -u 拦不住，只能在进程入口自己删掉。若部署环境确需代理，
+ * 请在 axios 层显式配置，不要走环境变量。
+ * ------------------------------------------------------------------ */
+for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]) {
+  delete process.env[k];
+}
+
 import express, { Request, Response, NextFunction } from "express";
 import { Server } from "socket.io";
 import http from "node:http";
@@ -19,9 +32,13 @@ import adminOrders from "@/routes/admin/orders";
 import adminTasks from "@/routes/admin/tasks";
 import adminBilling from "@/routes/admin/billing";
 import adminSettings from "@/routes/admin/settings";
+import adminAnnouncements from "@/routes/admin/announcements";
+import adminGateway from "@/routes/admin/gateway";
+import adminCredits from "@/routes/admin/credits";
 import { getPlatformPolicy } from "@/utils/platformPolicy";
-import { dbReady } from "@/utils/db";
+import { db, dbReady } from "@/utils/db";
 import { rateLimiter } from "@/middleware/rateLimiter";
+import { runWithGatewayUser } from "@/lib/gateway/context";
 
 const app = express();
 app.disable("x-powered-by");
@@ -52,8 +69,12 @@ export default async function startServe(randomPort: Boolean = false) {
 
   // HTTP 安全头（手动实现，无需安装 helmet）
   app.use((req, res, next) => {
-    // 防止点击劫持
-    res.setHeader("X-Frame-Options", "DENY");
+    // 防止点击劫持。必须是 SAMEORIGIN 而不是 DENY：
+    // 「无限创意画布」是本站自己用同源 iframe 嵌 /atelier-canvas/index.html 加载的
+    // （见 frontend/src/views/canvas/index.vue），DENY 会把同源 iframe 也一起挡掉，
+    // 表现为画布里显示「127.0.0.1 refused to connect」。
+    // SAMEORIGIN 对跨源点击劫持的保护与 DENY 完全一致，只是额外放通自己站内嵌自己。
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
     // 防止 MIME 类型嗅探
     res.setHeader("X-Content-Type-Options", "nosniff");
     // XSS 防护（旧浏览器）
@@ -80,6 +101,22 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use(["/api/admin", "/api/setting/vendorConfig", "/api/login"], express.json({ limit: "1mb" }));
   app.use(express.json({ limit: process.env.XOI_JSON_LIMIT || "25mb", verify: capturePayRawBody }));
   app.use(express.urlencoded({ extended: true, limit: process.env.XOI_FORM_LIMIT || "2mb", verify: capturePayRawBody }));
+
+  // 容器编排探针：liveness 不依赖外部服务，readiness 同时验证共享 PG 与 NewAPI。
+  app.get("/api/healthz", (_req, res) => res.status(200).json({ status: "ok" }));
+  app.get("/api/readyz", async (_req, res) => {
+    try {
+      await db.raw("select 1");
+      const gatewayRoot = String(process.env.NEWAPI_BASE_URL || "http://127.0.0.1:3000")
+        .trim().replace(/\/+$/, "").replace(/\/v\d+$/, "");
+      const upstream = await fetch(`${gatewayRoot}/api/status`, { signal: AbortSignal.timeout(5000) });
+      if (!upstream.ok) throw new Error(`gateway HTTP ${upstream.status}`);
+      return res.status(200).json({ status: "ready" });
+    } catch (e) {
+      console.error("[readyz]", e instanceof Error ? e.message : e);
+      return res.status(503).json({ status: "not_ready" });
+    }
+  });
 
   // oss 静态资源
   const ossDir = u.getPath("oss");
@@ -135,7 +172,7 @@ export default async function startServe(randomPort: Boolean = false) {
         });
         return;
       }
-      next();
+      return next();
     },
     express.static(ossDir, { acceptRanges: false }),
   );
@@ -149,7 +186,7 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use(
     "/skills",
     (req, res, next) => {
-      /\.(jpe?g|png|gif|webp|svg|ico|bmp)$/i.test(req.path) ? next() : res.status(403).end();
+      /\.(jpe?g|png|gif|webp|svg|ico|bmp|mp4|webm)$/i.test(req.path) ? next() : res.status(403).end();
     },
     express.static(skillsDir, { acceptRanges: false }),
   );
@@ -168,7 +205,87 @@ export default async function startServe(randomPort: Boolean = false) {
     fs.mkdirSync(webDir, { recursive: true });
   }
   console.log("静态网站目录:", webDir);
-  app.use(express.static(webDir, { acceptRanges: false }));
+  app.use(express.static(webDir, {
+    acceptRanges: false,
+    setHeaders(res, filePath) {
+      // HTML 是哈希静态资源的入口，必须每次向服务端确认版本；
+      // 否则同步新产物后，长时间打开的 10588 标签仍可能引用旧 chunk。
+      if (/\.html$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        return;
+      }
+      // Vite 产物带内容哈希，文件名变即是新版，可安全长缓存。
+      if (/[/\\]assets[/\\]/.test(filePath)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  }));
+
+  // React 控制台（登录/注册，即 frontend/console 的构建产物）的 SPA 回落。
+  // 它有真实子路由（/console/login、/console/signup?ref=xxx —— 邀请链接会直接分享出去），
+  // 刷新或直接打开深链时静态中间件找不到文件，需要把 index.html 交给前端路由处理。
+  // 必须放在下面的 JWT 鉴权中间件之前：登录页本身就是在「未登录」状态下访问的。
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (!/^\/console(\/|$)/.test(req.path)) return next();
+    // 带扩展名的请求是真静态资源（js/css/图片），交给上一步的 static 或最终 404
+    if (/\.[a-zA-Z0-9]+$/.test(req.path)) return next();
+    const consoleIndex = path.join(webDir, "console", "index.html");
+    if (!fs.existsSync(consoleIndex)) return next();
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.sendFile(consoleIndex);
+  });
+
+  // 代理商中心（站长后台，搬自造物 /api/reseller/*）。自带 new-api JWT 透传鉴权，
+  // 必须挂在下面的全局 XOi JWT 中间件之前 —— 两套身份体系，互不替代。
+  const resellerRouter = (await import("@/routes/reseller")).default;
+  app.use("/api/reseller", resellerRouter);
+
+  // 站内「代理」端点（搬自造物 /api/agent/*）：申请成为代理、报价系数、按需签证书问询。
+  // 同样自带 JWT 鉴权（lib/reseller/auth），也必须放在全局 XOi JWT 中间件之前。
+  const agentRouter = (await import("@/routes/agent")).default;
+  app.use("/api/agent", agentRouter);
+
+  // 模型价格表（搬自造物：那边由 new-api 直接提供）。控制台的 getPricing() 是**不带鉴权头**的
+  // 裸 fetch，所以这里必须挂在全局 JWT 中间件之前。与 reseller/agent 一样，src/core.ts 也会把
+  // routes/pricing.ts 自动挂到同一路径，但那条在本条之后、永远轮不到 —— 保持与既有两个 Router
+  // 相同的写法，不去动生成器的规则。
+  const pricingRouter = (await import("@/routes/pricing")).default;
+  app.use("/api/pricing", pricingRouter);
+
+  // 灵感广场媒体外链本地化（external-media-map.json → 上游缓存）。不挂鉴权（造物同款，
+  // 靠随机 id 保密，瀑布流几十张图不应各带一次鉴权），所以也必须挂在全局 JWT 中间件之前。
+  const mediaRouter = (await import("@/lib/market/media-route")).default;
+  app.use("/api/media", await mediaRouter());
+
+  // 代理体系的两个后台任务：
+  //   ① 启动即建 mc_agents / mc_agent_customers / mc_agent_codes / mc_agent_withdrawals 四张表
+  //      （它们是 new-api 库里的表，不归 initDB 管，所以由 agent-store 自己 ensure）；
+  //   ② 每 10 分钟重算一次网关的「分组专属倍率」GroupGroupRatio（线路分组会随上游新增）。
+  // 放在 listen 之前但**不 await**：库连不上时不应该拖着整个服务起不来，
+  // agent-store 内部会把错误记成日志，功能降级为「代理商中心不可用」，其余接口照常。
+  void (async () => {
+    try {
+      const store = await import("@/lib/agent/store");
+      await store.ensureAgentTables();
+      store.startAgentSweeper();
+      console.log("[agent] 代理体系已就绪（4 张 mc_* 表 + 倍率定时同步）");
+    } catch (e) {
+      console.error("[agent] 代理体系初始化失败（代理商中心将不可用）:", (e as Error).message);
+    }
+  })();
+
+  // 团队算力池：建表后每分钟按成员周期额度结算。不 await，失败不影响创作主链路启动。
+  void (async () => {
+    try {
+      const team = await import("@/lib/team/store");
+      await team.ensureTeamTables();
+      team.startTeamSweeper();
+      console.log("[team] 团队模式已就绪（成员 + 算力池 + 周期额度）");
+    } catch (error) {
+      console.error("[team] 团队模式初始化失败：", (error as Error).message);
+    }
+  })();
 
   app.use(async (req, res, next) => {
     const setting = await u.db("o_setting").where("key", "tokenKey").select("value").first();
@@ -181,7 +298,10 @@ export default async function startServe(randomPort: Boolean = false) {
     if (
       req.path === "/api/login/login" ||
       req.path === "/api/login/register" ||
-      req.path === "/api/login/captcha"
+      req.path === "/api/login/captcha" ||
+      // 健康检查：供 docker-compose healthcheck / 负载均衡探活，必须在鉴权前放行
+      req.path === "/api/healthz" ||
+      req.path === "/api/readyz"
     )
       return next();
     // 公开取码端点 /api/login/captcha 同列入白名单 ── 前端「换一张」刷新钮于未登录态拉取新鲜 SVG 必经此处,
@@ -201,10 +321,24 @@ export default async function startServe(randomPort: Boolean = false) {
           (await getPlatformPolicy()).maintenance) {
         return res.status(503).json({ message: "平台维护中，请稍后再试" });
       }
-      next();
+      return runWithGatewayUser(Number(userInfo.id), () => next());
     } catch (err) {
       return res.status(401).send({ message: "无效的token" });
     }
+  });
+
+  // 项目级统一越权防护：大量历史路由接收 projectId 后直接查业务表，统一在入口校验归属。
+  // 具体资源（script/assets/storyboard）仍应在各路由用 projectId 联合过滤；这里先封住横向越权主入口。
+  app.use("/api", async (req, res, next) => {
+    const identity = (req as any).user as { id?: number; role?: string } | undefined;
+    if (!identity || identity.role === "admin") return next();
+    const rawProjectId = req.body?.projectId ?? req.query?.projectId;
+    if (rawProjectId === undefined || rawProjectId === null || rawProjectId === "") return next();
+    const projectId = Number(rawProjectId);
+    if (!Number.isSafeInteger(projectId) || projectId <= 0) return res.status(400).json({ message: "项目参数无效" });
+    const project = await u.db("o_project").where({ id: projectId, userId: identity.id }).select("id").first();
+    if (!project) return res.status(403).json({ message: "无权访问该项目" });
+    return next();
   });
 
   // 管理员专属路由保护
@@ -251,6 +385,11 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use("/api/admin/tasks", adminTasks);
   app.use("/api/admin/billing", adminBilling);
   app.use("/api/admin/settings", adminSettings);
+  // 平台运营：站内公告（读写 data/web/announcements.json，主站直接读它）+
+  // 网关记录代理（充值订单 / 兑换码，真钱的真源在网关，不在本仓库的 o_order）
+  app.use("/api/admin/announcements", adminAnnouncements);
+  app.use("/api/admin/gateway", adminGateway);
+  app.use("/api/admin/credits", adminCredits);
 
   // 无限画布路由（独立于自动生成的路由，因为路径含动态参数 :id）
   const canvasRouter = (await import("@/routes/canvas")).default;
@@ -261,6 +400,13 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use("/api/canvas-files", canvasFilesRouter);
 
   // Infinite Canvas 依赖的 stub 接口（避免 404）
+  // ⚠️ 上游画布编辑器登录态下把 AI 请求打到 /api/v1/*（账号代理），必须先于 /api 兜底挂载
+  const aiProxyRouter = (await import("@/routes/ai-proxy")).default;
+  app.use("/api/v1", aiProxyRouter);
+
+  const canvasCompatRouter = (await import("@/routes/canvas-compat")).default;
+  app.use("/api/v1", canvasCompatRouter);
+
   const canvasStubsRouter = (await import("@/routes/canvas-stubs")).default;
   app.use("/api", canvasStubsRouter);
 
@@ -278,7 +424,10 @@ export default async function startServe(randomPort: Boolean = false) {
     });
   });
 
-  const port = randomPort ? 0 : 10588;
+  // 端口：优先读 PORT（.env / 容器编排都会设它），没配才回落到 10588。
+  // 原来写死 10588，本地想和别的服务并存（比如演示用的假后端也占 10588）时必须改代码，
+  // 拿到的是 EADDRINUSE 而不是「换个端口起」。
+  const port = randomPort ? 0 : Number(process.env.PORT || 10588);
   return await new Promise((resolve) => {
     server.listen(port, async () => {
       const address = server.address();

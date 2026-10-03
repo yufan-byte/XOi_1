@@ -18,10 +18,16 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
   }
   const tables: TableSchema[] = [
     // 用户表
+    //
+    // 【v3.0 §5.4 语义变更】改造后 new-api 是账号的唯一权威，本表退化为「本地镜像表」：
+    //   · id           ===  new-api users.id（因此该列不再自增，插入时显式赋值）
+    //   · password     废弃，写入占位符 "__external__"；任何本地 bcrypt 比对都必须删掉
+    //   · role         跟随 new-api role（>=10 为 admin），避免「本地是 admin 但网关没权限」
+    //   · user_group   固定 'xoi'，用于与造物引擎的用户隔离（不要用 GROUP 这个保留字）
     {
       name: "o_user",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.text("name");
         table.text("password");
         table.text("role").defaultTo("user");
@@ -29,25 +35,81 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.integer("session_version").notNullable().defaultTo(0);
         table.text("created_at");
         table.text("display_id");
-        table.primary(["id"]);
+        // —— v3.0 新增 ——
+        table.integer("newapi_uid");
+        table.text("email");
+        table.text("user_group").defaultTo("xoi");
+        table.text("last_login_at");
         table.unique(["id"]);
+        table.unique(["newapi_uid"]);
       },
       initData: async (knex) => {
-        // 管理员账号密码通过环境变量覆盖（默认仅用于本地/测试，生产环境务必配置 XOI_ADMIN_PASSWORD）
-        const adminName = process.env.XOI_ADMIN_USERNAME || "admin";
-        const adminPwd = process.env.XOI_ADMIN_PASSWORD || "admin123";
-        if (["prod", "production"].includes(process.env.NODE_ENV || "") && (adminPwd === "admin123" || adminPwd.length < 12)) {
-          throw new Error("首次部署必须设置至少 12 位的 XOI_ADMIN_PASSWORD");
+        // 【重要】不再播种本地管理员。
+        // 改造后 o_user.id == newapi uid，而 XOI 的 uid 1 很可能与造物引擎的管理员是同一个数字；
+        // 在这里插入一条 id=1 的本地行，会跟真正登录进来的那个用户撞车。
+        //
+        // 管理员的判定改为跟随网关：new-api role >= 10 → 本地 role = admin（见 lib/userMirror.ts）。
+        // 若线上需要提前占位，可显式设置 XOI_BOOTSTRAP_ADMIN_UID 为新-api 里站长的 uid。
+        const bootstrapUid = Number(process.env.XOI_BOOTSTRAP_ADMIN_UID || 0);
+        if (Number.isSafeInteger(bootstrapUid) && bootstrapUid > 0) {
+          await knex("o_user").insert([
+            {
+              id: bootstrapUid,
+              name: process.env.XOI_BOOTSTRAP_ADMIN_NAME || "admin",
+              password: "__external__",
+              role: "admin",
+              status: "active",
+              display_id: "923800",
+              newapi_uid: bootstrapUid,
+              user_group: process.env.NEWAPI_SYNC_GROUP || "xoi",
+              created_at: new Date().toISOString(),
+            },
+          ]);
         }
-        const hashedPassword = await bcrypt.hash(adminPwd, 12);
-        await knex("o_user").insert([{ id: 1, name: adminName, password: hashedPassword, role: "admin", display_id: "923800" }]);
+      },
+    },
+    // 额度流水（v3.0 P1 新增）
+    //
+    // 唯一账本是 new-api 的 users.quota；本表**只是审计副本**，用于：
+    //   · 支付回调的幂等判重（idempotency_key 唯一）
+    //   · 出问题时对账（谁、什么时候、因为什么、改了多少）
+    // 它不参与余额计算 —— 余额永远以网关为准（见 utils/quota.ts）。
+    {
+      name: "o_quota_ledger",
+      builder: (table) => {
+        table.increments("id");
+        table.integer("user_id").notNullable();
+        table.bigInteger("delta").notNullable();
+        table.bigInteger("quota_after");
+        table.text("type");
+        table.text("description");
+        table.integer("operator_id");
+        table.text("reference_type");
+        table.text("reference_id");
+        table.text("idempotency_key");
+        table.text("created_at");
+        table.unique(["idempotency_key"]);
+      },
+    },
+    // 登录审计（v3.0 §5.6）：旁路写入，登录主流程失败不回滚
+    {
+      name: "o_auth_audit",
+      builder: (table) => {
+        table.increments("id");
+        table.integer("uid");
+        table.text("name");
+        table.text("ip");
+        table.text("ua");
+        table.text("result"); // ok | fail | captcha | blocked
+        table.text("reason");
+        table.text("at");
       },
     },
     //项目表
     {
       name: "o_project",
       builder: (table) => {
-        table.integer("id");
+        table.bigInteger("id");
         table.string("projectType");
         table.string("imageModel");
         table.string("imageQuality");
@@ -59,7 +121,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.text("directorManual");
         table.text("mode");
         table.text("videoRatio");
-        table.integer("createTime");
+        table.bigInteger("createTime");
         table.integer("userId");
         table.primary(["id"]);
         table.unique(["id"]);
@@ -69,12 +131,11 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_artStyle",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.string("name");
         table.text("fileUrl");
         table.text("label");
         table.text("prompt");
-        table.primary(["id"]);
         table.unique(["id"]);
       },
       initData: async (knex) => {},
@@ -83,7 +144,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_agentDeploy",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.string("model");
         table.string("key");
         table.string("modelName");
@@ -93,7 +154,6 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.integer("temperature");
         table.integer("maxOutputTokens");
         table.boolean("disabled").defaultTo(false);
-        table.primary(["id"]);
         table.unique(["id"]);
       },
       initData: async (knex) => {
@@ -338,16 +398,15 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_tasks",
       builder: (table) => {
-        table.integer("id").notNullable();
-        table.integer("projectId");
+        table.increments("id");
+        table.bigInteger("projectId");
         table.string("taskClass");
         table.string("relatedObjects");
         table.string("model");
         table.text("describe");
         table.string("state");
-        table.integer("startTime");
+        table.bigInteger("startTime");
         table.text("reason");
-        table.primary(["id"]);
         table.unique(["id"]);
       },
       initData: async (knex) => {},
@@ -356,12 +415,11 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_prompt",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.string("name");
         table.string("type");
         table.text("data");
         table.text("useData");
-        table.primary(["id"]);
         table.unique(["id"]);
       },
       initData: async (knex) => {
@@ -393,12 +451,11 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_modelPrompt",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.string("vendorId");
         table.string("model");
         table.text("fileName");
         table.text("path");
-        table.primary(["id"]);
         table.unique(["id"]);
       },
       initData: async (knex) => {},
@@ -407,17 +464,16 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_novel",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.integer("chapterIndex");
         table.text("reel");
         table.text("chapter");
         table.text("chapterData");
-        table.integer("projectId");
+        table.bigInteger("projectId");
         table.integer("eventState");
         table.text("event");
         table.text("errorReason");
-        table.integer("createTime");
-        table.primary(["id"]);
+        table.bigInteger("createTime");
         table.unique(["id"]);
       },
     },
@@ -425,11 +481,10 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_event",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.string("name");
         table.string("detail");
-        table.integer("createTime");
-        table.primary(["id"]);
+        table.bigInteger("createTime");
         table.unique(["id"]);
       },
     },
@@ -437,10 +492,9 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_eventChapter",
       builder: (table) => {
-        table.integer("id").notNullable();
-        table.integer("eventId").unsigned().references("id").inTable("o_event");
-        table.integer("novelId").unsigned().references("id").inTable("o_novel");
-        table.primary(["id"]);
+        table.increments("id");
+        table.bigInteger("eventId").unsigned().references("id").inTable("o_event");
+        table.bigInteger("novelId").unsigned().references("id").inTable("o_novel");
         table.unique(["id"]);
       },
     },
@@ -448,77 +502,73 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_script",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.text("name");
         table.text("content");
-        table.integer("projectId");
+        table.bigInteger("projectId");
         table.integer("extractState");
-        table.integer("createTime");
+        table.bigInteger("createTime");
         table.text("errorReason");
-        table.primary(["id"]);
         table.unique(["id"]);
       },
     },
     //资产表
     {
+      name: "o_image",
+      builder: (table) => {
+        table.increments("id");
+        table.text("filePath");
+        table.text("type");
+        table.bigInteger("assetsId");
+        table.text("model");
+        table.text("resolution");
+        table.text("state");
+        table.text("errorReason");
+        table.unique(["id"]);
+      },
+    },
+    //分镜
+    {
       name: "o_assets",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.text("name");
         table.text("prompt");
         table.text("remark");
         table.text("type");
         table.text("describe");
-        table.integer("scriptId"); //剧本id
-        table.integer("imageId").unsigned().references("id").inTable("o_image");
-        table.integer("assetsId");
-        table.integer("projectId");
-        table.integer("flowId"); //工作流id
-        table.integer("startTime");
+        table.bigInteger("scriptId"); //剧本id
+        table.bigInteger("imageId").unsigned().references("id").inTable("o_image");
+        table.bigInteger("assetsId");
+        table.bigInteger("projectId");
+        table.bigInteger("flowId"); //工作流id
+        table.bigInteger("startTime");
         table.string("promptState");
-        table.integer("audioBindState");
+        table.bigInteger("audioBindState");
         table.text("promptErrorReason");
-        table.primary(["id"]);
         table.unique(["id"]);
       },
       initData: async (knex) => {},
     },
     //生成图片表
     {
-      name: "o_image",
-      builder: (table) => {
-        table.integer("id").notNullable();
-        table.text("filePath");
-        table.text("type");
-        table.integer("assetsId");
-        table.text("model");
-        table.text("resolution");
-        table.text("state");
-        table.text("errorReason");
-        table.primary(["id"]);
-        table.unique(["id"]);
-      },
-    },
-    //分镜
-    {
       name: "o_storyboard",
       builder: (table) => {
-        table.integer("id").notNullable();
-        table.integer("scriptId");
+        table.increments("id");
+        table.bigInteger("scriptId");
         table.text("prompt");
         table.text("filePath");
         table.text("duration");
         table.text("state");
-        table.integer("trackId");
+        table.bigInteger("trackId");
         table.text("reason");
         table.text("track");
         table.text("videoDesc");
         table.integer("shouldGenerateImage"); // 0 否  1 是
-        table.integer("projectId");
-        table.integer("flowId"); //工作流id
+        table.bigInteger("projectId");
+        table.bigInteger("flowId"); //工作流id
         table.integer("index");
-        table.integer("createTime");
-        table.primary(["id"]);
+        table.bigInteger("createTime");
         table.unique(["id"]);
       },
     },
@@ -526,14 +576,13 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_agentWorkData",
       builder: (table) => {
-        table.integer("id").notNullable();
-        table.integer("projectId");
-        table.integer("episodesId");
+        table.increments("id");
+        table.bigInteger("projectId");
+        table.bigInteger("episodesId");
         table.string("key"); //用户其他方式索引
         table.string("data");
-        table.integer("createTime");
-        table.integer("updateTime");
-        table.primary(["id"]);
+        table.bigInteger("createTime");
+        table.bigInteger("updateTime");
         table.unique(["id"]);
       },
     },
@@ -541,15 +590,14 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_video",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.text("filePath");
         table.text("errorReason");
         table.integer("time");
         table.text("state");
-        table.integer("scriptId");
-        table.integer("projectId");
-        table.integer("videoTrackId");
-        table.primary(["id"]);
+        table.bigInteger("scriptId");
+        table.bigInteger("projectId");
+        table.bigInteger("videoTrackId");
         table.unique(["id"]);
       },
     },
@@ -557,16 +605,34 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_videoTrack",
       builder: (table) => {
-        table.integer("id").notNullable();
-        table.integer("videoId");
-        table.integer("projectId");
-        table.integer("scriptId");
+        table.increments("id");
+        table.bigInteger("videoId");
+        table.bigInteger("projectId");
+        table.bigInteger("scriptId");
         table.text("state");
         table.text("reason");
         table.text("prompt");
-        table.integer("selectVideoId");
+        table.bigInteger("selectVideoId");
         table.integer("duration");
-        table.primary(["id"]);
+        table.unique(["id"]);
+      },
+    },
+    //成片（导出归档）
+    {
+      name: "o_output",
+      builder: (table) => {
+        table.increments("id");
+        table.bigInteger("projectId");
+        table.bigInteger("scriptId"); //所属分集剧本（集）
+        table.bigInteger("episodesId");
+        table.text("name");
+        table.text("filePath"); //OSS 相对路径
+        table.text("coverPath"); //封面（可选）
+        table.integer("duration"); //时长 ms
+        table.bigInteger("size"); //字节
+        table.text("resolution"); //如 1280x720
+        table.text("source"); //webcodecs=前端合成 / upload=手工上传
+        table.bigInteger("createTime");
         table.unique(["id"]);
       },
     },
@@ -649,17 +715,16 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_imageFlow",
       builder: (table) => {
-        table.integer("id").notNullable();
+        table.increments("id");
         table.text("flowData").notNullable();
-        table.primary(["id"]);
         table.unique(["id"]);
       },
     },
     {
       name: "o_assets2Storyboard",
       builder: (table) => {
-        table.integer("storyboardId").notNullable();
-        table.integer("assetId").notNullable();
+        table.bigInteger("storyboardId").notNullable();
+        table.bigInteger("assetId").notNullable();
         table.primary(["storyboardId", "assetId"]);
         table.unique(["storyboardId", "assetId"]);
       },
@@ -667,8 +732,8 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_scriptAssets",
       builder: (table) => {
-        table.integer("scriptId").notNullable();
-        table.integer("assetId").notNullable();
+        table.bigInteger("scriptId").notNullable();
+        table.bigInteger("assetId").notNullable();
         table.primary(["scriptId", "assetId"]);
         table.unique(["scriptId", "assetId"]);
       },
@@ -683,8 +748,8 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.text("description").notNullable(); //描述
         table.text("embedding"); // 向量嵌入 JSON
         table.text("type").notNullable(); // "main" | "references"
-        table.integer("createTime").notNullable();
-        table.integer("updateTime").notNullable();
+        table.bigInteger("createTime").notNullable();
+        table.bigInteger("updateTime").notNullable();
         table.integer("state").notNullable(); // 1正常，0正在生成description，-1description为空。-2归属为空,-3md5变动，-4文件不存在
         table.primary(["id"]);
       },
@@ -1048,7 +1113,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.text("embedding"); // 向量嵌入 JSON
         table.text("relatedMessageIds"); // summary关联的message id列表 JSON
         table.integer("summarized").defaultTo(0); // message是否已被总结 0/1
-        table.integer("createTime").notNullable();
+        table.bigInteger("createTime").notNullable();
         table.primary(["id"]);
         table.index(["isolationKey", "type"]);
         table.index(["isolationKey", "summarized"]);
@@ -1057,8 +1122,8 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_assetsRole2Audio",
       builder: (table) => {
-        table.integer("assetsRoleId").notNullable();
-        table.integer("assetsAudioId").notNullable();
+        table.bigInteger("assetsRoleId").notNullable();
+        table.bigInteger("assetsAudioId").notNullable();
         table.primary(["assetsAudioId", "assetsRoleId"]);
         table.unique(["assetsAudioId", "assetsRoleId"]);
       },
@@ -1375,10 +1440,17 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
   }
 
   // Migration: 将明文密码迁移为 bcrypt 哈希
-  const plainUsers = await knex("o_user").where("password", "not like", "$2%");
+  //
+  // 【v3.0 起本迁移基本退役】改造后密码只存在 new-api，本地 o_user.password 写的是占位符
+  // "__external__"。若不过滤，这段会在每次启动时对占位符做一次 bcrypt（12 轮，白烧 CPU），
+  // 而且毫无意义。这里显式排除占位符，只在真的还有历史明文用户时才动手。
+  const plainUsers = await knex("o_user")
+    .where("password", "not like", "$2%")
+    .whereNot("password", "__external__")
+    .whereNotNull("password");
   for (const user of plainUsers) {
     if (user.password && !user.password.startsWith("$2")) {
-      console.log(`[Migration] 用户 "${user.name}" 密码迁移为 bcrypt 哈希`);
+      console.log(`[Migration] 用户 "${user.name}" 密码迁移为 bcrypt 哈希（历史数据）`);
       const hashedPassword = await bcrypt.hash(user.password, 12);
       await knex("o_user").where("id", user.id).update({ password: hashedPassword });
     }

@@ -109,6 +109,15 @@ export default router.post(
       }
     }
 
+    // 参考图缺失提示：assetRecord 为空的分镜意味着 AI 拿不到角色/场景形象参考，
+    // 只能凭空生成 —— 角色一致性/场景连续性会崩。这里不阻断（可能是有意为之），
+    // 但必须用 message 明确告知，避免前端静默产出崩坏结果（旧行为是无声 filter 掉）。
+    const noRefCount = realStoryData.filter((i) => !(assetRecord[i.id!]?.length)).length;
+    const warningMessage =
+      noRefCount > 0
+        ? `${noRefCount}/${realStoryData.length} 个分镜缺少角色/场景参考图，生成结果可能与设定不一致；建议先到「角色场景」页生成资产图。`
+        : "成功";
+
     res.status(200).send(
       success(
         realStoryData.map((i) => ({
@@ -122,6 +131,7 @@ export default router.post(
           pointsDeducted,
           balance,
         })),
+        warningMessage,
       ),
     );
 

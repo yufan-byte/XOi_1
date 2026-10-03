@@ -20,6 +20,8 @@
     "dev": "cross-env NODE_ENV=dev nodemon --inspect --exec tsx src/app.ts",
     "start": "cross-env NODE_ENV=prod node data/serve/app.js",
     "lint": "tsc --noEmit",
+    "db:check": "tsx scripts/check-db.ts",
+    "db:types": "tsx scripts/gen-db-types.ts",
     "test": "tsx --test src/utils/**/*.test.ts",
     "build": "cross-env NODE_ENV=prod tsx scripts/build.ts",
     "debug:ai": "npx @ai-sdk/devtools",
@@ -35,7 +37,6 @@
     "@ai-sdk/openai-compatible": "^2.0.27",
     "@ai-sdk/xai": "^3.0.47",
     "@huggingface/transformers": "^3.8.1",
-    "@rmp135/sql-ts": "^2.2.0",
     "ai": "^6.0.67",
     "axios": "^1.13.2",
     "axios-retry": "^4.5.0",
@@ -56,11 +57,11 @@
     "lodash": "^4.17.23",
     "morgan": "^1.10.1",
     "p-limit": "^7.3.0",
+    "pg": "^8.23.1",
     "qwen-ai-provider-v5": "^2.1.0",
     "serialize-error": "^13.0.1",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.3",
-    "sqlite3": "^6.0.1",
     "sucrase": "^3.35.1",
     "svg-captcha": "^1.4.0",
     "uuid": "^13.0.0",
@@ -78,15 +79,11 @@
     "@types/license-checker": "^25.0.6",
     "@types/lodash": "^4.17.24",
     "@types/morgan": "^1.9.10",
+    "@types/pg": "^8.23.1",
     "cross-env": "^10.1.0",
     "license-checker": "^25.0.1",
     "nodemon": "^3.1.11",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
-  },
-  "overrides": {
-    "@rmp135/sql-ts": {
-      "better-sqlite3": "^12.8.0"
-    }
   }
 }

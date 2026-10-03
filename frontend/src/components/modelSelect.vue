@@ -21,12 +21,10 @@
         </div>
       </t-option>
     </t-option-group>
-    <!-- 无可用模型时，显示跳转设置的按钮 -->
+    <!-- 无可用模型：模型统一由 new-api 网关接管，主站不再提供本地配置入口 -->
     <template #empty>
       <div class="emptyActionWrap">
-        <t-button class="emptyActionButton" size="small" variant="text" theme="primary" @click.stop="goVendorConfig">
-          {{ $t("components.modelSelect.goSetting") }}
-        </t-button>
+        <span class="emptyActionButton">{{ $t("components.modelSelect.noModel", "暂无可用模型，请联系管理员在网关配置线路") }}</span>
       </div>
     </template>
   </t-select>
@@ -153,12 +151,6 @@ function getProviderLogoByModel(label?: string, value?: string) {
 
 function getFallbackText(label: string) {
   return label?.slice(0, 1)?.toUpperCase() || "M";
-}
-
-function goVendorConfig() {
-  const store = settingStore();
-  store.activeMenu = "vendorConfig";
-  store.showSetting = true;
 }
 </script>
 

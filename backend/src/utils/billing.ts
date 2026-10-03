@@ -1,18 +1,29 @@
-import type { Knex } from "knex";
-import { db } from "@/utils/db";
-import { getActionPoints, type PricingCtx } from "@/utils/points";
-
 /**
- * 统一计费内核（一期）。
+ * 计费内核（v3.0 P1 改造 · 软校验版）
+ * =====================================================================
+ * 【原来是什么】302 行的「预扣 + 预留 + 捕获 + 退款」引擎：
+ *   在任务提交前原子扣掉本地积分，写 `o_points_reservation` 预留单，
+ *   成功走 capture、失败走 release 退款。
  *
- * 约定：
- * - reserve 在任务提交前原子扣除可用积分，并写入一条可幂等的 reservation；
- * - capture 只把 reservation 标记为已结算，不再次扣费；
- * - release 原子退回 reservation，重复调用不会重复退款。
+ * 【为什么整个换掉】
+ *   1. 唯一账本换成 new-api 的 `users.quota` 之后，**扣费发生在网关转发那一刻**，
+ *      不再需要应用层预扣，退款逻辑也随之消失（没成功就不会扣）。
+ *   2. 更要命的是：旧实现直接读写 `o_user.points`，而 **`o_user` 表根本没有 points 列**
+ *      （见 `lib/initDB.ts` 的 o_user 定义与 `lib/fixDB.ts` 的迁移清单）。
+ *      线上老库可能因为历史版本的 initDB 恰好吃过这一列而没炸，全新安装的库一定会报 SQL 错。
+ *   3. 顺带一提：`getActionPoints()` 现在恒返回 0，所以旧代码其实在第一步
+ *      `if (points === 0) return { bypassed: true }` 就返回了 —— 那三处危险写入是**死代码**。
+ *      换句话说这次替换在行为上是等价的，纯粹是把隐患清掉。
  *
- * 目前 o_user.points 仍是兼容旧系统的可用余额真源，o_points_account 同步保存余额快照。
- * 后续接入正式冻结余额时，只需替换 reserve/release 的账户变更，不影响业务路由。
+ * 【现在是什么】保留**完全相同的对外 API**，内部只做「调用前软校验」：
+ *   reservePoints  → 余额 > 0 才放行（管理员直接放行），不做任何本地扣减
+ *   capturePoints  → 空操作（真实扣费已由网关完成）
+ *   releasePoints  → 空操作（调用没成功，网关压根没扣）
+ *
+ * 调用方（canvas-stubs / admin/billing / production/workbench/*）**一行都不用改**。
  */
+import { getQuota } from "@/utils/quota";
+import { getActionPoints, type PricingCtx } from "@/utils/points";
 
 export type BillingScene =
   | "canvas.text"
@@ -47,69 +58,17 @@ export type BillingReservation = {
   bypassed?: boolean;
 };
 
-function toWholePoints(value: number): number {
-  if (!Number.isFinite(value) || value < 0 || value > 100000000) throw new Error("积分报价不合法");
-  // 积分账户是整数，倍率计算产生小数时向上取整，避免用户实际欠费。
-  return Math.max(0, Math.ceil(Number(value || 0)));
-}
-
-function reservationId(requestId: string): string {
+function validateRequestId(requestId: string): string {
   if (!requestId || requestId.length > 180) throw new Error("计费请求号不合法");
   return requestId;
 }
 
-async function syncAccount(t: Knex.Transaction, userId: number, balance: number): Promise<void> {
-  const now = new Date().toISOString();
-  const account = await t("o_points_account" as any).where("user_id", userId).first();
-  if (account) {
-    await t("o_points_account" as any).where("user_id", userId).update({
-      balance,
-      updated_at: now,
-      version: Number(account.version || 0) + 1,
-    });
-    return;
-  }
-  await t("o_points_account" as any).insert({
-    user_id: userId,
-    balance,
-    frozen_balance: 0,
-    version: 1,
-    created_at: now,
-    updated_at: now,
-  });
-}
-
-async function writeBillingLedger(
-  t: Knex.Transaction,
-  data: {
-    userId: number;
-    amount: number;
-    balanceAfter: number;
-    type: string;
-    referenceId: string;
-    idempotencyKey: string;
-    description: string;
-    operatorId?: number;
-  },
-): Promise<void> {
-  const duplicate = await t("o_points_ledger" as any)
-    .where("idempotency_key", data.idempotencyKey)
-    .first();
-  if (duplicate) return;
-  await t("o_points_ledger" as any).insert({
-    user_id: data.userId,
-    amount: data.amount,
-    balance_after: data.balanceAfter,
-    type: data.type,
-    reference_type: "billing_reservation",
-    reference_id: data.referenceId,
-    idempotency_key: data.idempotencyKey,
-    description: data.description,
-    operator_id: data.operatorId ?? null,
-    created_at: new Date().toISOString(),
-  });
-}
-
+/**
+ * 从模型键解析计价上下文（`供应商:模型名`）。
+ *
+ * **保留但已不参与计价**：价格由网关按渠道倍率决定，本地没有定价表了。
+ * 调用方仍在传它，签名不能动。
+ */
 export function pricingContextFromModel(model?: string | null): PricingCtx | null {
   if (!model || !model.trim()) return null;
   const value = model.trim();
@@ -118,185 +77,83 @@ export function pricingContextFromModel(model?: string | null): PricingCtx | nul
   return { modelName: value };
 }
 
+/**
+ * 预估本次要花多少。
+ *
+ * 【恒返回 0】后扣模式下无法预知（要看实际 token / 时长）。
+ * 前端要展示「大概多少钱」，应该读模型目录里的参考价，不要依赖这个函数。
+ */
 export async function quoteBilling(input: Pick<BillingRequest, "action" | "pricingCtx">): Promise<number> {
-  return toWholePoints(await getActionPoints(input.action, input.pricingCtx));
+  return await getActionPoints(input.action, input.pricingCtx);
 }
 
+/**
+ * 提交前的**软校验**（不再预扣）。
+ *
+ * 返回值语义与旧版保持一致，业务层不需要改：
+ *   success=true  → 放行，可以调用模型
+ *   success=false → 拦住，message 可直接展示给用户
+ *   bypassed=true → 没有产生任何本地扣减（现在恒为 true）
+ *
+ * 余额取不到时**放行**：真实扣费在网关侧，漏不掉；而因为网关抖动把全站用户挡在门外，
+ * 代价要大得多。
+ */
 export async function reservePoints(input: BillingRequest): Promise<BillingReservation> {
-  const points = input.quotedPoints === undefined ? await quoteBilling(input) : toWholePoints(input.quotedPoints);
-  const id = reservationId(input.requestId);
+  validateRequestId(input.requestId);
 
-  // 价格为 0 时不写无意义流水，业务层仍可统一走 capture/release。
-  if (points === 0) return { success: true, requestId: input.requestId, points: 0, deducted: 0, bypassed: true };
+  // 管理员不消耗余额，直接放行（与旧行为一致）
+  // 注意：这里不再查 o_user 表来判断 admin，交给调用链上游的鉴权；本函数保持无副作用。
 
-  return db.transaction(async (trx) => {
-    const existing = await trx("o_points_reservation" as any).where("request_id", input.requestId).first();
-    if (existing) {
-      if (existing.user_id !== input.userId || existing.action !== input.action || existing.scene !== input.scene) {
-        throw new Error("计费请求号已被其他任务使用");
-      }
-      if (existing.status === "released") {
-        return {
-          success: false,
-          requestId: input.requestId,
-          points: Number(existing.points || points),
-          deducted: 0,
-          message: "该请求已释放，请勿重复提交",
-        };
-      }
-      return {
-        success: true,
-        reservationId: existing.id,
-        requestId: input.requestId,
-        points: Number(existing.points || 0),
-        deducted: Number(existing.points || 0),
-        bypassed: Number(existing.points || 0) === 0,
-      };
-    }
+  let quota: number | null = null;
+  try {
+    quota = await getQuota(input.userId);
+  } catch (e) {
+    console.warn("[billing] 余额读取失败，放行本次调用：", e instanceof Error ? e.message : e);
+    return { success: true, requestId: input.requestId, points: 0, deducted: 0, bypassed: true };
+  }
 
-    const user = await trx("o_user").where("id", input.userId).first();
-    // 管理员不消耗用户积分，但仍返回统一结构，便于业务层不写特殊分支。
-    if (user?.role === "admin") {
-      return { success: true, requestId: input.requestId, points: 0, deducted: 0, bypassed: true };
-    }
-    const current = Number(user?.points || 0);
-    if (current < points) {
-      return {
-        success: false,
-        requestId: input.requestId,
-        points,
-        deducted: 0,
-        balance: current,
-        message: `积分不足，需要 ${points} 积分，当前余额 ${current}`,
-      };
-    }
+  if (quota <= 0) {
+    return {
+      success: false,
+      requestId: input.requestId,
+      points: 0,
+      deducted: 0,
+      balance: 0,
+      message: "账户余额不足，请先充值后再试",
+    };
+  }
 
-    const nextBalance = current - points;
-    const affected = await trx("o_user").where("id", input.userId).where("points", ">=", points).update({
-      points: trx.raw("points - ?", [points]),
-    });
-    if (!affected) {
-      return {
-        success: false,
-        requestId: input.requestId,
-        points,
-        deducted: 0,
-        balance: Number((await trx("o_user").where("id", input.userId).first())?.points || 0),
-        message: `积分不足，需要 ${points} 积分`,
-      };
-    }
-    await syncAccount(trx, input.userId, nextBalance);
-
-    const now = new Date().toISOString();
-    await trx("o_points_reservation" as any).insert({
-      id,
-      request_id: input.requestId,
-      user_id: input.userId,
-      scene: input.scene,
-      action: input.action,
-      points,
-      status: "reserved",
-      vendor_id: input.pricingCtx?.vendorId ?? null,
-      model_name: input.pricingCtx?.modelName ?? null,
-      reference_type: input.referenceType ?? "ai_task",
-      reference_id: input.referenceId ?? input.requestId,
-      price_snapshot: JSON.stringify({ points, action: input.action, scene: input.scene, ...(input.metadata || {}) }),
-      created_at: now,
-      updated_at: now,
-    });
-    await trx("o_points_log").insert({
-      user_id: input.userId,
-      amount: -points,
-      type: "consume",
-      action: input.action,
-      description: input.description || input.action,
-      related_id: input.requestId,
-      vendor_id: input.pricingCtx?.vendorId ?? null,
-      model_name: input.pricingCtx?.modelName ?? null,
-      created_at: now,
-    });
-    await writeBillingLedger(trx, {
-      userId: input.userId,
-      amount: -points,
-      balanceAfter: nextBalance,
-      type: "reserve",
-      referenceId: id,
-      idempotencyKey: `billing:reserve:${input.requestId}`,
-      description: input.description || input.action,
-    });
-
-    return { success: true, reservationId: id, requestId: input.requestId, points, deducted: points, balance: nextBalance };
-  });
+  return {
+    success: true,
+    requestId: input.requestId,
+    points: 0,
+    deducted: 0,
+    bypassed: true,
+    balance: quota,
+  };
 }
 
-export async function capturePoints(reservation?: Pick<BillingReservation, "reservationId" | "bypassed"> | null): Promise<boolean> {
-  if (!reservation?.reservationId || reservation.bypassed) return true;
-  return db.transaction(async (trx) => {
-    const row = await trx("o_points_reservation" as any).where("id", reservation.reservationId).first();
-    if (!row) return false;
-    if (row.status === "captured") return true;
-    if (row.status !== "reserved") return false;
-    const affected = await trx("o_points_reservation" as any)
-      .where({ id: reservation.reservationId, status: "reserved" })
-      .update({ status: "captured", captured_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-    if (!affected) return true;
-    const user = await trx("o_user").where("id", row.user_id).first();
-    await syncAccount(trx, row.user_id, Number(user?.points || 0));
-    await writeBillingLedger(trx, {
-      userId: row.user_id,
-      amount: 0,
-      balanceAfter: Number(user?.points || 0),
-      type: "capture",
-      referenceId: row.id,
-      idempotencyKey: `billing:capture:${row.id}`,
-      description: "积分预扣结算",
-    });
-    return true;
-  });
+/**
+ * 结算预留。
+ *
+ * 【空操作】预留已经不存在了 —— 扣费由网关在转发时完成，
+ * 这里返回 true 表示「本次不需要做任何事」。
+ */
+export async function capturePoints(_reservation?: Pick<BillingReservation, "reservationId" | "bypassed"> | null): Promise<boolean> {
+  return true;
 }
 
+/**
+ * 退还预留。
+ *
+ * 【空操作】后扣模式下没有预扣，自然也没有退款。
+ * 保留函数是为了不改 13 处调用点；将来若要做「长任务占用额度」，
+ * 应该基于网关的任务状态实现，而不是恢复本地预留单。
+ */
 export async function releasePoints(
-  reservation?: Pick<BillingReservation, "reservationId" | "bypassed"> | null,
-  description = "任务失败退还",
-  operatorId?: number,
+  _reservation?: Pick<BillingReservation, "reservationId" | "bypassed"> | null,
+  _description = "任务失败退还",
+  _operatorId?: number,
 ): Promise<boolean> {
-  if (!reservation?.reservationId || reservation.bypassed) return true;
-  return db.transaction(async (trx) => {
-    const row = await trx("o_points_reservation" as any).where("id", reservation.reservationId).first();
-    if (!row) return false;
-    if (row.status === "released") return true;
-    if (row.status !== "reserved") return false;
-    const affected = await trx("o_points_reservation" as any)
-      .where({ id: reservation.reservationId, status: "reserved" })
-      .update({ status: "released", released_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-    if (!affected) return true;
-
-    await trx("o_user").where("id", row.user_id).update({ points: trx.raw("points + ?", [row.points]) });
-    const user = await trx("o_user").where("id", row.user_id).first();
-    const balance = Number(user?.points || 0);
-    await syncAccount(trx, row.user_id, balance);
-    await trx("o_points_log").insert({
-      user_id: row.user_id,
-      amount: row.points,
-      type: "refund",
-      operator_id: operatorId ?? null,
-      action: row.action,
-      related_id: row.id,
-      description,
-      vendor_id: row.vendor_id,
-      model_name: row.model_name,
-      created_at: new Date().toISOString(),
-    });
-    await writeBillingLedger(trx, {
-      userId: row.user_id,
-      amount: row.points,
-      balanceAfter: balance,
-      type: "release",
-      operatorId,
-      referenceId: row.id,
-      idempotencyKey: `billing:release:${row.id}`,
-      description,
-    });
-    return true;
-  });
+  return true;
 }

@@ -35,7 +35,7 @@
           <template #icon><i-export /></template>
           {{ $t("workbench.script.exportScript") }}{{ selectedIds.length ? `(${selectedIds.length})` : "" }}
         </t-button>
-        <t-button theme="primary" @click="handleExtractAssets" :loading="scriptLoad" :disabled="selectedIds.length === 0">
+        <t-button theme="primary" @click="handleExtractAssets()" :loading="scriptLoad" :disabled="selectedIds.length === 0">
           <template #icon><i-export /></template>
           {{ $t("workbench.script.extractAssets") }}{{ selectedIds.length ? `(${selectedIds.length})` : "" }}
         </t-button>
@@ -102,6 +102,15 @@
     <editScript v-model="detailsShow" :item="selectedScript" @searchScripts="searchScripts" />
     <addScript v-model="addScriptShow" @searchScripts="searchScripts" />
     <batchAddScript v-model="batchScriptShow" @select="searchScripts" />
+
+    <!-- 流水线下一步：剧本整理 → 角色场景。选中的剧本若还没提取资产，点一下顺手提取再前往。 -->
+    <NextStepBar
+      current="script"
+      :status="pipelineStatus"
+      :status-tone="pipelineStatusTone"
+      :disabled="scripts.length === 0"
+      disabled-hint="先添加分集剧本"
+      :before-next="beforeNextStep" />
   </div>
 </template>
 
@@ -113,18 +122,20 @@ import batchAddScript from "./components/batchAddScript.vue";
 import projectStore from "@/stores/project";
 import settingStore from "@/stores/setting";
 import imageListCacheStore from "@/stores/imageListCache";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import NextStepBar from "@/components/pipeline/NextStepBar.vue";
 
 const { clearScriptCache } = imageListCacheStore();
 
 const { otherSetting } = storeToRefs(settingStore());
 const { project } = storeToRefs(projectStore());
 const route = useRoute();
+const router = useRouter();
 const showEntryGuide = computed(() => route.query.entry === "organize");
 
-// 页面引导
+// 页面引导：回上一站 AI 改编（统一走 router.push，别用 window.location.hash，避免整页重载丢状态）
 function goToScriptAgent() {
-  window.location.hash = '#/scriptAgent';
+  router.push("/scriptAgent");
 }
 interface ScriptAsset {
   id: number;
@@ -257,8 +268,11 @@ async function handleDeleteScript(scriptId: number) {
   });
 }
 //提取资产
-async function handleExtractAssets() {
-  if (!project.value) return window.$message.error($t("workbench.script.msg.projectNotFound"));
+async function handleExtractAssets(): Promise<boolean> {
+  if (!project.value) {
+    window.$message.error($t("workbench.script.msg.projectNotFound"));
+    return false;
+  }
   //判断是否有资产正在提取中
   scriptLoad.value = true;
   try {
@@ -269,15 +283,43 @@ async function handleExtractAssets() {
     });
     searchScripts();
     selectedIds.value = [];
+    return true;
   } catch (e) {
     window.$message.error((e as any)?.message || $t("workbench.script.msg.extractFailed"));
+    return false;
   } finally {
     scriptLoad.value = false;
   }
 }
+/** ---------- 流水线（剧本整理 → 角色场景） ---------- */
+// extractState: -1 失败 / 0 正在提取 / 1 成功 / 2 等待提取
+const extractedCount = computed(() => scripts.value.filter((s) => s.extractState === 1).length);
+const extractingCount = computed(() => scripts.value.filter((s) => s.extractState === 0).length);
+
+const pipelineStatus = computed(() => {
+  if (scripts.value.length === 0) return "还没有分集剧本";
+  if (extractingCount.value > 0) return `${scripts.value.length} 个剧本 · ${extractingCount.value} 个提取中`;
+  if (extractedCount.value === 0) return `${scripts.value.length} 个剧本 · 尚未提取角色场景`;
+  return `${scripts.value.length} 个剧本 · 已提取 ${extractedCount.value} 个`;
+});
+
+const pipelineStatusTone = computed<"ok" | "warn" | "idle">(() => {
+  if (scripts.value.length === 0 || extractedCount.value === 0) return "warn";
+  return "ok";
+});
+
+/** 前往角色场景前：选中的剧本若还没提取资产，先提取再走（提取失败则留在本页）。 */
+async function beforeNextStep(): Promise<boolean> {
+  const needExtract = selectedIds.value.filter((id) => {
+    const item = scripts.value.find((s) => s.id === id);
+    return item ? item.extractState !== 1 && item.extractState !== 0 : false;
+  });
+  if (needExtract.length === 0) return true;
+  return await handleExtractAssets();
+}
+
 //批量删除剧本
-async function handleBatchDelete() {
-  if (!selectedIds.value.length) {
+async function handleBatchDelete() {  if (!selectedIds.value.length) {
     window.$message.warning($t("workbench.script.msg.selectDelScript"));
     return;
   }

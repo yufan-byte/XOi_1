@@ -10,6 +10,9 @@
     "build": "vue-tsc --build --force && vite build",
     "build-only": "vite build",
     "build:atelier": "cd atelier && npm run build",
+    "build:console": "cd console && npm run build",
+    "build:all": "npm run build:atelier && npm run build:console && npm run build",
+    "build:serve": "npm run build:all && node scripts/sync-backend-web.mjs",
     "type-check": "vue-tsc --build --force",
     "license": "node scripts/license.ts",
     "i18n:check": "node scripts/findUnusedI18n.ts"
@@ -30,6 +33,7 @@
     "clsx": "^2.1.1",
     "dayjs": "^1.11.19",
     "js-confetti": "^0.13.1",
+    "localforage": "^1.10.0",
     "lodash": "^4.17.23",
     "mammoth": "^1.12.0",
     "md-editor-v3": "^6.4.0",

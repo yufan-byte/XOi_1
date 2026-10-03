@@ -3,7 +3,7 @@
     <div class="mediaLibraryHeader">
       <div class="headerTitle jb ac">
         <h3 class="mediaLibraryTitle">{{ $t("workbench.production.editVideo.clipMaterials") }}</h3>
-        <span style="font-size: 12px">视频素材名字按照分镜台组#号数字命名</span>
+        <span style="font-size: 12px">单击加入主轨，拖拽决定位置</span>
       </div>
       <div class="mediaLibraryTabs">
         <t-button
@@ -29,6 +29,7 @@
           :key="item.id"
           class="mediaItem"
           draggable="true"
+          @click="handlePick(item)"
           @dragstart="handleDragStart($event, item)"
           @dragend="handleDragEnd">
           <div class="mediaItemPreview">
@@ -58,6 +59,7 @@
           :key="item.id"
           class="mediaItem"
           draggable="true"
+          @click="handlePick(item)"
           @dragstart="handleDragStart($event, item)"
           @dragend="handleDragEnd">
           <div class="mediaItemPreview">
@@ -85,6 +87,7 @@
           :key="item.id"
           class="mediaItem"
           draggable="true"
+          @click="handlePick(item)"
           @dragstart="handleDragStart($event, item)"
           @dragend="handleDragEnd">
           <div class="mediaItemPreview">
@@ -171,6 +174,7 @@
           :key="audio.id"
           class="audioItem"
           draggable="true"
+          @click="handlePick(audio)"
           @dragstart="handleDragStart($event, audio)"
           @dragend="handleDragEnd">
           <div class="audioItemPreview">
@@ -242,6 +246,12 @@ const props = withDefaults(
 );
 
 const activeTab = ref("video");
+
+/** 单击 = 追加到主轨末尾。剪辑台里"能点就上轨"比"必须拖"顺手得多（拖拽仍保留，用来定位置） */
+const emit = defineEmits<{ (e: "pick", item: any): void }>();
+function handlePick(item: any) {
+  emit("pick", { ...item, sourceUrl: item.url || item.id });
+}
 
 const tabs = getLibraryTabs();
 

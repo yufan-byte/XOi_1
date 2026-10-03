@@ -411,6 +411,8 @@ export default {
             emptyImage: "空图片节点",
             emptyVideo: "空视频节点",
             emptyAudio: "空音频节点",
+            importMissing: "素材未随作品收录",
+            importMissingHint: "原作品发布时未包含该素材，可自行上传替换",
             audio: "音频",
             batchExpanded: "图片组已展开",
             batchCollapsed: "图片组已收起",

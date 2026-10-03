@@ -621,8 +621,8 @@ onUnmounted(() => {
   border-radius: 0;
   overflow: hidden;
   opacity: .98;
-  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .28) 14%, #000 34%, #000 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .28) 14%, #000 34%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .18) 30%, rgba(0, 0, 0, .72) 52%, #000 72%, #000 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .18) 30%, rgba(0, 0, 0, .72) 52%, #000 72%, #000 100%);
 }
 
 .director-library-visual img {

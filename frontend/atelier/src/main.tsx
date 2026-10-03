@@ -20,10 +20,13 @@ async function bootstrap() {
         import("react-router-dom"),
     ]);
     const { installThemeBridge } = await import("@/xoi/bridge");
-    const { runUpstreamXoiHandoff, runUpstreamXoiImport } = await import("@/xoi/upstream-canvas-bridge");
+    // 宿主 JWT → 上游 user store（画布 AI 请求的 Authorization 来源），须在任何画布请求前播种
+    const { installUpstreamAuthBridge } = await import("@/xoi/upstream-auth-bridge");
+    const { runUpstreamXoiGraphImport, runUpstreamXoiHandoff, runUpstreamXoiImport, runUpstreamXoiNewCanvas } = await import("@/xoi/upstream-canvas-bridge");
 
     // 宿主主题广播跟随（App.vue initIframeTheme → xoi:theme）
     installThemeBridge();
+    installUpstreamAuthBridge();
 
     createRoot(document.getElementById("root")!).render(
         <React.StrictMode>
@@ -44,6 +47,11 @@ async function bootstrap() {
     // 角景/资产「发送到画布」入口引导：建画布 + 导入图片节点 + 跳转打开
     // 放在 render 之后跑（内部自等 store 水合），不阻塞首屏
     void runUpstreamXoiImport((path) => router.navigate(path));
+    // 宿主侧栏「新建画布」一键直达：?new=1 建空白项目直接进编辑器
+    void runUpstreamXoiNewCanvas((path) => router.navigate(path));
+    // 灵感广场画布作品「免费复刻同款」：还原完整工作流骨架 + 提示词预填
+    void runUpstreamXoiGraphImport((path) => router.navigate(path));
+    // Agent 对话的「画布入口」handoff：带入提示词/技能/附件建项目
     void runUpstreamXoiHandoff((path) => router.navigate(path));
 }
 

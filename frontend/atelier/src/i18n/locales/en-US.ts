@@ -409,6 +409,8 @@ export default {
             emptyImage: "Empty image node",
             emptyVideo: "Empty video node",
             emptyAudio: "Empty audio node",
+            importMissing: "Media not bundled with this work",
+            importMissingHint: "The original work did not include this media — upload your own to replace it",
             audio: "Audio",
             batchExpanded: "Image group expanded",
             batchCollapsed: "Image group collapsed",

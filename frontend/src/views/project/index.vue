@@ -6,9 +6,9 @@
         <span class="title">影视创作项目</span>
         <span class="sub">从故事、剧本到镜头与成片，在同一条创作链路中持续推进。</span>
         <div class="project-stats" aria-label="项目概览">
+          <span><strong>{{ doingCount }}</strong>进行中</span>
+          <span><strong>{{ doneCount }}</strong>已完成</span>
           <span><strong>{{ allProject.length }}</strong>全部项目</span>
-          <span><strong>{{ novelProjectCount }}</strong>小说改编</span>
-          <span><strong>{{ scriptProjectCount }}</strong>剧本创作</span>
         </div>
       </div>
       <div class="header-actions">
@@ -68,6 +68,8 @@
         <div class="intro">
           {{ project.intro }}
         </div>
+        <!-- 流水线进度：一眼看出这个项目卡在哪一步 -->
+        <PipelineProgress class="cardProgress" :progress="project.progress" :project-type="project.projectType" compact />
         <div class="bottomMenu">
           <div class="time">
             <t-icon name="time" size="14px" />
@@ -108,8 +110,9 @@
 import projectDialog from "./components/projectDialog.vue";
 import dayjs from "dayjs";
 import axios from "@/utils/axios";
-import projectStore from "@/stores/project";
+import projectStore, { type ProjectProgress } from "@/stores/project";
 import imageListCacheStore from "@/stores/imageListCache";
+import PipelineProgress from "@/components/pipeline/PipelineProgress.vue";
 
 const { clearProjectCache } = imageListCacheStore();
 const { allProject, project } = storeToRefs(projectStore());
@@ -118,8 +121,17 @@ const dialogShow = ref(false);
 const loading = ref(true);
 const searchQuery = ref("");
 const activeTab = ref<"all" | "recent">("all");
-const novelProjectCount = computed(() => allProject.value.filter((item) => item.projectType === "novel").length);
-const scriptProjectCount = computed(() => allProject.value.filter((item) => item.projectType === "script").length);
+
+/** 项目整体进度判定：有归档成片=已完成；其余任一段有进展=进行中；全零=未开始 */
+function progressState(item: { progress?: ProjectProgress }): "done" | "doing" | "idle" {
+  const p = item.progress;
+  if (!p) return "idle";
+  if ((p.output?.done ?? 0) > 0) return "done";
+  const hasAny = [p.material, p.script, p.asset, p.storyboard].some((c) => (c?.done ?? 0) > 0);
+  return hasAny ? "doing" : "idle";
+}
+const doingCount = computed(() => allProject.value.filter((item) => progressState(item) === "doing").length);
+const doneCount = computed(() => allProject.value.filter((item) => progressState(item) === "done").length);
 const filteredProjects = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
   const result = keyword
@@ -300,22 +312,9 @@ function delProjcer(projectId: string | undefined) {
   min-height: 100%;
   padding: 0 40px 40px;
 
-  .creation-hero { position:relative; display:grid; grid-template-columns:1.05fr .95fr; min-height:330px; margin:26px 0 18px; overflow:hidden; border-radius:28px; color:#fff; background:radial-gradient(circle at 78% 20%,rgba(255,173,91,.55),transparent 25%),linear-gradient(120deg,#171313 0%,#2b1710 48%,#e86f24 135%); box-shadow:0 20px 50px rgba(54,27,16,.16); }
-  .hero-copy { position:relative; z-index:2; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; padding:52px 58px; }
-  .hero-kicker { margin-bottom:18px; color:#ffb47f; font-size:11px; font-weight:700; letter-spacing:.2em; }
-  .hero-copy h1 { margin:0; font-size:clamp(34px,4vw,56px); line-height:1.05; letter-spacing:-.045em; }
-  .hero-copy p { max-width:510px; margin:18px 0 27px; color:rgba(255,255,255,.68); font-size:15px; line-height:1.8; }
-  .hero-primary { display:inline-flex; align-items:center; gap:9px; padding:12px 18px; border:0; border-radius:999px; background:#ff7417; color:#fff; font-weight:650; cursor:pointer; box-shadow:0 10px 24px rgba(255,116,23,.28); }
-  .hero-primary span { margin-left:8px; }
-  .hero-visual { position:relative; min-height:330px; }
-  .orb { position:absolute; border-radius:50%; filter:blur(2px); }.orb-one{width:190px;height:190px;right:12%;top:13%;background:linear-gradient(145deg,#ffb565,#e85524);box-shadow:inset -25px -28px 50px rgba(63,13,0,.3)}.orb-two{width:95px;height:95px;left:6%;bottom:7%;background:#7647ff;opacity:.72;filter:blur(12px)}
-  .visual-card { position:absolute; display:flex; flex-direction:column; justify-content:space-between; width:210px; height:250px; padding:22px; border:1px solid rgba(255,255,255,.28); border-radius:22px; backdrop-filter:blur(15px); box-shadow:0 25px 45px rgba(0,0,0,.25); }.visual-card span{font-size:9px;letter-spacing:.13em}.visual-card strong{font-size:50px;line-height:.9;letter-spacing:-.07em}.visual-card small{color:rgba(255,255,255,.65)}.card-back{right:43%;top:42px;transform:rotate(-9deg);background:rgba(117,58,255,.3)}.card-front{right:12%;top:37px;transform:rotate(8deg);background:linear-gradient(145deg,rgba(255,137,55,.75),rgba(68,16,4,.45))}
-  .creation-entry-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:18px; }
-  .creation-entry { display:flex; align-items:center; gap:14px; min-height:112px; padding:20px; border:1px solid var(--border-primary); border-radius:18px; background:var(--material-regular); color:var(--text-primary); text-align:left; cursor:pointer; transition:.22s ease; }.creation-entry:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(15,23,42,.09)}
-  .entry-icon,.resource-icon { display:grid; place-items:center; flex:none; width:48px; height:48px; border-radius:15px; font-size:22px; }.creation-entry.orange .entry-icon{color:#f36b12;background:#fff0e5}.creation-entry.violet .entry-icon{color:#7654e8;background:#f0ebff}.creation-entry.blue .entry-icon{color:#2478db;background:#e8f3ff}
-  .entry-copy { display:flex; flex-direction:column; min-width:0; flex:1; }.entry-copy strong{font-size:17px}.entry-copy small{margin-top:7px;color:var(--text-tertiary);font-size:12px;line-height:1.5}.entry-arrow{align-self:flex-start;color:var(--text-tertiary);font-size:18px}
-  .resource-strip { display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:12px; margin-bottom:30px; padding:14px; border:1px solid var(--border-primary); border-radius:20px; background:color-mix(in srgb,var(--material-regular) 75%,transparent); }.resource-heading{display:flex;flex-direction:column;justify-content:center;padding:8px 14px}.resource-heading span{color:#ff7417;font-size:11px;font-weight:700;letter-spacing:.12em}.resource-heading strong{margin-top:6px;font-size:14px}.resource-strip>button{display:flex;align-items:center;gap:11px;padding:12px;border:0;border-radius:14px;background:rgba(120,120,140,.055);color:var(--text-primary);text-align:left;cursor:pointer}.resource-strip button>span:not(.resource-icon){display:flex;flex-direction:column}.resource-strip button small{margin-top:3px;color:var(--text-tertiary);font-size:11px}.resource-strip button em{margin-left:auto;color:var(--text-tertiary);font-size:11px;font-style:normal}.resource-icon{width:40px;height:40px;border-radius:12px}.resource-icon.orange{color:#f36b12;background:#fff0e5}.resource-icon.blue{color:#2478db;background:#e8f3ff}
-  @media(max-width:900px){.creation-hero{grid-template-columns:1fr}.hero-visual{display:none}.creation-entry-grid,.resource-strip{grid-template-columns:1fr}.hero-copy{padding:40px 30px}.resource-heading{padding:8px}.creation-entry{min-height:92px}}
+  /* 旧版 creation-hero / creation-entry / orb / visual-card / resource-strip 一套样式
+     已无对应模板（现用 project-hero / toolbar / list），整体删除 —— 它们也是页面里
+     最后的紫色字面量来源。 */
 
   .header {
     padding-top: 36px;
@@ -450,9 +449,9 @@ function delProjcer(projectId: string | undefined) {
 
     .quick-create {
       min-height: 220px;
-      border: 1px dashed rgba(99, 102, 241, 0.32);
+      border: 1px dashed rgba(242, 100, 50, 0.34);
       border-radius: 14px;
-      background: linear-gradient(145deg, rgba(238, 242, 255, 0.7), rgba(248, 250, 252, 0.8));
+      background: linear-gradient(145deg, rgba(255, 244, 235, 0.75), rgba(252, 250, 248, 0.8));
       color: var(--td-brand-color);
       cursor: pointer;
       display: flex;
@@ -463,8 +462,8 @@ function delProjcer(projectId: string | undefined) {
       transition: all 0.25s ease;
 
       &:hover {
-        border-color: var(--td-brand-color);
-        background: linear-gradient(145deg, rgba(224, 231, 255, 0.9), rgba(248, 250, 252, 0.95));
+        border-color: #f26432;
+        background: linear-gradient(145deg, rgba(255, 236, 222, 0.9), rgba(252, 250, 248, 0.95));
         transform: translateY(-2px);
       }
 
@@ -474,7 +473,8 @@ function delProjcer(projectId: string | undefined) {
         border-radius: 12px;
         display: grid;
         place-items: center;
-        background: rgba(99, 102, 241, 0.12);
+        background: rgba(242, 100, 50, 0.12);
+        color: #c25a22;
       }
 
       .quick-create-title { font-size: 15px; font-weight: 600; }
@@ -504,7 +504,7 @@ function delProjcer(projectId: string | undefined) {
         position: absolute;
         inset: 0 0 auto;
         height: 3px;
-        background: linear-gradient(90deg, #6366f1, #a78bfa);
+        background: linear-gradient(90deg, #ff8847, #f26432);
         opacity: 0.85;
       }
 
@@ -513,7 +513,7 @@ function delProjcer(projectId: string | undefined) {
       &:hover {
         transform: translateY(-3px);
         box-shadow: 0 12px 28px rgba(30, 41, 59, 0.10);
-        border-color: rgba(99, 102, 241, 0.3);
+        border-color: rgba(242, 100, 50, 0.30);
       }
 
       &:active {
@@ -567,8 +567,13 @@ function delProjcer(projectId: string | undefined) {
         line-height: 1.5;
       }
 
+      /* 流水线进度条：卡片里一眼看出卡在第几步 */
+      .cardProgress {
+        margin-top: 12px;
+      }
+
       .bottomMenu {
-        margin-top: 24px;
+        margin-top: 18px;
         padding-top: 16px;
         border-top: 1px solid rgba(0, 0, 0, 0.05);
 
@@ -603,8 +608,8 @@ function delProjcer(projectId: string | undefined) {
 
         .editBtn {
           &:hover {
-            background: rgba(99, 102, 241, 0.1);
-            color: #6366f1;
+            background: rgba(245, 116, 0, 0.10);
+            color: #c25a22;
           }
         }
 
@@ -660,9 +665,9 @@ function delProjcer(projectId: string | undefined) {
 }
 
 :deep(.t-tag) {
-  background: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: rgba(245, 116, 0, 0.08);
+  color: #c25a22;
+  border: 1px solid rgba(245, 116, 0, 0.18);
   border-radius: 8px;
   font-size: 12px;
   padding: 2px 10px;
@@ -687,13 +692,13 @@ function delProjcer(projectId: string | undefined) {
     margin: 0 0 18px;
     padding: 34px 38px;
     overflow: hidden;
-    border: 1px solid rgba(89, 76, 148, .12);
+    border: 1px solid rgba(120, 92, 62, .14);
     border-radius: 28px;
     background:
       radial-gradient(circle at 86% 12%, rgba(255, 150, 90, .30), transparent 25%),
-      radial-gradient(circle at 68% 100%, rgba(122, 106, 224, .20), transparent 34%),
-      linear-gradient(132deg, #fff 0%, #f7f3ff 54%, #fff4eb 100%);
-    box-shadow: 0 20px 48px rgba(59, 50, 101, .08);
+      radial-gradient(circle at 68% 100%, rgba(255, 168, 110, .22), transparent 34%),
+      linear-gradient(132deg, #fff 0%, #fff7f0 54%, #fff4eb 100%);
+    box-shadow: 0 20px 48px rgba(84, 60, 40, .08);
   }
 
   .hero-copy { position: relative; z-index: 2; max-width: 610px; }
@@ -701,7 +706,7 @@ function delProjcer(projectId: string | undefined) {
   .project-hero .title { display: block; margin-top: 11px; font-size: clamp(30px, 3vw, 43px); font-weight: 760; line-height: 1.08; letter-spacing: -.045em; }
   .project-hero .sub { max-width: 560px; margin-top: 11px; color: #777483; font-size: 14px; line-height: 1.65; }
   .project-stats { display: flex; gap: 9px; margin-top: 20px; }
-  .project-stats span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border: 1px solid rgba(103, 94, 143, .11); border-radius: 999px; background: rgba(255,255,255,.6); color: #777483; font-size: 11px; backdrop-filter: blur(8px); }
+  .project-stats span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border: 1px solid rgba(122, 102, 80, .16); border-radius: 999px; background: rgba(255,255,255,.6); color: #777483; font-size: 11px; backdrop-filter: blur(8px); }
   .project-stats strong { color: #34313f; font-size: 14px; }
   .project-hero .header-actions { position: absolute; right: 37px; bottom: 31px; z-index: 4; }
   :deep(.project-hero .addBtn) { height: 44px; padding-inline: 20px; border: 0 !important; border-radius: 14px; background: linear-gradient(135deg, #ff8847, #f26432) !important; color: #fff !important; box-shadow: 0 10px 24px rgba(239, 100, 48, .24); font-weight: 650; }
@@ -711,7 +716,7 @@ function delProjcer(projectId: string | undefined) {
   .film-frame { position: absolute; display: flex; flex-direction: column; justify-content: space-between; width: 118px; height: 146px; padding: 15px; border: 1px solid rgba(255,255,255,.75); border-radius: 20px; color: #fff; box-shadow: 0 18px 36px rgba(67, 54, 110, .16); }
   .film-frame i { font-size: 8px; font-style: normal; letter-spacing: .15em; }
   .film-frame b { font-size: 30px; letter-spacing: -.06em; }
-  .frame-one { top: 28px; right: 154px; transform: rotate(-8deg); background: linear-gradient(145deg, #8a7be8, #5b4fb7); }
+  .frame-one { top: 28px; right: 154px; transform: rotate(-8deg); background: linear-gradient(145deg, #4a4553, #2a2831); }
   .frame-two { top: 21px; right: 35px; transform: rotate(8deg); background: linear-gradient(145deg, #ff9d62, #e75f42); }
   .hero-disc { position: absolute; right: 260px; bottom: -54px; width: 144px; height: 144px; border-radius: 50%; background: rgba(255,255,255,.5); box-shadow: inset 0 0 0 28px rgba(255,255,255,.22); }
 
@@ -725,12 +730,13 @@ function delProjcer(projectId: string | undefined) {
   .list { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 18px; }
   .list .card { min-height: 282px; padding: 0 20px 19px; border: 1px solid rgba(65, 61, 82, .08); border-radius: 20px; background: rgba(255,255,255,.82); box-shadow: 0 8px 24px rgba(42, 39, 58, .045); }
   .list .card::before { display: none; }
-  .list .card:hover { transform: translateY(-4px); border-color: rgba(112, 93, 190, .20); box-shadow: 0 18px 38px rgba(50, 43, 85, .11); }
-  .card-visual { position: relative; height: 82px; margin: 0 -20px 18px; overflow: hidden; padding: 16px 18px; border-radius: 19px 19px 13px 13px; background: radial-gradient(circle at 78% 18%, rgba(255,255,255,.5), transparent 24%), linear-gradient(130deg, #ebe7ff, #d9d2fa); color: #5b4e91; }
-  .card-script .card-visual { background: radial-gradient(circle at 78% 18%, rgba(255,255,255,.55), transparent 24%), linear-gradient(130deg, #ffe6d7, #ffc8aa); color: #9b4d26; }
+  .list .card:hover { transform: translateY(-4px); border-color: rgba(242, 100, 50, .28); box-shadow: 0 18px 38px rgba(74, 56, 42, .12); }
+  /* 卡片封面：与首屏两枚胶片框同一套色（墨黑 / 暖橙），不再有紫色 */
+  .card-visual { position: relative; height: 82px; margin: 0 -20px 18px; overflow: hidden; padding: 16px 18px; border-radius: 19px 19px 13px 13px; background: radial-gradient(circle at 78% 18%, rgba(255,255,255,.20), transparent 26%), linear-gradient(130deg, #3a3743, #232129); color: #f5f3f7; }
+  .card-script .card-visual { background: radial-gradient(circle at 78% 18%, rgba(255,255,255,.34), transparent 26%), linear-gradient(130deg, #ff9d62, #e75f42); color: #fff; }
   .card-visual span { font-size: 9px; font-weight: 750; letter-spacing: .16em; }
   .card-visual strong { position: absolute; right: 17px; bottom: 4px; font-size: 44px; line-height: 1; letter-spacing: -.08em; opacity: .65; }
-  .list .quick-create { min-height: 282px; border-radius: 20px; border-color: rgba(110, 91, 188, .26); background: rgba(255,255,255,.42); }
+  .list .quick-create { min-height: 282px; border-radius: 20px; border-color: rgba(242, 100, 50, .34); background: rgba(255,255,255,.42); }
 
   &::-webkit-scrollbar { width: 8px; }
   &::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: rgba(83,82,94,.24); background-clip: padding-box; }

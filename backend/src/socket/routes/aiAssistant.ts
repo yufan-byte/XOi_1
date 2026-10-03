@@ -1,32 +1,19 @@
-import jwt from "jsonwebtoken";
 import u from "@/utils";
 import { Namespace, Socket } from "socket.io";
 import ResTool from "@/socket/resTool";
-
-async function verifyToken(rawToken: string): Promise<Boolean> {
-  const setting = await u.db("o_setting").where("key", "tokenKey").select("value").first();
-  if (!setting) return false;
-  const { value: tokenKey } = setting;
-  if (!rawToken) return false;
-  const token = rawToken.replace("Bearer ", "");
-  try {
-    jwt.verify(token, tokenKey as string);
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
+import { getUserGatewayCredentials } from "@/lib/gateway/newapi";
 
 export default (nsp: Namespace) => {
   nsp.on("connection", async (socket: Socket) => {
-    const token = socket.handshake.auth.token;
-    if (!token || !(await verifyToken(String(token)))) {
-      console.log("[aiAssistant] 连接失败，token无效");
+    // 身份已在 socket/index.ts 的命名空间中间件里统一解析（resolveIdentity），
+    // 此处不再重复校验 JWT —— 之前那次二次验证是冗余的，且会让身份口径分叉。
+    const identity = (socket.data as { user?: { id: number; role: string } }).user;
+    if (!identity?.id) {
       socket.disconnect();
       return;
     }
 
-    console.log("[aiAssistant] 已连接:", socket.id);
+    console.log("[aiAssistant] 已连接:", socket.id, "用户:", identity.id);
 
     const resTool = new ResTool(socket);
     let abortController: AbortController | null = null;
@@ -40,33 +27,26 @@ export default (nsp: Namespace) => {
       try {
         // 获取通用AI配置
         const agentConfig = await u.db("o_agentDeploy").where("key", "universalAi").first();
-        if (!agentConfig || !agentConfig.model) {
+        const configuredModel = String(agentConfig?.modelName || agentConfig?.model || "").trim();
+        if (!agentConfig || !configuredModel) {
           resTool.newMessage("assistant", "AI助手").error("未配置AI模型，请在设置中配置");
           return;
         }
-
-        // 获取供应商配置
-        const vendor = await u.db("o_vendorConfig").where("id", agentConfig.vendorId).first();
-        if (!vendor) {
-          resTool.newMessage("assistant", "AI助手").error("未找到供应商配置");
-          return;
-        }
-
-        const inputValues = JSON.parse(vendor.inputValues || "{}");
-        if (!inputValues.apiKey) {
-          resTool.newMessage("assistant", "AI助手").error("未配置API Key");
-          return;
-        }
+        const separator = configuredModel.indexOf(":");
+        const vendorId = separator >= 0 ? configuredModel.slice(0, separator) : String(agentConfig.vendorId || "newapi");
+        if (vendorId !== "newapi") throw new Error("AI 助手必须配置为 NewAPI 模型");
+        const actualModel = separator >= 0 ? configuredModel.slice(separator + 1) : configuredModel;
+        const credentials = await getUserGatewayCredentials(identity.id);
 
         // 调用AI模型
         const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
         const { streamText } = await import("ai");
 
         const model = createOpenAICompatible({
-          name: String(vendor.id || agentConfig.vendorId || "xoi"),
-          baseURL: inputValues.baseUrl,
-          apiKey: inputValues.apiKey,
-        }).chatModel(String(agentConfig.modelName));
+          name: "newapi",
+          baseURL: credentials.baseUrl,
+          apiKey: credentials.apiKey,
+        }).chatModel(actualModel);
 
         const result = streamText({
           model,

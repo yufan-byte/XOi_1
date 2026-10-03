@@ -13,9 +13,35 @@ services:
       XOI_ADMIN_USERNAME: ${XOI_ADMIN_USERNAME:-admin}
       XOI_ADMIN_PASSWORD: ${XOI_ADMIN_PASSWORD:-admin123}
       TZ: Asia/Shanghai
+      # ── new-api 模型网关（v3.0 起：账号/额度/日志的唯一权威）──
+      # 这几个变量原来没有透传进容器，等于线上必然连不上网关和数据库。在这里显式传。
+      #
+      # ⚠️ 业务库必须**与 new-api 同库**（决策 D2）：指向 new-api 自己那个 PostgreSQL，
+      #    不要在这里再起一个 postgres —— 库分开了，代理收益聚合、线路分组枚举、
+      #    「写归属 + 改 users.group」的同事务就全都做不了。
+      #    在仓库根目录的 .env 里写好连接串（见 backend/.env.example）。
+      NEWAPI_DATABASE_URL: ${NEWAPI_DATABASE_URL:?必须指向 new-api 的 PostgreSQL（决策 D2）}
+      NEWAPI_PG_URL: ${NEWAPI_PG_URL:-}
+      # 容器内 127.0.0.1 指向 XOi 自己；new-api 是共享网络上的服务别名。
+      NEWAPI_BASE_URL: ${NEWAPI_BASE_URL:-http://new-api:3000}
+      NEWAPI_ADMIN_TOKEN: ${NEWAPI_ADMIN_TOKEN:?服务端调用网关管理接口所需}
+      XOI_NEWAPI_ONLY: ${XOI_NEWAPI_ONLY:-1}
     volumes:
       # 持久化数据库/OSS资源/画布数据；程序资产由入口脚本从镜像种子实时同步进来
       - xoi-data:/app/backend/data
+    networks:
+      - newapi
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:10588/api/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
 
 volumes:
   xoi-data:
+
+networks:
+  newapi:
+    external: true
+    name: ${NEWAPI_DOCKER_NETWORK:-ops_default}

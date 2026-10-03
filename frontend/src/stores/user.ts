@@ -9,11 +9,9 @@ export default defineStore(
     const displayId = ref(localStorage.getItem("displayId") || "");
     const username = ref(localStorage.getItem("username") || "");
 
-    /* 跨视图共享：积分余额 + 会员等级与有效期；统一由 refreshProfile() 自后端 balance 同步，
-       令侧栏角标 / 个人中心徽章 / 充值弹窗在任何路由下都能反映付费后的实时变化（F5 由 persist 保活）。 */
-    const userPoints = ref<number>(0);
-    const memberLevel = ref<string>("free");
-    const memberExpireAt = ref<string>("");
+    /* 余额：统一来自 new-api quota（经 /api/login/self 折算成元）。
+       旧的 XOi 本地积分体系已删除，这里只保留单一余额源，供侧栏角标与个人中心展示。 */
+    const balance = ref<number>(0);
 
     const isAdmin = computed(() => role.value === "admin");
 
@@ -28,10 +26,8 @@ export default defineStore(
       localStorage.setItem("userId", data.id);
       localStorage.setItem("displayId", displayId.value);
       localStorage.setItem("username", data.name);
-      // 切换账号立刻抹除可能残留的旧会员/积分离散态，随后由所在页 onMounted 调 refreshProfile 重拉
-      userPoints.value = 0;
-      memberLevel.value = "free";
-      memberExpireAt.value = "";
+      // 切换账号立刻抹除旧余额离散态，随后由所在页 onMounted 调 refreshProfile 重拉
+      balance.value = 0;
     }
 
     function clearUser() {
@@ -45,20 +41,17 @@ export default defineStore(
       localStorage.removeItem("userId");
       localStorage.removeItem("displayId");
       localStorage.removeItem("username");
-      userPoints.value = 0;
-      memberLevel.value = "free";
-      memberExpireAt.value = "";
+      balance.value = 0;
     }
 
     /**
-     * 拉取最新积分余额 + 会员等级 + 有效期并写入 store；
-     * 支付到账、签到送分、后台手工调配之后均可主动调用以即时刷新所有依赖角标。
-     * 返回原始 balance 数据，便于调用方额外消费 breakdown 明细等扩展字段。
+     * 拉取镜像资料 + 实时余额（new-api quota 折算元）并写入 store。
+     * 支付到账、生成扣费之后均可主动调用以即时刷新所有依赖角标。
      */
     async function refreshProfile<T = any>(): Promise<T | undefined> {
       if (!token.value) return;
       try {
-        const res: any = await axios.get("/setting/pointsConfig/balance", {
+        const res: any = await axios.get("/login/self", {
           params: { _t: Date.now() },
           headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
         });
@@ -68,9 +61,10 @@ export default defineStore(
           displayId.value = String(data.display_id);
           localStorage.setItem("displayId", displayId.value);
         }
-        userPoints.value = Number(data.points) || 0;
-        memberLevel.value = String(data.member_level || "free");
-        memberExpireAt.value = String(data.vip_expire_at || "");
+        if (data.name) {
+          username.value = String(data.name);
+        }
+        balance.value = Number(data.balance) || 0;
         return data as unknown as T;
       } catch (e) {
         console.error("[user/store] refreshProfile 失败:", e);
@@ -84,9 +78,7 @@ export default defineStore(
       displayId,
       username,
       isAdmin,
-      userPoints,
-      memberLevel,
-      memberExpireAt,
+      balance,
       setUser,
       clearUser,
       refreshProfile,

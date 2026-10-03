@@ -1,18 +1,16 @@
 import express from "express";
 import { success, error } from "@/lib/responseFormat";
 import { db } from "@/utils/db";
+import { listBusinessTables } from "@/utils/dbAdmin";
 
 const router = express.Router();
 
 export default router.get("/", async (req, res) => {
   try {
-    const tables: { name: string }[] = await db.raw(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'knex_%'`,
-    );
-
     const data: Record<string, any[]> = {};
-    for (const table of tables) {
-      data[table.name] = await db.raw(`SELECT * FROM "${table.name}"`);
+    for (const name of await listBusinessTables()) {
+      // PG 下 raw() 返回 { rows }，不是数组
+      data[name] = (await db.raw(`SELECT * FROM "${name}"`))?.rows ?? [];
     }
 
     const exportData = {

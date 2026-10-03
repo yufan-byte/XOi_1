@@ -604,39 +604,49 @@ function ImageNodeContent(props: NodeContentRendererProps) {
     );
 }
 
-function EmptyImageContent({ theme }: NodeContentRendererProps) {
+function EmptyImageContent({ theme, node }: NodeContentRendererProps) {
     const { t } = useTranslation();
+    // 复刻进来的节点若源头快照就没素材（importMissing），别显示成「空图片节点」——
+    // 那看起来像生成失败/复刻失败，用户会以为我们没搬过来。
+    const missing = Boolean(node.metadata?.importMissing);
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
             <div className="flex size-14 items-center justify-center rounded-2xl" style={{ background: theme.toolbar.activeBg }}>
                 <ImageIcon className="size-6 opacity-30" />
             </div>
-            <span className="text-[10px] tracking-[0.18em] opacity-50">{t("canvas.node.emptyImage")}</span>
+            <span className="text-[10px] tracking-[0.18em] opacity-50">{t(missing ? "canvas.node.importMissing" : "canvas.node.emptyImage")}</span>
+            {missing && <span className="px-3 text-center text-[10px] leading-relaxed opacity-40">{t("canvas.node.importMissingHint")}</span>}
         </div>
     );
 }
 
 function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
     const { t } = useTranslation();
-    if (!node.metadata?.content)
+    if (!node.metadata?.content) {
+        const missing = Boolean(node.metadata?.importMissing);
         return (
             <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
                 <Video className="size-7 opacity-35" />
-                <span className="text-sm">{t("canvas.node.emptyVideo")}</span>
+                <span className="text-sm">{t(missing ? "canvas.node.importMissing" : "canvas.node.emptyVideo")}</span>
+                {missing && <span className="px-3 text-center text-[10px] leading-relaxed opacity-40">{t("canvas.node.importMissingHint")}</span>}
             </div>
         );
+    }
     return <video src={node.metadata.content} controls className="h-full w-full rounded-[18px] bg-black object-contain" data-canvas-no-zoom />;
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {
     const { t } = useTranslation();
-    if (!node.metadata?.content)
+    if (!node.metadata?.content) {
+        const missing = Boolean(node.metadata?.importMissing);
         return (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ color: theme.node.placeholder }}>
                 <Music2 className="size-7 opacity-35" />
-                <span className="text-sm">{t("canvas.node.emptyAudio")}</span>
+                <span className="text-sm">{t(missing ? "canvas.node.importMissing" : "canvas.node.emptyAudio")}</span>
+                {missing && <span className="px-3 text-center text-[10px] leading-relaxed opacity-40">{t("canvas.node.importMissingHint")}</span>}
             </div>
         );
+    }
     return (
         <div className="flex h-full w-full flex-col justify-center gap-3 px-4" style={{ background: theme.node.fill, color: theme.node.text }}>
             <div className="flex min-w-0 items-center gap-2 text-sm opacity-70">

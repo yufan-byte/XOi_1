@@ -17,7 +17,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
+import { useRoute } from "vue-router";
 
 /**
  * Atelier 无限画布薄壳：
@@ -35,6 +36,25 @@ onMounted(() => {
   iframeSrc.value = buildIframeSrc();
 });
 
+const route = useRoute();
+/**
+ * 画布是常驻组件：路由在 /canvas 内部变化（如已停在画布页再点侧栏「新建画布」）不会重挂载，
+ * 所以监听 fullPath —— 只要引导参数（new=1 / import= / view=assets）变了就重建 iframeSrc，
+ * 让 iframe 整包重载、atelier 侧的入口引导（建项目/导图/开资产页）重新跑一遍。
+ * 重复点击同一条目由侧栏 handleClick 里的 nonce 保证 fullPath 必然变化。
+ */
+watch(
+  () => route.fullPath,
+  () => {
+    if (!iframeSrc.value) return;
+    const next = buildIframeSrc();
+    if (next !== iframeSrc.value) {
+      loading.value = true; // iframe 换 src 会整包重载，先把加载遮罩置回来
+      iframeSrc.value = next;
+    }
+  },
+);
+
 /** 解析 Vue hash 路由上的 query（/#/canvas?import=...&source=xoi&from=...）透传给 iframe，并清理地址栏 */
 function buildIframeSrc(): string {
   let query = "";
@@ -43,7 +63,13 @@ function buildIframeSrc(): string {
     const qIndex = hash.indexOf("?");
     if (qIndex >= 0) {
       const params = new URLSearchParams(hash.slice(qIndex + 1));
-      if (params.get("import") && params.get("source") === "xoi") query = `?${params.toString()}`;
+      // source=xoi 的四条引导链路原样透传：import=（角景/资产/发图）、new=1（侧栏新建画布一键直达）、
+      // graph=1（灵感广场整图复刻）、handoff=1（灵感广场「带到画布生成」的提示词交接）
+      if (
+        params.get("source") === "xoi" &&
+        (params.get("import") || params.get("new") === "1" || params.get("graph") || params.get("handoff") === "1")
+      )
+        query = `?${params.toString()}`;
       else if (params.get("view") === "assets") query = "?view=assets";
       // 地址栏只留干净路由，参数已随 iframe src 带入画布
       if (window.history && window.history.replaceState) {

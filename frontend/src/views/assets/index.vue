@@ -1,7 +1,13 @@
 <template>
   <div class="assets">
-    <section class="assetHero"><div><span>XOi STORY WORKSPACE · ASSETS</span><h1>资产中心</h1><p>集中管理漫剧项目中的角色、道具、场景、素材与声音。</p></div><div class="assetHeroArt" aria-hidden="true"><i>ROLE</i><i>SCENE</i><b>+</b></div></section>
-    <div class="data">
+    <!-- 三库融合顶层切换：项目素材（生产要素）/ 我的作品（生成产物）/ 画布素材（创作素材）。方案见 docs/项目资产库-三库融合方案.md -->
+    <div class="libTabs" v-if="!selectorMode">
+      <button type="button" :class="{ on: libTab === 'project' }" @click="libTab = 'project'"><t-icon name="folder-open" />项目素材</button>
+      <button type="button" :class="{ on: libTab === 'works' }" @click="libTab = 'works'"><t-icon name="user-circle" />我的作品</button>
+      <button type="button" :class="{ on: libTab === 'canvas' }" @click="libTab = 'canvas'"><t-icon name="layers" />画布素材</button>
+    </div>
+    <section class="assetHero" v-if="libTab === 'project'"><div><span>XOi STORY WORKSPACE · ASSETS</span><h1>资产中心</h1><p>集中管理漫剧项目中的角色、道具、场景、素材与声音。</p></div><div class="assetHeroArt" aria-hidden="true"><i>ROLE</i><i>SCENE</i><b>+</b></div></section>
+    <div class="data" v-if="libTab === 'project'">
       <t-tabs v-model="assetOptions" @change="selectAssetOptions">
         <t-tab-panel v-for="(item, index) in themeData" :key="index" :value="item.value">
           <template #label>
@@ -438,7 +444,9 @@
           </t-form-item>
         </t-form>
       </div>
-    </t-dialog>
+      </t-dialog>
+      <library-works v-if="libTab === 'works'" />
+      <library-canvas v-if="libTab === 'canvas'" />
   </div>
 </template>
 
@@ -454,6 +462,11 @@ import generateImage from "./components/generateImage.vue";
 import projectStore from "@/stores/project";
 import settingStore from "@/stores/setting";
 import { sendToCanvas } from "@/utils/sendToCanvas";
+import libraryWorks from "./components/libraryWorks.vue";
+import libraryCanvas from "./components/libraryCanvas.vue";
+
+/** 顶层三库切换：project=项目素材（原有功能） / works=我的作品（mc_works） / canvas=画布素材（atelier IndexedDB） */
+const libTab = ref<"project" | "works" | "canvas">("project");
 const { otherSetting } = storeToRefs(settingStore());
 
 const props = withDefaults(
@@ -1807,4 +1820,46 @@ async function getBigImageUrl(row: Asset, fn: Function) {
   .assetsList .t-table{border:1px solid #e8e7ec !important;border-radius:18px !important;background:#fff !important;box-shadow:0 10px 28px rgba(40,37,54,.055) !important}.assetsList .t-table__header th{background:#f8f8fa !important;color:#55525f !important}.t-pagination__number.t-is-current{border:0 !important;background:#f26b35 !important;color:#fff !important}
 }
 @media(max-width:850px){.assets{padding:16px}.assets .assetHeroArt{right:-55px;opacity:.4}.assets .assetHero>div:first-child{max-width:70%}}
+</style>
+
+<style lang="scss" scoped>
+/* 三库融合顶层切换（项目素材 / 我的作品 / 画布素材） */
+.libTabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 5px;
+  margin-bottom: 14px;
+  border: 1px solid #e8e7ec;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 22px rgba(42, 39, 58, 0.045);
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #55525f;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+
+    &:hover {
+      color: #e9632b;
+      background: #fff7f2;
+    }
+
+    &.on {
+      background: linear-gradient(135deg, #ff8847, #f26432);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 7px 16px rgba(239, 100, 48, 0.18);
+    }
+  }
+}
 </style>

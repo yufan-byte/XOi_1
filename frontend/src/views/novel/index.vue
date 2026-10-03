@@ -149,6 +149,7 @@ import editNodel from "./components/editNodel.vue";
 import projectStore from "@/stores/project";
 import settingStore from "@/stores/setting";
 import { showPointsToast } from "@/utils/pointsToast";
+import { guardProjectType } from "@/utils/pipelineGuard";
 const router = useRouter();
 const { otherSetting } = storeToRefs(settingStore());
 const { project } = storeToRefs(projectStore());
@@ -218,6 +219,8 @@ const pagination = ref({
 });
 
 onMounted(() => {
+  // P2 类型守卫：剧本创作型项目没有原文可导，直接输 URL 进来会产出错配数据
+  guardProjectType(router, project.value?.projectType, "novel");
   getNovel();
 });
 

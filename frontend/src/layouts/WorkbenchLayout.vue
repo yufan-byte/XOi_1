@@ -12,11 +12,11 @@
     <div class="menu" :class="{ collapsed: menuCollapsed }">
       <!-- Logo 区：点击回到工作台首页（项目列表） -->
       <div class="logoBox" @click.stop="router.push('/project')">
-        <div class="collapse-btn" @click.stop="isCanvasFullscreen ? (canvasNavOpen = false) : (menuCollapsed = !menuCollapsed)" :aria-label="isCanvasFullscreen ? '关闭工作台导航' : (menuCollapsed ? '展开侧栏' : '收起侧栏')">
+        <button type="button" class="collapse-btn" @click.stop="toggleSidebar" :aria-label="isCanvasFullscreen ? '关闭工作台导航' : (menuCollapsed ? '展开侧栏' : '收起侧栏')">
           <t-icon :name="menuCollapsed ? 'chevron-right' : 'chevron-left'" size="16px" />
-        </div>
+        </button>
         <div class="logo"></div>
-        <div class="brand-name" v-show="!menuCollapsed"><strong>光合效应</strong><span>漫剧导演工作台</span></div>
+        <div class="brand-name" v-show="!menuCollapsed"><strong>导演工作台</strong><span>XOI STUDIO</span></div>
       </div>
       <!-- 主导航 -->
       <div class="itemBox">
@@ -28,29 +28,40 @@
             placement="right"
             destroyOnClose
             :showArrow="false">
-            <div class="item" v-if="menu.type === 'btn'" :class="{ active: activeMenu == menu.path }" @click="handleClick(menu)">
+            <div
+              class="item"
+              v-if="menu.type === 'btn'"
+              role="button"
+              tabindex="0"
+              :aria-label="menuLabel(menu)"
+              :aria-current="activeMenu == menu.path || (menu.canvasNew && (activeMenu === '/canvas' || activeMenu.startsWith('/canvas?new='))) ? 'page' : undefined"
+              :class="{ active: activeMenu == menu.path || (menu.canvasNew && (activeMenu === '/canvas' || activeMenu.startsWith('/canvas?new='))) }"
+              @click="handleClick(menu)"
+              @keydown.enter="handleClick(menu)"
+              @keydown.space.prevent="handleClick(menu)">
               <component :is="menu.icon" class="icon" />
               <span class="item-title" v-show="!menuCollapsed">{{ menuLabel(menu) }}</span>
             </div>
           </t-tooltip>
         </template>
       </div>
-      <!-- 底部：会员 + 用户块 -->
+      <!-- 底部：余额 + 用户块（积分/会员/支付体系已按造物方案下线，余额来自 new-api quota，单位元） -->
       <div class="footItem">
-        <div class="member-btn" @click="showMemberPlan = true; fetchUserPoints()">
-          <div class="credits-summary" v-show="!menuCollapsed"><span><b>✦</b> Credits</span><span><strong>{{ userPoints }}</strong><em>/ 1,000</em></span></div>
-          <div class="member-btn-inner"><span class="member-icon" aria-hidden="true">✦</span><span class="member-text" v-show="!menuCollapsed">升级套餐</span></div>
+        <t-tooltip content="算力明细" placement="right" :showArrow="false">
+        <div class="member-btn" role="button" tabindex="0" aria-label="查看算力明细" @click="openUsageDetails" @keydown.enter="openUsageDetails">
+          <div class="credits-summary" v-show="!menuCollapsed"><span><b>✦</b> 算力余额</span><span><strong>{{ userBalanceText }}</strong></span></div>
+          <button class="member-btn-inner" type="button" :aria-label="menuCollapsed ? '查看算力明细' : '充值'" @click.stop="menuCollapsed ? openUsageDetails() : goConsoleTopup()">
+            <i-wallet v-if="menuCollapsed" class="wallet-icon" />
+            <span v-else class="member-icon" aria-hidden="true">＋</span><span class="member-text" v-show="!menuCollapsed">充值</span>
+          </button>
         </div>
-        <!-- 用户块：所有页面常驻，点击弹出 积分明细/开通会员/个人信息/设置/退出 -->
-        <div class="user-foot" ref="userFootRef" @click="toggleFootMenu">
+        </t-tooltip>
+        <!-- 用户块：所有页面常驻（余额只在上方卡片显示一次，这里不再重复） -->
+        <div class="user-foot" ref="userFootRef" role="button" tabindex="0" aria-label="打开账号、团队与余额菜单" @click="toggleFootMenu" @keydown.enter="toggleFootMenu" @keydown.space.prevent="toggleFootMenu">
           <div class="user-avatar">{{ userInitial }}</div>
           <div class="user-meta" v-show="!menuCollapsed">
             <span class="user-name">{{ username }}</span>
           <span class="user-role">XOi ID · {{ displayId || userId || '—' }}</span>
-          </div>
-          <div class="user-points" v-show="!menuCollapsed">
-            <i-bill />
-            <span>{{ userPoints }}</span>
           </div>
         </div>
       </div>
@@ -65,6 +76,13 @@
           <span class="bc-sep">/</span>
           <span class="bc-item current">{{ currentPageName }}</span>
         </div>
+        <!-- 流水线进度带：跨页面常驻，随时知道这个项目做到哪一步了 -->
+        <PipelineProgress
+          v-if="project?.progress"
+          class="topProgress"
+          :progress="project.progress"
+          :project-type="project.projectType"
+          size="sm" />
         <div class="top-right">
           <!-- 项目级快捷入口 -->
           <div class="shortcuts" v-if="project?.id">
@@ -96,19 +114,28 @@
     <Transition name="drop">
       <div class="foot-dropdown" v-show="footMenuOpen" :style="footDropStyle" @click.stop>
         <section class="account-card">
-          <img class="account-mascot" src="@/assets/XOI_logo.png" alt="XOi" />
-          <div class="account-profile"><div class="account-avatar">{{ userInitial }}</div><div><strong>{{ username || 'XOi 创作者' }}</strong><span>XOi ID · {{ displayId || userId || '—' }}</span></div></div>
-          <button class="credits-row" type="button" @click="router.push('/myPoints'); footMenuOpen = false"><span><strong>{{ userPoints }}</strong> credits</span><em>{{ userMemberStatus }}</em><i-right /></button>
-          <div class="credits-progress"><span :style="{ width: pointsProgress + '%' }"></span></div>
-          <button class="upgrade-account" type="button" @click="showMemberPlan = true; fetchUserPoints(); footMenuOpen = false"><i-crown />升级订阅套餐</button>
+          <div class="account-profile">
+            <div class="account-avatar">{{ userInitial }}</div>
+            <div class="account-id">
+              <strong>{{ username || 'XOi 创作者' }}</strong>
+              <span>XOi ID · {{ displayId || userId || '—' }}</span>
+            </div>
+            <img class="account-mark" src="@/assets/XOI_logo.png" alt="" aria-hidden="true" />
+          </div>
+          <div class="credits-row">
+            <button class="credits-detail-link" type="button" @click="openUsageDetails"><span class="credits-label">算力余额</span><strong>{{ userBalanceText }}</strong><small>查看明细</small></button>
+            <button class="recharge-btn" type="button" @click="goConsoleTopup(); footMenuOpen = false">充值</button>
+          </div>
         </section>
         <section class="account-menu">
-          <button type="button" class="drop-item" @click="showSetting = true; footMenuOpen = false"><i-setting-one class="d-icon" /><span>设置</span></button>
+          <button type="button" class="drop-item team-entry" @click="goTeamSpace"><i-people class="d-icon" /><span>{{ teamMenuLabel }}</span><em v-if="teamRole !== 'none'">{{ teamRole === 'owner' ? '主账号' : '成员' }}</em><i-right class="drop-arrow" /></button>
+          <div class="drop-divider"></div>
           <button type="button" class="drop-item" @click="notifyMenu('语言设置')"><i-earth class="d-icon" /><span>语言</span><em>简体中文</em><i-right class="drop-arrow" /></button>
           <button type="button" class="drop-item" @click="notifyMenu('帮助中心')"><i-help class="d-icon" /><span>帮助</span><i-right class="drop-arrow" /></button>
           <a class="drop-item" href="mailto:support@xoi.studio"><i-mail class="d-icon" /><span>联系我们</span><i-right class="drop-arrow" /></a>
-          <button type="button" class="drop-item" @click="notifyMenu('通知公告')"><i-remind class="d-icon" /><span>通知公告</span><span class="notice-dot"></span></button>
+          <button type="button" class="drop-item" @click="openNotices"><i-remind class="d-icon" /><span>通知公告</span><span class="notice-dot" v-if="hasUnreadNotices"></span></button>
           <button type="button" class="drop-item" @click="openFeedback"><i-comments class="d-icon" /><span>问题反馈</span><i-right class="drop-arrow" /></button>
+          <button type="button" v-if="isAdmin" class="drop-item admin-entry" @click="goConsoleAdmin"><i-dashboard class="d-icon" /><span>管理控制台</span><em>Admin</em><i-right class="drop-arrow" /></button>
           <div class="drop-divider"></div>
           <button type="button" class="drop-item danger" @click="handleLogout"><i-logout class="d-icon" /><span>登出账号</span></button>
         </section>
@@ -116,8 +143,6 @@
     </Transition>
   </Teleport>
 
-  <hello />
-  <setting />
 
   <!-- 个人信息弹窗 - 苹果风格居中 -->
   <Teleport to="body">
@@ -141,45 +166,27 @@
               <div class="profile-role" :class="{ 'is-admin': isAdmin }">
                 {{ isAdmin ? '管理员' : '普通用户' }}
               </div>
-              <!-- 积分显示 -->
+              <!-- 余额显示（new-api quota 折算元） -->
               <div class="profile-points">
                 <div class="profile-points-num">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
                   </svg>
-                  <span>{{ userPoints }}</span>
+                  <span>{{ userBalanceText }}</span>
                 </div>
-                <button class="profile-points-detail" @click="showUserProfile = false; router.push('/myPoints')">积分明细</button>
+                <button class="profile-points-detail" @click="showUserProfile = false; goConsoleTopup()">充值</button>
               </div>
             </div>
 
-            <!-- 表单区域 -->
+            <!-- 表单区域（改密码已收敛到网关侧，这里只支持改显示名称） -->
             <div class="profile-body">
               <div class="profile-field">
-                <label class="profile-label">用户名</label>
+                <label class="profile-label">显示名称</label>
                 <input
                   v-model="profileForm.name"
                   type="text"
                   class="profile-input"
-                  placeholder="请输入用户名"
-                />
-              </div>
-              <div class="profile-field">
-                <label class="profile-label">新密码</label>
-                <input
-                  v-model="profileForm.password"
-                  type="password"
-                  class="profile-input"
-                  placeholder="留空则不修改密码"
-                />
-              </div>
-              <div class="profile-field">
-                <label class="profile-label">确认密码</label>
-                <input
-                  v-model="profileForm.confirmPassword"
-                  type="password"
-                  class="profile-input"
-                  placeholder="请再次输入新密码"
+                  placeholder="请输入显示名称"
                 />
               </div>
             </div>
@@ -198,401 +205,60 @@
     </Transition>
   </Teleport>
 
-  <!-- 会员订阅弹窗 -->
+  <!-- 算力明细：复用 console 内已对接 NewAPI logs 的 UsageDialog，不在 Vue 再造第二套账单。 -->
   <Teleport to="body">
     <Transition name="profile-fade">
-      <div v-if="showMemberPlan" class="member-overlay" @click.self="showMemberPlan = false">
-        <Transition name="profile-scale">
-          <div v-if="showMemberPlan" class="member-modal">
-            <!-- 关闭按钮 -->
-            <div class="member-close" @click="showMemberPlan = false">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-
-            <!-- 用户信息头部 -->
-            <div class="member-user-header">
-              <div class="member-user-left">
-                <div class="member-user-avatar">
-                  <i-user size="24" />
-                </div>
-                <div class="member-user-info">
-                  <div class="member-user-status" :class="memberLevelClass">
-                    <span v-if="memberLevelClass === 'premium'" class="member-crown">👑</span>
-                    <span v-if="memberLevelClass === 'standard'" class="member-star">⭐</span>
-                    {{ userMemberStatus }}
-                  </div>
-                  <div class="member-user-points" @click="showPointsRecharge = true">
-                    剩余积分
-                    <svg class="points-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
-                    </svg>
-                    <span class="points-value">{{ userPoints }}</span>
-                    <svg class="arrow-icon" viewBox="0 0 12 12" width="12" height="12" fill="currentColor">
-                      <path d="M4.354 1.646a.5.5 0 0 1 .708 0l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L7.793 6 4.354 2.536a.5.5 0 0 1 0-.708z"/>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              <div class="member-user-right">
-                <button class="member-action-btn" @click="showPointsRecharge = true" v-if="!isAdmin">购买积分</button>
-                <button class="member-action-btn secondary" @click="showSubscription = true; showMemberPlan = false">订阅管理</button>
-              </div>
-            </div>
-
-            <!-- 标题 -->
-            <div class="member-title">开通会员</div>
-            <div class="member-subtitle">解锁全部高级功能，提升创作效率</div>
-
-            <!-- 套餐切换 -->
-            <div class="member-tabs">
-              <div
-                v-for="tab in memberTabs"
-                :key="tab.id"
-                class="member-tab"
-                :class="{ active: activeMemberTab === tab.id }"
-                @click="activeMemberTab = tab.id"
-              >
-                {{ tab.name }}
-                <span v-if="tab.tag" class="member-tab-tag">{{ tab.tag }}</span>
-              </div>
-            </div>
-
-            <!-- 限时横幅 - 只在连续包月和单年购买时显示 -->
-            <div v-if="activeMemberTab !== 'single'" class="member-banner">
-              <span class="member-banner-tag">限时赠送</span>
-              <span class="member-banner-text">{{ activeMemberTab === 'monthly' ? '订阅即享首月双倍积分福利！' : 'Wan3.0 720P低至0.18元/秒！订阅当前会员即享首月双倍积分福利！' }}</span>
-            </div>
-
-            <!-- 套餐卡片 -->
-            <div class="member-cards" :class="{ 'with-banner': activeMemberTab !== 'single' }">
-              <!-- 免费版 -->
-              <div class="member-card">
-                <div class="member-card-header">
-                  <span class="member-card-name">免费版</span>
-                </div>
-                <div class="member-card-price">
-                  <span class="price-num">0</span>
-                  <span class="price-unit">元/{{ activeMemberTab === 'yearly' ? '年' : '月' }}</span>
-                </div>
-                <div class="member-card-duration">永久</div>
-                <button class="member-card-btn disabled">当前使用</button>
-                <ul class="member-card-features">
-                  <li>登录送每日积分</li>
-                </ul>
-              </div>
-
-              <!-- 标准会员 -->
-              <div class="member-card popular">
-                <div v-if="memberPlans[activeMemberTab].standard.discount" class="member-card-badge">
-                  {{ memberPlans[activeMemberTab].standard.discount }}
-                </div>
-                <div class="member-card-header">
-                  <span class="member-card-name">标准会员</span>
-                  <span v-if="memberPlans[activeMemberTab].standard.tag" class="member-card-discount">
-                    {{ memberPlans[activeMemberTab].standard.tag }}
-                  </span>
-                </div>
-                <div class="member-card-price">
-                  <span class="price-num">{{ memberPlans[activeMemberTab].standard.price }}</span>
-                  <span class="price-unit">元/{{ activeMemberTab === 'yearly' ? '年' : '月' }}</span>
-                </div>
-                <div class="member-card-duration">
-                  <span v-if="memberPlans[activeMemberTab].standard.originalPrice" class="original-price">
-                    ¥{{ memberPlans[activeMemberTab].standard.originalPrice }}
-                  </span>
-                  {{ activeMemberTab === 'single' ? '' : '可随时取消' }}
-                </div>
-                <button class="member-card-btn" @click="handleSubscribe('standard')">
-                  {{ activeMemberTab === 'monthly' ? '立即订阅' : '购买' }}
-                </button>
-                <ul class="member-card-features">
-                  <li>每月获得 <span class="feature-highlight">800</span> 积分</li>
-                  <li v-if="activeMemberTab !== 'single'">
-                    首月额外赠送 <span class="feature-highlight cyan">800</span> 积分
-                  </li>
-                  <li>约生成视频 <span class="feature-highlight">50</span> 个，不限并发畅玩</li>
-                </ul>
-                <ul class="member-card-benefits">
-                  <li>每日赠送积分</li>
-                  <li>专享快速生成通道</li>
-                  <li>作品去除品牌水印</li>
-                  <li>新功能/模型抢先体验权</li>
-                </ul>
-              </div>
-
-              <!-- 高级会员 -->
-              <div class="member-card premium">
-                <div v-if="memberPlans[activeMemberTab].premium.discount" class="member-card-badge premium-badge">
-                  {{ memberPlans[activeMemberTab].premium.discount }}
-                </div>
-                <div class="member-card-header">
-                  <span class="member-card-name">高级会员</span>
-                  <span v-if="memberPlans[activeMemberTab].premium.tag" class="member-card-discount">
-                    {{ memberPlans[activeMemberTab].premium.tag }}
-                  </span>
-                </div>
-                <div class="member-card-price">
-                  <span class="price-num">{{ memberPlans[activeMemberTab].premium.price }}</span>
-                  <span class="price-unit">元/{{ activeMemberTab === 'yearly' ? '年' : '月' }}</span>
-                </div>
-                <div class="member-card-duration">
-                  <span v-if="memberPlans[activeMemberTab].premium.originalPrice" class="original-price">
-                    ¥{{ memberPlans[activeMemberTab].premium.originalPrice }}
-                  </span>
-                  {{ activeMemberTab === 'single' ? '' : '可随时取消' }}
-                </div>
-                <button class="member-card-btn premium-btn" @click="handleSubscribe('premium')">
-                  {{ activeMemberTab === 'monthly' ? '立即订阅' : '购买' }}
-                </button>
-                <ul class="member-card-features">
-                  <li>每月获得 <span class="feature-highlight">3600</span> 积分</li>
-                  <li v-if="activeMemberTab !== 'single'">
-                    首月额外赠送 <span class="feature-highlight cyan">3600</span> 积分
-                  </li>
-                  <li>约生成视频 <span class="feature-highlight">240</span> 个，不限并发畅玩</li>
-                </ul>
-                <ul class="member-card-benefits">
-                  <li>每日赠送积分</li>
-                  <li>专享快速生成通道</li>
-                  <li>作品去除品牌水印</li>
-                  <li>新功能/模型抢先体验权</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </Transition>
+      <div v-if="usageFrameOpen" class="topup-frame-overlay" @click.self="usageFrameOpen = false">
+        <iframe class="topup-frame usage-frame" :src="usageFrameSrc" title="算力与消费明细" />
       </div>
     </Transition>
   </Teleport>
 
-  <!-- 积分充值弹窗 -->
+  <!-- 充值弹窗：透明 iframe 内嵌 console 充值面板（造物 TopupDialog）。
+       轻遮罩 + 模糊，背后主站内容可见；弹窗本体在 iframe 内居中，
+       关闭（X / 遮罩 / 支付到账）由 iframe postMessage xoi:topup:close 收起。 -->
   <Teleport to="body">
     <Transition name="profile-fade">
-      <div v-if="showPointsRecharge" class="points-overlay" @click.self="showPointsRecharge = false">
-        <Transition name="profile-scale">
-          <div v-if="showPointsRecharge" class="points-modal">
-            <!-- 关闭按钮 -->
-            <div class="points-close" @click="showPointsRecharge = false">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-
-            <div class="points-content">
-              <!-- 左侧积分信息 -->
-              <div class="points-left">
-                <div class="points-display">
-                  <span class="points-num">{{ userPoints }}</span>
-                  <svg class="points-icon-large" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
-                  </svg>
-                </div>
-                <div class="points-label">积分</div>
-
-                <div class="points-details">
-                  <div class="points-detail-item">
-                    <span class="detail-label">签到积分</span>
-                    <span class="detail-value">{{ pointsBreakdown.checkin }}</span>
-                  </div>
-                  <div class="points-detail-item">
-                    <span class="detail-label">赠送积分</span>
-                    <span class="detail-value">{{ pointsBreakdown.gift }}</span>
-                  </div>
-                  <div class="points-detail-item">
-                    <span class="detail-label">购买积分</span>
-                    <span class="detail-value">{{ pointsBreakdown.purchased }}</span>
-                  </div>
-                  <div class="points-detail-item">
-                    <span class="detail-label">会员积分</span>
-                    <span class="detail-value">{{ pointsBreakdown.member }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 右侧充值选项 -->
-              <div class="points-right">
-                <div class="points-recharge-title">积分充值</div>
-                <div class="points-recharge-grid">
-                  <div
-                    v-for="item in pointsPackages"
-                    :key="item.id"
-                    class="points-package"
-                    :class="{ active: selectedPointsPackage === item.id }"
-                    @click="selectedPointsPackage = item.id"
-                  >
-                    <div class="package-points">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
-                      </svg>
-                      {{ item.points }}
-                      <span v-if="item.bonus > 0" class="package-bonus">+{{ item.bonus }}</span>
-                    </div>
-                    <div class="package-price">¥{{ item.price }}</div>
-                  </div>
-                </div>
-
-                <!-- 支付预览 -->
-                <div class="points-payment-preview">
-                  <div class="payment-method">支付宝扫码支付</div>
-                  <div class="payment-price">¥{{ selectedPackagePrice }}</div>
-                  <div class="payment-gain">
-                    支付完成后获得
-                    <span>{{ pointsPackages.find(p => p.id === selectedPointsPackage)?.points || 0 }}</span>
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
-                    </svg>
-                  </div>
-                </div>
-
-                <!-- 支付按钮 -->
-                <div class="points-payment-footer">
-                  <div class="payment-agreement">
-                    <span class="agreement-text">支付前请阅读</span>
-                    <span class="agreement-link">《付费服务协议》</span>
-                  </div>
-                  <button class="payment-btn" @click="handlePurchasePoints">同意并支付</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Transition>
+      <div v-if="topupFrameOpen" class="topup-frame-overlay" @click.self="topupFrameOpen = false">
+        <iframe class="topup-frame" :src="topupFrameSrc" title="在线充值" />
       </div>
     </Transition>
   </Teleport>
 
-  <!-- 订阅管理弹窗 -->
+  <!-- 通知公告弹窗（照造物 announcements：静态 JSON 驱动，站长热换 backend/data/web/announcements.json） -->
   <Teleport to="body">
     <Transition name="profile-fade">
-      <div v-if="showSubscription" class="subscription-overlay" @click.self="showSubscription = false">
-        <Transition name="profile-scale">
-          <div v-if="showSubscription" class="subscription-modal">
-            <!-- 头部 -->
-            <div class="subscription-header">
-              <span class="subscription-title">订阅管理</span>
-              <div class="subscription-close" @click="showSubscription = false">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-              </div>
-            </div>
-
-            <!-- 标签页 -->
-            <div class="subscription-tabs">
-              <div class="subscription-tab-bar">
-                <div
-                  class="subscription-tab"
-                  :class="{ active: activeSubscriptionTab === 'manage' }"
-                  @click="activeSubscriptionTab = 'manage'"
-                >
-                  订阅管理
-                </div>
-                <div
-                  class="subscription-tab"
-                  :class="{ active: activeSubscriptionTab === 'history' }"
-                  @click="activeSubscriptionTab = 'history'"
-                >
-                  购买记录
-                </div>
-              </div>
-              <div class="subscription-tools">
-                <span class="tool-item">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M3 8.667V6C3 3.239 5.239 1 8 1s5 2.239 5 5v2m0 4c0 1.473-1.194 2.667-2.667 2.667H9.333M6.667 13.333h2.666c.368 0 .667.299.667.667v1.333c0 .368-.299.667-.667.667H6.667a.667.667 0 01-.667-.667V14c0-.368.299-.667.667-.667zM1.667 8h2.666v3.667H1.667zM11.667 8h2.666v3.667h-2.666z"/>
-                  </svg>
-                  <span>客服中心</span>
-                </span>
-                <span class="tool-item">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 10.5a.75.75 0 110-1.5.75.75 0 010 1.5zM8.75 8a.75.75 0 01-1.5 0V4.5a.75.75 0 011.5 0V8z"/>
-                  </svg>
-                  <span>积分规则</span>
-                </span>
-              </div>
-            </div>
-
-            <!-- 内容区域 -->
-            <div class="subscription-content">
-              <!-- 订阅管理 -->
-              <div v-if="activeSubscriptionTab === 'manage'" class="subscription-empty">
-                <svg width="96" height="96" viewBox="0 0 96 96" fill="none">
-                  <rect x="17" y="19" width="62" height="24" rx="10" stroke="currentColor" stroke-width="4" opacity="0.3"/>
-                  <rect x="17" y="53" width="62" height="24" rx="10" stroke="currentColor" stroke-width="4" opacity="0.3"/>
-                </svg>
-                <span class="empty-text">暂无订阅管理</span>
-              </div>
-
-              <!-- 购买记录 -->
-              <div v-else class="subscription-empty">
-                <svg width="96" height="96" viewBox="0 0 96 96" fill="none">
-                  <rect x="17" y="19" width="62" height="24" rx="10" stroke="currentColor" stroke-width="4" opacity="0.3"/>
-                  <rect x="17" y="53" width="62" height="24" rx="10" stroke="currentColor" stroke-width="4" opacity="0.3"/>
-                </svg>
-                <span class="empty-text">暂无购买记录</span>
-              </div>
-            </div>
+      <div v-if="noticeOpen" class="profile-overlay" @click.self="noticeOpen = false">
+        <div class="profile-modal notice-modal">
+          <div class="profile-close" @click="noticeOpen = false">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M1 1L11 11M1 11L11 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
           </div>
-        </Transition>
+          <template v-if="currentNotice">
+            <div class="notice-head">
+              <span class="notice-tag" :class="`is-${currentNotice.type || 'notice'}`">{{ noticeTypeLabel(currentNotice) }}</span>
+              <span class="notice-date">{{ noticeDate(currentNotice) }}</span>
+            </div>
+            <h3 class="notice-title">{{ currentNotice.title }}</h3>
+            <div class="notice-body">{{ currentNotice.content }}</div>
+            <div class="notice-pager" v-if="notices.length > 1">
+              <span class="notice-count">{{ noticeIndex + 1 }} / {{ notices.length }}</span>
+              <div class="notice-dots">
+                <button v-for="(n, i) in notices" :key="n.id" type="button" :class="{ on: i === noticeIndex }" @click="noticeIndex = i" :aria-label="`第 ${i + 1} 条`"></button>
+              </div>
+              <div class="notice-nav">
+                <button type="button" :disabled="noticeIndex === 0" @click="noticeIndex--" aria-label="上一条">‹</button>
+                <button type="button" :disabled="noticeIndex >= notices.length - 1" @click="noticeIndex++" aria-label="下一条">›</button>
+              </div>
+            </div>
+          </template>
+          <div v-else class="notice-empty">暂无公告</div>
+        </div>
       </div>
     </Transition>
   </Teleport>
 
-  <!-- 积分明细弹窗 -->
-  <Teleport to="body">
-    <Transition name="profile-fade">
-      <div v-if="showPointsLog" class="points-log-overlay" @click.self="showPointsLog = false">
-        <Transition name="profile-scale">
-          <div v-if="showPointsLog" class="points-log-modal">
-            <div class="points-log-close" @click="showPointsLog = false">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <div class="points-log-header">
-              <span class="points-log-title">积分明细</span>
-              <span class="points-log-balance">余额: {{ userPoints }}</span>
-            </div>
-            <div class="points-log-body">
-              <div v-if="pointsLogLoading" class="points-log-empty">加载中...</div>
-              <div v-else-if="pointsLogs.length === 0" class="points-log-empty">暂无积分记录</div>
-              <div v-else class="points-log-list">
-                <div v-for="log in pointsLogs" :key="log.id" class="points-log-item">
-                  <div class="log-item-left">
-                    <span class="log-item-type" :class="log.type">{{ getTypeText(log.type) }}</span>
-                    <span class="log-item-desc">{{ log.description || '-' }}</span>
-                  </div>
-                  <div class="log-item-right">
-                    <span class="log-item-amount" :class="{ positive: log.amount > 0, negative: log.amount < 0 }">
-                      {{ log.amount > 0 ? '+' : '' }}{{ log.amount }}
-                    </span>
-                    <span class="log-item-time">{{ formatTime(log.created_at) }}</span>
-                  </div>
-                </div>
-              </div>
-              <!-- 加载更多 -->
-              <div v-if="pointsLogs.length < pointsLogTotal" class="points-log-loadmore" @click="loadMorePointsLog">
-                加载更多
-              </div>
-            </div>
-          </div>
-        </Transition>
-      </div>
-    </Transition>
-  </Teleport>
-
-  <!-- 扫码支付弹窗:create-order 成功后由 openPaymentDialog 注入商户单号 / 码图 / 有效期，
-       QrDialog 内部自动轮询到账并 emit paid，再经 onPaidSuccess 关闭浮层、刷新角标、跳转流水页 -->
-  <PayQrDialog
-    v-model="showPayDialog"
-    :out-trade-no="pdOutTradeNo"
-    :qr-content="pdQrContent"
-    :channel="pdChannel"
-    :expires-at="pdExpiresAt"
-    :amount="pdAmount"
-    :package-name="pdPackageName"
-    @paid="onPaidSuccess"
-  />
 </template>
 
 <script setup lang="ts">
@@ -601,45 +267,70 @@ import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import axios from "@/utils/axios";
-import setting from "@/components/setting/index.vue";
-import hello from "@/components/hello.vue";
-import PayQrDialog from "@/components/payment/QrDialog.vue";
 import projectStore from "@/stores/project";
 const { project } = storeToRefs(projectStore());
-import settingStore from "@/stores/setting";
 import userStore from "@/stores/user";
 // aiAssistant 页运行期逃生口：让 isImmersive 白名单对该路由网开一面以显出全局导航（详见 stores/uiPrefs.ts）
 import uiPrefsStore from "@/stores/uiPrefs";
+import settingStore from "@/stores/setting";
+import { resolveThemeMode } from "@/utils/theme";
 import { MessagePlugin } from "tdesign-vue-next";
-const { showSetting } = storeToRefs(settingStore());
+import PipelineProgress from "@/components/pipeline/PipelineProgress.vue";
 const uStore = userStore();
-const { username, userId, displayId, isAdmin, userPoints, memberLevel } = storeToRefs(uStore);
+const { username, userId, displayId, isAdmin, balance } = storeToRefs(uStore);
 const userInitial = computed(() => (username.value || "X").trim().charAt(0).toUpperCase());
-const pointsProgress = computed(() => Math.min(100, Math.max(4, Number(userPoints.value) / 10)));
+/** 余额展示文本：refreshProfile 现在取 new-api quota 折算后的「元」（两位小数） */
+const userBalanceText = computed(() => `¥${Number(balance.value || 0).toFixed(2)}`);
+/** 充值弹窗（站内透明 iframe 内嵌 /console/topup?embed=1，造物 TopupDialog 弹窗体系）：
+ *  不再整页跳 console——跳走后背后是空落点页、弹窗还是深色。现在主站就地弹轻遮罩弹窗，
+ *  背后主站内容可见；iframe 里的弹窗关闭时 postMessage(xoi:topup:close) 通知本壳收起。
+ *  主题经 ?theme= 传给 console（跟随主站浅色/深色），弹窗配色与主站一致。
+ *  ⚠️ 别指到 /console/reseller/finance——那是代理收益/提现管理页，不是充值入口。 */
+const topupFrameOpen = ref(false);
+const topupFrameSrc = computed(() => {
+  const theme = resolveThemeMode(settingStore().themeSetting.mode);
+  return `/console/topup?embed=1&theme=${theme}`;
+});
+function goConsoleTopup() {
+  footMenuOpen.value = false;
+  topupFrameOpen.value = true;
+}
+function closeTopupFrameOnMessage(event: MessageEvent) {
+  if (event.origin !== window.location.origin || event.data?.type !== 'xoi:topup:close') return;
+  topupFrameOpen.value = false;
+  // 支付到账后余额角标即时刷新
+  void uStore.refreshProfile();
+}
 
-// 侧边栏折叠状态
-const menuCollapsed = ref(false);
+// 算力明细与充值共用 console 的账户弹窗体系，数据都来自 NewAPI。
+const usageFrameOpen = ref(false);
+const usageFrameSrc = computed(() => {
+  const theme = resolveThemeMode(settingStore().themeSetting.mode);
+  return `/console/usage?embed=1&theme=${theme}`;
+});
+function openUsageDetails() {
+  footMenuOpen.value = false;
+  usageFrameOpen.value = true;
+}
+function closeUsageFrameOnMessage(event: MessageEvent) {
+  if (event.origin !== window.location.origin || event.data?.type !== 'xoi:usage:close') return;
+  usageFrameOpen.value = false;
+}
 
-// 主导航基础项（全员可见）
+// 主导航（范围收敛：只留四个创作模块 + 画布资产库入口；
+// Skill/灵感资料库/创作任务/管理员中心已按造物方案下线）
 const baseMenu = [
   { type: "group", label: "创作工作台" },
-  { type: "btn", path: "/project", label: "AI影像创作中心", icon: "i-movie-board" },
-  { type: "btn", path: "/aiAssistant", label: "创作智能体", icon: "i-magic" },
-  { type: "btn", path: "/director3d", label: "镜头导演台", icon: "i-camera-one" },
-  { type: "btn", path: "/canvas", label: "无限创意画布", icon: "i-edit" },
+  { type: "btn", path: "/project", label: "剧本一键创作", icon: "i-movie-board" },
+  { type: "btn", path: "/canvas", label: "新建画布", icon: "i-edit", canvasNew: true },
+  { type: "btn", path: "/aiAssistant", label: "Agent 智能创作", icon: "i-magic" },
+  { type: "btn", path: "/director3d", label: "导演工作台", icon: "i-camera-one" },
   { type: "group", label: "创作资源" },
-  { type: "btn", path: "/skills", label: "Skill", icon: "i-toolkit" },
-  { type: "btn", path: "/inspiration", label: "灵感资料库", icon: "i-lightning" },
-  { type: "btn", path: "/task", label: "创作任务", icon: "i-view-list" },
-  { type: "btn", path: "/canvas?view=assets", label: "项目资产库", icon: "i-receive" },
+  { type: "btn", path: "/assets", label: "项目资产库", icon: "i-receive" },
+  { type: "btn", path: "/square", label: "灵感广场", icon: "i-lightning" },
+  { type: "btn", path: "/skills", label: "Skill 市场", icon: "i-toolkit" },
 ];
-// 运营管理组（仅管理员可见）：用户管理 + 计费中心
-const adminMenu = [
-  { type: "group", label: "平台管理" },
-  { type: "btn", path: "/adminCenter", label: "管理员中心", icon: "i-setting-one" },
-];
-// computed 使降权即时刷新（退出登录切普通号时运营组立刻消失）
-const menuList = computed(() => [...baseMenu, ...(isAdmin.value ? adminMenu : [])]);
+const menuList = computed(() => baseMenu);
 
 const rightBtnList = ref([
   { type: "btn", path: "/novel", label: "导入素材", description: "导入小说原文或已有剧本", icon: "i-file-text", nodelOnly: true },
@@ -655,6 +346,15 @@ const router = useRouter();
 const route = useRoute();
 // 仅用于 aiAssistant 页那道 runtime 逃生口；director3d/canvas 维持硬沉浸不受其影响
 const uiPrefs = uiPrefsStore();
+// 进入业务后收成 72px 图标栏；用户手动选择会被记住，不被后续路由强制覆盖。
+const menuCollapsed = computed(() => uiPrefs.isSidebarCollapsed());
+function toggleSidebar() {
+  if (isCanvasFullscreen.value) {
+    canvasNavOpen.value = false;
+    return;
+  }
+  uiPrefs.toggleSidebar(menuCollapsed.value);
+}
 
 /*
  * 沉浸式创作页（画布/3D）：路由命中白名单即强压顶栏；
@@ -663,7 +363,8 @@ const uiPrefs = uiPrefsStore();
  * director3d/canvas 两路继续硬性强制沉浸不可破例（外溢风险最低）。
  */
 const isImmersive = computed(() =>
-  ['/aiAssistant', '/director3d', '/canvas'].includes(route.path)
+  // /editor（剪辑成片）是独立工作台：它自带顶栏，这里压掉面包屑让预览拿到整块高度。
+  ['/aiAssistant', '/director3d', '/canvas', '/editor'].includes(route.path)
     && !(route.path === '/aiAssistant' && uiPrefs.aiAssistantChromeVisible)
 );
 // 画布本身拥有一套站内导航，因此默认使用全宽焦点模式；外层工作台导航按需以浮层打开。
@@ -686,8 +387,41 @@ watch(
 
 function handleClick(menu: any) {
   if (menu.needProject && !project.value) return;
+  uiPrefs.collapseSidebarForNavigation();
+  if (menu.canvasNew) {
+    // 新建画布一键直达：不再落画布首页多点一次。?new=1 由画布外壳透传进 iframe，
+    // atelier 侧自动建空白项目并进编辑器（upstream-canvas-bridge.runUpstreamXoiNewCanvas）。
+    // t= nonce：已停在画布页时再点一次也要触发外壳的 fullPath watch（重复导航会被 router 去重）。
+    router.push({ path: "/canvas", query: { new: "1", source: "xoi", from: "workbench", t: String(Date.now()) } });
+    activeMenu.value = menu.path;
+    return;
+  }
   router.push(menu.path);
   activeMenu.value = menu.path;
+}
+
+type TeamRole = "owner" | "member" | "none";
+const teamRole = ref<TeamRole>("none");
+const teamMemberCount = ref(0);
+const teamMenuLabel = computed(() => {
+  if (teamRole.value === "owner") return teamMemberCount.value > 0 ? `团队管理 · ${teamMemberCount.value} 名成员` : "团队管理";
+  if (teamRole.value === "member") return "我的团队";
+  return "开启团队版";
+});
+async function loadTeamSummary() {
+  try {
+    const response: any = await axios.get("/team", { params: { summary: 1, _t: Date.now() } });
+    const data = response?.data ?? response;
+    teamRole.value = ["owner", "member"].includes(data?.role) ? data.role : "none";
+    teamMemberCount.value = Number(data?.seats?.used || 0);
+  } catch {
+    // 团队服务暂时不可用时仍保留「开启团队版」入口，详情页会给出明确错误。
+    teamRole.value = "none";
+  }
+}
+function goTeamSpace() {
+  footMenuOpen.value = false;
+  window.location.assign("/console/team");
 }
 
 // 用户下拉菜单（侧栏底部用户块，Teleport 到 body）
@@ -699,7 +433,7 @@ function toggleFootMenu() {
   // 打开时根据用户块位置动态计算菜单定位（fixed 相对视口）
   if (!footMenuOpen.value && userFootRef.value) {
     const rect = userFootRef.value.getBoundingClientRect();
-    const left = Math.max(16, Math.min(rect.left, window.innerWidth - 390));
+    const left = Math.max(16, Math.min(rect.left, window.innerWidth - 340));
     const bottom = Math.max(16, window.innerHeight - rect.top + 10);
     footDropStyle.value = { left: left + "px", bottom: bottom + "px" };
   }
@@ -724,10 +458,20 @@ function toggleCanvasWorkspaceNav(event: MessageEvent) {
 onMounted(() => {
   document.addEventListener('pointerdown', closeFootMenuOnOutside);
   window.addEventListener('message', toggleCanvasWorkspaceNav);
+  window.addEventListener('message', closeTopupFrameOnMessage);
+  window.addEventListener('message', closeUsageFrameOnMessage);
+  // 余额来自 new-api quota（/api/login/self 折算元），壳层挂载时拉一次，
+  // 生成扣费/充值到账后由相应页面再调 refreshProfile() 即时刷新角标
+  void uStore.refreshProfile();
+  void loadTeamSummary();
+  // 通知公告：拉取静态 JSON 供未读红点与弹窗使用
+  void loadNotices();
 });
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', closeFootMenuOnOutside);
   window.removeEventListener('message', toggleCanvasWorkspaceNav);
+  window.removeEventListener('message', closeTopupFrameOnMessage);
+  window.removeEventListener('message', closeUsageFrameOnMessage);
 });
 
 // 当前页名（顶栏面包屑末级）
@@ -748,6 +492,57 @@ function notifyMenu(name: string) {
   MessagePlugin.info(`${name}即将开放`);
 }
 
+/** 管理控制台入口（造物迁移的 reseller/agent 管理端，/console）：
+ *  - 菜单项 v-if="isAdmin"，普通用户看不到；
+ *  - console 与主站共用同一份 localStorage 会话，接口越权由后端鉴权兜底；
+ *  - 控制台是独立 React 应用，开新标签页不丢创作现场。 */
+function goConsoleAdmin() {
+  footMenuOpen.value = false;
+  window.open("/console", "_blank");
+}
+
+// —— 站内通知公告（照造物 announcements 模式）——
+// 数据源：/announcements.json（backend/data/web/ 静态托管，站长改完即生效，无需重构建）。
+// 未读逻辑：最新一条的 id 与 localStorage 记录不一致即显示小红点，打开弹窗即标记已读。
+interface NoticeItem { id: string; title: string; content: string; type?: string; published_at?: string; created_at?: string }
+const notices = ref<NoticeItem[]>([]);
+const noticeIndex = ref(0);
+const noticeOpen = ref(false);
+const NOTICE_SEEN_KEY = "xoi_notice_seen_id";
+const noticeSeenId = ref<string>("");
+try { noticeSeenId.value = localStorage.getItem(NOTICE_SEEN_KEY) || ""; } catch {}
+const currentNotice = computed(() => notices.value[noticeIndex.value] || null);
+const hasUnreadNotices = computed(() => {
+  const latest = notices.value[0];
+  return !!latest && noticeSeenId.value !== latest.id;
+});
+async function loadNotices() {
+  try {
+    const res = await fetch("/announcements.json", { cache: "no-store" });
+    if (!res.ok) return;
+    const json: any = await res.json();
+    const list: NoticeItem[] = Array.isArray(json) ? json : (json?.data ?? []);
+    notices.value = list.filter((n) => n && n.id && n.title);
+  } catch { /* 静态资源缺失时静默降级为「暂无公告」 */ }
+}
+function openNotices() {
+  footMenuOpen.value = false;
+  noticeIndex.value = 0;
+  noticeOpen.value = true;
+  const latest = notices.value[0];
+  if (latest) {
+    noticeSeenId.value = latest.id;
+    try { localStorage.setItem(NOTICE_SEEN_KEY, latest.id); } catch {}
+  }
+}
+function noticeTypeLabel(n: NoticeItem) {
+  return n.type === "maintenance" ? "维护" : n.type === "update" ? "更新" : "公告";
+}
+function noticeDate(n: NoticeItem) {
+  const d = new Date(n.published_at || n.created_at || "");
+  return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 // 退出登录
 function handleLogout() {
   localStorage.removeItem("token");
@@ -757,48 +552,30 @@ function handleLogout() {
   window.location.reload();
 }
 
-// 个人信息
+// 个人信息（改密码已收敛到网关侧，这里只支持改显示名称）
 const showUserProfile = ref(false);
 const profileLoading = ref(false);
-const profileForm = ref({
-  name: username.value || "",
-  password: "",
-  confirmPassword: "",
-});
+const profileForm = ref({ name: username.value || "" });
 
 // 监听抽屉打开，重置表单
 watch(showUserProfile, (val) => {
   if (val) {
-    profileForm.value = {
-      name: username.value || "",
-      password: "",
-      confirmPassword: "",
-    };
+    profileForm.value = { name: username.value || "" };
   }
 });
 
 async function handleUpdateProfile() {
   if (!profileForm.value.name.trim()) {
-    MessagePlugin.warning("用户名不能为空");
+    MessagePlugin.warning("显示名称不能为空");
     return;
-  }
-  if (profileForm.value.password && profileForm.value.password !== profileForm.value.confirmPassword) {
-    MessagePlugin.warning("两次输入的密码不一致");
-    return;
-  }
-  if (profileForm.value.password && profileForm.value.password.length < 6) {
-    MessagePlugin.warning("密码长度不能少于6位");
-    return
   }
   try {
     profileLoading.value = true;
-    const params: any = { name: profileForm.value.name.trim() };
-    if (profileForm.value.password) {
-      params.password = profileForm.value.password;
-    }
-    await axios.post("/setting/loginConfig/updateUserPwd", params);
+    // PUT /api/user/self 只放通 display_name（见 routes/user/self.ts 的设计说明）；
+    // 密码修改由用户在网关侧自行操作，管理员令牌代改是安全红线
+    const resp: any = await axios.put("/user/self", { display_name: profileForm.value.name.trim() });
+    if (resp && resp.success === false) throw new Error(resp.message || "修改失败");
     MessagePlugin.success("修改成功");
-    // 更新本地存储的用户名
     localStorage.setItem("username", profileForm.value.name.trim());
     username.value = profileForm.value.name.trim();
     showUserProfile.value = false;
@@ -808,233 +585,6 @@ async function handleUpdateProfile() {
     profileLoading.value = false;
   }
 }
-
-// 会员订阅
-const showMemberPlan = ref(false);
-// 套餐 key：与下方 memberPlans 的键保持一致
-type MemberTabKey = keyof typeof memberPlans;
-const activeMemberTab = ref<MemberTabKey>('monthly');
-const memberTabs: { id: MemberTabKey; name: string; tag: string }[] = [
-  { id: 'monthly', name: '连续包月', tag: '限时赠送' },
-  { id: 'single', name: '单月购买', tag: '' },
-  { id: 'yearly', name: '单年购买', tag: '限时赠送' },
-];
-
-// 套餐价格配置
-const memberPlans = {
-  monthly: {
-    standard: { price: 48, originalPrice: 80, discount: '热门推荐', tag: '限时特惠 6 折' },
-    premium: { price: 188, originalPrice: 360, discount: '尊享特权', tag: '限时特惠 5 折' },
-  },
-  single: {
-    standard: { price: 78, originalPrice: 80, discount: null, tag: null },
-    premium: { price: 328, originalPrice: 360, discount: '尊享特权', tag: null },
-  },
-  yearly: {
-    standard: { price: 458, originalPrice: 960, discount: '热门推荐', tag: '限时特惠 5 折' },
-    premium: { price: 1888, originalPrice: 4320, discount: '尊享特权', tag: '限时特惠 4 折' },
-  },
-};
-
-// ── 扫码付费编排：从所选商品发起到弹出二维码再到到账落地的中枢 ──
-const showPayDialog = ref(false);
-const pdOutTradeNo = ref("");
-const pdQrContent = ref("");
-const pdChannel = ref("simulate");
-const pdExpiresAt = ref<any>(null);
-const pdAmount = ref("");
-const pdPackageName = ref("");
-
-/**
- * 创建待支付订单并唤起扫码弹窗（Phase A 固定 simulate 渠道零成本跑通）：
- * 商户单号贯穿下单 / 轮询 / 结果页标识；金额与权益快照在后端一次性冻结入库。
- */
-async function openPaymentDialog(packageId: number) {
-  try {
-    const resp: any = await axios.post("/pay/create-order", {
-      packageId,
-      channel: "simulate",
-    });
-    if (!resp || resp.code !== 200) {
-      throw new Error(resp?.message || "创建订单失败");
-    }
-    const d: any = resp.data || {};
-    pdOutTradeNo.value = String(d.outTradeNo || "");
-    pdQrContent.value = String(d.qrContent || "");
-    pdChannel.value = String(d.channel || "simulate");
-    pdExpiresAt.value = d.expiresAt ?? null;
-    pdAmount.value = d.amount != null ? String(d.amount) : "";
-    pdPackageName.value =
-      String(d.packageName || "") ||
-      (d.grantLevel ? `${d.grantVipDays}天会员` : "");
-    showPayDialog.value = true;
-  } catch (e: any) {
-    MessagePlugin.error(
-      e?.message || e?.response?.data?.message || "创建订单失败，请稍后再试",
-    );
-  }
-}
-
-/**
- * 根据 desired 会员等级反查一条已上架(grant_level 匹配)的套餐记录；
- * 种子里目前有 月卡-standard / 季卡-premium / 年卡-premium 三档可供演练。
- */
-function findMemberPackageId(level: "standard" | "premium"): number | null {
-  const candidates =
-    ((pointsPackages?.value as Array<any> | undefined)?.filter(
-      (p) => p && p.grant_level === level,
-    )) || [];
-  if (!candidates.length) {
-    MessagePlugin.warning(
-      `暂无可购买的${level === "standard" ? "标准" : "高级"}会员套餐，请联系运营在计费中心添加`,
-    );
-    return null;
-  }
-  return Number(candidates[0].id);
-}
-
-/** 二维码弹窗收到支付到账后的收口：关停相关浮层、刷新角标、跳转积分流水见证权益生效 */
-function onPaidSuccess(_payload: any) {
-  showPayDialog.value = false;
-  showMemberPlan.value = false;
-  showPointsRecharge.value = false;
-  void fetchUserPoints();
-  MessagePlugin.success("支付成功，积分与会员权益已生效");
-  setTimeout(() => router.push("/myPoints"), 500);
-}
-
-function handleSubscribe(plan: string) {
-  const level: "standard" | "premium" = plan === "premium" ? "premium" : "standard";
-  const pid = findMemberPackageId(level);
-  if (pid != null) void openPaymentDialog(pid);
-}
-
-// 积分明细四类统计：充值弹窗左侧补充指标（权威积分余额在 store.userPoints）
-const pointsBreakdown = ref({
-  checkin: 0,
-  gift: 0,
-  purchased: 0,
-  member: 0,
-});
-
-// 会员等级样式与中文称谓均派生自 store.memberLevel，保证跨视图 / 支付后即时联动
-const MEMBER_LEVEL_LABEL: Record<string,string> = {
-  free: '非会员',
-  standard: '标准会员',
-  premium: '高级会员',
-};
-const memberLevelClass = computed(() => memberLevel.value || 'free');
-const userMemberStatus = computed(() => MEMBER_LEVEL_LABEL[memberLevel.value] || '非会员');
-
-// 获取用户积分余额（委托 uStore.refreshProfile 同步全局角标权威源；顺带回填充值弹窗的分类明细）
-async function fetchUserPoints() {
-  try {
-    const data: any = await uStore.refreshProfile<any>();
-    if (!data) return;
-    if ((data as any).breakdown) pointsBreakdown.value = (data as any).breakdown;
-  } catch (e) {
-    console.error('获取积分失败:', e);
-  }
-}
-
-// 积分充值
-const showPointsRecharge = ref(false);
-const selectedPointsPackage = ref(200);
-const pointsPackages = ref<Array<{id: number, points: number, price: number, bonus: number}>>([]);
-
-// 获取积分套餐列表
-async function fetchPointsPackages() {
-  try {
-    const { data } = await axios.get('/setting/pointsConfig/purchase/packages');
-    if (data && data.length > 0) {
-      pointsPackages.value = data;
-      selectedPointsPackage.value = data[0].id;
-    }
-  } catch (e) {
-    console.error('获取套餐失败:', e);
-  }
-}
-
-const selectedPackagePrice = computed(() => {
-  const pkg = pointsPackages.value.find(p => p.id === selectedPointsPackage.value);
-  return pkg ? pkg.price : 0;
-});
-
-async function handlePurchasePoints() {
-  if (!selectedPointsPackage.value) {
-    MessagePlugin.warning('请选择套餐');
-    return;
-  }
-  // 关闭下层套餐面板以免遮挡二维码窗，随后走统一的 create-order 流程唤出扫码弹窗
-  showPointsRecharge.value = false;
-  await openPaymentDialog(Number(selectedPointsPackage.value));
-}
-
-// 积分明细
-const showPointsLog = ref(false);
-const pointsLogs = ref<any[]>([]);
-const pointsLogLoading = ref(false);
-const pointsLogPage = ref(1);
-const pointsLogTotal = ref(0);
-
-async function openPointsLog() {
-  showPointsLog.value = true;
-  pointsLogPage.value = 1;
-  pointsLogs.value = [];
-  await fetchPointsLog();
-}
-
-async function fetchPointsLog() {
-  pointsLogLoading.value = true;
-  try {
-    const { data } = await axios.get('/setting/pointsConfig/log', {
-      params: { page: pointsLogPage.value, limit: 20 }
-    });
-    if (pointsLogPage.value === 1) {
-      pointsLogs.value = data.logs;
-    } else {
-      pointsLogs.value.push(...data.logs);
-    }
-    pointsLogTotal.value = data.pagination.total;
-  } catch (e) {
-    console.error('获取积分流水失败:', e);
-  } finally {
-    pointsLogLoading.value = false;
-  }
-}
-
-async function loadMorePointsLog() {
-  pointsLogPage.value++;
-  await fetchPointsLog();
-}
-
-function getTypeText(type: string) {
-  const map: Record<string, string> = {
-    consume: '消费',
-    recharge: '充值',
-    gift: '赠送',
-    refund: '退款',
-    checkin: '签到',
-    member: '会员'
-  };
-  return map[type] || type;
-}
-
-function formatTime(time: string) {
-  if (!time) return '-';
-  const d = new Date(time);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
-
-// 页面加载时获取积分数据
-onMounted(() => {
-  fetchUserPoints();
-  fetchPointsPackages();
-});
-
-// 订阅管理
-const showSubscription = ref(false);
-const activeSubscriptionTab = ref('manage');
 
 </script>
 
@@ -1262,31 +812,53 @@ const activeSubscriptionTab = ref('manage');
       cursor: pointer;
       width: 100%;
       height: fit-content;
-      padding: 4px 8px 22px;
+      padding: 6px 8px 20px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 11px;
 
       .logo {
-        width: 36px;
-        height: 36px;
+        width: 38px;
+        height: 38px;
         flex-shrink: 0;
-        border-radius: 9px;
-        overflow: hidden;
-        background: url("@/assets/XOI_logo.png") no-repeat center;
-        background-size: contain;
+        border-radius: 11px;
         transition: transform 0.3s ease;
 
+        /* 白瓷托底：彩色玻璃 logo 在浅灰侧栏上更聚焦，也避免透明底贴灰显得脏 */
+        background:
+          url("@/assets/XOI_logo.png") center / contain no-repeat,
+          linear-gradient(145deg, #ffffff, #f6f3ee);
+        box-shadow:
+          0 1px 2px rgba(60, 42, 20, 0.08),
+          0 4px 10px rgba(60, 42, 20, 0.07),
+          inset 0 0 0 1px rgba(60, 42, 20, 0.05);
+
         &:hover {
-          transform: scale(1.05);
+          transform: scale(1.06) rotate(-2deg);
         }
       }
 
       .brand-name {
-        font-size: 16px;
-        font-weight: 700;
-        color: #182033;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        line-height: 1.2;
         white-space: nowrap;
+
+        strong {
+          font-size: 15.5px;
+          font-weight: 700;
+          letter-spacing: 0.01em;
+          color: #242321;
+        }
+
+        span {
+          margin-top: 3px;
+          font-size: 9.5px;
+          font-weight: 650;
+          letter-spacing: 0.22em;
+          color: #b3ada2;
+        }
       }
     }
 
@@ -1327,10 +899,18 @@ const activeSubscriptionTab = ref('manage');
           background: #182033;
           transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
           box-shadow: none;
+          border: 0;
+          padding: 0;
+          cursor: pointer;
 
           .member-icon {
             color: white;
             flex-shrink: 0;
+          }
+
+          .wallet-icon {
+            color: white;
+            font-size: 19px;
           }
 
           .member-text {
@@ -1372,14 +952,15 @@ const activeSubscriptionTab = ref('manage');
         align-items: center;
         gap: 10px;
         padding: 9px 8px;
-        border: 1px solid #edf0f4;
-        border-radius: 10px;
+        border: 1px solid #f0ece5;
+        border-radius: 12px;
+        background: #fdfcfa;
         cursor: pointer;
         transition: all 0.25s ease;
 
         &:hover {
-          background: #f6f8fb;
-          border-color: #e3e9f3;
+          background: #faf8f5;
+          border-color: #e5dfd4;
         }
 
         .user-avatar {
@@ -1389,10 +970,12 @@ const activeSubscriptionTab = ref('manage');
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 9px;
-          background: #e8f0ff;
-          color: #1d5fd1;
-          font-size: 18px;
+          border-radius: 50%;
+          background: linear-gradient(145deg, #ff9b45, #f57400);
+          color: #fff;
+          font-size: 16px;
+          font-weight: 700;
+          box-shadow: 0 2px 6px rgba(245, 116, 0, 0.25);
         }
 
         .user-meta {
@@ -1536,6 +1119,7 @@ const activeSubscriptionTab = ref('manage');
         gap: 6px;
         font-size: 13px;
         min-width: 0;
+        flex-shrink: 0;
 
         .bc-item {
           color: var(--text-tertiary);
@@ -1553,6 +1137,20 @@ const activeSubscriptionTab = ref('manage');
         .bc-sep {
           color: var(--text-tertiary);
           opacity: 0.6;
+        }
+      }
+
+      // 流水线进度带：窄屏空间不够就藏起来（进度在项目卡上仍有）
+      .topProgress {
+        margin-left: 18px;
+        min-width: 0;
+        overflow: hidden;
+        flex-wrap: nowrap;
+      }
+
+      @media (max-width: 1280px) {
+        .topProgress {
+          display: none;
         }
       }
 
@@ -2514,6 +2112,30 @@ const activeSubscriptionTab = ref('manage');
   }
 }
 
+// 充值弹窗（透明 iframe 内嵌 console 充值面板）：轻遮罩让背后主站可见，弹窗本体在 iframe 内居中
+.topup-frame-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: rgba(18, 18, 24, 0.3);
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .topup-frame {
+    // iframe 只承载内部弹窗；不能给 iframe 自己加圆角阴影，否则透明区域也会被浏览器
+    // 当成一张 500×700 的深色卡片投影，视觉上就像弹窗外又套了一层黑框。
+    width: min(500px, calc(100vw - 32px));
+    height: min(700px, calc(100vh - 48px));
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
 // 积分充值弹窗
 .points-overlay {
   position: fixed;
@@ -3277,17 +2899,20 @@ const activeSubscriptionTab = ref('manage');
 <style lang="scss">
 /* Miora 式创作侧栏：更宽松的节奏、中性选中态、底部双卡片 */
 .main .menu {
-  width: 300px !important;
-  padding: 26px 18px 16px !important;
+  width: 248px !important;
+  padding: 22px 14px 14px !important;
   background: #eeeeee !important;
   border-right: 1px solid #dedede !important;
   overflow: hidden;
 }
 .main .menu .logoBox .collapse-btn { position:absolute; top:12px; right:0; left:auto; width:32px; height:34px; transform:none; border:1px solid #d3d3d3; border-radius:9px; background:#e7e7e7; box-shadow:none; color:#3e3e3e; opacity:1; }
 .main .menu .logoBox .collapse-btn:hover { width:36px; background:#dcdcdc; color:#191919; }
-.main .menu.collapsed .logoBox .collapse-btn { top:8px; right:0; width:32px; height:32px; opacity:0; pointer-events:none; }
-.main .menu.collapsed .logoBox:hover .collapse-btn,
-.main .menu.collapsed .logoBox:focus-within .collapse-btn { opacity:1; pointer-events:auto; }
+.main .menu.collapsed .logoBox .collapse-btn {
+  top:auto; right:5px; bottom:1px; width:26px; height:26px;
+  opacity:1; pointer-events:auto; border-radius:8px;
+  background:#f7f7f7; box-shadow:0 1px 4px rgba(0,0,0,.08);
+}
+.main .menu.collapsed .logoBox .collapse-btn:hover { width:28px; background:#fff; color:#f57400; }
 .main .menu .logoBox { min-height:64px; padding:4px 14px 28px; gap:14px; }
 .main .menu .logoBox .logo { width:48px; height:48px; border-radius:13px; background-color:#fff; box-shadow:0 0 0 1px #d4d4d4; }
 .main .menu .logoBox .brand-name { font-size:19px; color:#202020; letter-spacing:-.025em; }
@@ -3296,8 +2921,6 @@ const activeSubscriptionTab = ref('manage');
 .main .menu .item .icon { color:#252525; font-size:22px; }
 .main .menu .item .item-title { color:#252525; font-size:16px; font-weight:500; }
 .main .menu .item:hover { background: #e9e9e9; }
-.main .menu .active { background: #dedede !important; }
-.main .menu .active .icon,.main .menu .active .item-title { color: #171717 !important; font-weight: 600; }
 .main .menu .nav-group-title { padding:23px 16px 8px; color:#888; font-size:12px; font-weight:500; letter-spacing:.02em; text-transform:none; }
 .main .menu .footItem { flex-shrink:0; gap:10px; padding:14px 0 0; border-top:0; background:#eee; }
 .main .menu .footItem .member-btn { width:100% !important; height:126px !important; margin:0 !important; padding:18px !important; border-radius:24px !important; background:#fff !important; box-sizing:border-box; box-shadow:0 1px 0 rgba(0,0,0,.02); }
@@ -3316,75 +2939,119 @@ const activeSubscriptionTab = ref('manage');
 .main .menu .footItem .user-foot .user-meta .user-role { margin-top: 3px; color: #7d7d7d; font-size: 10px; }
 .main .menu .footItem .user-foot .user-points { display: none; }
 .main .menu.collapsed { width:68px !important; padding:14px 10px !important; }
-.main .menu.collapsed .logoBox { padding:4px 3px 22px; }
+.main .menu.collapsed .logoBox { padding:4px 3px 30px; }
 .main .menu.collapsed .footItem .member-btn { width:44px !important; height:44px !important; padding:0 !important; border-radius:12px !important; background:transparent !important; }
 .main .menu.collapsed .member-btn .credits-summary { display:none; }
 .main .menu.collapsed .footItem .member-btn .member-btn-inner { width:44px !important; height:44px !important; border-radius:12px !important; }
 
 // 侧栏用户菜单（Teleport 到 body 后脱离 .main，需非 scoped 样式；left/bottom 由 JS 计算）
+// 设计：轻量浅色单卡片——头部（头像/身份/余额+充值）+ 菜单区，与工作台高级灰主题同频。
 .foot-dropdown {
   position: fixed;
-  width: 360px;
+  width: 316px;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #dedede;
-  border-radius: 24px;
-  box-shadow: 0 24px 70px rgba(0,0,0,.2);
+  border: 1px solid #e3e0da;
+  border-radius: 18px;
+  box-shadow: 0 18px 48px rgba(42, 38, 31, .14), 0 2px 8px rgba(42, 38, 31, .06);
   padding: 0;
   z-index: 200;
 
-  .account-card { position:relative; min-height:235px; padding:25px 28px 26px; overflow:hidden; color:#fff; background:radial-gradient(circle at 90% 5%,#353535 0,transparent 36%),#202020; box-sizing:border-box; }
-  .account-mascot { position:absolute; z-index:0; top:10px; right:18px; width:126px; height:92px; object-fit:contain; object-position:center; filter:drop-shadow(0 10px 14px rgba(0,0,0,.28)); transform:rotate(5deg); }
-  .account-profile { position:relative; z-index:1; display:flex; align-items:center; gap:14px; max-width:210px; }
-  .account-profile>div:last-child { display:flex; flex-direction:column; min-width:0; }
-  .account-profile strong { overflow:hidden; color:#fff; font-size:21px; text-overflow:ellipsis; white-space:nowrap; }
-  .account-profile span { margin-top:5px; color:rgba(255,255,255,.68); font-size:12px; }
-  .account-avatar { display:grid; place-items:center; width:58px; height:58px; flex:none; border:2px solid #fff; border-radius:50%; background:#f57400; font-size:22px; font-weight:700; }
-  .credits-row { position:relative; z-index:1; display:flex; align-items:baseline; gap:8px; width:100%; margin-top:22px; padding:0; border:0; background:transparent; color:#fff; cursor:pointer; text-align:left; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
-  .credits-row>span { flex:none; display:flex; align-items:baseline; gap:9px; font-size:14px; line-height:1; font-weight:600; }.credits-row strong{margin:0;font-size:28px;line-height:1;font-weight:750;letter-spacing:-.03em}.credits-row em{margin:0;font-size:14px;line-height:1;font-style:normal;font-weight:500;color:rgba(255,255,255,.82)}.credits-row>svg{margin-left:auto;font-size:16px;align-self:center}
-  .credits-progress { position:relative; z-index:1; height:5px; margin:13px 0 22px; overflow:hidden; border-radius:99px; background:#8d8a85; }.credits-progress span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#dfc4ae,#ff780d)}
-  .upgrade-account { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; gap:9px; width:100%; height:47px; border:0; border-radius:15px; background:#fff; color:#222; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; font-size:15px; line-height:1; font-weight:650; cursor:pointer; }
-  .account-menu { padding:13px 0 10px; }
+  .account-card {
+    padding: 16px 16px 14px;
+    border-bottom: 1px solid #efede9;
+    background: linear-gradient(180deg, #faf9f7, #fff);
+  }
+  .account-profile { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .account-avatar {
+    display: grid; place-items: center; width: 42px; height: 42px; flex: none;
+    border-radius: 50%; background: #f57400; color: #fff;
+    font-size: 17px; font-weight: 700;
+  }
+  .account-id { display: flex; flex-direction: column; min-width: 0; }
+  .account-id strong { overflow: hidden; color: #242321; font-size: 15px; line-height: 1.3; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+  .account-id span { margin-top: 2px; color: #9b968d; font-size: 11.5px; line-height: 1.3; }
+  .account-mark { width: 52px; height: 38px; margin-left: auto; flex: none; object-fit: contain; opacity: .9; }
+
+  .credits-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 12px; padding: 9px 10px 9px 13px;
+    border-radius: 12px; background: #f4f2ee;
+  }
+  .credits-detail-link {
+    min-width: 0; flex: 1;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0; border: 0; background: transparent;
+    font: inherit; text-align: left; cursor: pointer;
+  }
+  .credits-detail-link small {
+    margin-left: auto; color: #a09b93; font-size: 10.5px; white-space: nowrap;
+    transition: color .18s ease;
+  }
+  .credits-detail-link:hover small { color: #f57400; }
+  .credits-label { flex: none; color: #8a867f; font-size: 12px; }
+  .credits-row strong { color: #242321; font-size: 17px; line-height: 1; font-weight: 750; letter-spacing: -.02em; }
+  .recharge-btn {
+    margin-left: auto; flex: none; height: 28px; padding: 0 14px;
+    border: 0; border-radius: 999px; background: #f57400; color: #fff;
+    font: inherit; font-size: 12.5px; font-weight: 600; line-height: 1;
+    cursor: pointer; transition: background .2s ease;
+    &:hover { background: #e26500; }
+  }
+
+  .account-menu { padding: 8px 0 8px; }
 
   .drop-item {
     display: grid;
-    grid-template-columns: 28px minmax(0,1fr) auto auto;
+    grid-template-columns: 24px minmax(0,1fr) auto auto;
     align-items: center;
-    column-gap: 14px;
-    width: 100%;
-    min-height: 44px;
-    padding: 8px 25px;
+    column-gap: 11px;
+    width: calc(100% - 16px);
+    min-height: 38px;
+    margin: 0 8px;
+    padding: 5px 10px 5px 12px;
     border: 0;
-    border-radius: 0;
+    border-radius: 10px;
     background: transparent;
-    color: #262626;
+    color: #33312d;
     font: inherit;
-    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    font-size: 14px;
+    font-family: Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font-size: 13.5px;
     line-height: 1.25;
     text-decoration: none;
     box-sizing: border-box;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.18s ease;
 
     .d-icon {
-      width: 22px;
-      font-size: 20px;
-      color: #2b2b2b;
+      width: 18px;
+      font-size: 17px;
+      color: #75716a;
     }
 
     > span:not(.notice-dot) { min-width:0; text-align:left; }
-    > em { color:#555; font-size:13px; line-height:1.25; font-style:normal; }
-    .drop-arrow { color:#777; font-size:15px; }
+    > em { color:#9b968d; font-size:11.5px; line-height:1.25; font-style:normal; }
+    .drop-arrow { color:#b5b1a9; font-size:14px; }
     .notice-dot { width:7px; height:7px; flex:none; border-radius:50%; background:#ff7417; }
 
     &:hover {
-      background: #f2f2f2;
-      color: #111;
+      background: #f4f2ee;
+      color: #17150f;
 
       .d-icon {
-        color: #111;
+        color: #17150f;
       }
+    }
+
+    &.admin-entry {
+      .d-icon { color: #f57400; }
+      &:hover .d-icon { color: #e26500; }
+    }
+
+    &.team-entry {
+      background: rgba(245, 116, 0, .07);
+      .d-icon { color: #f57400; }
+      &:hover { background: rgba(245, 116, 0, .13); }
     }
 
     &.danger {
@@ -3394,17 +3061,67 @@ const activeSubscriptionTab = ref('manage');
     &.danger:hover {
       background: var(--td-error-color-light);
       color: var(--td-error-color);
+
+      .d-icon { color: var(--td-error-color); }
     }
   }
 
   .drop-divider {
     height: 1px;
-    background: #e5e5e5;
-    margin: 9px 0;
+    background: #efede9;
+    margin: 6px 16px;
   }
 }
 
-/* 光合效应：克制的高级灰侧栏与轻量导航反馈 */
+// 通知公告弹窗（复用 .profile-overlay / .profile-modal 玻璃外壳）
+.notice-modal {
+  width: 460px;
+  max-width: calc(100vw - 40px);
+  padding: 22px 24px 18px;
+  box-sizing: border-box;
+
+  .notice-head { display: flex; align-items: center; gap: 10px; }
+  .notice-tag {
+    display: inline-flex; align-items: center; height: 22px; padding: 0 10px;
+    border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1;
+    background: rgba(245, 116, 0, .12); color: #d96400;
+    &.is-maintenance { background: rgba(0, 102, 255, .1); color: #2a6fdb; }
+    &.is-update { background: rgba(34, 154, 22, .1); color: #2b8a1c; }
+  }
+  .notice-date { margin-left: auto; color: #9b968d; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+  .notice-title { margin: 12px 0 10px; color: #242321; font-size: 15.5px; font-weight: 700; line-height: 1.45; }
+  .notice-body {
+    max-height: min(46vh, 380px); overflow: auto;
+    color: #4c4944; font-size: 13px; line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .notice-empty { padding: 28px 0 20px; text-align: center; color: #9b968d; font-size: 13px; }
+
+  .notice-pager {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 16px; padding-top: 12px;
+    border-top: 1px solid #efede9;
+  }
+  .notice-count { color: #9b968d; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .notice-dots { display: flex; align-items: center; gap: 5px;
+    button { width: 6px; height: 6px; padding: 0; border: 0; border-radius: 999px; background: #dcd9d2; cursor: pointer; transition: all .25s ease;
+      &.on { width: 18px; background: #f57400; }
+      &:hover:not(.on) { background: #c5c1b8; }
+    }
+  }
+  .notice-nav { margin-left: auto; display: flex; gap: 6px;
+    button {
+      width: 26px; height: 26px; padding: 0; border: 1px solid #e3e0da; border-radius: 999px;
+      background: #fff; color: #6f6b64; font-size: 15px; line-height: 1; cursor: pointer;
+      transition: all .18s ease;
+      &:hover:not(:disabled) { background: #f4f2ee; color: #242321; }
+      &:disabled { opacity: .35; cursor: not-allowed; }
+    }
+  }
+}
+
+/* 导演工作台：克制的高级灰侧栏与轻量导航反馈 */
 .main .menu {
   background: #eeeeee !important;
   border-right-color: #dedede !important;
@@ -3412,22 +3129,59 @@ const activeSubscriptionTab = ref('manage');
 
 /* 工作台布局：侧栏保持完整宽度，窗口变窄时悬浮覆盖，不挤压主内容 */
 .main .menu {
-  width: 300px !important;
-  min-width: 300px !important;
-  flex: 0 0 300px !important;
+  width: 248px !important;
+  min-width: 248px !important;
+  flex: 0 0 248px !important;
 }
+
+/* 折叠态：窄条 + 图标居中（必须放在展开宽度规则之后才能赢过同等 !important） */
+.main .menu.collapsed {
+  width: 72px !important;
+  min-width: 72px !important;
+  flex: 0 0 72px !important;
+  padding: 14px 8px 14px !important;
+}
+.main .menu.collapsed .item { display: flex; align-items: center; justify-content: center; padding: 0; }
+.main .menu.collapsed .item.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  width: 3px;
+  height: 22px;
+  border-radius: 0 999px 999px 0;
+  background: #f57400;
+}
+.main .menu.collapsed .footItem .user-foot { justify-content: center; padding: 4px 0; }
+.main .menu.collapsed .footItem .user-foot .user-meta { display: none; }
+.main .menu.collapsed .footItem .user-foot .user-avatar { width: 40px; height: 40px; }
+.main .menu.collapsed .footItem .member-btn .member-btn-inner {
+  background: #fff !important;
+  color: #252525;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04), inset 0 0 0 1px rgba(0,0,0,.07);
+}
+.main .menu.collapsed .footItem .member-btn .member-btn-inner .wallet-icon { color: #252525; }
+.main .menu.collapsed .footItem .member-btn:hover .member-btn-inner {
+  background: #202020 !important;
+}
+.main .menu.collapsed .footItem .member-btn:hover .member-btn-inner .wallet-icon { color: #fff; }
 
 @media (max-width: 1280px) {
   .main {
     overflow: hidden;
   }
 
+  .main .menu.collapsed {
+    position: absolute;
+    width: 72px !important;
+    min-width: 72px !important;
+  }
+
   .main .menu {
     position: absolute;
     inset: 0 auto 0 0;
     z-index: 20;
-    width: 300px !important;
-    min-width: 300px !important;
+    width: 248px !important;
+    min-width: 248px !important;
     height: 100%;
     flex: none !important;
     box-shadow: 14px 0 34px rgba(15, 23, 42, .12);
@@ -3457,8 +3211,9 @@ const activeSubscriptionTab = ref('manage');
 .main .menu .item .icon svg path { stroke-width: 2.35px; }
 .main .menu .item .item-title { position: relative; z-index: 1; }
 .main .menu .item:hover .icon { color: #111; transform: scale(1.1); filter: drop-shadow(0 0 5px rgba(255,255,255,.82)); }
-.main .menu .active { background: #dedede !important; box-shadow: inset 3px 0 0 #202020; }
-.main .menu .active .icon { color: #171717 !important; filter: none; }
+.main .menu .active { background: #ffffff !important; box-shadow: 0 2px 8px rgba(0, 0, 0, .07), 0 0 0 1px rgba(0, 0, 0, .05); }
+.main .menu .active .icon { color: #f57400 !important; filter: none; }
+.main .menu .active .item-title { color: #171717 !important; font-weight: 650; }
 .main .menu .footItem .member-icon { font-size: 16px; font-weight: 500; line-height: 1; }
 .main .menu .logoBox .collapse-btn { background: #e7e7e7; border-color: #d3d3d3; color: #3e3e3e; transition: transform .2s ease, background .2s ease, color .2s ease; }
 .main .menu .logoBox .collapse-btn:hover { background: #202020; color: #fff; transform: scale(1.06); }

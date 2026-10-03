@@ -116,32 +116,6 @@
               </div>
               <t-slider v-model="audioVolume" :min="0" :max="200" :step="1" @change="handleUpdateClip('volume', Math.round(audioVolume) / 100)" />
             </div>
-            <div class="propRowInline">
-              <div class="propField">
-                <label class="propLabel">{{ $t("workbench.production.editVideo.fadeIn") }}</label>
-                <t-input-number
-                  v-model="audioFadeIn"
-                  size="small"
-                  :min="0"
-                  :step="0.1"
-                  :decimal-places="1"
-                  theme="normal"
-                  suffix="s"
-                  @change="handleUpdateClip('fadeIn', audioFadeIn)" />
-              </div>
-              <div class="propField">
-                <label class="propLabel">{{ $t("workbench.production.editVideo.fadeOut") }}</label>
-                <t-input-number
-                  v-model="audioFadeOut"
-                  size="small"
-                  :min="0"
-                  :step="0.1"
-                  :decimal-places="1"
-                  theme="normal"
-                  suffix="s"
-                  @change="handleUpdateClip('fadeOut', audioFadeOut)" />
-              </div>
-            </div>
           </div>
         </div>
 
@@ -249,8 +223,6 @@ const videoSpeed = ref(1);
 
 // 音频属性
 const audioVolume = ref(100);
-const audioFadeIn = ref(0);
-const audioFadeOut = ref(0);
 
 // 转场属性
 const transitionType = ref("fade");
@@ -279,8 +251,6 @@ watch(
     if (clip.type === "audio") {
       // 使用 Math.round 取整，避免显示小数
       audioVolume.value = Math.round(((clip as any).volume ?? 1) * 100);
-      audioFadeIn.value = (clip as any).fadeIn ?? 0;
-      audioFadeOut.value = (clip as any).fadeOut ?? 0;
     }
 
     if (clip.type === "transition") {

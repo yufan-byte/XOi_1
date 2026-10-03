@@ -13,11 +13,15 @@ let extractor: FeatureExtractionPipeline | null = null;
 export async function initEmbedding(): Promise<void> {
   if (extractor) return;
 
+  // XOi 修复：`db("o_setting")` 返回的是 o_setting 的**行数组**（{key, value}[]），不是键值对象。
+  // 原来写成 `Object.entries(数组)`，拿到的是 ["0", 第0行] ["1", 第1行] 这种下标键，
+  // 于是 modelObj.modelOnnxFile / modelObj.modelDtype **永远是 undefined** ——
+  // 配置里设的 embedding 模型一直被静默忽略，永远回落成硬编码的默认值。
   const modelConfigData = await db("o_setting").whereIn("key", ["modelOnnxFile", "modelDtype"]);
   const modelObj: Record<string, string> = {};
-  Object.entries(modelConfigData).forEach(([key, value]) => {
-    modelObj[key] = value as string;
-  });
+  for (const row of modelConfigData) {
+    if (row.key != null) modelObj[row.key] = String(row.value ?? "");
+  }
   let modelOnnxFile = modelObj?.modelOnnxFile ? JSON.parse(modelObj.modelOnnxFile) : ["all-MiniLM-L6-v2", "onnx", "model_fp16.onnx"]; // 模型文件路径
   let modelDtype = modelObj?.modelDtype ?? ("fp16" as const); // 量化类型：fp32
   const onnxPath = path.join(getPath("models"), ...modelOnnxFile);

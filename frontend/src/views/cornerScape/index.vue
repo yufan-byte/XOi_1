@@ -280,13 +280,17 @@
         </div>
         <div class="dockActions">
           <t-button theme="default" variant="outline" @click="clearSelection">{{ $t("workbench.cornerScape.clearTray") }}</t-button>
-          <t-button theme="primary" :disabled="deliverableItems.length === 0" @click="sendSelectedToCanvas">
+          <!-- 「发送到画布」是平行出口（把资产带去无限画布），影视流水线的主路径见左下角「下一步：分镜成片」 -->
+          <t-button theme="default" variant="outline" :disabled="deliverableItems.length === 0" @click="sendSelectedToCanvas">
             <template #icon><t-icon name="send" /></template>
             {{ $t("workbench.cornerScape.sendToCanvasCount", { count: deliverableItems.length }) }}
           </t-button>
         </div>
       </div>
     </transition>
+
+    <!-- 流水线下一步：角色场景 → 分镜成片 -->
+    <NextStepBar current="cornerScape" :status="pipelineStatus" :status-tone="pipelineStatusTone" next-label="下一步：分镜成片" />
   </div>
 </template>
 
@@ -298,8 +302,11 @@ import settingStore from "@/stores/setting";
 import openAssetsSelector from "@/utils/assetsCheck";
 import { sendToCanvas } from "@/utils/sendToCanvas";
 import { showPointsToast } from "@/utils/pointsToast";
+import NextStepBar from "@/components/pipeline/NextStepBar.vue";
+import { guardCornerScape } from "@/utils/pipelineGuard";
 
 const { otherSetting } = storeToRefs(settingStore());
+const router = useRouter();
 interface Image {
   filePath: string;
   id: number;
@@ -347,6 +354,8 @@ function createAbortController() {
 
 onMounted(async () => {
   await getFilteredData();
+  // P2 前置校验：一个资产都没有 = 还没在「剧本整理」页提取过，明确引导（别让用户对着空列表猜）
+  guardCornerScape(router, dataList.value.length > 0);
   checkCanvasSaveResult();
 });
 
@@ -528,6 +537,18 @@ function toggleSelectAll() {
 function clearSelection() {
   selectedIds.value = [];
 }
+
+/** ---------- 流水线（角色场景 → 分镜成片） ---------- */
+const cornerReadyCount = computed(() => dataList.value.filter((item) => !!item.filePath).length);
+
+const pipelineStatus = computed(() => {
+  if (dataList.value.length === 0) return "还没有角色/场景资产，回剧本整理页提取";
+  return `${dataList.value.length} 个资产 · 已出图 ${cornerReadyCount.value} 个`;
+});
+
+const pipelineStatusTone = computed<"ok" | "warn" | "idle">(() =>
+  dataList.value.length > 0 && cornerReadyCount.value > 0 ? "ok" : "warn",
+);
 
 // 批量发送选中资产到画布（交付托盘统一出口）
 function sendSelectedToCanvas() {

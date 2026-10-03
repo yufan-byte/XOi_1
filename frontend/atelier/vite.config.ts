@@ -6,7 +6,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
 const webDir = dirname(fileURLToPath(import.meta.url));
-const upstreamWebDir = "/Users/zhaochenyu/Desktop/C_code/infinite-canvas-main/web";
+// 上游画布源码已随 XOi 入仓，服务器/CI 不再依赖开发机上的绝对目录。
+const upstreamWebDir = resolve(webDir, "upstream");
 
 function upstreamAliasPlugin(): Plugin {
     return {
@@ -19,7 +20,12 @@ function upstreamAliasPlugin(): Plugin {
             if (importer?.startsWith(upstreamWebDir) && source === "next/dynamic") {
                 return resolve(webDir, "src/shims/next-dynamic.tsx");
             }
+            if (importer?.startsWith(upstreamWebDir) && source === "next/link") {
+                return resolve(webDir, "src/shims/next-link.tsx");
+            }
             if (importer?.startsWith(upstreamWebDir) && source.startsWith("@/")) {
+                // 注：配置弹窗的 XOi 化直接改上游文件（infinite-canvas-main/.../app-config-modal.tsx），
+                // 因为这层 resolveId 拦不到它的真实解析链（实测 0 命中），别再在这里做单文件覆盖。
                 return this.resolve(resolve(upstreamWebDir, "src", source.slice(2)), importer, { skipSelf: true });
             }
             const localSourcePrefix = resolve(webDir, "src") + "/";
@@ -105,6 +111,7 @@ export default defineConfig({
     resolve: {
         dedupe: ["react", "react-dom", "react-router-dom", "antd", "@ant-design/icons", "@tanstack/react-query", "motion"],
         alias: {
+            "@upstream": resolve(upstreamWebDir, "src"),
             "@": resolve(webDir, "src"),
         },
     },

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="XOi 创作平台 · 登录与注册" />
+        <link rel="icon" type="image/png" href="/xoi-favicon.png" />
+        <link rel="apple-touch-icon" href="/xoi-touch.png" />
+        <title>XOi</title>
+    </head>
+    <!-- ⚠️ body 上**不要**放 text-white：它会被整棵子树继承，浅色主题下侧栏等
+         「自己没写颜色类」的文字就会变成白底白字（2026-10-03 用户反馈「侧栏字没颜色了」）。
+         文字色交给 globals.css 的 body { color: var(--foreground) } 跟随主题；
+         登录页/注册页本身各文字都写了显式的 text-white/*，不依赖继承。
+         深色底保留：登录页是暗色舞台设计，浅色主题下也维持原观感。 -->
+    <body class="bg-[#06070c] antialiased">
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>

@@ -1,0 +1,4939 @@
+{
+  "_comment": "手工维护的目录补充条目：这些 model 在上游 logical-models.json 快照里没有对应记录，放在独立文件避免快照重新生成时被覆盖。buildCatalog 会把本文件合并进 ref 查找表（本文件优先）。",
+  "models": [
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "参考生",
+        "参考视频",
+        "参考音频",
+        "按次"
+      ],
+      "category": "video",
+      "display_name": "seedance2.0 · 480p",
+      "display_name_zh": "seedance2.0 · 480p",
+      "health_score": 90,
+      "icon_key": "doubao",
+      "id": "seedance-2.0-480p-discount",
+      "input_hint_zh": "选生成模式后写描述；图生 / 参考生可上传最多 9 张参考图、3 段参考视频、3 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "default": "9:16",
+          "enum": [
+            "9:16",
+            "16:9",
+            "1:1",
+            "4:3",
+            "3:4",
+            "21:9"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "适合短视频平台",
+              "is_default": true,
+              "label": "竖屏 9:16",
+              "value": "9:16"
+            },
+            {
+              "description": "适合电脑、电视",
+              "label": "横屏 16:9",
+              "value": "16:9"
+            },
+            {
+              "description": "适合社交方图",
+              "label": "方形 1:1",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "value": "4:3"
+            },
+            {
+              "description": "传统竖版比例",
+              "label": "竖屏 3:4",
+              "value": "3:4"
+            },
+            {
+              "description": "电影宽银幕",
+              "label": "宽幅 21:9",
+              "value": "21:9"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "accept_formats": [
+            "mp3",
+            "wav"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考音频 (≤3 个, 每段 ≥1.8s, 合计 ≤15s, mp3/wav, 其它格式自动转码, BGM/配音/口型参考). 全能参考模式需配 ≥1 张主图. prompt 用 @音频1~@音频3 引用.",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": false,
+          "default": "5",
+          "description": "成片时长（按次计费，时长不影响价格）。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "12",
+            "15"
+          ],
+          "label": {
+            "zh": "时长"
+          },
+          "options": [
+            {
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "7秒",
+              "value": "7"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "9秒",
+              "value": "9"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 参考生 / 首尾帧用 (≤9 张). 纯文生留空. prompt 用 @图片1~@图片9 引用. 火山标准: 每边 300-6000px, 宽高比 0.4-2.5 (超出自动适配).",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 9,
+          "max_items_by_mode": {
+            "first-frame": 9,
+            "first-last": 9,
+            "reference": 9,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=首帧（一张图定起始画面）/ first-last=首尾帧（首+尾图控制过渡）/ reference=参考生（多图 / 参考视频 / 参考音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "一张图定起始画面 (⚠ 约为「参考生」1.5 倍价)",
+              "is_default": true,
+              "label": "首帧",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「参考生」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多张图/多素材融合参考",
+              "label": "参考生",
+              "label_en": "Reference",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "480p",
+          "description": "本模型固定输出 480P，无需选择。",
+          "enum": [
+            "480p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "480P",
+              "value": "480p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "accept_formats": [
+            "mp4",
+            "mov"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考视频 (≤3 段, 每段 ≥2s, 合计 ≤15s, 帧率 24-60fps 超出自动适配). 用途: 动作复刻/运镜; **只传视频 = 视频延续** (接着这段往下拍); **视频 + 参考图 = 视频编辑** (把片里的商品/角色换成图里的). ⚠ 参考视频不能跟首帧/尾帧同时用 (厂商互斥, 会被拒). prompt 用 @视频1~@视频3 引用.",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 52428800,
+          "max_edge_px": 1280,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_pixels": 2086876,
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 2,
+          "min_edge_px": 300,
+          "min_pixels": 409600,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.0-480p-discount",
+      "sort_weight": 2012,
+      "tags": [
+        "video",
+        "seedance",
+        "折扣",
+        "按次"
+      ],
+      "type": "video",
+      "upstream": "seedance2.0-480p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "参考生",
+        "参考视频",
+        "参考音频",
+        "按次"
+      ],
+      "category": "video",
+      "display_name": "seedance2.0 · 720p",
+      "display_name_zh": "seedance2.0 · 720p",
+      "health_score": 90,
+      "icon_key": "doubao",
+      "id": "seedance-2.0-720p-discount",
+      "input_hint_zh": "选生成模式后写描述；图生 / 参考生可上传最多 9 张参考图、3 段参考视频、3 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "default": "9:16",
+          "enum": [
+            "9:16",
+            "16:9",
+            "1:1",
+            "4:3",
+            "3:4",
+            "21:9"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "适合短视频平台",
+              "is_default": true,
+              "label": "竖屏 9:16",
+              "value": "9:16"
+            },
+            {
+              "description": "适合电脑、电视",
+              "label": "横屏 16:9",
+              "value": "16:9"
+            },
+            {
+              "description": "适合社交方图",
+              "label": "方形 1:1",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "value": "4:3"
+            },
+            {
+              "description": "传统竖版比例",
+              "label": "竖屏 3:4",
+              "value": "3:4"
+            },
+            {
+              "description": "电影宽银幕",
+              "label": "宽幅 21:9",
+              "value": "21:9"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "accept_formats": [
+            "mp3",
+            "wav"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考音频 (≤3 个, 每段 ≥1.8s, 合计 ≤15s, mp3/wav, 其它格式自动转码, BGM/配音/口型参考). 全能参考模式需配 ≥1 张主图. prompt 用 @音频1~@音频3 引用.",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": false,
+          "default": "5",
+          "description": "成片时长（按次计费，时长不影响价格）。上游要求 5~15 秒，4 秒会被拒绝。",
+          "enum": [
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "12",
+            "15"
+          ],
+          "label": {
+            "zh": "时长"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "7秒",
+              "value": "7"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "9秒",
+              "value": "9"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 参考生 / 首尾帧用 (≤9 张). 纯文生留空. prompt 用 @图片1~@图片9 引用. 火山标准: 每边 300-6000px, 宽高比 0.4-2.5 (超出自动适配).",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 9,
+          "max_items_by_mode": {
+            "first-frame": 9,
+            "first-last": 9,
+            "reference": 9,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=首帧（一张图定起始画面）/ first-last=首尾帧（首+尾图控制过渡）/ reference=参考生（多图 / 参考视频 / 参考音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "一张图定起始画面 (⚠ 约为「参考生」1.5 倍价)",
+              "is_default": true,
+              "label": "首帧",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「参考生」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多张图/多素材融合参考",
+              "label": "参考生",
+              "label_en": "Reference",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "720p",
+          "description": "本模型固定输出 720P，无需选择。",
+          "enum": [
+            "720p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "720P",
+              "value": "720p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "accept_formats": [
+            "mp4",
+            "mov"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考视频 (≤3 段, 每段 ≥2s, 合计 ≤15s, 帧率 24-60fps 超出自动适配). 用途: 动作复刻/运镜; **只传视频 = 视频延续** (接着这段往下拍); **视频 + 参考图 = 视频编辑** (把片里的商品/角色换成图里的). ⚠ 参考视频不能跟首帧/尾帧同时用 (厂商互斥, 会被拒). prompt 用 @视频1~@视频3 引用.",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 52428800,
+          "max_edge_px": 1280,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_pixels": 2086876,
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 2,
+          "min_edge_px": 300,
+          "min_pixels": 409600,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.0-720p-discount",
+      "sort_weight": 2011,
+      "tags": [
+        "video",
+        "seedance",
+        "折扣",
+        "按次"
+      ],
+      "type": "video",
+      "upstream": "seedance2.0-720p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "参考生",
+        "参考视频",
+        "参考音频",
+        "按次"
+      ],
+      "category": "video",
+      "display_name": "seedance2.0 · hs-720p",
+      "display_name_zh": "seedance2.0 · hs-720p",
+      "health_score": 94,
+      "icon_key": "doubao",
+      "id": "seedance-2.0-hs-720p",
+      "input_hint_zh": "选生成模式后写描述；图生 / 参考生可上传最多 9 张参考图、3 段参考视频、3 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "default": "9:16",
+          "enum": [
+            "9:16",
+            "16:9",
+            "1:1",
+            "4:3",
+            "3:4",
+            "21:9"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "适合短视频平台",
+              "is_default": true,
+              "label": "竖屏 9:16",
+              "value": "9:16"
+            },
+            {
+              "description": "适合电脑、电视",
+              "label": "横屏 16:9",
+              "value": "16:9"
+            },
+            {
+              "description": "适合社交方图",
+              "label": "方形 1:1",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "value": "4:3"
+            },
+            {
+              "description": "传统竖版比例",
+              "label": "竖屏 3:4",
+              "value": "3:4"
+            },
+            {
+              "description": "电影宽银幕",
+              "label": "宽幅 21:9",
+              "value": "21:9"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "accept_formats": [
+            "mp3",
+            "wav"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考音频 (≤3 个, 每段 ≥1.8s, 合计 ≤15s, mp3/wav, 其它格式自动转码, BGM/配音/口型参考). 全能参考模式需配 ≥1 张主图. prompt 用 @音频1~@音频3 引用.",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": false,
+          "default": "5",
+          "description": "成片时长（按次计费，时长不影响价格）。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "12",
+            "15"
+          ],
+          "label": {
+            "zh": "时长"
+          },
+          "options": [
+            {
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "7秒",
+              "value": "7"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "9秒",
+              "value": "9"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 参考生 / 首尾帧用 (≤9 张). 纯文生留空. prompt 用 @图片1~@图片9 引用. 火山标准: 每边 300-6000px, 宽高比 0.4-2.5 (超出自动适配).",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 9,
+          "max_items_by_mode": {
+            "first-frame": 9,
+            "first-last": 9,
+            "reference": 9,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=首帧（一张图定起始画面）/ first-last=首尾帧（首+尾图控制过渡）/ reference=参考生（多图 / 参考视频 / 参考音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "一张图定起始画面 (⚠ 约为「参考生」1.5 倍价)",
+              "is_default": true,
+              "label": "首帧",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「参考生」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多张图/多素材融合参考",
+              "label": "参考生",
+              "label_en": "Reference",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "720p",
+          "description": "本模型固定输出 720P，无需选择。",
+          "enum": [
+            "720p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "720P",
+              "value": "720p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "accept_formats": [
+            "mp4",
+            "mov"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考视频 (≤3 段, 每段 ≥2s, 合计 ≤15s, 帧率 24-60fps 超出自动适配). 用途: 动作复刻/运镜; **只传视频 = 视频延续** (接着这段往下拍); **视频 + 参考图 = 视频编辑** (把片里的商品/角色换成图里的). ⚠ 参考视频不能跟首帧/尾帧同时用 (厂商互斥, 会被拒). prompt 用 @视频1~@视频3 引用.",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 52428800,
+          "max_edge_px": 1280,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_pixels": 2086876,
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 2,
+          "min_edge_px": 300,
+          "min_pixels": 409600,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.0-hs-720p",
+      "sort_weight": 2008,
+      "tags": [
+        "video",
+        "seedance",
+        "火山",
+        "按次"
+      ],
+      "type": "video",
+      "upstream": "seedance2.0-hs-720p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "多模态参考",
+        "参考视频",
+        "参考音频",
+        "长视频30秒",
+        "按秒"
+      ],
+      "category": "video",
+      "display_name": "seedance2.5 · hs-720p",
+      "display_name_zh": "seedance2.5 · hs-720p",
+      "health_score": 94,
+      "icon_key": "doubao",
+      "id": "seedance-2.5-hs-720p",
+      "input_hint_zh": "选时长（4~30 秒）后写描述；图生 / 多模态参考可上传最多 30 张参考图、10 段参考视频、10 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。按秒计费。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "available_when": {
+            "mode": [
+              "text-to-video",
+              "reference"
+            ]
+          },
+          "default": "16:9",
+          "description": "文生视频时生效；首帧/首尾帧模式下画面比例由首帧图决定，本项不显示。",
+          "enum": [
+            "16:9",
+            "9:16",
+            "21:9",
+            "3:4",
+            "1:1",
+            "4:3"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "电影感宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Ultrawide",
+              "value": "21:9"
+            },
+            {
+              "label": "3:4 竖",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "affects_l2": false,
+          "description": "参考音频 (≤10 个, 单个 2~30 秒)。可配图使用, 也可只传音频做纯音频驱动。prompt 用 @音频1~@音频N 引用。",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~30 秒可选，按秒计费（时长越长价越高）。⚠ 计费秒数 = **输出秒 + 参考视频总秒**（传了参考视频就一起计，见 videos 参数）。⚠ mode=edit 时本参数**不起作用**：输出时长跟随原视频，计费也按原视频时长算。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "8",
+            "10",
+            "12",
+            "15",
+            "20",
+            "25",
+            "29",
+            "30"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "description": "最省",
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "description": "推荐",
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            },
+            {
+              "description": "长视频",
+              "label": "20秒",
+              "value": "20"
+            },
+            {
+              "description": "长视频",
+              "label": "25秒",
+              "value": "25"
+            },
+            {
+              "description": "长视频",
+              "label": "29秒",
+              "value": "29"
+            },
+            {
+              "description": "最长",
+              "label": "30秒",
+              "value": "30"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 多模态参考用 (≤30 张)。纯文生留空。prompt 用 @图片1~@图片N 引用。单图时画面比例跟随该图。",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 30,
+          "max_items_by_mode": {
+            "first-frame": 30,
+            "first-last": 30,
+            "reference": 30,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=图生视频（1 张图作首帧）/ first-last=首尾帧（首+尾图控制过渡）/ reference=多模态参考（最多 30 图 + 10 视频 + 10 音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "上传 1 张参考图作首帧 (⚠ 约为「多模态参考」1.5 倍价)",
+              "is_default": true,
+              "label": "图生视频",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「多模态参考」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多图 + 参考音频融合生成",
+              "label": "多模态参考",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "720p",
+          "description": "本模型固定输出 720P，无需选择。",
+          "enum": [
+            "720p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "720P",
+              "value": "720p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "affects_l2": false,
+          "description": "参考视频 (≤10 个, 单条 1.8~30 秒 —— 视频编辑模式要求 ≥4 秒, 总时长 ≤30 秒, 仅部分厂商开放)。传视频后按「视频总秒+输出秒」计费。prompt 用 @视频1~@视频N 引用。",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 209715200,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "min_duration_sec_by_mode": {
+            "edit": 4
+          },
+          "min_edge_px": 300,
+          "min_pixels": 407696,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.5-hs-720p",
+      "sort_weight": 2006,
+      "tags": [
+        "video",
+        "seedance",
+        "火山",
+        "长视频",
+        "按秒"
+      ],
+      "type": "video",
+      "upstream": "seedance2.5-hs-720p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "参考生",
+        "参考视频",
+        "参考音频",
+        "官方直连",
+        "按秒"
+      ],
+      "category": "video",
+      "display_name": "seedance2.0 · 480p-100%",
+      "display_name_zh": "seedance2.0 · 480p-100%",
+      "health_score": 97,
+      "icon_key": "doubao",
+      "id": "seedance-2.0-480p-official",
+      "input_hint_zh": "选时长（4~15 秒）后写描述；图生 / 参考生可上传最多 9 张参考图、3 段参考视频、3 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。按秒计费。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "default": "16:9",
+          "enum": [
+            "16:9",
+            "9:16",
+            "1:1",
+            "4:3",
+            "3:4",
+            "21:9",
+            "adaptive"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "适合社交方图",
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            },
+            {
+              "description": "传统竖版比例",
+              "label": "竖屏 3:4",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "description": "电影宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Cinematic",
+              "value": "21:9"
+            },
+            {
+              "description": "输出比例与参考图一致 (需上传参考图)",
+              "label": "跟随参考图",
+              "label_en": "Adaptive (follows reference image)",
+              "value": "adaptive"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "accept_formats": [
+            "mp3",
+            "wav"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考音频 (≤3 个, 每段 ≥1.8s, 合计 ≤15s, mp3/wav, 其它格式自动转码, BGM/配音/口型参考). 全能参考模式需配 ≥1 张主图. prompt 用 @音频1~@音频3 引用.",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~15 秒任选, 按秒计费 (时长越长价越高)。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "7秒",
+              "value": "7"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "9秒",
+              "value": "9"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "11秒",
+              "value": "11"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "13秒",
+              "value": "13"
+            },
+            {
+              "label": "14秒",
+              "value": "14"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 参考生 / 首尾帧用 (≤9 张). 纯文生留空. prompt 用 @图片1~@图片9 引用. 火山标准: 每边 300-6000px, 宽高比 0.4-2.5 (超出自动适配).",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 9,
+          "max_items_by_mode": {
+            "first-frame": 9,
+            "first-last": 9,
+            "reference": 9,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=首帧（一张图定起始画面）/ first-last=首尾帧（首+尾图控制过渡）/ reference=参考生（多图 / 参考视频 / 参考音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "一张图定起始画面 (⚠ 约为「参考生」1.5 倍价)",
+              "is_default": true,
+              "label": "首帧",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「参考生」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多张图/多素材融合参考",
+              "label": "参考生",
+              "label_en": "Reference",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "480p",
+          "description": "本模型固定输出 480P，无需选择。",
+          "enum": [
+            "480p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "480P",
+              "value": "480p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "accept_formats": [
+            "mp4",
+            "mov"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考视频 (≤3 段, 每段 ≥2s, 合计 ≤15s, 帧率 24-60fps 超出自动适配). 用途: 动作复刻/运镜; **只传视频 = 视频延续** (接着这段往下拍); **视频 + 参考图 = 视频编辑** (把片里的商品/角色换成图里的). ⚠ 参考视频不能跟首帧/尾帧同时用 (厂商互斥, 会被拒). prompt 用 @视频1~@视频3 引用.",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 52428800,
+          "max_edge_px": 1280,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_pixels": 2086876,
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 2,
+          "min_edge_px": 300,
+          "min_pixels": 409600,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.0-480p-official",
+      "sort_weight": 2004,
+      "tags": [
+        "video",
+        "seedance",
+        "官方直连",
+        "official",
+        "按秒"
+      ],
+      "type": "video",
+      "upstream": "seedance2.0-480p-100%"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "参考生",
+        "参考视频",
+        "参考音频",
+        "官方直连",
+        "按秒"
+      ],
+      "category": "video",
+      "display_name": "seedance2.0 · 720p-100%",
+      "display_name_zh": "seedance2.0 · 720p-100%",
+      "health_score": 97,
+      "icon_key": "doubao",
+      "id": "seedance-2.0-720p-official",
+      "input_hint_zh": "选时长（4~15 秒）后写描述；图生 / 参考生可上传最多 9 张参考图、3 段参考视频、3 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。按秒计费。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "default": "16:9",
+          "enum": [
+            "16:9",
+            "9:16",
+            "1:1",
+            "4:3",
+            "3:4",
+            "21:9",
+            "adaptive"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "适合社交方图",
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            },
+            {
+              "description": "传统竖版比例",
+              "label": "竖屏 3:4",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "description": "电影宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Cinematic",
+              "value": "21:9"
+            },
+            {
+              "description": "输出比例与参考图一致 (需上传参考图)",
+              "label": "跟随参考图",
+              "label_en": "Adaptive (follows reference image)",
+              "value": "adaptive"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "accept_formats": [
+            "mp3",
+            "wav"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考音频 (≤3 个, 每段 ≥1.8s, 合计 ≤15s, mp3/wav, 其它格式自动转码, BGM/配音/口型参考). 全能参考模式需配 ≥1 张主图. prompt 用 @音频1~@音频3 引用.",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~15 秒任选, 按秒计费 (时长越长价越高)。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "7秒",
+              "value": "7"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "9秒",
+              "value": "9"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "11秒",
+              "value": "11"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "13秒",
+              "value": "13"
+            },
+            {
+              "label": "14秒",
+              "value": "14"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 参考生 / 首尾帧用 (≤9 张). 纯文生留空. prompt 用 @图片1~@图片9 引用. 火山标准: 每边 300-6000px, 宽高比 0.4-2.5 (超出自动适配).",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 9,
+          "max_items_by_mode": {
+            "first-frame": 9,
+            "first-last": 9,
+            "reference": 9,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=首帧（一张图定起始画面）/ first-last=首尾帧（首+尾图控制过渡）/ reference=参考生（多图 / 参考视频 / 参考音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "一张图定起始画面 (⚠ 约为「参考生」1.5 倍价)",
+              "is_default": true,
+              "label": "首帧",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「参考生」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多张图/多素材融合参考",
+              "label": "参考生",
+              "label_en": "Reference",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "720p",
+          "description": "本模型固定输出 720P，无需选择。",
+          "enum": [
+            "720p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "720P",
+              "value": "720p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "accept_formats": [
+            "mp4",
+            "mov"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考视频 (≤3 段, 每段 ≥2s, 合计 ≤15s, 帧率 24-60fps 超出自动适配). 用途: 动作复刻/运镜; **只传视频 = 视频延续** (接着这段往下拍); **视频 + 参考图 = 视频编辑** (把片里的商品/角色换成图里的). ⚠ 参考视频不能跟首帧/尾帧同时用 (厂商互斥, 会被拒). prompt 用 @视频1~@视频3 引用.",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 52428800,
+          "max_edge_px": 1280,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_pixels": 2086876,
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 2,
+          "min_edge_px": 300,
+          "min_pixels": 409600,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.0-720p-official",
+      "sort_weight": 2003,
+      "tags": [
+        "video",
+        "seedance",
+        "官方直连",
+        "official",
+        "按秒"
+      ],
+      "type": "video",
+      "upstream": "seedance2.0-720p-100%"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "多模态参考",
+        "参考音频",
+        "768p",
+        "原生音轨",
+        "按次"
+      ],
+      "category": "video",
+      "display_name": "minimax-h3 · 768p-930-8-22",
+      "display_name_zh": "minimax-h3 · 768p-930-8-22",
+      "health_score": 95,
+      "icon_key": "minimax",
+      "id": "minimax-h3-768p",
+      "input_hint_zh": "描述视频主体、动作、场景、镜头和风格；可上传最多 9 张参考图与 3 段参考音频（不支持参考视频）。",
+      "max_prompt_chars": 7000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "available_when": {
+            "mode": [
+              "text-to-video",
+              "reference"
+            ]
+          },
+          "default": "16:9",
+          "description": "视频画幅比例 (2K 档按比例重排像素: 21:9→2944×1248 / 16:9→2560×1440 / 1:1→1440×1440 / 9:16→1440×2560)。首帧/尾帧模式下由输入图决定, 该选项被忽略。",
+          "enum": [
+            "16:9",
+            "9:16",
+            "21:9",
+            "4:3",
+            "1:1",
+            "3:4"
+          ],
+          "label": {
+            "zh": "画面比例"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "16:9 横屏",
+              "value": "16:9"
+            },
+            {
+              "label": "9:16 竖屏",
+              "value": "9:16"
+            },
+            {
+              "label": "21:9 超宽屏",
+              "value": "21:9"
+            },
+            {
+              "label": "4:3 横版",
+              "value": "4:3"
+            },
+            {
+              "label": "1:1 方形",
+              "value": "1:1"
+            },
+            {
+              "label": "3:4 竖版",
+              "value": "3:4"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "audios": {
+          "affects_l2": false,
+          "description": "参考音频 (≤3 段, 合计 ≤15s, WAV/MP3, 用于音色/配乐参考)。需搭配 ≥1 张参考图或参考视频, 不能单独使用。",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 15728640,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 15,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": false,
+          "default": "5",
+          "description": "视频时长 (MMX H3 真值: 4~15 秒任意整数, 默认 5 秒; 按秒计价)。",
+          "enum": [
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15"
+          ],
+          "label": {
+            "zh": "时长"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "7秒",
+              "value": "7"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "9秒",
+              "value": "9"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "11秒",
+              "value": "11"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "13秒",
+              "value": "13"
+            },
+            {
+              "label": "14秒",
+              "value": "14"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            }
+          ],
+          "required": true,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "description": "上传参考图 / 底稿. 仅接受公开访问 URL, 单图传字符串, 多图传数组.",
+          "max_bytes": 31457280,
+          "max_edge_px": 5760,
+          "max_items": 9,
+          "max_items_by_mode": {
+            "first-frame": 9,
+            "first-last": 9,
+            "reference": 9,
+            "text-to-video": 0
+          },
+          "min_edge_px": 256,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=首帧（一张图定起始画面）/ first-last=首尾帧（首+尾图控制过渡）/ reference=多模态参考（参考图 + 参考音频，本模型不支持参考视频）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "纯 prompt",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "1 图作为视频起始画面",
+              "is_default": true,
+              "label": "首帧",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾 2 图控制起止",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "参考图 ≤9 + 参考音频 ≤3（本模型不支持参考视频）",
+              "label": "多模态参考",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "768p",
+          "description": "本模型固定输出 768P，无需选择。",
+          "enum": [
+            "768p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "768P",
+              "value": "768p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        }
+      },
+      "provider": "MMX",
+      "public_id": "minimax-h3-768p",
+      "sort_weight": 2001,
+      "tags": [
+        "video",
+        "minimax",
+        "h3",
+        "按次"
+      ],
+      "type": "video",
+      "upstream": "minimax-h3-768p-930-8-22"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "参考生",
+        "参考视频",
+        "参考音频",
+        "按次",
+        "1080P"
+      ],
+      "category": "video",
+      "display_name": "seedance2.0 · hs-1080p",
+      "display_name_zh": "seedance2.0 · hs-1080p",
+      "health_score": 92,
+      "icon_key": "doubao",
+      "id": "seedance-2.0-hs-1080p",
+      "input_hint_zh": "选生成模式后写描述；图生 / 参考生可上传最多 9 张参考图、3 段参考视频、3 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "default": "9:16",
+          "enum": [
+            "9:16",
+            "16:9",
+            "1:1",
+            "4:3",
+            "3:4",
+            "21:9"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "适合短视频平台",
+              "is_default": true,
+              "label": "竖屏 9:16",
+              "value": "9:16"
+            },
+            {
+              "description": "适合电脑、电视",
+              "label": "横屏 16:9",
+              "value": "16:9"
+            },
+            {
+              "description": "适合社交方图",
+              "label": "方形 1:1",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "value": "4:3"
+            },
+            {
+              "description": "传统竖版比例",
+              "label": "竖屏 3:4",
+              "value": "3:4"
+            },
+            {
+              "description": "电影宽银幕",
+              "label": "宽幅 21:9",
+              "value": "21:9"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "accept_formats": [
+            "mp3",
+            "wav"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考音频 (≤3 个, 每段 ≥1.8s, 合计 ≤15s, mp3/wav, 其它格式自动转码, BGM/配音/口型参考). 全能参考模式需配 ≥1 张主图. prompt 用 @音频1~@音频3 引用.",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": false,
+          "default": "5",
+          "description": "成片时长（按次计费，时长不影响价格）。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "12",
+            "15"
+          ],
+          "label": {
+            "zh": "时长"
+          },
+          "options": [
+            {
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "7秒",
+              "value": "7"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "9秒",
+              "value": "9"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 参考生 / 首尾帧用 (≤9 张). 纯文生留空. prompt 用 @图片1~@图片9 引用. 火山标准: 每边 300-6000px, 宽高比 0.4-2.5 (超出自动适配).",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 9,
+          "max_items_by_mode": {
+            "first-frame": 9,
+            "first-last": 9,
+            "reference": 9,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=首帧（一张图定起始画面）/ first-last=首尾帧（首+尾图控制过渡）/ reference=参考生（多图 / 参考视频 / 参考音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "一张图定起始画面 (⚠ 约为「参考生」1.5 倍价)",
+              "is_default": true,
+              "label": "首帧",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「参考生」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多张图/多素材融合参考",
+              "label": "参考生",
+              "label_en": "Reference",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "1080p",
+          "description": "本模型固定输出 1080P，无需选择。",
+          "enum": [
+            "1080p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "1080P",
+              "value": "1080p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "accept_formats": [
+            "mp4",
+            "mov"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考视频 (≤3 段, 每段 ≥2s, 合计 ≤15s, 帧率 24-60fps 超出自动适配). 用途: 动作复刻/运镜; **只传视频 = 视频延续** (接着这段往下拍); **视频 + 参考图 = 视频编辑** (把片里的商品/角色换成图里的). ⚠ 参考视频不能跟首帧/尾帧同时用 (厂商互斥, 会被拒). prompt 用 @视频1~@视频3 引用.",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 52428800,
+          "max_edge_px": 1280,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_pixels": 2086876,
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 2,
+          "min_edge_px": 300,
+          "min_pixels": 409600,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.0-hs-1080p",
+      "sort_weight": 2009,
+      "tags": [
+        "video",
+        "seedance",
+        "火山",
+        "按次",
+        "1080p"
+      ],
+      "type": "video",
+      "upstream": "seedance2.0-hs-1080p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "多模态参考",
+        "参考视频",
+        "参考音频",
+        "长视频30秒",
+        "按秒",
+        "1080P"
+      ],
+      "category": "video",
+      "display_name": "seedance2.5 · hs-1080p",
+      "display_name_zh": "seedance2.5 · hs-1080p",
+      "health_score": 92,
+      "icon_key": "doubao",
+      "id": "seedance-2.5-hs-1080p",
+      "input_hint_zh": "选时长（4~30 秒）后写描述；图生 / 多模态参考可上传最多 30 张参考图、10 段参考视频、10 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。按秒计费。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "available_when": {
+            "mode": [
+              "text-to-video",
+              "reference"
+            ]
+          },
+          "default": "16:9",
+          "description": "文生视频时生效；首帧/首尾帧模式下画面比例由首帧图决定，本项不显示。",
+          "enum": [
+            "16:9",
+            "9:16",
+            "21:9",
+            "3:4",
+            "1:1",
+            "4:3"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "电影感宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Ultrawide",
+              "value": "21:9"
+            },
+            {
+              "label": "3:4 竖",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "affects_l2": false,
+          "description": "参考音频 (≤10 个, 单个 2~30 秒)。可配图使用, 也可只传音频做纯音频驱动。prompt 用 @音频1~@音频N 引用。",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~30 秒可选，按秒计费（时长越长价越高）。⚠ 计费秒数 = **输出秒 + 参考视频总秒**（传了参考视频就一起计，见 videos 参数）。⚠ mode=edit 时本参数**不起作用**：输出时长跟随原视频，计费也按原视频时长算。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "8",
+            "10",
+            "12",
+            "15",
+            "20",
+            "25",
+            "29",
+            "30"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "description": "最省",
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "description": "推荐",
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            },
+            {
+              "description": "长视频",
+              "label": "20秒",
+              "value": "20"
+            },
+            {
+              "description": "长视频",
+              "label": "25秒",
+              "value": "25"
+            },
+            {
+              "description": "长视频",
+              "label": "29秒",
+              "value": "29"
+            },
+            {
+              "description": "最长",
+              "label": "30秒",
+              "value": "30"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 多模态参考用 (≤30 张)。纯文生留空。prompt 用 @图片1~@图片N 引用。单图时画面比例跟随该图。",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 30,
+          "max_items_by_mode": {
+            "first-frame": 30,
+            "first-last": 30,
+            "reference": 30,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=图生视频（1 张图作首帧）/ first-last=首尾帧（首+尾图控制过渡）/ reference=多模态参考（最多 30 图 + 10 视频 + 10 音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "上传 1 张参考图作首帧 (⚠ 约为「多模态参考」1.5 倍价)",
+              "is_default": true,
+              "label": "图生视频",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「多模态参考」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多图 + 参考音频融合生成",
+              "label": "多模态参考",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "1080p",
+          "description": "本模型固定输出 1080P，无需选择。",
+          "enum": [
+            "1080p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "1080P",
+              "value": "1080p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "affects_l2": false,
+          "description": "参考视频 (≤10 个, 单条 1.8~30 秒 —— 视频编辑模式要求 ≥4 秒, 总时长 ≤30 秒, 仅部分厂商开放)。传视频后按「视频总秒+输出秒」计费。prompt 用 @视频1~@视频N 引用。",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 209715200,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "min_duration_sec_by_mode": {
+            "edit": 4
+          },
+          "min_edge_px": 300,
+          "min_pixels": 407696,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.5-hs-1080p",
+      "sort_weight": 2007,
+      "tags": [
+        "video",
+        "seedance",
+        "火山",
+        "长视频",
+        "按秒",
+        "1080p"
+      ],
+      "type": "video",
+      "upstream": "seedance2.5-hs-1080p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "参考生",
+        "参考视频",
+        "参考音频",
+        "官方直连",
+        "按秒",
+        "1080P"
+      ],
+      "category": "video",
+      "display_name": "seedance2.0 · 1080p-100%",
+      "display_name_zh": "seedance2.0 · 1080p-100%",
+      "health_score": 92,
+      "icon_key": "doubao",
+      "id": "seedance-2.0-1080p-official",
+      "input_hint_zh": "选时长（4~15 秒）后写描述；图生 / 参考生可上传最多 9 张参考图、3 段参考视频、3 段参考音频，prompt 用 @图片1 / @视频1 / @音频1 引用。按秒计费。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "default": "16:9",
+          "enum": [
+            "16:9",
+            "9:16",
+            "1:1",
+            "4:3",
+            "3:4",
+            "21:9",
+            "adaptive"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "适合社交方图",
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            },
+            {
+              "description": "传统竖版比例",
+              "label": "竖屏 3:4",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "description": "电影宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Cinematic",
+              "value": "21:9"
+            },
+            {
+              "description": "输出比例与参考图一致 (需上传参考图)",
+              "label": "跟随参考图",
+              "label_en": "Adaptive (follows reference image)",
+              "value": "adaptive"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "accept_formats": [
+            "mp3",
+            "wav"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考音频 (≤3 个, 每段 ≥1.8s, 合计 ≤15s, mp3/wav, 其它格式自动转码, BGM/配音/口型参考). 全能参考模式需配 ≥1 张主图. prompt 用 @音频1~@音频3 引用.",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~15 秒任选, 按秒计费 (时长越长价越高)。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "7秒",
+              "value": "7"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "9秒",
+              "value": "9"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "11秒",
+              "value": "11"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "13秒",
+              "value": "13"
+            },
+            {
+              "label": "14秒",
+              "value": "14"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 参考生 / 首尾帧用 (≤9 张). 纯文生留空. prompt 用 @图片1~@图片9 引用. 火山标准: 每边 300-6000px, 宽高比 0.4-2.5 (超出自动适配).",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 9,
+          "max_items_by_mode": {
+            "first-frame": 9,
+            "first-last": 9,
+            "reference": 9,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=首帧（一张图定起始画面）/ first-last=首尾帧（首+尾图控制过渡）/ reference=参考生（多图 / 参考视频 / 参考音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "一张图定起始画面 (⚠ 约为「参考生」1.5 倍价)",
+              "is_default": true,
+              "label": "首帧",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「参考生」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多张图/多素材融合参考",
+              "label": "参考生",
+              "label_en": "Reference",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "1080p",
+          "description": "本模型固定输出 1080P，无需选择。",
+          "enum": [
+            "1080p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "1080P",
+              "value": "1080p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "accept_formats": [
+            "mp4",
+            "mov"
+          ],
+          "affects_l2": false,
+          "combined_duration_budget": true,
+          "description": "参考视频 (≤3 段, 每段 ≥2s, 合计 ≤15s, 帧率 24-60fps 超出自动适配). 用途: 动作复刻/运镜; **只传视频 = 视频延续** (接着这段往下拍); **视频 + 参考图 = 视频编辑** (把片里的商品/角色换成图里的). ⚠ 参考视频不能跟首帧/尾帧同时用 (厂商互斥, 会被拒). prompt 用 @视频1~@视频3 引用.",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 52428800,
+          "max_edge_px": 1280,
+          "max_items": 3,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 3,
+            "text-to-video": 0
+          },
+          "max_pixels": 2086876,
+          "max_total_duration_sec": 15,
+          "min_duration_sec": 2,
+          "min_edge_px": 300,
+          "min_pixels": 409600,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.0-1080p-official",
+      "sort_weight": 2005,
+      "tags": [
+        "video",
+        "seedance",
+        "官方直连",
+        "official",
+        "按秒",
+        "1080p"
+      ],
+      "type": "video",
+      "upstream": "seedance2.0-1080p-100%"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "多模态参考",
+        "参考视频",
+        "参考音频",
+        "长视频30秒",
+        "按秒"
+      ],
+      "category": "video",
+      "display_name": "seedance2.5 · lec-480p",
+      "display_name_zh": "seedance2.5 · lec-480p",
+      "health_score": 92,
+      "icon_key": "doubao",
+      "id": "seedance-2.5-lec-480p",
+      "input_hint_zh": "选时长（4~30 秒）后写描述；可上传最多 30 张参考图、10 段参考视频、10 段参考音频。按秒计费。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "available_when": {
+            "mode": [
+              "text-to-video",
+              "reference"
+            ]
+          },
+          "default": "16:9",
+          "description": "文生视频时生效；首帧/首尾帧模式下画面比例由首帧图决定，本项不显示。",
+          "enum": [
+            "16:9",
+            "9:16",
+            "21:9",
+            "3:4",
+            "1:1",
+            "4:3"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "电影感宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Ultrawide",
+              "value": "21:9"
+            },
+            {
+              "label": "3:4 竖",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "affects_l2": false,
+          "description": "参考音频 (≤10 个, 单个 2~30 秒)。可配图使用, 也可只传音频做纯音频驱动。prompt 用 @音频1~@音频N 引用。",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~30 秒可选，按秒计费（时长越长价越高）。⚠ 计费秒数 = 输出秒 + 参考视频总秒。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "8",
+            "10",
+            "12",
+            "15",
+            "20",
+            "25",
+            "29",
+            "30"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "description": "最省",
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "description": "推荐",
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            },
+            {
+              "description": "长视频",
+              "label": "20秒",
+              "value": "20"
+            },
+            {
+              "description": "长视频",
+              "label": "25秒",
+              "value": "25"
+            },
+            {
+              "description": "长视频",
+              "label": "29秒",
+              "value": "29"
+            },
+            {
+              "description": "最长",
+              "label": "30秒",
+              "value": "30"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 多模态参考用 (≤30 张)。纯文生留空。prompt 用 @图片1~@图片N 引用。单图时画面比例跟随该图。",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 30,
+          "max_items_by_mode": {
+            "first-frame": 30,
+            "first-last": 30,
+            "reference": 30,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=图生视频（1 张图作首帧）/ first-last=首尾帧（首+尾图控制过渡）/ reference=多模态参考（最多 30 图 + 10 视频 + 10 音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "上传 1 张参考图作首帧 (⚠ 约为「多模态参考」1.5 倍价)",
+              "is_default": true,
+              "label": "图生视频",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「多模态参考」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多图 + 参考音频融合生成",
+              "label": "多模态参考",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "480p",
+          "description": "本模型固定输出 480P，无需选择。",
+          "enum": [
+            "480p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "480P",
+              "value": "480p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "affects_l2": false,
+          "description": "参考视频 (≤10 个, 单条 1.8~30 秒 —— 视频编辑模式要求 ≥4 秒, 总时长 ≤30 秒, 仅部分厂商开放)。传视频后按「视频总秒+输出秒」计费。prompt 用 @视频1~@视频N 引用。",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 209715200,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "min_duration_sec_by_mode": {
+            "edit": 4
+          },
+          "min_edge_px": 300,
+          "min_pixels": 407696,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.5-lec-480p",
+      "sort_weight": 2005,
+      "tags": [
+        "video",
+        "seedance",
+        "2.5分组",
+        "按秒"
+      ],
+      "type": "video",
+      "upstream": "seedance-2.5-lec-480p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "多模态参考",
+        "参考视频",
+        "参考音频",
+        "长视频30秒",
+        "按秒"
+      ],
+      "category": "video",
+      "display_name": "seedance2.5 · lec-720p",
+      "display_name_zh": "seedance2.5 · lec-720p",
+      "health_score": 92,
+      "icon_key": "doubao",
+      "id": "seedance-2.5-lec-720p",
+      "input_hint_zh": "选时长（4~30 秒）后写描述；可上传最多 30 张参考图、10 段参考视频、10 段参考音频。按秒计费。",
+      "max_prompt_chars": 30000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "available_when": {
+            "mode": [
+              "text-to-video",
+              "reference"
+            ]
+          },
+          "default": "16:9",
+          "description": "文生视频时生效；首帧/首尾帧模式下画面比例由首帧图决定，本项不显示。",
+          "enum": [
+            "16:9",
+            "9:16",
+            "21:9",
+            "3:4",
+            "1:1",
+            "4:3"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "电影感宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Ultrawide",
+              "value": "21:9"
+            },
+            {
+              "label": "3:4 竖",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "affects_l2": false,
+          "description": "参考音频 (≤10 个, 单个 2~30 秒)。可配图使用, 也可只传音频做纯音频驱动。prompt 用 @音频1~@音频N 引用。",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~30 秒可选，按秒计费（时长越长价越高）。⚠ 计费秒数 = 输出秒 + 参考视频总秒。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "8",
+            "10",
+            "12",
+            "15",
+            "20",
+            "25",
+            "29",
+            "30"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "description": "最省",
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "description": "推荐",
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            },
+            {
+              "description": "长视频",
+              "label": "20秒",
+              "value": "20"
+            },
+            {
+              "description": "长视频",
+              "label": "25秒",
+              "value": "25"
+            },
+            {
+              "description": "长视频",
+              "label": "29秒",
+              "value": "29"
+            },
+            {
+              "description": "最长",
+              "label": "30秒",
+              "value": "30"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 多模态参考用 (≤30 张)。纯文生留空。prompt 用 @图片1~@图片N 引用。单图时画面比例跟随该图。",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 30,
+          "max_items_by_mode": {
+            "first-frame": 30,
+            "first-last": 30,
+            "reference": 30,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=图生视频（1 张图作首帧）/ first-last=首尾帧（首+尾图控制过渡）/ reference=多模态参考（最多 30 图 + 10 视频 + 10 音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "上传 1 张参考图作首帧 (⚠ 约为「多模态参考」1.5 倍价)",
+              "is_default": true,
+              "label": "图生视频",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「多模态参考」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多图 + 参考音频融合生成",
+              "label": "多模态参考",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "720p",
+          "description": "本模型固定输出 720P，无需选择。",
+          "enum": [
+            "720p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "720P",
+              "value": "720p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "affects_l2": false,
+          "description": "参考视频 (≤10 个, 单条 1.8~30 秒 —— 视频编辑模式要求 ≥4 秒, 总时长 ≤30 秒, 仅部分厂商开放)。传视频后按「视频总秒+输出秒」计费。prompt 用 @视频1~@视频N 引用。",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 209715200,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "min_duration_sec_by_mode": {
+            "edit": 4
+          },
+          "min_edge_px": 300,
+          "min_pixels": 407696,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.5-lec-720p",
+      "sort_weight": 2004,
+      "tags": [
+        "video",
+        "seedance",
+        "2.5分组",
+        "按秒"
+      ],
+      "type": "video",
+      "upstream": "seedance-2.5-lec-720p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "capabilities": [
+        "图生视频",
+        "首尾帧",
+        "多模态参考",
+        "参考音频",
+        "按次"
+      ],
+      "category": "video",
+      "display_name": "seedance2.5 · 480p-ac",
+      "display_name_zh": "seedance2.5 · 480p-ac",
+      "health_score": 92,
+      "icon_key": "doubao",
+      "id": "seedance-2.5-480p-ac",
+      "input_hint_zh": "必须上传 1~30 张参考图（不支持纯文生）；可加最多 10 段参考音频，不支持参考视频。按次计费，时长不影响价格。",
+      "max_prompt_chars": 10000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "available_when": {
+            "mode": [
+              "text-to-video",
+              "reference"
+            ]
+          },
+          "default": "16:9",
+          "description": "文生视频时生效；首帧/首尾帧模式下画面比例由首帧图决定，本项不显示。",
+          "enum": [
+            "16:9",
+            "9:16",
+            "21:9",
+            "3:4",
+            "1:1",
+            "4:3"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "电影感宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Ultrawide",
+              "value": "21:9"
+            },
+            {
+              "label": "3:4 竖",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "affects_l2": false,
+          "description": "参考音频 (≤10 个, 单个 2~30 秒)。可配图使用, 也可只传音频做纯音频驱动。prompt 用 @音频1~@音频N 引用。",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": false,
+          "default": "5",
+          "description": "成片时长（按次计费，时长不影响价格）。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "8",
+            "10",
+            "12",
+            "15",
+            "20",
+            "25",
+            "29"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "description": "最省",
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "description": "推荐",
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            },
+            {
+              "description": "长视频",
+              "label": "20秒",
+              "value": "20"
+            },
+            {
+              "description": "长视频",
+              "label": "25秒",
+              "value": "25"
+            },
+            {
+              "description": "长视频",
+              "label": "29秒",
+              "value": "29"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "必填：1~30 张参考图（本线路不支持纯文生）。prompt 用 @图片1~@图片N 引用。",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 30,
+          "max_items_by_mode": {
+            "first-frame": 30,
+            "first-last": 30,
+            "reference": 30,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": true,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "reference",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=图生视频（1 张图作首帧）/ first-last=首尾帧（首+尾图控制过渡）/ reference=多模态参考（最多 30 图 + 10 视频 + 10 音频融合）。",
+          "enum": [
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "上传 1 张参考图作首帧 (⚠ 约为「多模态参考」1.5 倍价)",
+              "label": "图生视频",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「多模态参考」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多图 + 参考音频融合生成",
+              "is_default": true,
+              "label": "多模态参考",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "480p",
+          "description": "本模型固定输出 480P，无需选择。",
+          "enum": [
+            "480p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "480P",
+              "value": "480p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.5-480p-ac",
+      "sort_weight": 2003,
+      "tags": [
+        "video",
+        "seedance",
+        "2.5分组",
+        "按次"
+      ],
+      "type": "video",
+      "upstream": "seedance2.5-480p-ac"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "多模态参考",
+        "参考视频",
+        "参考音频",
+        "长视频30秒",
+        "不卡真人",
+        "按秒"
+      ],
+      "category": "video",
+      "display_name": "seedance2.5 · 480p",
+      "display_name_zh": "seedance2.5 · 480p",
+      "health_score": 93,
+      "icon_key": "doubao",
+      "id": "seedance-2.5-480p",
+      "input_hint_zh": "选时长（4~30 秒）后写描述；可上传最多 30 张参考图、10 段参考视频、10 段参考音频，参考音频单段不超过 15 秒。不卡真人，按秒计费。",
+      "max_prompt_chars": 15000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "available_when": {
+            "mode": [
+              "text-to-video",
+              "reference"
+            ]
+          },
+          "default": "16:9",
+          "description": "文生视频时生效；首帧/首尾帧模式下画面比例由首帧图决定，本项不显示。",
+          "enum": [
+            "16:9",
+            "9:16",
+            "21:9",
+            "3:4",
+            "1:1",
+            "4:3"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "电影感宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Ultrawide",
+              "value": "21:9"
+            },
+            {
+              "label": "3:4 竖",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "affects_l2": false,
+          "description": "参考音频 (≤10 个, 单个 2~30 秒)。可配图使用, 也可只传音频做纯音频驱动。prompt 用 @音频1~@音频N 引用。",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~30 秒可选，按秒计费（时长越长价越高）。⚠ 计费秒数 = **输出秒 + 参考视频总秒**（传了参考视频就一起计，见 videos 参数）。⚠ mode=edit 时本参数**不起作用**：输出时长跟随原视频，计费也按原视频时长算。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "8",
+            "10",
+            "12",
+            "15",
+            "20",
+            "25",
+            "29",
+            "30"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "description": "最省",
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "description": "推荐",
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            },
+            {
+              "description": "长视频",
+              "label": "20秒",
+              "value": "20"
+            },
+            {
+              "description": "长视频",
+              "label": "25秒",
+              "value": "25"
+            },
+            {
+              "description": "长视频",
+              "label": "29秒",
+              "value": "29"
+            },
+            {
+              "description": "最长",
+              "label": "30秒",
+              "value": "30"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 多模态参考用 (≤30 张)。纯文生留空。prompt 用 @图片1~@图片N 引用。单图时画面比例跟随该图。",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 30,
+          "max_items_by_mode": {
+            "first-frame": 30,
+            "first-last": 30,
+            "reference": 30,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=图生视频（1 张图作首帧）/ first-last=首尾帧（首+尾图控制过渡）/ reference=多模态参考（最多 30 图 + 10 视频 + 10 音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "上传 1 张参考图作首帧 (⚠ 约为「多模态参考」1.5 倍价)",
+              "is_default": true,
+              "label": "图生视频",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「多模态参考」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多图 + 参考音频融合生成",
+              "label": "多模态参考",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "480p",
+          "description": "本模型固定输出 480P，无需选择。",
+          "enum": [
+            "480p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "480P",
+              "value": "480p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "affects_l2": false,
+          "description": "参考视频 (≤10 个, 单条 1.8~30 秒 —— 视频编辑模式要求 ≥4 秒, 总时长 ≤30 秒, 仅部分厂商开放)。传视频后按「视频总秒+输出秒」计费。prompt 用 @视频1~@视频N 引用。",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 209715200,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "min_duration_sec_by_mode": {
+            "edit": 4
+          },
+          "min_edge_px": 300,
+          "min_pixels": 407696,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.5-480p",
+      "sort_weight": 2009,
+      "tags": [
+        "video",
+        "seedance",
+        "2.0批发",
+        "不卡真人",
+        "按秒"
+      ],
+      "type": "video",
+      "upstream": "seedance2.5-480p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "capabilities": [
+        "文生视频",
+        "图生视频",
+        "首尾帧",
+        "多模态参考",
+        "参考视频",
+        "参考音频",
+        "长视频30秒",
+        "不卡真人",
+        "按秒"
+      ],
+      "category": "video",
+      "display_name": "seedance2.5 · 720p",
+      "display_name_zh": "seedance2.5 · 720p",
+      "health_score": 93,
+      "icon_key": "doubao",
+      "id": "seedance-2.5-720p",
+      "input_hint_zh": "选时长（4~30 秒）后写描述；可上传最多 30 张参考图、10 段参考视频、10 段参考音频，参考音频单段不超过 15 秒。不卡真人，按秒计费。",
+      "max_prompt_chars": 15000,
+      "param_schema": {
+        "aspect_ratio": {
+          "affects_l2": false,
+          "available_when": {
+            "mode": [
+              "text-to-video",
+              "reference"
+            ]
+          },
+          "default": "16:9",
+          "description": "文生视频时生效；首帧/首尾帧模式下画面比例由首帧图决定，本项不显示。",
+          "enum": [
+            "16:9",
+            "9:16",
+            "21:9",
+            "3:4",
+            "1:1",
+            "4:3"
+          ],
+          "label": {
+            "zh": "视频比例"
+          },
+          "options": [
+            {
+              "description": "宽屏, 适合电脑/电视",
+              "is_default": true,
+              "label": "横屏 16:9",
+              "label_en": "16:9 Landscape",
+              "value": "16:9"
+            },
+            {
+              "description": "适合短视频平台",
+              "label": "竖屏 9:16",
+              "label_en": "9:16 Portrait",
+              "value": "9:16"
+            },
+            {
+              "description": "电影感宽银幕",
+              "label": "超宽 21:9",
+              "label_en": "21:9 Ultrawide",
+              "value": "21:9"
+            },
+            {
+              "label": "3:4 竖",
+              "label_en": "3:4 Portrait",
+              "value": "3:4"
+            },
+            {
+              "label": "方形 1:1",
+              "label_en": "1:1 Square",
+              "value": "1:1"
+            },
+            {
+              "description": "传统电视比例",
+              "label": "横屏 4:3",
+              "label_en": "4:3 Landscape",
+              "value": "4:3"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "audios": {
+          "affects_l2": false,
+          "description": "参考音频 (≤10 个, 单个 2~30 秒)。可配图使用, 也可只传音频做纯音频驱动。prompt 用 @音频1~@音频N 引用。",
+          "label": {
+            "zh": "参考音频"
+          },
+          "max_bytes": 52428800,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "count": {
+          "affects_l2": false,
+          "default": 1,
+          "description": "一次生成的视频数量（1-50）。",
+          "label": {
+            "zh": "生成数量"
+          },
+          "max": 50,
+          "min": 1,
+          "required": false,
+          "type": "int",
+          "ui_widget": "input"
+        },
+        "duration": {
+          "affects_l2": true,
+          "default": "5",
+          "description": "4~30 秒可选，按秒计费（时长越长价越高）。⚠ 计费秒数 = **输出秒 + 参考视频总秒**（传了参考视频就一起计，见 videos 参数）。⚠ mode=edit 时本参数**不起作用**：输出时长跟随原视频，计费也按原视频时长算。",
+          "enum": [
+            "4",
+            "5",
+            "6",
+            "8",
+            "10",
+            "12",
+            "15",
+            "20",
+            "25",
+            "29",
+            "30"
+          ],
+          "label": {
+            "zh": "视频时长"
+          },
+          "options": [
+            {
+              "description": "最省",
+              "label": "4秒",
+              "value": "4"
+            },
+            {
+              "description": "推荐",
+              "is_default": true,
+              "label": "5秒",
+              "value": "5"
+            },
+            {
+              "label": "6秒",
+              "value": "6"
+            },
+            {
+              "label": "8秒",
+              "value": "8"
+            },
+            {
+              "label": "10秒",
+              "value": "10"
+            },
+            {
+              "label": "12秒",
+              "value": "12"
+            },
+            {
+              "label": "15秒",
+              "value": "15"
+            },
+            {
+              "description": "长视频",
+              "label": "20秒",
+              "value": "20"
+            },
+            {
+              "description": "长视频",
+              "label": "25秒",
+              "value": "25"
+            },
+            {
+              "description": "长视频",
+              "label": "29秒",
+              "value": "29"
+            },
+            {
+              "description": "最长",
+              "label": "30秒",
+              "value": "30"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "images": {
+          "affects_l2": false,
+          "aspect_max": 2.5,
+          "aspect_min": 0.4,
+          "description": "图生视频 / 多模态参考用 (≤30 张)。纯文生留空。prompt 用 @图片1~@图片N 引用。单图时画面比例跟随该图。",
+          "label": {
+            "zh": "参考图片"
+          },
+          "max_bytes": 5242880,
+          "max_edge_px": 6000,
+          "max_items": 30,
+          "max_items_by_mode": {
+            "first-frame": 30,
+            "first-last": 30,
+            "reference": 30,
+            "text-to-video": 0
+          },
+          "min_edge_px": 300,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        },
+        "mode": {
+          "affects_l2": false,
+          "default": "first-frame",
+          "description": "text-to-video=纯文生（只写描述）/ first-frame=图生视频（1 张图作首帧）/ first-last=首尾帧（首+尾图控制过渡）/ reference=多模态参考（最多 30 图 + 10 视频 + 10 音频融合）。",
+          "enum": [
+            "text-to-video",
+            "first-frame",
+            "first-last",
+            "reference"
+          ],
+          "label": {
+            "zh": "生成模式"
+          },
+          "options": [
+            {
+              "description": "只写描述, 无需上传",
+              "label": "文生视频",
+              "value": "text-to-video"
+            },
+            {
+              "description": "上传 1 张参考图作首帧 (⚠ 约为「多模态参考」1.5 倍价)",
+              "is_default": true,
+              "label": "图生视频",
+              "value": "first-frame"
+            },
+            {
+              "description": "首+尾图控制过渡 (⚠ 约为「多模态参考」1.5 倍价)",
+              "label": "首尾帧",
+              "value": "first-last"
+            },
+            {
+              "description": "多图 + 参考音频融合生成",
+              "label": "多模态参考",
+              "value": "reference"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "radio"
+        },
+        "resolution": {
+          "affects_l2": false,
+          "default": "720p",
+          "description": "本模型固定输出 720P，无需选择。",
+          "enum": [
+            "720p"
+          ],
+          "label": {
+            "zh": "清晰度"
+          },
+          "options": [
+            {
+              "is_default": true,
+              "label": "720P",
+              "value": "720p"
+            }
+          ],
+          "required": false,
+          "type": "enum",
+          "ui_widget": "dropdown"
+        },
+        "videos": {
+          "affects_l2": false,
+          "description": "参考视频 (≤10 个, 单条 1.8~30 秒 —— 视频编辑模式要求 ≥4 秒, 总时长 ≤30 秒, 仅部分厂商开放)。传视频后按「视频总秒+输出秒」计费。prompt 用 @视频1~@视频N 引用。",
+          "label": {
+            "zh": "参考视频"
+          },
+          "max_bytes": 209715200,
+          "max_items": 10,
+          "max_items_by_mode": {
+            "first-frame": 0,
+            "first-last": 0,
+            "reference": 10,
+            "text-to-video": 0
+          },
+          "max_total_duration_sec": 30,
+          "min_duration_sec": 1.8,
+          "min_duration_sec_by_mode": {
+            "edit": 4
+          },
+          "min_edge_px": 300,
+          "min_pixels": 407696,
+          "required": false,
+          "type": "upload",
+          "ui_widget": "upload"
+        }
+      },
+      "provider": "BYT",
+      "public_id": "seedance-2.5-720p",
+      "sort_weight": 2008,
+      "tags": [
+        "video",
+        "seedance",
+        "2.0批发",
+        "不卡真人",
+        "按秒"
+      ],
+      "type": "video",
+      "upstream": "seedance2.5-720p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.0 · v3-720p",
+      "display_name_zh": "seedance2.0 · v3-720p",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.0-v3-720p",
+      "public_id": "seedance-2.0-v3-720p",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.0-v3-720p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.5 · v3-720p",
+      "display_name_zh": "seedance2.5 · v3-720p",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.5-v3-720p",
+      "public_id": "seedance-2.5-v3-720p",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.5-v3-720p"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.5 · v3-720p-101010",
+      "display_name_zh": "seedance2.5 · v3-720p-101010",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.5-v3-720p-10",
+      "public_id": "seedance-2.5-v3-720p-10",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.5-v3-720p-101010"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.5 · 10图",
+      "display_name_zh": "seedance2.5 · 10图",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.5-10img",
+      "public_id": "seedance-2.5-10img",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.5-10图"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.0 · std",
+      "display_name_zh": "seedance2.0 · std",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.0-std",
+      "public_id": "seedance-2.0-std",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.0-std"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "grok-imagine · video-1.5-preview",
+      "display_name_zh": "grok-imagine · video-1.5-preview",
+      "icon_key": "grok",
+      "provider": "XAI",
+      "id": "grok-imagine-video-1.5",
+      "public_id": "grok-imagine-video-1.5",
+      "tags": [
+        "video",
+        "grok-imagine",
+        "按次"
+      ],
+      "upstream": "grok-imagine-video-1.5-preview"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.0 · fast-2",
+      "display_name_zh": "seedance2.0 · fast-2",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.0-fast-2",
+      "public_id": "seedance-2.0-fast-2",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.0-fast-2"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.0 · 900-3",
+      "display_name_zh": "seedance2.0 · 900-3",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.0-900-3",
+      "public_id": "seedance-2.0-900-3",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.0-900-3"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.5 · 900",
+      "display_name_zh": "seedance2.5 · 900",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.5-900",
+      "public_id": "seedance-2.5-900",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.5-900"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.5 · 9图",
+      "display_name_zh": "seedance2.5 · 9图",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.5-9img",
+      "public_id": "seedance-2.5-9img",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.5-9图"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.5 · vid",
+      "display_name_zh": "seedance2.5 · vid",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.5-vid",
+      "public_id": "seedance-2.5-vid",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.5-vid"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.5 · doubao",
+      "display_name_zh": "seedance2.5 · doubao",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.5-doubao",
+      "public_id": "seedance-2.5-doubao",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.5-doubao"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.5 · kl",
+      "display_name_zh": "seedance2.5 · kl",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.5-kl",
+      "public_id": "seedance-2.5-kl",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.5-kl"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "category": "video",
+      "type": "video",
+      "display_name": "sora · 480p-guanzhuan",
+      "display_name_zh": "sora · 480p-guanzhuan",
+      "icon_key": "openai",
+      "provider": "OPE",
+      "id": "sora-2.0-480p-guan",
+      "public_id": "sora-2.0-480p-guan",
+      "tags": [
+        "video",
+        "sora",
+        "按秒"
+      ],
+      "upstream": "sora-2.0-480p-guanzhuan"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_second",
+      "category": "video",
+      "type": "video",
+      "display_name": "sora · 720p-guanzhuan",
+      "display_name_zh": "sora · 720p-guanzhuan",
+      "icon_key": "openai",
+      "provider": "OPE",
+      "id": "sora-2.0-720p-guan",
+      "public_id": "sora-2.0-720p-guan",
+      "tags": [
+        "video",
+        "sora",
+        "按秒"
+      ],
+      "upstream": "sora-2.0-720p-guanzhuan"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "sora · v3-933-pro",
+      "display_name_zh": "sora · v3-933-pro",
+      "icon_key": "openai",
+      "provider": "OPE",
+      "id": "sora-v3-933-pro",
+      "public_id": "sora-v3-933-pro",
+      "tags": [
+        "video",
+        "sora",
+        "按次"
+      ],
+      "upstream": "sora-v3-933-pro"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.0 · me",
+      "display_name_zh": "seedance2.0 · me",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.0-me",
+      "public_id": "seedance-2.0-me",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.0-me"
+    },
+    {
+      "available": true,
+      "billing_unit": "per_request",
+      "category": "video",
+      "type": "video",
+      "display_name": "seedance2.0 · svip-900-720p",
+      "display_name_zh": "seedance2.0 · svip-900-720p",
+      "icon_key": "doubao",
+      "provider": "BYT",
+      "id": "seedance-2.0-svip-900-720p",
+      "public_id": "seedance-2.0-svip-900-720p",
+      "tags": [
+        "video",
+        "seedance",
+        "按次"
+      ],
+      "upstream": "seedance2.0-svip-900-720p"
+    }
+  ],
+  "total": 33
+}

@@ -5,6 +5,7 @@ import aiAssistant from "./routes/aiAssistant";
 import u from "@/utils";
 import { resolveIdentity } from "@/utils/authIdentity";
 import { getPlatformPolicy } from "@/utils/platformPolicy";
+import { runWithGatewayUser } from "@/lib/gateway/context";
 
 export default (io: Server) => {
   const routes: Record<string, (nsp: ReturnType<Server["of"]>) => void> = {
@@ -44,10 +45,10 @@ export default (io: Server) => {
             await authenticate(target);
             if (event === "chat" && (typeof payload?.content !== "string" || payload.content.length > 100000)) throw new Error("消息长度不合法");
             if (event === "updateContext") context = target;
-            done();
+            runWithGatewayUser(Number(socket.data.user.id), () => done());
           } catch { done(new Error("请求被拒绝，请检查账号或项目权限")); }
         });
-        next();
+        runWithGatewayUser(Number(socket.data.user.id), () => next());
       } catch { next(new Error("无权连接此会话")); }
     });
     handler(nsp);

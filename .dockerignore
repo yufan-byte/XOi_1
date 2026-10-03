@@ -2,6 +2,7 @@
 **/node_modules
 **/dist
 **/*.tsbuildinfo
+**/.npm-cache
 
 # 运行时数据 & 本地产物：容器首启自动生成，绝不上传
 backend/data/canvases
@@ -13,6 +14,8 @@ backend/data/toonflow.db
 backend/data/db2.sqlite*
 backend/build
 frontend/dist
+frontend/dist-*
+frontend/dist.bak*
 frontend/vite.config.js
 frontend/vite.config.d.ts
 

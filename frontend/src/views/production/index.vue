@@ -48,9 +48,10 @@
     <template #node-workbench="props">
       <workbench :id="props.id" v-model="flowData.workbench" :handleIds="props.data.handleIds" />
     </template>
-    <!-- <template #node-poster="props">
-      <poster :id="props.id" v-model="flowData.poster" :handleIds="props.data.handleIds" />
-    </template> -->
+    <!-- 成片节点：剪辑台 → 成片（本地下载同时归档到 o_output 的整片，是这条流水线的终点） -->
+    <template #node-output="props">
+      <outputNode :id="props.id" :items="flowData.output" :handleIds="props.data.handleIds" />
+    </template>
     <Background></Background>
     <Controls />
     <div class="floatingWindow">
@@ -85,6 +86,7 @@
           <span class="statusMetric">分镜 <b>{{ productionProgress.storyboardDone }}/{{ productionProgress.storyboardTotal }}</b></span>
           <span class="statusMetric">图片 <b>{{ productionProgress.imageDone }}/{{ productionProgress.storyboardTotal }}</b></span>
           <span class="statusMetric">视频 <b>{{ productionProgress.videoDone }}/{{ productionProgress.storyboardTotal }}</b></span>
+          <span class="statusMetric">成片 <b>{{ productionProgress.outputCount }}</b></span>
           <t-tag v-if="productionProgress.issueCount" theme="warning" variant="light" size="small">待处理 {{ productionProgress.issueCount }}</t-tag>
           <span v-else class="statusReady">流程正常</span>
           <div class="stageQuickNav" aria-label="生产阶段">
@@ -120,7 +122,7 @@ import assets from "./node/assets.vue";
 import storyboardTable from "./node/storyboardTable.vue";
 import storyboard from "./node/storyboard.vue";
 import workbench from "./node/workbench.vue";
-import poster from "./node/poster.vue";
+import outputNode from "./node/output.vue";
 import rightChatBox from "./components/rightChatBox/index.vue";
 import { useLayout } from "./utils/dagre";
 import { useFlowBuilder } from "./utils/flowBuilder";
@@ -198,7 +200,9 @@ onMoveEnd(() => stopInteracting());
 const { layout } = useLayout("mainFlowBox");
 
 import productionAgentStore from "@/stores/productionAgent";
+import { guardProduction } from "@/utils/pipelineGuard";
 const { episodesId, flowData, status } = storeToRefs(productionAgentStore());
+const router = useRouter();
 provide("episodesId", episodesId);
 
 
@@ -212,7 +216,7 @@ const nodePositions = ref<Record<string, { x: number; y: number }>>({
   storyboardTable: { x: 1800, y: 0 },
   storyboard: { x: 2500, y: 0 },
   workbench: { x: 3000, y: 0 },
-  // poster: { x: 4500, y: 0 },
+  output: { x: 4500, y: 0 },
 });
 const { nodes, edges } = useFlowBuilder(flowData, nodePositions);
 
@@ -251,13 +255,30 @@ async function waitForNodesReady(maxRetries = 60, delay = 100) {
 
 onMounted(async () => {
   await getScriptData();
-  if (!episodesId.value) return;
+  if (!episodesId.value) {
+    // P2：一集剧本都没有时别让用户对着空台子发呆，明确告知并引导去整理剧本
+    guardProduction(router, { scriptCount: 0, assetTotal: 0, assetDone: 0 });
+    return;
+  }
 
   const nodesReady = await waitForNodesReady();
   if (nodesReady) {
     await layoutGraph();
   }
+  void runPipelineGuard();
 });
+
+/** P2 前置校验：角色/场景一张图都没出时给出明确警示（允许继续，但必须让用户知道会失去一致性）。
+ *  资产计数取项目进度聚合（o_assets 的 total/done），不依赖当前集 flowData —— flowData 由 watch 异步拉，
+ *  在此刻可能还没到；而 assetDone 的口径（已出图张数）不会因为“刚在上一页提取完资产”而变，读缓存安全。 */
+function runPipelineGuard() {
+  const progress = project.value?.progress;
+  guardProduction(router, {
+    scriptCount: episodesOptions.value.length,
+    assetTotal: progress?.asset?.total ?? 0,
+    assetDone: progress?.asset?.done ?? 0,
+  });
+}
 
 const episodesOptions = ref<{ label: string; value: number }[]>([]);
 function confirmEpisodesSwitch() {
@@ -312,11 +333,9 @@ async function getScriptData() {
     value: ep.id,
   }));
   if (episodesOptions.value.length) {
+    // 只设 episodesId —— 下面的 watch 会带出 refFlowData + updateContext + getHistory。
+    // 旧代码这里又主动调了一遍 getFlowData/getHistory，进页面时两个请求各跑两次（重复请求 bug）。
     episodesId.value = episodesOptions.value[0].value;
-  }
-  if (status.value !== "pending" && status.value !== "streaming") {
-    episodesId.value && (await productionAgentStore().getFlowData());
-    await productionAgentStore().getHistory();
   }
 }
 
@@ -373,7 +392,7 @@ async function layoutGraph(direction: "LR" | "TB" = "LR") {
 
   if (direction === "LR") {
     // 手动布局：主链从左到右排列，assets 放在 script 正下方
-    const mainChain = ["script", "scriptPlan", "storyboardTable", "storyboard", "workbench", "poster"];
+    const mainChain = ["script", "scriptPlan", "storyboardTable", "storyboard", "workbench", "output"];
     const chainNodes = mainChain.filter((id) => oldData.nodes.some((n) => n.id === id));
 
     // 逐个排列主链节点，x 基于前一个节点的右边缘 + gap，顶部对齐
@@ -460,12 +479,15 @@ const productionProgress = computed(() => {
   const videoList = Array.isArray((flowData.value.workbench as any)?.videoList) ? (flowData.value.workbench as any).videoList : [];
   const videoDone = videoList.filter((item: any) => item.state === "已完成" || item.state === "生成成功").length;
   const issueCount = storyboard.filter((item: any) => item.state === "生成失败").length;
+  // 第五段：本集已归档的成片（剪辑台合成导出后回传 o_output）
+  const outputCount = (flowData.value.output ?? []).length;
   return {
     storyboardTotal: total,
     storyboardDone: total,
     imageDone,
     videoDone: Math.min(videoDone, total),
     issueCount,
+    outputCount,
   };
 });
 
@@ -726,6 +748,9 @@ $handelSize: 12px;
   .openRightChatBoxBtn{top:18px !important;right:20px !important;width:43px !important;height:43px !important;border:1px solid rgba(69,63,83,.1);border-radius:13px !important;background:linear-gradient(135deg,#ff8847,#f26432) !important;color:#fff !important;box-shadow:0 9px 22px rgba(239,100,48,.24)}.openRightChatBoxBtn svg{color:#fff !important}
   .vue-flow__controls{overflow:hidden;border:1px solid rgba(69,63,83,.1)!important;border-radius:13px!important;background:rgba(255,255,255,.92)!important;box-shadow:0 8px 22px rgba(41,36,57,.1)!important}.vue-flow__controls-button{border-bottom-color:#ece9ee!important;background:#fff!important;color:#55515e!important}.vue-flow__controls-button:hover{background:#fff2ea!important;color:#e9632b!important}
   .vue-flow__node>.t-card,.vue-flow__node>div>.t-card{border-color:rgba(69,63,83,.11)!important;border-radius:18px!important;background:#fff!important;box-shadow:0 13px 32px rgba(41,36,57,.09)!important}.vue-flow__node.selected>.t-card,.vue-flow__node.selected>div>.t-card{border-color:#ee8a60!important;box-shadow:0 0 0 3px rgba(242,107,53,.1),0 15px 34px rgba(41,36,57,.11)!important}
+  /* 我们的成片节点类型名恰好叫 "output"，与 vue-flow 内置 output 节点类名撞车，
+   * 内置样式（白底/边框/内边距/定宽）会套在节点外层形成一个突兀的底框 —— 全部中和掉 */
+  .vue-flow__node-output{border:0!important;padding:0!important;width:auto!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;color:inherit!important;font-size:inherit!important}
   .vue-flow__edge-path{stroke:#a69eae;stroke-width:2}.vue-flow__edge.selected .vue-flow__edge-path{stroke:#ed7544}
   .fps{right:18px!important;bottom:16px!important;border-color:rgba(69,63,83,.12)!important;border-radius:8px!important;background:rgba(255,255,255,.82)!important;color:#77717e!important}
 }

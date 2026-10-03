@@ -36,10 +36,10 @@ export default router.post(
       return res.status(200).send(success({ list: [], total: 0 }));
     }
 
-    // 分页查询：每个事件对应多个 chapterIndex，用 GROUP_CONCAT 聚合
+    // 分页查询：每个事件对应多个 chapterIndex，聚合起来（PG 用 STRING_AGG，SQLite 时代是 GROUP_CONCAT）
     const rows = await baseQuery
       .clone()
-      .select("e.id", "e.name as eventName", "e.detail", "e.createTime", db.raw("GROUP_CONCAT(n.chapterIndex) as chapterIndexes"))
+      .select("e.id", "e.name as eventName", "e.detail", "e.createTime", db.raw(`STRING_AGG(n."chapterIndex"::text, ',') as "chapterIndexes"`))
       .groupBy("e.id")
       .limit(limit)
       .offset(offset);

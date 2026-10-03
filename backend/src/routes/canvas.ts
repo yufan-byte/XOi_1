@@ -48,6 +48,19 @@ function loadCanvasAny(canvasId: string): any {
   return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 }
 
+/** 旧画布没有 userId，历史约定仅归 admin(1)；其它用户一律不可读取或改写。 */
+function belongsToUser(canvas: any, req: express.Request): boolean {
+  const userId = Number((req as any).user?.id);
+  if (!Number.isFinite(userId) || userId <= 0) return false;
+  return Number(canvas?.userId || 1) === userId;
+}
+
+function ownedCanvas(req: express.Request, includeDeleted = false): any {
+  const id = String(req.params.id || "");
+  const canvas = includeDeleted ? loadCanvasAny(id) : loadCanvas(id);
+  return canvas && belongsToUser(canvas, req) ? canvas : null;
+}
+
 // 画布记录（轻量级，不含 nodes/connections）
 function canvasRecord(data: any): any {
   return {
@@ -142,7 +155,7 @@ router.post("/", (req, res) => {
 
 // GET /api/canvases/:id — 获取单个画布
 router.get("/:id", (req, res) => {
-  const canvas = loadCanvas(req.params.id);
+  const canvas = ownedCanvas(req);
   if (!canvas) {
     res.status(404).json({ detail: "画布不存在或已在回收站" });
     return;
@@ -152,7 +165,7 @@ router.get("/:id", (req, res) => {
 
 // PUT /api/canvases/:id — 更新画布
 router.put("/:id", (req, res) => {
-  const canvas = loadCanvas(req.params.id);
+  const canvas = ownedCanvas(req);
   if (!canvas) {
     res.status(404).json({ detail: "画布不存在" });
     return;
@@ -183,7 +196,7 @@ router.put("/:id", (req, res) => {
 
 // DELETE /api/canvases/:id — 软删除
 router.delete("/:id", (req, res) => {
-  const canvas = loadCanvasAny(req.params.id);
+  const canvas = ownedCanvas(req, true);
   if (!canvas) {
     res.status(404).json({ detail: "画布不存在" });
     return;
@@ -197,7 +210,7 @@ router.delete("/:id", (req, res) => {
 
 // POST /api/canvases/:id/restore — 恢复已删除画布
 router.post("/:id/restore", (req, res) => {
-  const canvas = loadCanvasAny(req.params.id);
+  const canvas = ownedCanvas(req, true);
   if (!canvas) {
     res.status(404).json({ detail: "画布不存在" });
     return;
@@ -211,6 +224,11 @@ router.post("/:id/restore", (req, res) => {
 
 // DELETE /api/canvases/:id/purge — 永久删除
 router.delete("/:id/purge", (req, res) => {
+  const canvas = ownedCanvas(req, true);
+  if (!canvas) {
+    res.status(404).json({ detail: "画布不存在" });
+    return;
+  }
   const filePath = canvasPath(req.params.id);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
@@ -220,7 +238,7 @@ router.delete("/:id/purge", (req, res) => {
 
 // GET /api/canvases/:id/meta — 获取元数据
 router.get("/:id/meta", (req, res) => {
-  const canvas = loadCanvas(req.params.id);
+  const canvas = ownedCanvas(req);
   if (!canvas) {
     res.status(404).json({ detail: "画布不存在" });
     return;
@@ -236,7 +254,7 @@ router.get("/:id/meta", (req, res) => {
 
 // POST /api/canvases/:id/meta — 更新元数据
 router.post("/:id/meta", (req, res) => {
-  const canvas = loadCanvas(req.params.id);
+  const canvas = ownedCanvas(req);
   if (!canvas) {
     res.status(404).json({ detail: "画布不存在" });
     return;
@@ -256,7 +274,7 @@ router.post("/:id/meta", (req, res) => {
 
 // POST /api/canvases/:id/touch — 更新时间戳
 router.post("/:id/touch", (req, res) => {
-  const canvas = loadCanvas(req.params.id);
+  const canvas = ownedCanvas(req);
   if (!canvas) {
     res.status(404).json({ detail: "画布不存在" });
     return;

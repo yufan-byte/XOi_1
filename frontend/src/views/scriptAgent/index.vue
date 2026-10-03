@@ -20,10 +20,6 @@
                 <image id="scriptAgentMascotImage" width="736" height="736" preserveAspectRatio="none" :href="ipBodyUrl" />
               </defs>
               <rect width="63.8367" height="63.8367" transform="matrix(-1 0 0 1 55.1021 -7.34692)" fill="url(#scriptAgentMascotPattern)" />
-              <path class="scriptMascotEye" d="M22.1682 25.68C22.1682 28.7196 23.9078 31.1836 26.5445 31.1836C29.1812 31.1836 31.7166 28.5869 31.7166 25.5474C31.7166 22.5079 29.5791 20.0438 26.9424 20.0438C24.3057 20.0438 22.1682 22.6405 22.1682 25.68Z" fill="#fff" />
-              <path class="scriptMascotEye" d="M13.9745 23.8886C13.1461 26.2792 13.9581 28.6821 15.4825 29.2103C17.0069 29.7385 18.7027 28.0878 19.5311 25.6972C20.3594 23.3066 19.7952 20.9404 18.2707 20.4122C16.7463 19.884 14.8028 21.498 13.9745 23.8886Z" fill="#fff" />
-              <path class="scriptMascotPupil" d="M23.6896 23.5078C23.4533 24.885 23.987 26.1849 25.29 26.4085C26.5929 26.6321 28.2994 25.7017 28.5357 24.3246C28.772 22.9474 28.0932 21.6309 26.7903 21.4073C25.4874 21.1838 23.9259 22.1307 23.6896 23.5078Z" fill="#000" />
-              <path class="scriptMascotPupil" d="M15.6084 22.5914C15.2502 23.6791 15.3989 24.7558 16.2037 25.0209C17.0084 25.2859 18.2456 24.653 18.6038 23.5652C18.9621 22.4775 18.7225 21.378 17.9178 21.1129C17.113 20.8479 15.9667 21.5036 15.6084 22.5914Z" fill="#000" />
             </svg>
             </div>
             <h2>XOi</h2>
@@ -252,6 +248,9 @@
         </div>
       </div>
     </t-dialog>
+
+    <!-- 流水线下一步：AI 改编（可选站）→ 剧本整理。改编完成、或不想改写，都从这里往前走。 -->
+    <NextStepBar current="scriptAgent" :status="pipelineStatus" status-tone="idle" next-label="下一步：剧本整理" />
   </div>
 </template>
 
@@ -260,6 +259,7 @@ import { MdEditor } from "md-editor-v3";
 import type { ToolbarNames } from "md-editor-v3";
 import { MdPreview } from "md-editor-v3";
 import settingStore from "@/stores/setting";
+import NextStepBar from "@/components/pipeline/NextStepBar.vue";
 const { themeSetting } = storeToRefs(settingStore());
 import { Splitpanes, Pane } from "splitpanes";
 import axios from "@/utils/axios";
@@ -272,6 +272,7 @@ import ipBodyUrl from "@/assets/photosynthesis-effect-mark.png";
 const router = useRouter();
 const { connected, messages, status, planData, thinkLevel, selectedSkills } = storeToRefs(scriptAgentStore());
 import userStore from "@/stores/user";
+import { guardProjectType } from "@/utils/pipelineGuard";
 const isGenerating = computed(() => status.value === 'pending' || status.value === 'streaming');
 const showCreativeSkills = ref(false);
 const creativeSkillQuery = ref('');
@@ -372,6 +373,8 @@ function startScriptFlow(prompt: string) {
 }
 
 onMounted(() => {
+  // P2 类型守卫：AI 改编是小说改编链路的站点，剧本创作型项目直接输 URL 进来会错配
+  guardProjectType(router, project.value?.projectType, "novel");
   if (messages.value.length <= 0) messages.value = [...defMsg, ...messages.value];
   getPlanData();
   getNovel();
@@ -403,6 +406,13 @@ function handleSend(text: string) {
 function goToScript() {
   router.push({ path: "/script", query: { entry: "organize" } });
 }
+
+/** 吸底条状态：右侧剧本卡（分集）已产出多少 */
+const pipelineStatus = computed(() => {
+  const count = planData.value?.script?.length ?? 0;
+  return count ? `已产出 ${count} 个剧本卡 · 前往剧本整理` : "改编完成或不想改写，都从这里去剧本整理";
+});
+
 function handleStop() {
   scriptAgentStore().stopGenerate();
 }
@@ -1724,8 +1734,6 @@ body .t-popup__content > .settingMenu .settingMenuItem.active {
   .scriptChatSubhead>strong{font-size:14px;color:#65616a}.scriptChatSubhead>div{display:flex;gap:3px}
   .scriptWelcome{display:flex;flex:1;min-height:0;flex-direction:column;align-items:center;overflow:auto;padding:28px 20px 18px;background:#fff;text-align:center}
   .scriptMascot{width:104px;height:104px;flex:none;filter:drop-shadow(0 9px 18px rgba(0,0,0,.09))}.scriptMascot svg{display:block;width:100%;height:100%}
-  .scriptMascotEye,.scriptMascotPupil{transform-box:fill-box;transform-origin:center;animation:scriptMascotBlink 4.2s ease-in-out infinite}
-  .scriptMascotPupil{animation-name:scriptMascotPupilBlink}
   .scriptWelcome h2{margin:-4px 0 8px;font-size:38px;line-height:1;font-weight:850;letter-spacing:-.07em;color:#222}
   .scriptWelcome p{margin:0;color:#4f4a52;font-size:13px;line-height:1.65}
   .scriptQuickStarts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;width:100%;margin-top:24px}
@@ -1734,9 +1742,6 @@ body .t-popup__content > .settingMenu .settingMenuItem.active {
   .scriptQuickStarts button:last-child:nth-child(odd){grid-column:1/-1}
   .scriptWelcome small{align-self:flex-start;margin-top:18px;color:#aaa6ad;font-size:11px}
 }
-@keyframes scriptMascotBlink{0%,44%,48%,100%{transform:scaleY(1)}46%{transform:scaleY(.08)}}
-@keyframes scriptMascotPupilBlink{0%,44%,48%,100%{transform:translateY(0) scaleY(1)}46%{transform:translateY(.8px) scaleY(.12)}}
-@media(prefers-reduced-motion:reduce){.scriptAgent .scriptMascotEye,.scriptAgent .scriptMascotPupil{animation:none!important}}
 @media(max-width:1100px){.scriptAgent .operate .box .scriptQuickStarts{grid-template-columns:1fr}.scriptAgent .operate .box .scriptQuickStarts button:last-child:nth-child(odd){grid-column:auto}.scriptAgent .operate .box .scriptWelcome{padding-inline:12px}}
 </style>
 

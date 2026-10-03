@@ -1,0 +1,71 @@
+# =====================================================================
+# 本地测试：new-api 模型网关 + 它自己的 PostgreSQL
+# =====================================================================
+# 用途：本地把 new-api 跑起来，让 XOi 能真正做登录/额度/模型列表/代理体系。
+#
+# 关键设计——**XOi 的业务库要和 new-api 用同一个**（决策 D2）：
+#   这里把容器里的 postgres 映射到宿主机 127.0.0.1:5434，然后 XOi 的
+#   backend/.env 里 NEWAPI_DATABASE_URL 指向它。于是 new-api 建的表
+#   （users / tokens / logs / channels / options / redemptions…）与 XOi 建的表
+#   （o_*，36 张）**在同一个库里**，代理体系要的聚合查询、跨表事务才做得出来。
+#
+# 为什么另起一个 PG 而不是让容器连本机那个（ops/dev-pg.sh 的 5433）：
+#   macOS 的 Docker Desktop 里，「容器 → 宿主」要走 host.docker.internal，
+#   而本机那个测试集群只监听 127.0.0.1，容器根本连不上。
+#   改成监听 0.0.0.0 才能通，但那等于在局域网上开一个无密码的 PG —— 不值得。
+#   所以这里自带一个 PG，端口 5434，随 compose 起停，外网完全不可见。
+#
+# 用法：
+#   docker compose -f ops/dev-newapi.yml up -d
+#   docker compose -f ops/dev-newapi.yml logs -f new-api
+#   docker compose -f ops/dev-newapi.yml down          # 停（保留数据卷）
+#   docker compose -f ops/dev-newapi.yml down -v       # 停并清空数据
+#
+# 起来之后打开 http://localhost:3000 —— 首次会引导你建管理员账号。
+# =====================================================================
+services:
+  postgres:
+    # 用 alpine 版：本机已有这个镜像，省掉一次几百 MB 的拉取
+    # （postgres:16 官方版在多网络环境下会卡在拉取阶段）
+    image: postgres:16-alpine
+    container_name: xoi-newapi-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      # 仅本地测试用；这个端口只绑 127.0.0.1，外网访问不到
+      POSTGRES_PASSWORD: xoi_local_dev_pw
+      POSTGRES_DB: new-api
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - newapi-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  new-api:
+    image: calciumion/new-api:latest
+    container_name: xoi-new-api
+    restart: unless-stopped
+    command: --log-dir /app/logs
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      # 指向**同一个库**；容器内主机名是 postgres（compose 服务名）
+      SQL_DSN: postgresql://root:xoi_local_dev_pw@postgres:5432/new-api
+      TZ: Asia/Shanghai
+      ERROR_LOG_ENABLED: "true"
+      BATCH_UPDATE_ENABLED: "true"
+    volumes:
+      - newapi-data:/data
+      - newapi-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  newapi-pg-data:
+  newapi-data:
+  newapi-logs:

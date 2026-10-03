@@ -97,6 +97,9 @@ export type CanvasNodeMetadata = {
     xoiId?: number | string;
     xoiType?: string;
     xoiProjectId?: number;
+    /** 灵感广场复刻标记：源头快照里这条媒体节点就没有素材（造物发布时未收录本地上传的参考素材），
+     *  画布据此显示「素材未随作品收录」，避免被当成复刻失败或生成失败 */
+    importMissing?: boolean;
 };
 
 export type CanvasNodeData = {

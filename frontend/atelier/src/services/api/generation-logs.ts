@@ -1,1 +1,1 @@
-export * from "/Users/zhaochenyu/Desktop/C_code/infinite-canvas-main/web/src/services/api/generation-logs";
+export * from "@upstream/services/api/generation-logs";

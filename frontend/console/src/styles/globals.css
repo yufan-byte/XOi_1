@@ -1,0 +1,203 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/**
+ * 字体：与造物登录页保持一致。
+ * woff2 需要从造物仓库拷到 public/fonts/（见本目录 README 的「素材依赖」一节）。
+ * 文件缺席时浏览器静默回落到系统字体，不会报错。
+ */
+@font-face {
+    font-family: "Lexend Variable";
+    src: url("/console/fonts/lexend-latin-wght-normal.woff2") format("woff2-variations");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: "Archivo";
+    src: url("/console/fonts/archivo-latin-wght-normal.woff2") format("woff2-variations");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/** 造物登录页的聚光卡与 hero 文案用的等宽体 */
+@font-face {
+    font-family: "Lexend";
+    src: url("/console/fonts/lexend-latin-wght-normal.woff2") format("woff2-variations");
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+/**
+ * XOi 控制台样式
+ *
+ * 调色板照搬造物 src/app/globals.css 的两段：亮色 :root + 暗色 .dark（293° 品牌紫）。
+ * 主题切换由 src/shims/next-themes.tsx 的 useTheme 驱动（toggle html.dark + localStorage("theme")），
+ * shim 初始默认 dark —— 登录页（纯暗色舞台设计）与后台首屏维持造物观感，顶栏太阳/月亮按钮可切浅色。
+ */
+
+:root {
+    color-scheme: light;
+    --background: #ffffff;
+    --foreground: oklch(18% 0 0);
+    --card: #ffffff;
+    --card-foreground: oklch(18% 0 0);
+    --muted: oklch(96% 0 0);
+    --muted-foreground: oklch(40% 0 0);
+    --border: oklch(89% 0 0);
+    --input: oklch(94% 0 0);
+    --primary: oklch(45% 0.22 293);
+    --primary-strong: oklch(38% 0.2 293);
+    --primary-foreground: #ffffff;
+    --primary-tint: color-mix(in oklch, oklch(45% 0.22 293) 12%, white);
+    --accent: oklch(95% 0 0);
+    --accent-foreground: oklch(38% 0.2 293);
+    --ring: oklch(45% 0.22 293);
+    --success: oklch(55% 0.17 145);
+    --warning: #d97706;
+    --danger: oklch(60% 0.22 25);
+    --shell-radius: 24px;
+    --pane-radius: 20px;
+    --tile-radius: 18px;
+    --control-radius: 999px;
+    --shadow-soft: 0 1px 2px rgba(20, 20, 31, 0.04), 0 8px 24px -12px rgba(20, 20, 31, 0.12);
+    --shadow-pop: 0 12px 40px -12px rgba(76, 47, 214, 0.25);
+}
+
+/* 暗色：取自参考站 html.dark 的 --color-* 计算值（中性灰阶 + 293° 品牌紫） */
+.dark {
+    color-scheme: dark;
+    --background: oklch(18% 0 0);
+    --foreground: oklch(92% 0 0);
+    --card: oklch(23% 0 0);
+    --card-foreground: oklch(100% 0 0);
+    --muted: oklch(19% 0 0);
+    --muted-foreground: oklch(85% 0 0);
+    --border: oklch(28% 0 0);
+    --input: oklch(24% 0 0);
+    --primary: oklch(54% 0.247 293);
+    --primary-strong: oklch(50% 0.18 293);
+    --primary-foreground: oklch(93% 0.03 293);
+    --primary-tint: color-mix(in oklch, oklch(54% 0.247 293) 18%, oklch(18% 0 0));
+    --accent: oklch(28% 0 0);
+    /* 参考站暗色下紫色强调文字用 primary-light */
+    --accent-foreground: oklch(82% 0.08 293);
+    --ring: oklch(54% 0.247 293);
+    --success: oklch(70% 0.17 145);
+    --warning: oklch(75% 0.17 70);
+    --danger: oklch(52% 0.22 25);
+    --shadow-soft: 0 1px 3px rgba(18, 18, 18, 0.22), 0 20px 46px -20px rgba(18, 18, 18, 0.55);
+    --shadow-pop: 0 0 20px color-mix(in srgb, oklch(54% 0.247 293) 30%, transparent);
+}
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-primary: var(--primary);
+    --color-primary-strong: var(--primary-strong);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary-tint: var(--primary-tint);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-ring: var(--ring);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-danger: var(--danger);
+    --radius-shell: var(--shell-radius);
+    --radius-pane: var(--pane-radius);
+    --radius-tile: var(--tile-radius);
+    --radius-control: var(--control-radius);
+    --shadow-soft: var(--shadow-soft);
+    --shadow-pop: var(--shadow-pop);
+    --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-display: "Archivo", -apple-system, "PingFang SC", sans-serif;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    font-family: var(--font-sans);
+}
+
+/**
+ * 正文颜色跟随主题（不要删；`!important` 也别去掉）。
+ * 背景色仍由 index.html 的 body class 给（暗色舞台），但**文字色必须交回主题变量**：
+ * 浅色主题下 --foreground 是深色，深色主题下是近白。
+ *
+ * 为什么要 `!important`：旧版 index.html 的 body 上带着 `.text-white`（类选择器的优先级
+ * 高于 `body` 元素选择器）。若浏览器/WebView 命中了缓存的旧 HTML，去掉 index.html 里
+ * 那个类并不生效 —— 用户会遇到「改了还是白字」。加 `!important` 后，无论 HTML 是否被缓存，
+ * 正文色都归主题管（也顺手堵住以后有人再往 body 上加颜色类）。
+ */
+body {
+    color: var(--foreground) !important;
+}
+
+/* Vue 主站的充值/消费弹窗通过同源 iframe 嵌入。嵌入页本身必须完全透明，
+   否则 iframe 会变成一块额外的灰黑矩形，宿主的唯一遮罩就会看起来像双层阴影。 */
+html.xoi-embed,
+html.xoi-embed body,
+html.xoi-embed #root {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+/**
+ * 下面两个类在造物仓库里只有用法、没有定义（.chip / .pop-in 在全仓库搜不到样式），
+ * 属于上游漏掉的死类。这里补上，让合作弹窗的标签与展映卡片动效正常。
+ */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: color-mix(in oklch, var(--card) 70%, transparent);
+    font-size: 13px;
+    line-height: 1;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition:
+        color 0.15s ease,
+        border-color 0.15s ease,
+        background-color 0.15s ease;
+}
+.chip:hover {
+    color: var(--foreground);
+    border-color: color-mix(in oklch, var(--primary) 45%, var(--border));
+}
+.chip-active {
+    color: var(--accent-foreground);
+    border-color: color-mix(in oklch, var(--primary) 60%, transparent);
+    background: var(--primary-tint);
+}
+
+@keyframes xoi-pop-in {
+    from {
+        opacity: 0;
+        transform: scale(0.965);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+.pop-in {
+    animation: xoi-pop-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+    .pop-in {
+        animation: none;
+    }
+}

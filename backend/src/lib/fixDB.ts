@@ -170,6 +170,12 @@ export default async (knex: Knex): Promise<void> => {
       if (tsCode) await tempOnsert(tsCode);
     }
   }
+  // newapi 适配器是部署必需项，但它不属于上游 vendor.json 的内置清单。
+  // 从随镜像发布的 data/vendor/newapi.ts 自举，保证空库首次启动也能配置网关。
+  if (!(await knex("o_vendorConfig").where("id", "newapi").first())) {
+    const newApiVendorPath = path.join(u.getPath("vendor"), "newapi.ts");
+    if (fs.existsSync(newApiVendorPath)) await tempOnsert(fs.readFileSync(newApiVendorPath, "utf8"));
+  }
 
   await dropColumn("o_vendorConfig", "author");
   await dropColumn("o_vendorConfig", "description");
@@ -189,6 +195,40 @@ export default async (knex: Knex): Promise<void> => {
   const xoiVer = await u.vendor.getVendor("xoi").version;
   if (Number(xoiVer) < 3.2) {
     u.vendor.writeCode("xoi", vendorData["xoi.ts"]);
+  }
+
+  // 生产环境只开放 NewAPI。已有 Agent 若在 NewAPI 模型清单里有同名模型，自动迁移；
+  // 没有同名项则保留配置并在运行时明确拒绝，避免静默改成错误模型或绕过网关。
+  const configuredOnly = String(process.env.XOI_NEWAPI_ONLY || "").trim().toLowerCase();
+  const newApiOnly = ["1", "true", "yes", "on"].includes(configuredOnly) ||
+    (!configuredOnly && ["prod", "production"].includes(String(process.env.NODE_ENV || "").toLowerCase()));
+  if (newApiOnly) {
+    const newApiVendor = await knex("o_vendorConfig").where("id", "newapi").first();
+    if (!newApiVendor) throw new Error("生产模式要求 NewAPI 适配器，但 o_vendorConfig.newapi 不存在");
+
+    let configuredModels: any[] = [];
+    try { configuredModels = JSON.parse(newApiVendor.models || "[]"); } catch {}
+    const available = new Set(configuredModels.map((item: any) => String(item?.modelName || item?.id || "")).filter(Boolean));
+    const unmatched: string[] = [];
+
+    await knex.transaction(async (trx) => {
+      await trx("o_vendorConfig").whereNot("id", "newapi").update({ enable: 0 });
+      await trx("o_vendorConfig").where("id", "newapi").update({ enable: 1 });
+      const agents = await trx("o_agentDeploy").select("id", "key", "model", "modelName");
+      for (const agent of agents) {
+        const configured = String(agent.modelName || agent.model || "").trim();
+        if (!configured) continue;
+        const model = configured.includes(":") ? configured.slice(configured.indexOf(":") + 1) : configured;
+        if (!available.has(model)) {
+          unmatched.push(`${agent.key}:${model}`);
+          continue;
+        }
+        await trx("o_agentDeploy").where("id", agent.id).update({ vendorId: "newapi", model, modelName: `newapi:${model}` });
+      }
+    });
+    if (unmatched.length) {
+      console.warn(`[newapi-only] ${unmatched.length} 个 Agent 未自动迁移（NewAPI 无同名模型）：${unmatched.join(", ")}`);
+    }
   }
 };
 

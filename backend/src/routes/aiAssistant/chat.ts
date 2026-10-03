@@ -1,7 +1,7 @@
 import express from "express";
 import u from "@/utils";
 import { success, error } from "@/lib/responseFormat";
-import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
+import { assertAllowedVendor, getUserGatewayCredentials } from "@/lib/gateway/newapi";
 import fs from "fs";
 import path from "path";
 import isPathInside from "is-path-inside";
@@ -35,28 +35,19 @@ async function buildSkillsContext(input: unknown): Promise<string> {
   return blocks.length ? `\n\n本轮已由用户启用以下 Skills。请遵循其中与请求相关的工作流：\n${blocks.join("\n\n")}` : "";
 }
 
-// 从数据库获取 AI 配置（管理员配置的全局共享）
-async function getAiConfig(): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
+// 模型选择由管理员统一配置，凭据按当前 new-api 用户动态取得。
+async function getAiConfig(userId: number): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
   const agentConfig = await u.db("o_agentDeploy").where("key", "universalAi").first();
-  if (!agentConfig || !agentConfig.model || !agentConfig.vendorId) {
-    return null;
-  }
-
-  const vendor = await u.db("o_vendorConfig").where("id", agentConfig.vendorId).first();
-  if (!vendor) return null;
-
-  const inputValues = JSON.parse(vendor.inputValues || "{}");
-  if (!inputValues.apiKey) return null;
-
-  // modelName 格式为 "vendorId:modelName"，需要提取冒号后面的部分
-  const modelName = agentConfig.modelName || "gpt-4o-mini";
-  const actualModel = modelName.includes(":") ? modelName.split(":")[1] : modelName;
-
-  return {
-    baseUrl: inputValues.baseUrl || "https://api.openai.com/v1",
-    apiKey: inputValues.apiKey,
-    model: actualModel,
-  };
+  if (!agentConfig) return null;
+  const configured = String(agentConfig.modelName || agentConfig.model || "").trim();
+  if (!configured) return null;
+  const separator = configured.indexOf(":");
+  const vendorId = separator >= 0 ? configured.slice(0, separator) : String(agentConfig.vendorId || "newapi");
+  const model = separator >= 0 ? configured.slice(separator + 1) : configured;
+  assertAllowedVendor(vendorId);
+  if (vendorId !== "newapi") throw new Error("AI 助手必须配置为 NewAPI 模型");
+  const credentials = await getUserGatewayCredentials(userId);
+  return { ...credentials, model };
 }
 
 // 流式对话接口
@@ -68,17 +59,7 @@ router.post("/stream", async (req, res) => {
     return res.status(400).json(error("内容不能为空"));
   }
 
-  // 检查积分是否足够（不扣分，只检查）
-  if (userId) {
-    const current = await getUserPoints(userId);
-    const required = await getActionPoints("text_generate");
-    if (required > 0 && current < required) {
-      return res.status(400).json(error(`积分不足，当前余额: ${current}，需要: ${required}`));
-    }
-  }
-
-  // 从数据库读取管理员配置的 API Key
-  const aiConfig = await getAiConfig();
+  const aiConfig = await getAiConfig(Number(userId));
   if (!aiConfig) {
     return res.status(400).json(error("未配置AI模型，请联系管理员在设置中配置供应商和Agent"));
   }
@@ -113,25 +94,14 @@ router.post("/stream", async (req, res) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("[aiAssistant] API错误:", response.status, errorText);
-      // API 失败，不扣分
       const statusMsg: Record<number, string> = {
-        401: "API Key 无效，请联系管理员",
+        401: "模型网关凭据无效，请联系管理员",
+        402: "NewAPI 额度不足，请先充值",
         403: "API 访问被拒绝",
         429: "AI 服务请求过于频繁，请稍后再试",
         503: "AI 服务暂时不可用，请稍后再试",
       };
       return res.status(response.status).json(error(statusMsg[response.status] || `API请求失败: ${response.status}`));
-    }
-
-    // API 调用成功，现在扣积分
-    let deductInfo: { deducted: boolean; points: number; balance: number } | null = null;
-    if (userId) {
-      const required = await getActionPoints("text_generate");
-      if (required > 0) {
-        await deductPoints(userId, "text_generate", "AI对话");
-        const newBalance = await getUserPoints(userId);
-        deductInfo = { deducted: true, points: required, balance: newBalance };
-      }
     }
 
     // 设置 SSE 头
@@ -146,11 +116,6 @@ router.post("/stream", async (req, res) => {
 
     const decoder = new TextDecoder();
     let buffer = "";
-
-    // 发送扣费信息（作为第一条 SSE 事件）
-    if (deductInfo) {
-      res.write(`data: ${JSON.stringify({ pointsDeducted: deductInfo.points, balance: deductInfo.balance })}\n\n`);
-    }
 
     try {
       while (true) {
@@ -203,16 +168,7 @@ router.post("/", async (req, res) => {
     return res.status(400).json(error("内容不能为空"));
   }
 
-  // 检查积分是否足够（不扣分，只检查）
-  if (userId) {
-    const current = await getUserPoints(userId);
-    const required = await getActionPoints("text_generate");
-    if (required > 0 && current < required) {
-      return res.status(400).json(error(`积分不足，当前余额: ${current}，需要: ${required}`));
-    }
-  }
-
-  const aiConfig = await getAiConfig();
+  const aiConfig = await getAiConfig(Number(userId));
   if (!aiConfig) {
     return res.status(400).json(error("未配置AI模型，请联系管理员在设置中配置供应商和Agent"));
   }
@@ -245,9 +201,9 @@ router.post("/", async (req, res) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("[aiAssistant] API错误:", response.status, errorText);
-      // API 失败，不扣分
       const statusMsg: Record<number, string> = {
-        401: "API Key 无效，请联系管理员",
+        401: "模型网关凭据无效，请联系管理员",
+        402: "NewAPI 额度不足，请先充值",
         403: "API 访问被拒绝",
         429: "AI 服务请求过于频繁，请稍后再试",
         503: "AI 服务暂时不可用，请稍后再试",
@@ -258,18 +214,7 @@ router.post("/", async (req, res) => {
     const data = await response.json();
     const reply = data.choices?.[0]?.message?.content || "";
 
-    // API 成功，扣积分
-    let deductInfo = null;
-    if (userId) {
-      const required = await getActionPoints("text_generate");
-      if (required > 0) {
-        await deductPoints(userId, "text_generate", "AI对话");
-        const newBalance = await getUserPoints(userId);
-        deductInfo = { pointsDeducted: required, balance: newBalance };
-      }
-    }
-
-    res.json(success({ content: reply, ...deductInfo }));
+    res.json(success({ content: reply }));
   } catch (e: any) {
     console.error("[aiAssistant] 请求错误:", e.message);
     res.status(500).json(error(`请求失败: ${e.message}`));

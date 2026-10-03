@@ -9,9 +9,9 @@ DATA_DIR="/app/backend/data"
 
 mkdir -p "${DATA_DIR}"
 
-# 仅这7个“代码侧”资产随镜像版本同步；其余任何路径都不触碰。
+# 仅这些“代码侧”资产随镜像版本同步；其余任何路径都不触碰。
 # 每次（重新）启动都强制对齐：既完成首启播种，又能在重建/升级后带上新版程序文件。
-for d in serve web skills models modelPrompt assets vendor; do
+for d in serve web skills models modelPrompt assets vendor fonts; do
   if [ -d "${SEED_DIR}/${d}" ]; then
     echo "[entrypoint] 同步资产 → ${d}"
     # 经 .tmp 中转后原子替换，避免半截覆盖状态下进程读取到损坏资产

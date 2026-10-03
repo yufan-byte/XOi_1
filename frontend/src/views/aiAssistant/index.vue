@@ -83,6 +83,7 @@
                   @click="openBanner(banner)">
                   <span class="bannerCardInner">
                     <img
+                      v-if="banner.imageUrl"
                       :src="banner.imageUrl"
                       :alt="banner.alt"
                       draggable="false"
@@ -90,6 +91,12 @@
                       loading="eager"
                       fetchpriority="high"
                     />
+                    <span class="bannerFeatureCard" :class="{ withImage: Boolean(banner.imageUrl) }" :style="banner.imageUrl ? undefined : { background: banner.grad }">
+                      <small>XOi CREATIVE STUDIO</small>
+                      <strong>{{ banner.title }}</strong>
+                      <p>{{ banner.desc }}</p>
+                      <em>打开工作区 <span>↗</span></em>
+                    </span>
                     <span v-if="banner.offset === 0 && banner.videoUrl" class="bannerPlay" aria-hidden="true">▶</span>
                   </span>
                 </button>
@@ -97,7 +104,7 @@
                 <button type="button" class="bannerArrow bannerArrowRight" aria-label="下一张" @click.stop="changeBanner(1)">›</button>
               </div>
               <div class="bannerDots" aria-label="轮播切换">
-                <button v-for="(banner, index) in canvasBanners" :key="banner.imageUrl" type="button" :class="{ active: index === activeBannerIndex }" :aria-label="`切换到第 ${index + 1} 张`" @click="selectBanner(index)"></button>
+                <button v-for="(banner, index) in canvasBanners" :key="banner.alt" type="button" :class="{ active: index === activeBannerIndex }" :aria-label="`切换到第 ${index + 1} 张`" @click="selectBanner(index)"></button>
               </div>
             </section>
 
@@ -107,15 +114,6 @@
                   <span class="categoryIcon" v-html="category.icon"></span>
                   <span>{{ category.label }}</span>
                 </button>
-              </div>
-              <div class="mascotPreview">
-                <img :src="ipBodyUrl" alt="XOi 创作助手" />
-                <video src="/miora-home/mascot-preview.webm" autoplay muted loop playsinline></video>
-                <span class="floatTag tagPoster">海报</span>
-                <span class="floatTag tagVideo">视频</span>
-                <span class="floatTag tagBrand">品牌</span>
-                <span class="floatTag tagVisual">视觉 ID</span>
-                <span class="floatTag tagImage">图像</span>
               </div>
             </section>
 
@@ -217,6 +215,9 @@
         class="composerToolbar upstreamComposer"
         :class="{ popoverOpen: showAssetMenu || showSkillPicker || Boolean(openSetting) }"
         @click.self="focusComposer">
+        <div v-if="messages.length === 0" class="composerMascot" aria-hidden="true">
+          <video src="/miora-home/mascot-preview.webm" autoplay muted loop playsinline></video>
+        </div>
         <transition name="skill-pop">
           <aside
             v-if="showSkillPicker"
@@ -266,14 +267,14 @@
             @keydown.enter.exact.prevent="handleSend"
             @input="autogrowTextarea"></textarea>
           <div v-if="!inputValue" class="completionHint promptCycleHint" aria-hidden="true">
-            <kbd>Tab</kbd><span class="promptCycleLabel">{{ completionSuggestion || cyclePromptText }}</span>
+            <span class="promptSpark">✦</span><span class="promptCycleLabel">{{ completionSuggestion || cyclePromptText }}</span><kbd>Tab 补全</kbd>
           </div>
         </div>
 
         <div class="toolbarLeft">
           <input ref="attachmentInputRef" hidden type="file" multiple accept="image/*,video/*,audio/*" @change="onComposerFilesSelected" />
           <button type="button" class="roundIconBtn assetTrigger" aria-label="添加素材" title="添加素材" @click.stop="toggleAssetMenu">
-            <i-menu-fold size="16px" />
+            <i-paperclip size="16px" /><span class="toolLabel">素材</span>
           </button>
           <div v-if="showAssetMenu" class="assetMenu">
             <div class="assetMenuHeader"><strong>添加素材</strong><span>把参考内容带入这次创作</span></div>
@@ -281,7 +282,7 @@
             <button type="button" @click="openAssetPicker"><span class="assetMenuIcon"><i-folder-open size="18px" /></span><span class="assetMenuCopy"><b>我的素材</b><small>从无限创意画布资产库选择</small></span><kbd>⌘ M</kbd></button>
           </div>
           <button ref="skillButtonRef" type="button" class="roundIconBtn skillButton" :class="{ active: showSkillPicker || selectedSkills.length }" title="搭配 Skills" @click="toggleSkillPicker">
-            <i-toolkit size="16px" />
+            <i-toolkit size="16px" /><span class="toolLabel">Skill</span>
             <span v-if="selectedSkills.length" class="skillCount">{{ selectedSkills.length }}</span>
           </button>
           <div class="composerSetting">
@@ -307,7 +308,7 @@
         </div>
 
         <div class="toolbarRight">
-          <button type="button" class="roundIconBtn reasoningButton" :class="{ active: reasoningEnabled }" :title="reasoningEnabled ? '推理已开启' : '推理已关闭'" :aria-label="reasoningEnabled ? '关闭推理' : '开启推理'" :aria-pressed="reasoningEnabled" @click="reasoningEnabled = !reasoningEnabled">✦</button>
+          <button type="button" class="roundIconBtn reasoningButton" :class="{ active: reasoningEnabled }" :title="reasoningEnabled ? '推理已开启' : '推理已关闭'" :aria-label="reasoningEnabled ? '关闭推理' : '开启推理'" :aria-pressed="reasoningEnabled" @click="reasoningEnabled = !reasoningEnabled">✦<span class="toolLabel">推理</span></button>
           <t-button
             v-if="status !== 'streaming'"
             theme="primary"
@@ -402,14 +403,13 @@ const creationCategories = [
   { key: "gaming", label: "互动游戏", icon: "⌘" },
   { key: "web", label: "网页应用", icon: "▱" },
 ];
-type CanvasBanner = { imageUrl: string; videoUrl?: string; linkUrl?: string; alt: string };
+type CanvasBanner = { imageUrl?: string; videoUrl?: string; linkUrl?: string; alt: string; title?: string; desc?: string; grad?: string; route?: string };
+// 功能导流卡：全部指向站内四个创作模块（第三方推广/返佣广告已按「统一走 new-api」方案清除，不再依赖外部 CDN 图）。
 const canvasBanners: CanvasBanner[] = [
-  { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.7/img/infinite-canvas/88.webp", linkUrl: "https://88api.ai/sign-up?aff=25ty", alt: "1" },
-  { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.6/img/infinite-canvas/metaso.webp", linkUrl: "https://metaso.cn/minimax-h3/?s=tt", alt: "2" },
-  { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.5/img/infinite-canvas/3ddirectortl.webp", alt: "3" },
-  { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/agent.webp", videoUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/agent.webm", alt: "4" },
-  { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/panorama.webp", alt: "5" },
-  { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/3ddirector.webp", alt: "6" },
+  { alt: "无限创意画布", title: "让灵感成为作品", desc: "把提示词、参考图、分镜与生成结果放进同一张画布，持续推演你的创意。", imageUrl: "/miora-home/ai-creative-canvas.png", route: "/canvas" },
+  { alt: "镜头导演台", title: "镜头导演台", desc: "搭建 3D 场景、安排人物走位、设计镜头与关键帧，把导演想法变成可预演的分镜。", imageUrl: "/miora-home/director-stage.png", route: "/director3d" },
+  { alt: "AI影像创作中心", title: "AI 影像创作中心", desc: "从故事、剧本到镜头与成片，漫剧创作在同一条流水线上持续推进。", imageUrl: "/miora-home/film-pipeline.png", route: "/project" },
+  { alt: "创作智能体", title: "创作智能体", desc: "一句话描述创意，智能体帮你拆解成海报、视频、品牌视觉等可执行的创作任务。", imageUrl: "/miora-home/creative-agent.png", route: "/aiAssistant" },
 ];
 const bannerCarouselRef = ref<HTMLElement | null>(null);
 const activeBannerPosition = ref(0);
@@ -428,7 +428,7 @@ const visibleBanners = computed(() => [-1, 0, 1].map((offset) => {
 const preloadedBannerImages = new Set<string>();
 function preloadBannerImages() {
   for (const banner of canvasBanners) {
-    if (preloadedBannerImages.has(banner.imageUrl)) continue;
+    if (!banner.imageUrl || preloadedBannerImages.has(banner.imageUrl)) continue;
     const image = new Image();
     image.decoding = "async";
     image.src = banner.imageUrl;
@@ -436,8 +436,8 @@ function preloadBannerImages() {
   }
 }
 // Keep the carousel visually compact while preserving its reserved layout height.
-const BANNER_WIDTH = "min(calc(100vw - 15rem), clamp(440px, 36vw, 640px))";
-const SIDE_BANNER_WIDTH = "min(calc(82vw - 6rem), clamp(330px, 29vw, 520px))";
+const BANNER_WIDTH = "min(calc(100vw - 2rem), 860px)";
+const SIDE_BANNER_WIDTH = "min(84vw, 620px)";
 function bannerAngle(offset: number) { return offset === 0 ? 0 : offset < 0 ? 12 : -12; }
 function bannerCardStyle(banner: { offset: number }) {
   const progress = Math.max(-1, Math.min(1, bannerDragX.value / 160));
@@ -489,8 +489,8 @@ function handleBannerPointerCancel() { bannerDragged = false; finishBannerDrag()
 function openBanner(banner: CanvasBanner & { index: number; position: number }) {
   if (bannerDragged) { bannerDragged = false; return; }
   if (banner.position !== activeBannerPosition.value) { activeBannerPosition.value = banner.position; return; }
-  if (banner.videoUrl) window.open(banner.videoUrl, "_blank", "noopener,noreferrer");
-  else if (banner.linkUrl) window.open(banner.linkUrl, "_blank", "noopener,noreferrer");
+  // 功能导流卡一律站内跳转（外部推广链接已清除）
+  if (banner.route) router.push(banner.route);
 }
 function openCanvasWithPrompt(preset = inputValue.value.trim()) {
   const prompt = preset.trim();
@@ -572,7 +572,7 @@ const cyclePrompts = [
 ];
 const cyclePromptIndex = ref(0);
 const cyclePrompt = computed(() => cyclePrompts[cyclePromptIndex.value]);
-const cyclePromptText = ref("");
+const cyclePromptText = ref(cyclePrompts[0]);
 let cyclePromptPhase: "typing" | "holding" | "deleting" = "typing";
 let cyclePromptTimer: number | undefined;
 const filteredSkills = computed(() => {
@@ -614,10 +614,24 @@ function toggleAssetMenu() {
 async function loadSkills() {
   skillsLoading.value = true;
   try {
-    const { data } = await axios.post<string[]>("/setting/skillManagement/getSkillList");
+    const [{ data }, market, catalogResponse] = await Promise.all([
+      axios.post<string[]>("/setting/skillManagement/getSkillList"),
+      axios.get<{ items: any[]; installedIds: string[] }>("/skills?tab=market").catch(() => null),
+      fetch("/skill-market/catalog.json", { cache: "no-store" }).catch(() => null),
+    ]);
     const files = Array.isArray(data) ? data : [];
     const installed = JSON.parse(localStorage.getItem(installedSkillsKey.value) || "[]");
-    const installedMap = new Map<string, any>(Array.isArray(installed) ? installed.map((item: any) => [item.path, item]) : []);
+    const installedMeta = Array.isArray(installed) ? [...installed] : [];
+    const catalog = catalogResponse?.ok ? await catalogResponse.json().catch(() => ({ data: [] })) : { data: [] };
+    const sources = [...(market?.data?.items ?? []), ...(Array.isArray(catalog?.data) ? catalog.data : [])];
+    for (const id of market?.data?.installedIds ?? []) {
+      const path = `community/${id}.md`;
+      if (!files.includes(path) || installedMeta.some((item: any) => item?.path === path)) continue;
+      const source = sources.find((item: any) => String(item?.id ?? item?.skill_id) === id);
+      installedMeta.push({ id, path, name: String(source?.name ?? normalizeSkillName(path)), kind: "市场技能", desc: String(source?.description ?? "来自 Skill 市场的创作技能"), emoji: "🧩" });
+    }
+    localStorage.setItem(installedSkillsKey.value, JSON.stringify(installedMeta));
+    const installedMap = new Map<string, any>(installedMeta.map((item: any) => [item.path, item]));
     const installedPaths = new Set(installedMap.keys());
     const uniqueNames = new Set<string>();
     const mine = files.filter((path) => {
@@ -1027,6 +1041,15 @@ async function handleSend() {
         const errData = await response.json();
         errorMsg = errData.message || errData.error || errorMsg;
       } catch {}
+      // 裸 fetch 绕过了 axios 拦截器：401（登录过期/无效）在这里兜底强制登出，
+      // 否则报错体会被当成 Agent 回复显示成一团 JSON，用户不知道该重新登录
+      if (response.status === 401) {
+        localStorage.removeItem("token");
+        MessagePlugin.error(window.$t("common.sessionExpired"));
+        router.push({ path: "/login", query: { expired: "1" } });
+        status.value = "idle";
+        return;
+      }
       throw new Error(errorMsg);
     }
 
@@ -1669,13 +1692,13 @@ function useInspiration(prompt: string) {
 /* Miora 首页式创作首屏：所有选择器都限定在 aiAssistant 内，避免影响其它业务页。 */
 .emptyMode .assistantPanel{max-width:1000px;padding:0;overflow:visible}
 .emptyMode .panelHeader{display:none!important}
-.emptyMode .mainScrollArea{flex:0 0 436px;overflow:visible;padding:40px 0 0}
+.emptyMode .mainScrollArea{flex:0 0 436px;overflow:visible;padding:40px 0 0;overflow-x:clip}
 .emptyMode .emptyStage{display:block;min-height:0;padding:0;overflow:visible}
 .legacyEmpty{display:none}
-.mioraBanner{position:relative;display:flex;flex-direction:column;gap:4px;width:100vw;height:356px;margin:0 calc((1000px - 100vw)/2)}
+.mioraBanner{position:relative;display:flex;flex-direction:column;gap:4px;width:100vw;height:356px;margin:0 calc((1000px - 100vw)/2);overflow-x:clip}
 .bannerStage{position:relative;width:100%;height:350px;perspective:900px;overflow:visible}
 .bannerCard{position:absolute;top:50%;left:50%;aspect-ratio:16/9;height:auto;min-height:0;padding:0;overflow:hidden;border:0;border-radius:16px;background:#f5f5f5;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 18px 44px rgba(0,0,0,.24);cursor:pointer;transition:left .3s ease,width .3s ease,transform .3s ease;transform-style:flat;backface-visibility:visible;-webkit-backface-visibility:visible;isolation:isolate;outline:none}
-.bannerCard:not(.active){box-shadow:0 0 0 1px rgba(0,0,0,.08),0 8px 20px rgba(0,0,0,.2)}.bannerCardInner{position:relative;display:block;width:100%;height:100%;overflow:hidden;border-radius:inherit;background:#f5f5f5;transform:translateZ(0)}.bannerCard img{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:cover;user-select:none;opacity:1}.bannerPlay{position:absolute;inset:50% auto auto 50%;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:18px;transform:translate(-50%,-50%)}
+.bannerCard:not(.active){box-shadow:0 0 0 1px rgba(0,0,0,.08),0 8px 20px rgba(0,0,0,.2)}.bannerCardInner{position:relative;display:block;width:100%;height:100%;overflow:hidden;border-radius:inherit;background:#f5f5f5;transform:translateZ(0)}.bannerFeatureCard{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:center;gap:12px;width:100%;height:100%;padding:8% 9%;box-sizing:border-box;color:#fff;text-align:left}.bannerFeatureCard strong{font-size:clamp(20px,2.2vw,30px);font-weight:750;letter-spacing:-.02em}.bannerFeatureCard p{margin:0;max-width:34em;color:rgba(255,255,255,.82);font-size:clamp(12px,1.1vw,15px);line-height:1.7}.bannerFeatureCard em{margin-top:6px;color:#fff;font-size:13px;font-style:normal;font-weight:600;opacity:.92}.bannerCard img{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:cover;user-select:none;opacity:1}.bannerPlay{position:absolute;inset:50% auto auto 50%;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:18px;transform:translate(-50%,-50%)}
 .bannerArrow{position:absolute;top:50%;z-index:5;display:grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid rgba(255,255,255,.22);border-radius:50%;background:rgba(20,20,20,.55);color:#fff;font-size:28px;line-height:1;cursor:pointer;transform:translateY(-50%);transition:.2s ease}.bannerArrow:hover{background:#202020;transform:translateY(-50%) scale(1.05)}.bannerArrowLeft{left:calc(50% - min(742px, calc(50vw - 32px)))}.bannerArrowRight{right:calc(50% - min(742px, calc(50vw - 32px)))}
 .bannerDots{position:relative;z-index:4;display:flex;justify-content:center;gap:4px;height:4px}
 .bannerDots button{width:32px;height:4px;padding:0;border:0;border-radius:99px;background:#d2d2d2;cursor:pointer;transition:.25s ease}
@@ -1897,6 +1920,75 @@ function useInspiration(prompt: string) {
 .emptyMode .mascotPreview .tagBrand{left:auto;right:4px}
 .emptyMode .mascotPreview .tagVisual{left:auto;right:16px}
 .emptyMode .mascotPreview .tagImage{left:auto;right:0}
+
+/* 2026-10 landing polish: one clear hero, a compact creation mode row, and a
+   composer whose hierarchy stays readable before and after attachments. */
+.emptyMode .assistantPanel{max-width:min(1360px,calc(100% - 48px))}
+.emptyMode .mainScrollArea{padding-top:22px}
+.emptyMode .mioraBanner{height:326px;margin:0 calc((1360px - 100vw)/2)}
+.emptyMode .bannerStage{height:312px}
+.bannerCard{aspect-ratio:2.35/1;border-radius:22px;transition:left .34s cubic-bezier(.22,1,.36,1),width .34s cubic-bezier(.22,1,.36,1),transform .34s cubic-bezier(.22,1,.36,1),filter .25s ease,opacity .25s ease}
+.bannerCard:not(.active){opacity:.68;filter:saturate(.72) brightness(.82)}
+.bannerCard.active{box-shadow:0 0 0 1px rgba(255,255,255,.22),0 24px 60px rgba(16,18,28,.26)}
+.bannerCard img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.bannerFeatureCard{position:absolute;inset:0;z-index:2;justify-content:center;gap:11px;padding:8% 8.5%;background:linear-gradient(90deg,rgba(5,10,20,.92) 0%,rgba(7,12,24,.78) 38%,rgba(7,12,24,.12) 72%,transparent 100%);box-sizing:border-box}
+.bannerFeatureCard.withImage{background:linear-gradient(90deg,rgba(4,9,18,.94) 0%,rgba(4,9,18,.76) 38%,rgba(4,9,18,.10) 73%,transparent 100%)}
+.bannerFeatureCard small{color:rgba(255,255,255,.58);font-size:10px;font-weight:700;letter-spacing:.16em}
+.bannerFeatureCard strong{max-width:12em;font-size:clamp(24px,2.15vw,34px);line-height:1.16}
+.bannerFeatureCard p{max-width:30em;color:rgba(255,255,255,.72);font-size:clamp(12px,1vw,14px);line-height:1.65}
+.bannerFeatureCard em{display:inline-flex;align-items:center;gap:8px;width:max-content;margin-top:7px;padding:8px 12px;border:1px solid rgba(255,255,255,.18);border-radius:99px;background:rgba(255,255,255,.10);font-size:12px;backdrop-filter:blur(8px)}
+.bannerFeatureCard em span{font-size:14px}
+.bannerArrow{width:36px;height:36px;border-color:rgba(255,255,255,.35);background:rgba(17,18,24,.58);font-size:24px;backdrop-filter:blur(8px)}
+.bannerArrowLeft{left:max(18px,calc(50% - 465px))}.bannerArrowRight{right:max(18px,calc(50% - 465px))}
+.emptyMode .bannerDots{height:6px;gap:7px}.emptyMode .bannerDots button{width:26px;height:4px;background:#d8d8dc}.emptyMode .bannerDots button.active{width:48px;background:#252529}
+
+.emptyMode .mioraHero{top:auto;height:64px;margin:12px 0 0}
+.emptyMode .creationTabs{inset:auto 0 8px 0;width:100%;height:48px;padding:5px;border:1px solid #e8e8eb;border-radius:24px;background:#f7f7f8;box-shadow:none}
+.emptyMode .creationTabs button{height:36px;border-radius:18px;color:#666;font-size:14px}
+.emptyMode .creationTabs button.active{background:#222;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.16)}
+.emptyMode .mascotPreview{display:none}
+
+.upstreamComposer,.emptyMode .upstreamComposer{top:auto;width:100%;min-height:156px;margin:8px 0 20px;padding:16px 18px 12px;grid-template-rows:minmax(82px,auto) 40px;gap:6px;border:1px solid #dddddf;border-radius:22px;background:#fff;box-shadow:0 14px 38px rgba(30,32,38,.09)}
+.upstreamComposer:focus-within,.emptyMode .upstreamComposer:focus-within{border-color:#b8b8bd;box-shadow:0 16px 42px rgba(30,32,38,.12),0 0 0 3px rgba(35,35,38,.04)}
+.upstreamComposer .editorRow,.emptyMode .upstreamComposer .editorRow{min-height:82px;max-height:220px;padding:2px 4px;gap:6px}
+.upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow textarea{height:64px;min-height:64px;padding:5px 4px 0;font-size:16px;line-height:26px}
+.upstreamComposer .editorRow:not(.hasInput) textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{height:64px;min-height:64px;padding:5px 4px 0}
+.upstreamComposer .editorRow .promptCycleHint,.emptyMode .upstreamComposer .editorRow .promptCycleHint{left:8px;right:8px;top:7px;height:34px;min-height:34px;gap:9px}
+.upstreamComposer .editorRow.hasSkills .promptCycleHint,.emptyMode .upstreamComposer .editorRow.hasSkills .promptCycleHint{top:44px}
+.promptSpark{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:9px;background:#fff1e7;color:#e76308;font-size:13px}
+.upstreamComposer .promptCycleHint .promptCycleLabel,.emptyMode .upstreamComposer .promptCycleHint .promptCycleLabel{flex:1;color:#73737a;font-size:15px;line-height:28px}
+.upstreamComposer .promptCycleHint kbd,.emptyMode .upstreamComposer .promptCycleHint kbd{width:auto;height:25px;padding:0 8px;border-color:#e0e0e3;background:#f7f7f8;color:#929298;line-height:25px}
+.upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarLeft,.upstreamComposer .toolbarRight,.emptyMode .upstreamComposer .toolbarRight{height:40px;gap:6px}
+.upstreamComposer .roundIconBtn.assetTrigger,.upstreamComposer .roundIconBtn.skillButton,.upstreamComposer .roundIconBtn.reasoningButton{width:auto;height:34px;gap:7px;padding:0 11px;border-radius:11px;background:#f4f4f5;color:#4a4a50;font-size:13px}
+.upstreamComposer .roundIconBtn.assetTrigger:hover,.upstreamComposer .roundIconBtn.skillButton:hover,.upstreamComposer .roundIconBtn.reasoningButton:hover{background:#eaeaec;color:#1f1f22}
+.upstreamComposer .roundIconBtn.skillButton.active,.upstreamComposer .roundIconBtn.reasoningButton.active{background:#fff0e6;color:#d95700}
+.toolLabel{font:600 12px/1 Inter,"PingFang SC",sans-serif}
+.upstreamComposer .settingPill{height:34px;padding:0 11px;border-radius:11px;background:#f4f4f5}
+.upstreamComposer .sendButton,.emptyMode .upstreamComposer .sendButton,.upstreamComposer .stopButton,.emptyMode .upstreamComposer .stopButton{width:38px;height:38px}
+.composerMascot{position:absolute;z-index:3;right:26px;top:-138px;width:210px;height:150px;overflow:hidden;pointer-events:none;mix-blend-mode:multiply;filter:drop-shadow(0 13px 18px rgba(25,25,30,.16))}
+.composerMascot video{display:block;width:100%;height:100%;object-fit:contain}
+.emptyMode .inspirationShowcase{margin-top:18px}
+
+@media(min-width:761px){
+  .emptyMode .upstreamComposer{z-index:20;margin-top:clamp(12px,calc(100vh - 600px),320px)}
+}
+
+@media(max-width:760px){
+  .emptyMode .assistantPanel{max-width:100%}
+  .emptyMode .mioraBanner{height:238px;margin:0 calc((100% - 100vw)/2)}
+  .emptyMode .bannerStage{height:224px}
+  .bannerCard{aspect-ratio:1.8/1;border-radius:17px}
+  .bannerFeatureCard{padding:8%}.bannerFeatureCard p{display:none}.bannerFeatureCard small{font-size:8px}.bannerFeatureCard strong{font-size:22px}
+  .bannerArrowLeft{left:8px}.bannerArrowRight{right:8px}
+  .emptyMode .mioraHero{height:66px;margin-top:12px}
+  .emptyMode .creationTabs{overflow-x:auto}.emptyMode .creationTabs button{min-width:108px}
+  .emptyMode .upstreamComposer{min-height:142px;margin-top:10px;padding:12px;grid-template-rows:minmax(66px,auto) auto}
+  .emptyMode .composerMascot{right:8px;top:-82px;width:128px;height:88px}
+  .upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarLeft{flex-wrap:wrap;height:auto}
+  .toolLabel{display:none}
+  .upstreamComposer .roundIconBtn.assetTrigger,.upstreamComposer .roundIconBtn.skillButton,.upstreamComposer .roundIconBtn.reasoningButton{width:34px;padding:0}
+  .upstreamComposer .settingPill{max-width:118px;padding:0 9px;font-size:11px}
+}
 </style>
 
 <!-- 非 scoped 全局段:IP mascot 眨眼动效 + 暗模式身体灰度适配 + 减弱运动守护(affectation 不能受 scoped 数据属性哈希约束否则 :root/.dark 选择器失配)-->

@@ -8,12 +8,13 @@
       <Handle :id="props.handleIds.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
       <!-- <Handle :id="props.handleIds.source" type="source" :position="Position.Right" /> -->
     </div>
-    <div class="videoPreview">
+    <div class="videoPreview" @click.stop="openWorkbench('preview')">
       <div class="videoPlaceholder" :style="{ background: workbenchData?.gradient }">
         <t-image v-if="workbenchData?.cover" :src="workbenchData.cover" fit="cover" class="videoCover" />
         <div class="playButton">
           <i-video theme="outline" size="48" />
         </div>
+        <div class="previewHint">点击进入工作台</div>
     </div>
     <div class="workbenchMeta">
       <span><i-check-one size="13" /> 已选镜头后即可开始</span>
@@ -110,10 +111,6 @@ const workbenchData = defineModel<WorkbenchData>({ required: true });
   }
   .titleHint { margin-top: 5px; color: #9a96a3; font-size: 11px; }
 
-  .videoPreview {
-    margin-bottom: 12px;
-  }
-
   .workbenchMeta {
     display: flex;
     align-items: center;
@@ -121,7 +118,12 @@ const workbenchData = defineModel<WorkbenchData>({ required: true });
     gap: 8px;
     color: #8a8691;
     font-size: 11px;
-    :deep(.i-icon) { margin-right: 4px; color: #6f55c7; vertical-align: -2px; }
+    :deep(.i-icon) { margin-right: 4px; color: #f57400; vertical-align: -2px; }
+  }
+
+  .videoPreview {
+    margin-bottom: 12px;
+    cursor: pointer;
   }
 
   .videoPlaceholder {
@@ -130,7 +132,10 @@ const workbenchData = defineModel<WorkbenchData>({ required: true });
     aspect-ratio: 16 / 9;
     border-radius: 8px;
     overflow: hidden;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* 墨黑封面 + 一点暖色氛围光，替代旧的紫蓝渐变 */
+    background:
+      radial-gradient(120% 90% at 82% 12%, rgba(255, 155, 69, 0.22), transparent 55%),
+      linear-gradient(135deg, #34313a 0%, #232028 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -144,8 +149,22 @@ const workbenchData = defineModel<WorkbenchData>({ required: true });
 
   .playButton {
     position: absolute;
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.92);
+    filter: drop-shadow(0 4px 14px rgba(255, 155, 69, 0.35));
     transition: transform 0.2s;
+  }
+
+  .previewHint {
+    position: absolute;
+    left: 10px;
+    bottom: 8px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(20, 18, 24, 0.55);
+    backdrop-filter: blur(4px);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 10px;
+    letter-spacing: 0.02em;
   }
 
   .videoInfo {

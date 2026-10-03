@@ -13,6 +13,13 @@ import {
     type ModelCapability,
     type ModelChannel,
 } from "@/stores/use-config-store";
+// ⚠️ 上游画布编辑器（pages/canvas 直接 re-export 上游 page，注释 "keep on the same upstream
+// store/runtime"）跑的是**上游** use-config-store —— vite 别名对上游 importer 会把 @/ 解析回
+// 上游本仓，所以 atelier store 与 upstream store 是两个互不相通的实例。
+// 此前只同步了 atelier store（无人读取），画布「配置与用户偏好」读的 upstream store 依旧是
+// 出厂默认的「本地直连 / OpenAI / 0 个模型」——这就是用户看到的"没和 new-api 统一"。
+// 这里用与 pages/canvas 完全相同的绝对路径直连上游 store，把网关模型写进**它读的那一份**。
+import { useConfigStore as useUpstreamConfigStore } from "@upstream/stores/use-config-store";
 import { backendJson } from "@/xoi/backend";
 
 export type ServerProvider = {
@@ -107,9 +114,62 @@ export async function syncServerModels(): Promise<boolean> {
     try {
         const data = await backendJson<ServerModelConfig>("/api/config");
         applyServerModels(data);
+        applyUpstreamServerModels(buildServerChannels(data));
         return modelOptionsFromChannels(useConfigStore.getState().config.channels).length > 0;
     } catch (error) {
         console.warn("[xoi] 服务端模型同步失败:", error);
         return true; // 拉取失败不打扰用户，保留现状
     }
+}
+
+/* ============================================================
+ * 同步进**上游** store（画布编辑器真正读的那一份）
+ * ------------------------------------------------------------
+ * 上游 AiConfig 的形状与 atelier 完全不同：模型是 string[] 平铺
+ * （models/imageModels/videoModels/textModels），渠道是 localChannels，
+ * 且 isAiConfigReady 还要求本地渠道填 baseUrl/apiKey —— 那是"用户自带钥匙直连"时代的判定，
+ * 在 XOi 里（模型来自服务端、生成一律走 /api/v1/canvas/* 账号代理）没有意义，直接放行。
+ */
+function applyUpstreamServerModels(channels: ModelChannel[]) {
+    if (!channels.length) return;
+    const names = channels.flatMap((channel) => channel.models.map((model) => model.name));
+    const byCapability = (capability: ModelCapability) =>
+        channels.flatMap((channel) => channel.models.filter((model) => model.capability === capability).map((model) => model.name));
+    const image = byCapability("image");
+    const video = byCapability("video");
+    const text = byCapability("text");
+    const channelName = String(i18n.t("config.serverChannelName") || "new-api 统一网关");
+    const localChannel = {
+        id: SERVER_CHANNEL_PREFIX,
+        protocol: "openai" as const,
+        name: channelName,
+        baseUrl: "",
+        apiKey: "",
+        models: names,
+    };
+    const prev = useUpstreamConfigStore.getState().config;
+    useUpstreamConfigStore.setState({
+        config: {
+            ...prev,
+            channelMode: "local",
+            localChannels: [localChannel],
+            models: names,
+            imageModels: image,
+            videoModels: video,
+            textModels: text,
+            audioModels: [],
+            imageModel: image.includes(prev.imageModel) ? prev.imageModel : image[0] || "",
+            videoModel: video.includes(prev.videoModel) ? prev.videoModel : video[0] || "",
+            textModel: text.includes(prev.textModel) ? prev.textModel : text[0] || "",
+            audioModel: prev.audioModel,
+            imageChannelId: localChannel.id,
+            videoChannelId: localChannel.id,
+            textChannelId: localChannel.id,
+            audioChannelId: localChannel.id,
+            activeChannelId: localChannel.id,
+            baseUrl: "",
+            apiKey: "",
+        },
+        isAiConfigReady: (_config, model) => Boolean(String(model || "").trim()),
+    });
 }
