@@ -2,9 +2,12 @@
   <div class="assets" :class="{ projectOverviewPage: isProjectOverview }">
     <!-- 三库融合顶层切换：项目素材（生产要素）/ 我的作品（生成产物）/ 画布素材（创作素材）。方案见 docs/项目资产库-三库融合方案.md -->
     <div class="libTabs" v-if="!selectorMode">
-      <button type="button" :class="{ on: libTab === 'project' }" @click="libTab = 'project'"><t-icon name="folder-open" />项目素材</button>
-      <button type="button" :class="{ on: libTab === 'works' }" @click="libTab = 'works'"><t-icon name="user-circle" />我的作品</button>
-      <button type="button" :class="{ on: libTab === 'canvas' }" @click="libTab = 'canvas'"><t-icon name="layers" />画布素材</button>
+      <div class="libTabsBrand"><span>WORKSPACE LIBRARY</span><strong>资产中心</strong></div>
+      <div class="libTabsItems">
+        <button type="button" :class="{ on: libTab === 'project' }" @click="libTab = 'project'"><t-icon name="folder-open" /><span>项目素材</span><small>按项目管理</small></button>
+        <button type="button" :class="{ on: libTab === 'works' }" @click="libTab = 'works'"><t-icon name="user-circle" /><span>我的作品</span><small>生成结果</small></button>
+        <button type="button" :class="{ on: libTab === 'canvas' }" @click="libTab = 'canvas'"><t-icon name="layers" /><span>画布素材</span><small>灵感收藏</small></button>
+      </div>
     </div>
     <library-projects v-if="libTab === 'project' && isProjectOverview" />
     <div class="assetProjectNav" v-if="!selectorMode && !isProjectOverview">
@@ -1946,29 +1949,43 @@ async function getBigImageUrl(row: Asset, fn: Function) {
 <style lang="scss" scoped>
 /* 三库融合顶层切换（项目素材 / 我的作品 / 画布素材） */
 .libTabs {
-  display: inline-flex;
-  gap: 4px;
-  padding: 5px;
-  margin-bottom: 14px;
-  border: 1px solid #e8e7ec;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 8px 22px rgba(42, 39, 58, 0.045);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 66px;
+  padding: 8px 10px 8px 20px;
+  margin: 0 0 18px;
+  border: 1px solid #ebe9ee;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 24px rgba(42, 39, 58, 0.04);
+
+  .libTabsBrand { display: flex; flex-direction: column; gap: 3px; min-width: 132px; }
+  .libTabsBrand span { color: #a39ea9; font-size: 9px; font-weight: 750; letter-spacing: .16em; }
+  .libTabsBrand strong { color: #2c2935; font-size: 17px; letter-spacing: -.03em; }
+  .libTabsItems { display: flex; align-items: center; gap: 4px; }
 
   button {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    height: 38px;
-    padding: 0 18px;
+    gap: 8px;
+    height: 48px;
+    min-width: 128px;
+    padding: 0 15px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 12px;
     background: transparent;
     color: #55525f;
     font: inherit;
     font-size: 14px;
+    text-align: left;
     cursor: pointer;
     transition: all 0.18s ease;
+
+    .t-icon { color: #807b88; font-size: 18px; }
+    span { display: block; font-weight: 600; line-height: 17px; }
+    small { display: block; margin-left: auto; color: #aaa6af; font-size: 10px; font-weight: 400; white-space: nowrap; }
 
     &:hover {
       color: #e9632b;
@@ -1976,10 +1993,10 @@ async function getBigImageUrl(row: Asset, fn: Function) {
     }
 
     &.on {
-      background: linear-gradient(135deg, #ff8847, #f26432);
-      color: #fff;
-      font-weight: 600;
-      box-shadow: 0 7px 16px rgba(239, 100, 48, 0.18);
+      background: #fff0e8;
+      color: #dc5f2d;
+      box-shadow: inset 0 0 0 1px rgba(239, 100, 48, .12);
+      .t-icon, small { color: #e56e39; }
     }
   }
 }
@@ -2046,6 +2063,9 @@ async function getBigImageUrl(row: Asset, fn: Function) {
 }
 
 @media (max-width: 850px) {
+  .libTabs { align-items: stretch; flex-direction: column; gap: 8px; padding: 14px; }
+  .libTabsItems { overflow-x: auto; }
+  .libTabs button { min-width: 145px; }
   .assetScopeBar {
     flex-wrap: wrap;
   }
