@@ -17,7 +17,10 @@
             <t-avatar v-else size="24px" shape="round" class="fallbackAvatar">{{ getFallbackText(item.label) }}</t-avatar>
             <div class="optionLabel">{{ item.label }}</div>
           </div>
-          <span class="optionType">{{ item.type }}</span>
+          <div class="optionMeta">
+            <span class="optionPrice" v-if="getPriceText(item.value)">{{ getPriceText(item.value) }}</span>
+            <span class="optionType">{{ item.type }}</span>
+          </div>
         </div>
       </t-option>
     </t-option-group>
@@ -28,6 +31,11 @@
       </div>
     </template>
   </t-select>
+  <div v-if="selectedPriceText" class="modelCostHint" role="status">
+    <span class="modelCostDot" aria-hidden="true"></span>
+    <span>本模型参考价：<strong>{{ selectedPriceText }}</strong></span>
+    <span class="modelCostNote">实际按 NewAPI 用量结算</span>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -47,6 +55,14 @@ interface VendorOption {
   group: string;
   id: number;
   children: VendorChild[];
+}
+interface PricingRow {
+  model_name: string;
+  model_ratio?: number;
+  model_price?: number;
+  quota_type?: number;
+  billing_mode?: string;
+  billing_expr?: string;
 }
 const selectValue = defineModel({
   type: String,
@@ -76,6 +92,57 @@ const emit = defineEmits<{
   change: [value: string, data?: any];
 }>();
 
+const pricingRows = ref<PricingRow[]>([]);
+const pricingLoaded = ref(false);
+const priceByModel = computed(() => new Map(pricingRows.value.map((row) => [row.model_name, row])));
+
+function formatYuan(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const digits = value >= 1 ? 2 : 4;
+  return `¥${value.toFixed(digits).replace(/0+$/, "").replace(/\.$/, "")}`;
+}
+
+function priceText(modelName: string) {
+  const row = priceByModel.value.get(modelName);
+  if (!row) return "";
+  const expr = row.billing_expr || "";
+  // 计费表达式来自 NewAPI：图片/音频的 param()/p* 形态使用 1e6 缩放，
+  // 视频常见的 u("seconds")*X 直接就是元/秒。
+  const tier = /tier\("(?:default|flat|[^\"]+)",\s*(?:u\("seconds"\)\s*\*\s*)?([\d.]+)/.exec(expr);
+  const perChar = /tier\("[^\"]+",\s*p\s*\*\s*([\d.]+)/.exec(expr);
+  if (perChar) return `${formatYuan(Number(perChar[1]) / 1e6 * 1000)} / 千字起`;
+  if (tier) {
+    const scaled = expr.includes("param(") || /tier\("flat"/.test(expr);
+    const value = scaled ? Number(tier[1]) / 1e6 : Number(tier[1]);
+    return `${formatYuan(value)} / ${/seconds/.test(expr) ? "秒起" : "次起"}`;
+  }
+  if (Number(row.model_price) > 0) return `${formatYuan(Number(row.model_price))} / ${props.type === "video" ? "秒" : "次"}`;
+  if (Number(row.model_ratio) > 0) return `${formatYuan(Number(row.model_ratio) * 2)} / 1M tokens`;
+  return "";
+}
+
+function getPriceText(modelName: string) {
+  return priceText(modelName);
+}
+
+const selectedPriceText = computed(() => {
+  const modelName = String(selectValue.value || "").split(/:(.+)/)[1] || "";
+  return modelName ? priceText(modelName) : "";
+});
+
+async function loadPricing() {
+  if (pricingLoaded.value) return;
+  pricingLoaded.value = true;
+  try {
+    const response = await fetch("/api/pricing", { cache: "no-store" });
+    if (!response.ok) return;
+    const body = await response.json();
+    pricingRows.value = Array.isArray(body?.data) ? body.data : [];
+  } catch {
+    // 价格表不可用不阻塞模型选择；生成仍由网关按实际用量结算。
+  }
+}
+
 async function onChange(value: any, { option }: any) {
   selectValue.value = value;
   selectValueLabel.value = option.label;
@@ -90,11 +157,13 @@ async function onChange(value: any, { option }: any) {
 }
 const optionsData = ref<VendorOption[]>([]);
 onMounted(() => {
+  void loadPricing();
   handleModelChange();
 });
 
 function onPopupVisibleChange(visible: boolean) {
   if (visible) {
+    void loadPricing();
     handleModelChange();
   }
 }
@@ -179,6 +248,36 @@ function getFallbackText(label: string) {
   color: var(--td-text-color-secondary);
   flex-shrink: 0;
 }
+
+.optionMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.optionPrice {
+  color: #f57400;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.modelCostHint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+  margin-top: 5px;
+  padding: 0 2px;
+  color: var(--td-text-color-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.modelCostHint strong { color: #f57400; font-weight: 650; }
+.modelCostDot { width: 6px; height: 6px; border-radius: 50%; background: #f57400; }
+.modelCostNote { color: var(--td-text-color-placeholder); }
 
 .fallbackAvatar {
   background: var(--td-brand-color-light);
