@@ -108,9 +108,11 @@ function priceText(modelName: string) {
   const expr = row.billing_expr || "";
   // 计费表达式来自 NewAPI：图片/音频的 param()/p* 形态使用 1e6 缩放，
   // 视频常见的 u("seconds")*X 直接就是元/秒。
+  const floor = /tier\("[^\"]+",\s*u\("seconds"\)\s*<\s*[\d.]+\s*\?\s*[\d.]+\s*:\s*u\("seconds"\)\s*\*\s*([\d.]+)/.exec(expr);
   const tier = /tier\("(?:default|flat|[^\"]+)",\s*(?:u\("seconds"\)\s*\*\s*)?([\d.]+)/.exec(expr);
   const perChar = /tier\("[^\"]+",\s*p\s*\*\s*([\d.]+)/.exec(expr);
   if (perChar) return `${formatYuan(Number(perChar[1]) / 1e6 * 1000)} / 千字起`;
+  if (floor) return `${formatYuan(Number(floor[1]))} / 秒起`;
   if (tier) {
     const scaled = expr.includes("param(") || /tier\("flat"/.test(expr);
     const value = scaled ? Number(tier[1]) / 1e6 : Number(tier[1]);
