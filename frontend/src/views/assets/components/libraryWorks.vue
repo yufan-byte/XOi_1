@@ -1,5 +1,13 @@
 <template>
   <div class="libWorks">
+    <section class="collectionIntro">
+      <div>
+        <span class="collectionEyebrow">MY WORKS</span>
+        <h2>我的作品</h2>
+        <p>所有项目生成结果的个人收藏。卡片会标明来源项目，便于查找和复用。</p>
+      </div>
+      <div class="collectionCount"><strong>{{ works.length }}</strong><span>件作品</span></div>
+    </section>
     <div class="libToolbar">
       <div class="libChips">
         <button v-for="k in typeChips" :key="k.value" type="button" :class="{ on: typeFilter === k.value }" @click="typeFilter = k.value">{{ k.label }}</button>
@@ -32,10 +40,8 @@
           <strong :title="w.title">{{ w.title || "未命名作品" }}</strong>
           <span>{{ shortDate(w.created_at) || "—" }}</span>
         </div>
+        <div v-if="w.project_id" class="libSource">来自项目 · {{ projectLabel(w.project_id) }}</div>
         <div class="libOps">
-          <t-tooltip content="保存为当前项目的素材，供分镜/生图引用">
-            <t-button size="small" variant="text" theme="primary" :loading="savingId === w.id" @click="onSaveToProject(w)">存入项目素材</t-button>
-          </t-tooltip>
           <t-button v-if="w.cover_kind !== 'video'" size="small" variant="text" theme="primary" @click="onSendToCanvas(w)">发送到画布</t-button>
           <t-button size="small" variant="text" @click="onDownload(w)">下载</t-button>
         </div>
@@ -66,10 +72,9 @@
  */
 import { ref, computed, onMounted } from "vue";
 import axios from "@/utils/axios";
-import { MessagePlugin } from "tdesign-vue-next";
 import { storeToRefs } from "pinia";
 import projectStore from "@/stores/project";
-import { saveAssetToProject, downloadUrl, shortDate } from "./libraryShared";
+import { downloadUrl, shortDate } from "./libraryShared";
 import { sendToCanvas } from "@/utils/sendToCanvas";
 
 interface WorkRow {
@@ -85,13 +90,12 @@ interface WorkRow {
   project_id?: number;
 }
 
-const { project } = storeToRefs(projectStore());
+const { allProject } = storeToRefs(projectStore());
 
 const loading = ref(true);
 const works = ref<WorkRow[]>([]);
 const searchText = ref("");
 const typeFilter = ref<"all" | "image" | "video">("all");
-const savingId = ref("");
 const previewWork = ref<WorkRow | null>(null);
 const previewVisible = ref(false);
 
@@ -136,30 +140,9 @@ function openPreview(w: WorkRow) {
   previewVisible.value = true;
 }
 
-function requireProjectId(): number | null {
-  const id = Number((project.value as any)?.id);
-  if (!Number.isFinite(id) || id <= 0) {
-    MessagePlugin.warning("请先打开一个项目，再把作品存进它的素材库");
-    return null;
-  }
-  return id;
-}
-
-async function onSaveToProject(w: WorkRow) {
-  const projectId = requireProjectId();
-  if (!projectId) return;
-  if (!w.cover_url) {
-    MessagePlugin.warning("该作品没有可入库的资源地址");
-    return;
-  }
-  savingId.value = w.id;
-  try {
-    await saveAssetToProject(projectId, w.cover_url, w.title || "我的作品", "clip");
-  } catch (e: any) {
-    MessagePlugin.error(e?.message || "存入失败");
-  } finally {
-    savingId.value = "";
-  }
+function projectLabel(id: number) {
+  const item = (allProject.value as any[]).find((candidate) => Number(candidate?.id) === Number(id));
+  return item?.name || `项目 #${id}`;
 }
 
 function onSendToCanvas(w: WorkRow) {
@@ -180,8 +163,26 @@ onMounted(load);
 .libWorks {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
+.collectionIntro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 112px;
+  padding: 22px 26px;
+  border: 1px solid rgba(119, 96, 182, .12);
+  border-radius: 22px;
+  background: radial-gradient(circle at 92% 18%, rgba(255, 159, 106, .22), transparent 28%), linear-gradient(115deg, #fff 0%, #f8f5ff 54%, #fff4ec 100%);
+  box-shadow: 0 14px 34px rgba(58, 49, 99, .06);
+}
+.collectionEyebrow { display: block; margin-bottom: 7px; color: #e86b32; font-size: 10px; font-weight: 800; letter-spacing: .18em; }
+.collectionIntro h2 { margin: 0 0 6px; color: #292733; font-size: 26px; letter-spacing: -.04em; }
+.collectionIntro p { margin: 0; color: #7f7a8c; font-size: 13px; line-height: 1.6; }
+.collectionCount { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 102px; min-height: 76px; border-radius: 18px; background: rgba(255, 255, 255, .68); color: #8b849b; }
+.collectionCount strong { color: #e86b32; font-size: 30px; line-height: 1; }
+.collectionCount span { margin-top: 6px; font-size: 12px; }
 .libToolbar {
   display: flex;
   align-items: center;
@@ -226,30 +227,33 @@ onMounted(load);
 }
 .libGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 300px));
+  align-items: start;
+  gap: 18px;
 }
 .libCard {
   overflow: hidden;
   border: 1px solid #e8e7ec;
-  border-radius: 14px;
+  border-radius: 18px;
   background: #fff;
   box-shadow: 0 8px 22px rgba(42, 39, 58, 0.045);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(42, 39, 58, 0.09);
+    transform: translateY(-3px);
+    border-color: #f3c6ae;
+    box-shadow: 0 14px 30px rgba(42, 39, 58, .11);
   }
 }
 .libThumb {
   position: relative;
   display: grid;
   place-items: center;
-  height: 130px;
+  height: 172px;
   background: #f6f6f8;
   cursor: pointer;
   overflow: hidden;
-  img, video { width: 100%; height: 100%; object-fit: cover; }
+  img, video { width: 100%; height: 100%; object-fit: cover; transition: transform .24s ease; }
+  &:hover img, &:hover video { transform: scale(1.025); }
   .libKindBadge {
     position: absolute;
     left: 8px;
@@ -291,24 +295,25 @@ onMounted(load);
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px 4px;
+  padding: 12px 14px 4px;
   strong {
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 13.5px;
+    font-size: 14px;
     color: #242321;
   }
   span { flex: none; color: #9b968d; font-size: 11.5px; }
 }
+.libSource { padding: 1px 14px 0; color: #9a72be; font-size: 11.5px; }
 .libOps {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 2px 8px 8px;
+  padding: 3px 10px 10px;
 }
 .libPreviewBody {
   display: flex;
@@ -317,4 +322,13 @@ onMounted(load);
   img, video { max-width: 100%; max-height: 56vh; border-radius: 12px; align-self: center; }
 }
 .libPreviewNote { color: #6f6b64; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; }
+@media (max-width: 850px) {
+  .collectionIntro { align-items: flex-start; padding: 18px; }
+  .collectionCount { min-width: 78px; }
+  .collectionIntro p { max-width: 48vw; }
+  .libToolbar { flex-wrap: wrap; }
+  .libToolbar .t-input { flex: 1; min-width: 180px; }
+  .libToolbarRight { margin-left: 0; }
+  .libGrid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+}
 </style>

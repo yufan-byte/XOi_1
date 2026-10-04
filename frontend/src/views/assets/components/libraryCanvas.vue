@@ -1,5 +1,13 @@
 <template>
   <div class="libCanvas">
+    <section class="collectionIntro">
+      <div>
+        <span class="collectionEyebrow">CANVAS COLLECTION</span>
+        <h2>画布素材</h2>
+        <p>你的全局创作收藏。素材不会自动归入任何项目，项目资产请在对应项目内管理。</p>
+      </div>
+      <div class="collectionCount"><strong>{{ assets.length }}</strong><span>件素材</span></div>
+    </section>
     <div class="libToolbar">
       <div class="libChips">
         <button v-for="k in kindChips" :key="k.value" type="button" :class="{ on: kindFilter === k.value }" @click="kindFilter = k.value">{{ k.label }}</button>
@@ -13,10 +21,6 @@
         <t-button theme="primary" size="small" @click="goCanvas">打开画布</t-button>
       </div>
     </div>
-    <div class="libHint">
-      画布素材是可复用的创作素材；要在剧本、分镜或生图流程里使用，请在素材卡片上点击“存入项目素材”。
-    </div>
-
     <div v-if="loading" class="libState"><t-loading size="small" text="读取画布素材…" /></div>
 
     <div v-else-if="!filteredAssets.length" class="libState libEmpty">
@@ -39,9 +43,6 @@
           <span>{{ shortDate(a.updatedAt || a.createdAt) }}</span>
         </div>
         <div class="libOps">
-          <t-tooltip content="保存为当前项目的素材，供分镜/生图引用">
-            <t-button size="small" variant="text" theme="primary" :loading="savingId === a.id" @click="onSaveToProject(a)">存入项目素材</t-button>
-          </t-tooltip>
           <t-button v-if="a.kind === 'image' && isStableUrl(urlOf(a))" size="small" variant="text" theme="primary" @click="onSendToCanvas(a)">发送到画布</t-button>
           <t-button v-if="a.kind !== 'text' && urlOf(a)" size="small" variant="text" @click="onDownload(a)">下载</t-button>
           <t-popconfirm theme="danger" content="删除后画布里也不可恢复，确定？" @confirm="onRemove(a)">
@@ -82,10 +83,8 @@
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import localforage from "localforage";
 import { MessagePlugin } from "tdesign-vue-next";
-import projectStore from "@/stores/project";
-import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
-import { saveAssetToProject, downloadUrl, shortDate } from "./libraryShared";
+import { downloadUrl, shortDate } from "./libraryShared";
 import { sendToCanvas } from "@/utils/sendToCanvas";
 
 interface CanvasAsset {
@@ -101,14 +100,12 @@ interface CanvasAsset {
   data: any;
 }
 
-const { project } = storeToRefs(projectStore());
 const router = useRouter();
 
 const loading = ref(true);
 const assets = ref<CanvasAsset[]>([]);
 const searchText = ref("");
 const kindFilter = ref<"all" | "image" | "video" | "audio" | "text">("all");
-const savingId = ref("");
 const previewAsset = ref<CanvasAsset | null>(null);
 const previewVisible = ref(false);
 const objectUrls = ref<Record<string, string>>({});
@@ -229,33 +226,6 @@ const filteredAssets = computed(() => {
 const kindLabel = (kind: string) => (kind === "image" ? "图片" : kind === "video" ? "视频" : kind === "audio" ? "音频" : "文本");
 const textExcerpt = (a: CanvasAsset) => (a.data?.content || "").slice(0, 120) || "（空文本）";
 
-function requireProjectId(): number | null {
-  const id = Number((project.value as any)?.id);
-  if (!Number.isFinite(id) || id <= 0) {
-    MessagePlugin.warning("请先打开一个项目，再把素材存进它的素材库");
-    return null;
-  }
-  return id;
-}
-
-async function onSaveToProject(a: CanvasAsset) {
-  const projectId = requireProjectId();
-  if (!projectId) return;
-  const url = urlOf(a);
-  if (!url) {
-    MessagePlugin.error("该素材没有可入库的资源地址");
-    return;
-  }
-  savingId.value = a.id;
-  try {
-    await saveAssetToProject(projectId, url, a.title || "画布素材", "clip");
-  } catch (e: any) {
-    MessagePlugin.error(e?.message || "存入失败");
-  } finally {
-    savingId.value = "";
-  }
-}
-
 function onSendToCanvas(a: CanvasAsset) {
   sendToCanvas([{ src: urlOf(a), name: a.title || "画布素材" }], { from: "assets" });
 }
@@ -316,159 +286,158 @@ defineExpose({ openPreview });
 .libCanvas {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
+.collectionIntro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 112px;
+  padding: 22px 26px;
+  border: 1px solid rgba(119, 96, 182, 0.12);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 92% 18%, rgba(255, 159, 106, 0.22), transparent 28%),
+    linear-gradient(115deg, #fff 0%, #f8f5ff 54%, #fff4ec 100%);
+  box-shadow: 0 14px 34px rgba(58, 49, 99, 0.06);
+}
+.collectionEyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: #e86b32;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+.collectionIntro h2 { margin: 0 0 6px; color: #292733; font-size: 26px; letter-spacing: -.04em; }
+.collectionIntro p { margin: 0; color: #7f7a8c; font-size: 13px; line-height: 1.6; }
+.collectionCount {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 102px;
+  min-height: 76px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .68);
+  color: #8b849b;
+}
+.collectionCount strong { color: #e86b32; font-size: 30px; line-height: 1; }
+.collectionCount span { margin-top: 6px; font-size: 12px; }
 .libToolbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid #e8e7ec;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 22px rgba(42, 39, 58, 0.045);
+  padding: 11px 14px;
+  border: 1px solid #ebe9ef;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 7px 20px rgba(42, 39, 58, .04);
 }
 .libChips {
   display: flex;
   gap: 6px;
   button {
-    height: 30px;
+    height: 31px;
     padding: 0 14px;
-    border: 1px solid #e3e2e8;
+    border: 1px solid #e4e1e9;
     border-radius: 999px;
     background: #fff;
-    color: #55525f;
+    color: #615d6c;
     font-size: 13px;
     cursor: pointer;
-    transition: all 0.18s ease;
+    transition: all .18s ease;
     &:hover { border-color: #f1a27e; color: #df5f29; }
-    &.on { border-color: transparent; background: #fff2ea; color: #e9632b; font-weight: 600; }
+    &.on { border-color: transparent; background: #fff1e9; color: #e9632b; font-weight: 650; }
   }
 }
-.libToolbarRight {
-  margin-left: auto;
-  display: flex;
-  gap: 8px;
-}
-.libHint {
-  padding: 0 4px;
-  color: #8b8798;
-  font-size: 12px;
-  line-height: 1.6;
-}
+.libToolbarRight { margin-left: auto; display: flex; gap: 8px; }
 .libState {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  min-height: 320px;
+  min-height: 300px;
   color: #8b8798;
   p { margin: 0; font-size: 14px; }
 }
 .libGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 300px));
+  align-items: start;
+  gap: 18px;
 }
 .libCard {
   overflow: hidden;
-  border: 1px solid #e8e7ec;
-  border-radius: 14px;
+  border: 1px solid #e9e6ee;
+  border-radius: 18px;
   background: #fff;
-  box-shadow: 0 8px 22px rgba(42, 39, 58, 0.045);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(42, 39, 58, 0.09);
-  }
+  box-shadow: 0 8px 24px rgba(42, 39, 58, .055);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  &:hover { transform: translateY(-3px); border-color: #f3c6ae; box-shadow: 0 14px 30px rgba(42, 39, 58, .11); }
 }
 .libThumb {
   position: relative;
   display: grid;
   place-items: center;
-  height: 130px;
-  background: #f6f6f8;
-  cursor: pointer;
+  height: 172px;
   overflow: hidden;
-  img, video { width: 100%; height: 100%; object-fit: cover; }
+  background: #f4f3f6;
+  cursor: pointer;
+  img, video { width: 100%; height: 100%; object-fit: cover; transition: transform .24s ease; }
+  &:hover img, &:hover video { transform: scale(1.025); }
   .libKindBadge {
     position: absolute;
-    left: 8px;
-    top: 8px;
-    padding: 2px 8px;
+    left: 10px;
+    top: 10px;
+    padding: 3px 9px;
     border-radius: 999px;
-    background: rgba(23, 21, 30, 0.55);
+    background: rgba(25, 23, 32, .62);
     color: #fff;
     font-size: 11px;
     line-height: 1.4;
   }
 }
 .libTextThumb {
-  padding: 12px;
   width: 100%;
   height: 100%;
+  padding: 16px;
   overflow: hidden;
-  color: #55525f;
-  font-size: 12px;
-  line-height: 1.6;
+  color: #5d5868;
+  font-size: 13px;
+  line-height: 1.7;
   white-space: pre-wrap;
-  word-break: break-all;
-  background: #fbfafd;
+  word-break: break-word;
+  background: linear-gradient(145deg, #fbf9ff, #fff5ef);
 }
 .libMeta {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px 4px;
-  strong {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 13.5px;
-    color: #242321;
-  }
-  span { flex: none; color: #9b968d; font-size: 11.5px; }
+  padding: 12px 14px 4px;
+  strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #292733; font-size: 14px; }
+  span { flex: none; color: #a19cab; font-size: 11.5px; }
 }
-.libOps {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px;
-  padding: 2px 8px 8px;
-}
+.libOps { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 3px 10px 10px; }
 .libPreviewBody {
   display: flex;
   flex-direction: column;
   gap: 12px;
   img, video { max-width: 100%; max-height: 56vh; border-radius: 12px; align-self: center; }
-  pre {
-    margin: 0;
-    padding: 14px;
-    max-height: 56vh;
-    overflow: auto;
-    border-radius: 12px;
-    background: #f6f6f8;
-    color: #33312d;
-    font-size: 13px;
-    line-height: 1.7;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
+  pre { margin: 0; padding: 14px; max-height: 56vh; overflow: auto; border-radius: 12px; background: #f6f6f8; color: #33312d; font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
 }
 .libPreviewNote { color: #6f6b64; font-size: 12.5px; line-height: 1.6; }
-.libPreviewTags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  span {
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: #f4f2ee;
-    color: #55525f;
-    font-size: 11.5px;
-  }
+.libPreviewTags { display: flex; flex-wrap: wrap; gap: 6px; span { padding: 2px 10px; border-radius: 999px; background: #f4f2ee; color: #55525f; font-size: 11.5px; } }
+@media (max-width: 850px) {
+  .collectionIntro { align-items: flex-start; padding: 18px; }
+  .collectionCount { min-width: 78px; }
+  .collectionIntro p { max-width: 48vw; }
+  .libToolbar { flex-wrap: wrap; }
+  .libToolbar .t-input { flex: 1; min-width: 180px; }
+  .libToolbarRight { margin-left: 0; }
+  .libGrid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 }
 </style>
