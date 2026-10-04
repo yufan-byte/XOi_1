@@ -369,6 +369,7 @@ defineExpose({ openPreview });
   grid-template-columns: repeat(auto-fill, minmax(250px, 300px));
   align-items: start;
   gap: 18px;
+  padding: 4px 18px 28px;
 }
 .libCard {
   overflow: hidden;
