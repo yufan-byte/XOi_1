@@ -5,8 +5,8 @@
       <div class="libTabsBrand"><span>WORKSPACE LIBRARY</span><strong>资产中心</strong></div>
       <div class="libTabsItems">
         <button type="button" :class="{ on: libTab === 'project' }" @click="libTab = 'project'"><t-icon name="folder-open" /><span>项目素材</span><small>按项目管理</small></button>
-        <button type="button" :class="{ on: libTab === 'works' }" @click="libTab = 'works'"><t-icon name="user-circle" /><span>我的作品</span><small>生成结果</small></button>
-        <button type="button" :class="{ on: libTab === 'canvas' }" @click="libTab = 'canvas'"><t-icon name="layers" /><span>画布素材</span><small>灵感收藏</small></button>
+        <button type="button" :class="{ on: libTab === 'works' }" @click="libTab = 'works'"><t-icon name="user-circle" /><span>我的作品</span><small>全局作品</small></button>
+        <button type="button" :class="{ on: libTab === 'canvas' }" @click="libTab = 'canvas'"><t-icon name="layers" /><span>画布素材</span><small>全局收藏</small></button>
       </div>
     </div>
     <library-projects v-if="libTab === 'project' && isProjectOverview" />
