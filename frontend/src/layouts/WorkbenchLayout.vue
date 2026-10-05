@@ -332,9 +332,10 @@ const baseMenu = [
   { type: "btn", path: "/canvas", label: "无限画布", icon: "i-edit", canvasCenter: true },
   { type: "btn", path: "/aiAssistant", label: "Agent 智能创作", icon: "i-magic" },
   { type: "btn", path: "/director3d", label: "导演工作台", icon: "i-camera-one" },
+  { type: "btn", path: "/square", label: "灵感广场", icon: "i-lightning" },
   { type: "group", label: "创作资源" },
   { type: "btn", path: "/assets", label: "项目资产库", icon: "i-receive" },
-  { type: "btn", path: "/square", label: "灵感广场", icon: "i-lightning" },
+  { type: "btn", path: "/viral-replicate", label: "爆款复刻", icon: "i-fire" },
   { type: "btn", path: "/skills", label: "Skill 市场", icon: "i-toolkit" },
 ];
 const menuList = computed(() => baseMenu);

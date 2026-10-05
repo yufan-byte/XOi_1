@@ -68,6 +68,8 @@ export const ROUTE_WHITELIST: string[] = [
   // 灵感广场与 Skill 市场（mc_* store 已在 lib/market/，路由层 P2/P3 补齐）
   "skills",
   "works",
+  // 爆款复刻：抖音 / B站分享链解析与同源视频流代理
+  "viral",
   // 消费记录（只读代理网关 /api/log/self 与 /stat，见 routes/log/self.ts）
   "log",
   // 团队版：成员、算力池、额度与团队消费记录

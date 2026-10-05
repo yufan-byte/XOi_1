@@ -79,6 +79,10 @@ const router = createRouter({
           component: () => import("@/views/square/index.vue"),
         },
         {
+          path: "/viral-replicate",
+          component: () => import("@/views/viralReplicate/index.vue"),
+        },
+        {
           path: "/skills",
           component: () => import("@/views/skills/index.vue"),
         },

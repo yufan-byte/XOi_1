@@ -301,7 +301,10 @@ export default async function startServe(randomPort: Boolean = false) {
       req.path === "/api/login/captcha" ||
       // 健康检查：供 docker-compose healthcheck / 负载均衡探活，必须在鉴权前放行
       req.path === "/api/healthz" ||
-      req.path === "/api/readyz"
+      req.path === "/api/readyz" ||
+      // 爆款复刻的视频元素无法附带 Authorization；该地址自身带 2 小时 HMAC 签名，
+      // 只放行读取流，分享链解析 /resolve 仍必须经过登录鉴权。
+      (req.method === "GET" && req.path === "/api/viral/proxy")
     )
       return next();
     // 公开取码端点 /api/login/captcha 同列入白名单 ── 前端「换一张」刷新钮于未登录态拉取新鲜 SVG 必经此处,
