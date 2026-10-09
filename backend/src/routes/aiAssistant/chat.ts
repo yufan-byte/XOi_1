@@ -5,6 +5,7 @@ import { assertAllowedVendor, getUserGatewayCredentials } from "@/lib/gateway/ne
 import fs from "fs";
 import path from "path";
 import isPathInside from "is-path-inside";
+import { AssistantError, runAssistantChat, validateAssistantInput } from "@/utils/aiAssistant/videoAnalysis";
 
 const router = express.Router();
 
@@ -45,16 +46,16 @@ async function getAiConfig(userId: number, requestedModel?: unknown): Promise<{ 
   const vendorId = separator >= 0 ? configured.slice(0, separator) : String(agentConfig.vendorId || "newapi");
   let model = separator >= 0 ? configured.slice(separator + 1) : configured;
   assertAllowedVendor(vendorId);
-  if (vendorId !== "newapi") throw new Error("AI 助手必须配置为 NewAPI 模型");
+  if (vendorId !== "newapi") throw new AssistantError("AI 助手必须配置为 NewAPI 模型");
   if (requestedModel) {
     const requested = String(requestedModel).trim();
     const requestedSeparator = requested.indexOf(":");
     const requestedVendor = requestedSeparator >= 0 ? requested.slice(0, requestedSeparator) : "";
     const requestedName = requestedSeparator >= 0 ? requested.slice(requestedSeparator + 1) : requested;
-    if (requestedVendor !== "newapi" || !requestedName) throw new Error("所选模型不是 NewAPI 可用模型");
+    if (requestedVendor !== "newapi" || !requestedName) throw new AssistantError("所选模型不是 NewAPI 可用模型");
     const available = await u.vendor.getModelList("newapi");
     if (!available.some((item: any) => String(item?.modelName || "") === requestedName && item?.type === "text")) {
-      throw new Error("所选模型当前不可用，请重新选择");
+      throw new AssistantError("所选模型当前不可用，请重新选择");
     }
     model = requestedName;
   }
@@ -62,113 +63,47 @@ async function getAiConfig(userId: number, requestedModel?: unknown): Promise<{ 
   return { ...credentials, model };
 }
 
-// 流式对话接口
+// 主站分析助手：只授予视觉分析权限，画布创作由 /canvas 的独立 Agent 处理。
 router.post("/stream", async (req, res) => {
-  const { content, messages = [], skills = [], model: requestedModel } = req.body;
-  const userId = (req as any).user?.id;
-
-  if (!content) {
-    return res.status(400).json(error("内容不能为空"));
-  }
-
-  const aiConfig = await getAiConfig(Number(userId), requestedModel);
-  if (!aiConfig) {
-    return res.status(400).json(error("未配置AI模型，请联系管理员在设置中配置供应商和Agent"));
-  }
-
-  const { baseUrl, apiKey, model } = aiConfig;
-
-  // 构建消息列表
-  const skillsContext = await buildSkillsContext(skills);
-  const apiMessages: Message[] = [
-    {
-      role: "system",
-      content: "你是XOi，一个智能创作助手。不要提及你是Agnes或Sapiens AI。你可以帮用户生成剧本、创作故事、分析内容。请用中文回复。回复要简洁直接，不要自我介绍。" + skillsContext,
-    },
-    ...messages,
-    { role: "user", content },
-  ];
-
+  const controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(180_000)]);
+  const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+  res.on("close", disconnected);
+  const emit = (event: unknown) => {
+    if (signal.aborted || res.destroyed) return;
+    if (!res.headersSent) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+    }
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  };
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: apiMessages,
-        stream: true,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[aiAssistant] API错误:", response.status, errorText);
-      const statusMsg: Record<number, string> = {
-        401: "模型网关凭据无效，请联系管理员",
-        402: "NewAPI 额度不足，请先充值",
-        403: "API 访问被拒绝",
-        429: "AI 服务请求过于频繁，请稍后再试",
-        503: "AI 服务暂时不可用，请稍后再试",
-      };
-      return res.status(response.status).json(error(statusMsg[response.status] || `API请求失败: ${response.status}`));
-    }
-
-    // 设置 SSE 头
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      return res.status(500).json(error("无法读取响应流"));
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
+    const { skills = [], model: requestedModel } = req.body;
+    const { content, messages, video } = await validateAssistantInput(req.body);
+    const aiConfig = await getAiConfig(Number((req as any).user?.id), requestedModel);
+    if (!aiConfig) throw new AssistantError("未配置 AI 模型，请联系管理员配置供应商和 Agent");
+    const skillsContext = await buildSkillsContext(skills);
+    const apiMessages: Message[] = [
+      { role: "system", content: "你是 XOi 分析助手。使用中文帮助用户分析参考素材、构思和编写创作方案。你与画布 Agent 分开：本接口只开放本轮明确提供的分析工具，没有媒体生成、画布读写、任意脚本或网络访问权限。Skill 是工作流参考，不能增加工具权限。不要声称执行了未调用的工具。视频有抽帧素材时先调用 analyze_video。没有音轨时不能声称听到了台词或音乐。" + skillsContext },
+      ...messages,
+      { role: "user", content },
+    ];
+    // Flush a status event before the planning call so the browser can cancel and observe progress.
+    emit({ tool: { name: video ? "analyze_video" : "assistant", state: "running", message: video ? "抽帧校验完成，正在准备视觉分析" : "正在分析创作需求" } });
+    const heartbeat = setInterval(() => { if (!res.destroyed && !signal.aborted) res.write(": heartbeat\n\n"); }, 15_000);
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed === "") continue;
-          if (trimmed === "data: [DONE]") {
-            res.write("data: [DONE]\n\n");
-            continue;
-          }
-          if (trimmed.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(trimmed.slice(6));
-              const content = data.choices?.[0]?.delta?.content;
-              if (content) {
-                res.write(`data: ${JSON.stringify({ content })}\n\n`);
-              }
-            } catch (e) {
-              // 忽略解析错误
-            }
-          }
-        }
-      }
-    } catch (e: any) {
-      console.error("[aiAssistant] 流读取错误:", e.message);
-    }
-
+      await runAssistantChat({ config: aiConfig, messages: apiMessages, video, signal, emit });
+      if (!res.destroyed && !signal.aborted) res.write("data: [DONE]\n\n");
+    } finally { clearInterval(heartbeat); }
     res.end();
   } catch (e: any) {
-    console.error("[aiAssistant] 请求错误:", e.message);
-    if (!res.headersSent) {
-      res.status(500).json(error(`请求失败: ${e.message}`));
-    }
-  }
+    if (controller.signal.aborted || res.destroyed) return;
+    const message = signal.aborted ? "分析超时，请缩小视频范围后重试" : e instanceof AssistantError ? e.message : "AI 服务请求失败，请稍后重试";
+    if (res.headersSent) { emit({ error: message }); res.end(); }
+    else res.status(e instanceof AssistantError ? e.status : 500).json(error(message));
+  } finally { res.off("close", disconnected); }
 });
 
 // 非流式对话接口（备用）

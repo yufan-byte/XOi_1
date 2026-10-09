@@ -1,5 +1,5 @@
 <template>
-  <div class="aiAssistant" :class="{ focusMode, emptyMode: messages.length === 0 }">
+  <div class="aiAssistant" :class="{ focusMode, emptyMode: messages.length === 0, analysisMode: agentMode === 'analysis' }">
     <div class="assistantPanel">
 
       <!-- ===== 顶部 HeaderBar ===== -->
@@ -65,7 +65,7 @@
         <transition name="fade" mode="out-in">
           <!-- ── 空态:IP 吉祥物 + 业务化 PromptCard ×3 ── -->
           <section v-if="messages.length === 0" key="empty" class="emptyStage">
-            <section class="mioraBanner" aria-label="无限画布功能轮播">
+            <section v-if="agentMode === 'canvas'" class="mioraBanner" aria-label="无限画布功能轮播">
               <div ref="bannerCarouselRef" class="bannerStage">
                 <button
                   v-for="banner in visibleBanners"
@@ -108,7 +108,11 @@
               </div>
             </section>
 
-            <section class="mioraHero" aria-label="创作类型">
+            <section v-if="agentMode === 'analysis'" class="launchIntro" aria-label="分析助手说明">
+              <h1>先看懂参考，再把方案交给画布</h1>
+              <p>分析助手负责聊天、参考拆解和 Skill 方案。上传视频后点击“抽帧分析”，使用支持工具调用和看图的模型；满意后再带入画布制作。</p>
+            </section>
+            <section v-if="agentMode === 'canvas'" class="mioraHero" aria-label="创作类型">
               <div class="creationTabs" role="tablist">
                 <button v-for="category in creationCategories" :key="category.key" type="button" :class="{ active: activeCategory === category.key }" @click="activeCategory = category.key">
                   <span class="categoryIcon" v-html="category.icon"></span>
@@ -200,9 +204,21 @@
                   </svg>{{ copiedId === message.id ? "已复制" : "复制" }}
                 </button>
                 <div v-if="message.status === 'pending' || (message.status === 'streaming' && !message.content)" class="typingIndicator agentPendingState">
-                  <div class="agentPendingTop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg><span>正在理解画布和创作目标</span></div>
+                  <div class="agentPendingTop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg><span>{{ message.toolStatus || "正在分析创作需求" }}</span></div>
                   <div class="agentPendingProgress"><span></span></div>
                 </div>
+                <div v-if="message.video" class="videoAnalysisPreview">
+                  <p>{{ message.video.name }} · {{ formatFrameTime(message.video.duration) }} · {{ message.video.frames.length }} 张抽样帧</p>
+                  <div class="analysisFrameStrip">
+                    <figure v-for="frame in message.video.frames" :key="frame.time">
+                      <img :src="frame.dataUrl" :alt="`视频 ${formatFrameTime(frame.time)} 的抽样画面`" loading="lazy" />
+                      <figcaption>{{ formatFrameTime(frame.time) }}</figcaption>
+                    </figure>
+                  </div>
+                  <small>依据抽样画面分析，未读取音轨；精确剪辑点需进一步检测。</small>
+                </div>
+                <p v-if="message.toolStatus && message.status === 'streaming' && message.content" class="analysisToolStatus" role="status">{{ message.toolStatus }}</p>
+                <button v-if="message.role === 'assistant' && message.status === 'complete' && message.content" type="button" class="analysisHandoff" @click="openCanvasWithPrompt(`请根据以下分析方案继续创作，先规划再生成：\n${message.content}`)">将此方案带入画布 →</button>
               </div>
             </div>
           </section>
@@ -215,6 +231,13 @@
         class="composerToolbar upstreamComposer"
         :class="{ popoverOpen: showAssetMenu || showSkillPicker || Boolean(openSetting) }"
         @click.self="focusComposer">
+        <div class="assistantModeBar" role="group" aria-label="选择 Agent">
+          <button type="button" :class="{ selected: agentMode === 'canvas' }" :disabled="status !== 'idle'" @click="switchAgentMode('canvas')">▧ 画布创作</button>
+          <button type="button" :class="{ selected: agentMode === 'analysis' }" :disabled="status !== 'idle'" @click="switchAgentMode('analysis')">◉ 分析助手</button>
+          <span>{{ hasVideoAttachment ? '视频分析需看图与工具调用模型，按实际用量结算' : agentMode === 'canvas' ? '进入画布，由画布 Agent 执行生成' : '聊天与参考分析，方案可带入画布' }}</span>
+          <button v-if="agentMode === 'analysis'" type="button" :disabled="status !== 'idle'" aria-label="新建分析对话" title="新建分析对话" @click="newConversation"><i-plus /></button>
+          <button v-if="agentMode === 'analysis'" type="button" :disabled="status !== 'idle'" aria-label="分析历史" title="分析历史" @click="showHistory = !showHistory"><i-history /></button>
+        </div>
         <div v-if="messages.length === 0" class="composerMascot" aria-hidden="true">
           <video src="/miora-home/mascot-preview.webm" autoplay muted loop playsinline></video>
         </div>
@@ -259,15 +282,15 @@
             v-model="inputValue"
             rows="1"
             :disabled="status === 'pending' || status === 'streaming'"
-            :placeholder="inputValue ? '描述创作目标，或让我继续操作画布' : ''"
-            aria-label="描述创作目标，或让我继续操作画布"
+            :placeholder="inputValue ? (agentMode === 'analysis' ? '描述分析需求，或继续讨论方案' : '描述创作目标，进入画布执行') : ''"
+            :aria-label="agentMode === 'analysis' ? '描述分析需求' : '描述创作目标'"
             @keydown.tab="handleSkillTab"
             @keydown.backspace="handleComposerBackspace"
             @keydown.delete="handleComposerDelete"
             @keydown.enter.exact.prevent="handleSend"
             @input="autogrowTextarea"></textarea>
           <div v-if="!inputValue" class="completionHint promptCycleHint" aria-hidden="true">
-            <span class="promptSpark">✦</span><span class="promptCycleLabel">{{ completionSuggestion || cyclePromptText }}</span><kbd>Tab 补全</kbd>
+            <span class="promptSpark">✦</span><span class="promptCycleLabel">{{ completionSuggestion || (agentMode === 'analysis' ? '上传参考视频，或让我拆解创作需求' : cyclePromptText) }}</span><kbd>Tab 补全</kbd>
           </div>
         </div>
 
@@ -285,8 +308,9 @@
             <i-toolkit size="16px" /><span class="toolLabel">Skill</span>
             <span v-if="selectedSkills.length" class="skillCount">{{ selectedSkills.length }}</span>
           </button>
+          <button v-if="hasVideoAttachment" type="button" class="roundIconBtn analyzeVideoButton" :disabled="status !== 'idle'" title="抽取 12 帧分析画面；当前模型需支持工具调用与看图" @click="handleAnalyzeVideo">◉ <span>抽帧分析</span></button>
           <div class="modelSlot" aria-label="选择对话模型">
-            <span class="modelSlotLabel">模型</span>
+            <span class="modelSlotLabel">{{ agentMode === "analysis" ? "分析模型" : "模型" }}</span>
             <modelSelect
               v-model="selectedModelValue"
               v-model:label="selectedModelLabel"
@@ -326,15 +350,15 @@
         <div class="toolbarRight">
           <button type="button" class="roundIconBtn reasoningButton" :class="{ active: reasoningEnabled }" :title="reasoningEnabled ? '推理已开启' : '推理已关闭'" :aria-label="reasoningEnabled ? '关闭推理' : '开启推理'" :aria-pressed="reasoningEnabled" @click="reasoningEnabled = !reasoningEnabled">✦<span class="toolLabel">推理</span></button>
           <t-button
-            v-if="status !== 'streaming'"
+            v-if="status === 'idle'"
             theme="primary"
             shape="square"
             class="sendButton"
-            :disabled="!inputValue.trim() || status === 'pending'"
-            :loading="status === 'pending'"
+            :disabled="!inputValue.trim()"
             @click="handleSend"
             aria-label="发送">
             <template #icon><i-send size="15px" /></template>
+            <span class="sendButtonLabel">{{ agentMode === "canvas" ? "进入画布" : "发送分析" }}</span>
           </t-button>
           <t-button
             v-else
@@ -357,7 +381,7 @@
         </div>
       </Teleport>
 
-      <section v-if="messages.length === 0" class="inspirationShowcase" aria-labelledby="inspiration-heading">
+      <section v-if="messages.length === 0 && agentMode === 'canvas'" class="inspirationShowcase" aria-labelledby="inspiration-heading">
         <header>
           <h2 id="inspiration-heading"><i-bulb />优质灵感</h2>
           <div class="inspirationActions">
@@ -387,6 +411,7 @@ import { MessagePlugin } from "tdesign-vue-next";
 import axios from "@/utils/axios";
 import settingStore from "@/stores/setting";
 import { showPointsToast } from "@/utils/pointsToast";
+import { extractAnalysisFrames, formatFrameTime, type AnalysisVideo } from "@/utils/videoFrames";
 // Miora IP 身躯贴图 · 736×737 PNG 经 Vite ESM-import 解析为运行期 hashed URL，
 // 注入下方 <image :href=:xlink:href> 以还原本仓此前无法解码的那张外图真貌。
 import ipBodyUrl from "@/assets/ip_body.png";
@@ -510,9 +535,17 @@ function openBanner(banner: CanvasBanner & { index: number; position: number }) 
   // 功能导流卡一律站内跳转（外部推广链接已清除）
   if (banner.route) router.push(banner.route);
 }
-function openCanvasWithPrompt(preset = inputValue.value.trim()) {
+async function openCanvasWithPrompt(preset = inputValue.value.trim()) {
   const prompt = preset.trim();
+  if (composerAttachments.value.reduce((sum, asset) => sum + asset.size, 0) > 4 * 1024 * 1024) {
+    MessagePlugin.warning("进入画布的附件总大小需在 4MB 内；大视频可先分析，再移除原视频并带入分析方案");
+    return;
+  }
   try {
+    const assets = await Promise.all(composerAttachments.value.map(async (asset) => ({
+      id: asset.id, name: asset.name, type: asset.type, size: asset.size,
+      dataUrl: asset.file ? await fileDataUrl(asset.file) : asset.dataUrl,
+    })));
     localStorage.setItem("xoi_canvas_handoff_v1", JSON.stringify({
       prompt,
       category: activeCategory.value,
@@ -521,7 +554,7 @@ function openCanvasWithPrompt(preset = inputValue.value.trim()) {
       video: { size: videoSize.value, quality: videoQuality.value },
       model: selectedModelValue.value || "",
       reasoning: reasoningEnabled.value,
-      assets: composerAttachments.value,
+      assets,
       source: "aiAssistant",
       createdAt: Date.now(),
     }));
@@ -537,6 +570,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   status?: "pending" | "streaming" | "complete" | "error";
+  toolStatus?: string;
+  video?: AnalysisVideo;
 }
 interface Conversation {
   id: number;
@@ -720,6 +755,18 @@ onBeforeUnmount(() => cyclePromptTimer && window.clearTimeout(cyclePromptTimer))
 
 // ----- 会话内存态 -----
 const messages = ref<Message[]>([]);
+const agentMode = ref<"canvas" | "analysis">("canvas");
+function switchAgentMode(mode: "canvas" | "analysis") {
+  if (status.value !== "idle" || agentMode.value === mode) return;
+  newConversation();
+  agentMode.value = mode;
+}
+function handleAnalyzeVideo() {
+  if (status.value !== "idle") return;
+  switchAgentMode("analysis");
+  if (!inputValue.value.trim()) inputValue.value = "分析这个视频的画面、叙事、构图，并给出可在画布制作的复刻提示词";
+  void handleSend();
+}
 const conversations = ref<Conversation[]>([]);
 const activeId = ref<number | null>(null);
 const seqCounter = ref(0);
@@ -752,6 +799,7 @@ interface PersistedMessageLite {           // 仅留三核字段 strip 掉 strea
   id?: string;
   role: "assistant" | "user";
   content: string;
+  status?: "complete" | "error";
 }
 interface PersistedSessionLite {
   id: number;
@@ -794,6 +842,7 @@ function schedulePersist(): void {
             msgs: c.messages.map<PersistedMessageLite>((m) => ({
               id: m.id,
               role: m.role,
+              status: m.status === "error" ? "error" : "complete",
               content: m.content ?? "",     // abort 中途 content 可能 undefined → 兜底空串避 JSON.stringify 输出 undefined 致 NaN 行为
             })),
           }));
@@ -818,7 +867,7 @@ function restorePersistedSessions(): void {
         id: m?.["id"] != null ? String(m["id"]) : String(Math.random()),
         role: m?.["role"] === "assistant" ? ("assistant" as const) : ("user" as const),
         content: String(m?.["content"] ?? ""),
-        status: "complete",               // 恢复一律置终态即便原曾 streaming 也视作已结束免卡死动画占位符
+        status: m?.["status"] === "error" ? "error" : "complete", // 保留失败状态；旧版历史降为完成态
       }));
       restored.push({
         id: sid,
@@ -840,11 +889,24 @@ restorePersistedSessions();
 
 // ----- 编辑器/SSE 流式核心(沿用原 handler,协议字段零变动)-----
 const inputValue = ref("");
-type ComposerAttachment = { id: string; name: string; type: string; size: number; dataUrl: string };
+type ComposerAttachment = { id: string; name: string; type: string; size: number; dataUrl: string; file?: File };
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
 const composerAttachments = ref<ComposerAttachment[]>([]);
+const hasVideoAttachment = computed(() => composerAttachments.value.some((file) => file.type.startsWith("video/")));
+
+function fileDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
 
 function readComposerFile(file: File): Promise<ComposerAttachment> {
+  if (file.type.startsWith("video/")) {
+    return Promise.resolve({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: file.name, type: file.type, size: file.size, dataUrl: URL.createObjectURL(file), file });
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: file.name, type: file.type, size: file.size, dataUrl: String(reader.result || "") });
@@ -859,9 +921,9 @@ async function onComposerFilesSelected(event: Event) {
   input.value = "";
   if (!files.length) return;
   const allowed = files.filter((file) => /^(image|video|audio)\//.test(file.type));
-  const total = allowed.reduce((sum, file) => sum + file.size, 0);
-  if (total > 4 * 1024 * 1024) {
-    MessagePlugin.warning("为确保素材能完整发送到画布，单次附件总大小请控制在 4MB 内");
+  const total = [...composerAttachments.value, ...allowed].filter((file) => !file.type.startsWith("video/")).reduce((sum, file) => sum + file.size, 0);
+  if (total > 4 * 1024 * 1024 || allowed.some((file) => file.size > 100 * 1024 * 1024) || composerAttachments.value.length + allowed.length > 4) {
+    MessagePlugin.warning("最多 4 个附件；单个视频不超过 100MB，其他素材总大小不超过 4MB");
     return;
   }
   try {
@@ -873,6 +935,8 @@ async function onComposerFilesSelected(event: Event) {
 }
 
 function removeComposerAttachment(id: string) {
+  const asset = composerAttachments.value.find((file) => file.id === id);
+  if (asset?.file && asset.dataUrl.startsWith("blob:")) URL.revokeObjectURL(asset.dataUrl);
   composerAttachments.value = composerAttachments.value.filter((file) => file.id !== id);
 }
 
@@ -931,8 +995,14 @@ const taRef = ref<HTMLTextAreaElement | null>(null);
 const messagesRef = ref<HTMLElement | null>(null);
 const mainRef = ref<HTMLElement | null>(null);
 let abortController: AbortController | null = null;
+onBeforeUnmount(() => {
+  abortController?.abort();
+  for (const asset of composerAttachments.value) {
+    if (asset.file && asset.dataUrl.startsWith("blob:")) URL.revokeObjectURL(asset.dataUrl);
+  }
+});
 
-const savedSnapshotOfMessages = (): Message[] => JSON.parse(JSON.stringify(messages.value));
+const savedSnapshotOfMessages = (): Message[] => messages.value.map(({ video, ...message }) => ({ ...message }));
 
 function pickPrompt(text: string) {
   inputValue.value = text;
@@ -950,6 +1020,7 @@ function scrollToBottom() {
 function formatMessage(content: string): string {
   if (!content) return "";
   return content.trim()
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -998,15 +1069,21 @@ async function handleMsgCopy(msg: Message, e: MouseEvent) {
 async function handleSend() {
   if (!inputValue.value.trim() || status.value !== "idle") return;
 
-  // The empty homepage uses the send control as its canvas entry point.
-  // Existing conversations retain the normal streaming-chat behavior.
-  if (messages.value.length === 0) {
+  // Keep creative execution in the independent canvas Agent.
+  if (agentMode.value === "canvas") {
     openCanvasWithPrompt();
     return;
   }
 
+  const videos = composerAttachments.value.filter((asset) => asset.type.startsWith("video/"));
+  if (videos.length > 1) { MessagePlugin.warning("一次请分析一个视频，先移除多余视频"); return; }
+  if (composerAttachments.value.some((asset) => !asset.type.startsWith("video/"))) {
+    MessagePlugin.warning("分析助手当前只读取文本和视频抽样帧；请移除图片 / 音频，或转到画布使用");
+    return;
+  }
+  const historyMessages = messages.value.filter((message) => message.role === "user" || message.status === "complete").slice(-10).map((message) => ({ role: message.role, content: message.content }));
   const tsBase = Date.now();
-  const userMessage: Message = { id: String(tsBase), role: "user", content: inputValue.value };
+  const userMessage: Message = { id: String(tsBase), role: "user", content: inputValue.value + (videos[0] ? `\n[视频：${videos[0].name}]` : ""), status: "complete" };
   const assistantMessage: Message = { id: String(tsBase + 1), role: "assistant", content: "", status: "pending" };
 
   messages.value.push(userMessage);
@@ -1034,22 +1111,21 @@ async function handleSend() {
   abortController = new AbortController();
 
   try {
-    const historyMessages = messages.value
-      .filter((m) => m.status === "complete")
-      .slice(-10)
-      .map((m) => ({ role: m.role, content: m.content }));
-
+    let analysisVideo: AnalysisVideo | undefined;
+    if (videos[0]) {
+      const current = messages.value[messages.value.length - 1];
+      current.toolStatus = "正在读取视频并抽帧";
+      analysisVideo = await extractAnalysisFrames({ name: videos[0].name, source: videos[0].file || videos[0].dataUrl }, abortController.signal, (progress) => { current.toolStatus = progress; });
+      current.video = analysisVideo;
+      current.toolStatus = `已抽取 ${analysisVideo.frames.length} 帧，正在提交分析`;
+      scrollToBottom();
+    }
     const response = await fetch(
       `${baseUrl.value.replace("/api", "")}/api/aiAssistant/chat/stream`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: localStorage.getItem("token") || "" },
-        // 本体严格维持 `{content, messages}` 两字段(chat.ts:39 解构依赖);execution/model 偏好走客户端记忆不入报文保向后兼容
-        // The chat endpoint resolves skills from their relative filesystem
-        // paths and injects the SKILL.md bodies into the system context.
-        // Send paths directly instead of UI/MCP presentation objects so the
-        // selected skill cannot be silently dropped during JSON transport.
-        body: JSON.stringify({ content, messages: historyMessages.slice(0, -1), skills: activeSkillOptions.value.map((skill) => skill.path), model: selectedModelValue.value || undefined }),
+        body: JSON.stringify({ content, messages: historyMessages, skills: activeSkillOptions.value.map((skill) => skill.path), model: selectedModelValue.value || undefined, agentMode: "analysis", analysisVideo }),
         signal: abortController.signal,
       },
     );
@@ -1080,6 +1156,8 @@ async function handleSend() {
     lastMessage.status = "streaming";
 
     let buffer = "";
+    let streamError = "";
+    let sawDone = false;
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -1088,10 +1166,15 @@ async function handleSend() {
       buffer = lines.pop() || "";
       for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed === "" || trimmed === "data: [DONE]") continue;
+        if (trimmed === "data: [DONE]") { sawDone = true; continue; }
+        if (trimmed === "") continue;
         if (trimmed.startsWith("data: ")) {
           try {
             const data = JSON.parse(trimmed.slice(6));
+            if (data.error) streamError = String(data.error);
+            if (data.tool?.message) {
+              messages.value[messages.value.length - 1].toolStatus = String(data.tool.message);
+            }
             if (data.pointsDeducted) showPointsToast(data.pointsDeducted, data.balance);
             if (data.content && lastMessage) {
               // 展开重建而非原地 mutate,确保 Vue 响应式稳定刷新(git HEAD 原版验证过的写法,R3 行为保真)
@@ -1107,6 +1190,9 @@ async function handleSend() {
         }
       }
     }
+    if (streamError) throw new Error(streamError);
+    if (!sawDone) throw new Error("响应连接提前结束，请重试");
+    if (videos[0]) removeComposerAttachment(videos[0].id);
     // 流式过程每个 chunk 以 {...spread} 整体重建末位对象保响应式(git HEAD 验证过的写法);
     // 故此处绝不可复用上方缓存的 lastMessage——那引用早被 spread 弃置成脱队游魂,
     // 给它盖章不会落到 DOM 实际渲染所读的现行对象头上·须现场重取数组末位才是承载数据的真身,
@@ -1119,17 +1205,19 @@ async function handleSend() {
   } catch (e: any) {
     if (e.name === "AbortError") {
       const lm = messages.value[messages.value.length - 1];
-      if (lm) lm.status = lm.content ? "complete" : "error";
+      if (lm) { lm.status = "error"; lm.content += "\n\n已停止本次分析"; lm.toolStatus = "已停止"; }
     } else {
       console.error("[aiAssistant] 发送失败:", e);
       const lm = messages.value[messages.value.length - 1];
       if (lm) {
-        lm.content = `请求失败: ${e.message}`;
+        lm.toolStatus = "本次分析未完成";
+        lm.content = `${lm.content ? lm.content + "\n\n" : ""}请求失败: ${e.message}`;
         lm.status = "error";
       }
     }
   } finally {
     status.value = "idle";
+    syncCurrentIntoActiveConv(savedSnapshotOfMessages());
   }
 }
 
@@ -1150,6 +1238,7 @@ function syncCurrentIntoActiveConv(snapshot: Message[]) {
 
 // ----- 会话管理动作 -----
 function newConversation() {
+  if (status.value !== "idle") { MessagePlugin.info("请先停止当前分析，再新建对话"); return; }
   // 当前若有完整完成的消息则先把它们归档好(便于稍后从历史里看回来),然后开启新的一张空白
   if (activeId.value != null) {
     syncCurrentIntoActiveConv(savedSnapshotOfMessages());
@@ -1161,6 +1250,8 @@ function newConversation() {
 }
 
 function switchConversation(id: number) {
+  if (status.value !== "idle") { MessagePlugin.info("请先停止当前分析，再切换对话"); return; }
+  agentMode.value = "analysis";
   const cv = conversations.value.find((x) => x.id === id);
   if (!cv) return;
   // 先存住当前活跃对话最新进度再做视图替换(view-back 行为:展示历史不代表真接续上下文)
@@ -1172,6 +1263,7 @@ function switchConversation(id: number) {
 }
 
 function clearConversations() {
+  if (status.value !== "idle") { MessagePlugin.info("请先停止当前分析，再清空历史"); return; }
   conversations.value = [];
   activeId.value = null;
   messages.value = [];
@@ -1294,7 +1386,7 @@ function acceptSkillCompletion() {
 }
 function acceptCyclePrompt() {
   if (completionSuggestion.value) return acceptSkillCompletion();
-  inputValue.value = cyclePrompt.value;
+  inputValue.value = agentMode.value === "analysis" ? "帮我拆解创作需求，整理可交给画布制作的方案" : cyclePrompt.value;
   nextTick(() => { autogrowTextarea(); taRef.value?.focus(); });
 }
 function handleSkillTab(event: KeyboardEvent) {
@@ -2014,6 +2106,34 @@ function useInspiration(prompt: string) {
   .modelSlot{min-width:0}.modelSlotLabel{display:none}.modelSlot :deep(.t-select__wrap),.modelSlot :deep(.t-select){width:130px}.composerCostHint{display:none!important}
   .upstreamComposer .settingPill{max-width:118px;padding:0 9px;font-size:11px}
 }
+
+.assistantModeBar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 0 12px; }
+.assistantModeBar button, .analysisHandoff { border:1px solid var(--td-component-border, #dce0e8); background:transparent; color:inherit; border-radius:10px; padding:8px 12px; cursor:pointer; }
+.assistantModeBar button.selected { background:var(--td-brand-color-light, #eef0ff); color:var(--td-brand-color, #6757e8); border-color:var(--td-brand-color, #6757e8); }
+.assistantModeBar span, .analysisToolStatus { color:var(--td-text-color-secondary, #777); font-size:12px; }
+.videoAnalysisPreview { margin-top:14px; max-width:600px; }
+.videoAnalysisPreview p { font-size:12px; overflow-wrap:anywhere; }
+.videoAnalysisPreview small { color:var(--td-text-color-secondary, #777); }
+.analysisFrameStrip { display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; }
+.analysisFrameStrip figure { flex:0 0 110px; margin:0; }
+.analysisFrameStrip img { width:110px; height:76px; object-fit:contain; background:#151515; border-radius:6px; }
+.analysisFrameStrip figcaption { text-align:center; font-size:11px; margin-top:3px; }
+.analysisHandoff { margin-top:12px; font-size:12px; }
+.analyzeVideoButton { white-space:nowrap; }
+.upstreamComposer, .emptyMode .upstreamComposer { grid-template-areas:"agent agent" "editor editor" "left right"; grid-template-rows:auto auto auto; }
+.emptyMode .upstreamComposer { grid-template-areas:"agent agent" "editor editor" "billing billing" "guide guide" "left right"; grid-template-rows:auto minmax(72px,auto) auto auto auto; }
+.assistantModeBar { grid-area:agent; }
+.analysisMode .launchIntro { grid-template-columns:1fr; margin-top:40px; }
+.analysisMode .composerSetting, .analysisMode .reasoningButton { display:none; }
+.upstreamComposer .analyzeVideoButton { width:auto; padding:0 10px; font-size:12px; }
+.upstreamComposer .sendButton, .emptyMode .upstreamComposer .sendButton { width:auto; min-width:96px; padding:0 14px; border-radius:20px; }
+@media(max-width:760px) {
+  .upstreamComposer, .emptyMode .upstreamComposer { grid-template-columns:minmax(0,1fr); grid-template-areas:"agent" "editor" "billing" "guide" "left" "right"; grid-template-rows:repeat(6,auto); }
+  .assistantModeBar span { flex-basis:100%; }
+  .upstreamComposer .toolbarLeft, .emptyMode .upstreamComposer .toolbarLeft { flex-wrap:wrap; overflow:visible; }
+  .upstreamComposer .toolbarRight, .emptyMode .upstreamComposer .toolbarRight { justify-content:flex-end; }
+}
+
 </style>
 
 <!-- 非 scoped 全局段:IP mascot 眨眼动效 + 暗模式身体灰度适配 + 减弱运动守护(affectation 不能受 scoped 数据属性哈希约束否则 :root/.dark 选择器失配)-->
