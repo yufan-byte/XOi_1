@@ -14,7 +14,7 @@
   },
   "packageManager": "yarn@1.0.0",
   "engines": {
-    "node": ">=1.0.0"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=dev nodemon --inspect --exec tsx src/app.ts",
@@ -22,7 +22,7 @@
     "lint": "tsc --noEmit",
     "db:check": "tsx scripts/check-db.ts",
     "db:types": "tsx scripts/gen-db-types.ts",
-    "test": "tsx --test src/utils/**/*.test.ts",
+    "test": "tsx --test src/utils/*.test.ts src/utils/**/*.test.ts",
     "build": "cross-env NODE_ENV=prod tsx scripts/build.ts",
     "debug:ai": "npx @ai-sdk/devtools",
     "license": "node scripts/license.ts",
@@ -36,7 +36,7 @@
     "@ai-sdk/openai": "^3.0.25",
     "@ai-sdk/openai-compatible": "^2.0.27",
     "@ai-sdk/xai": "^3.0.47",
-    "@huggingface/transformers": "^3.8.1",
+    "@huggingface/transformers": "^4.3.1",
     "ai": "^6.0.67",
     "axios": "^1.13.2",
     "axios-retry": "^4.5.0",
@@ -47,7 +47,6 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-ws": "^5.0.2",
-    "fast-glob": "^3.3.3",
     "form-data": "^4.0.5",
     "graphlib": "^2.1.8",
     "is-path-inside": "^4.0.0",
@@ -60,7 +59,7 @@
     "pg": "^8.23.1",
     "qwen-ai-provider-v5": "^2.1.0",
     "serialize-error": "^13.0.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.5",
     "socket.io": "^4.8.3",
     "sucrase": "^3.35.1",
     "svg-captcha": "^1.4.0",
@@ -85,5 +84,15 @@
     "nodemon": "^3.1.11",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "vercel-minimax-ai-provider": {
+      "@ai-sdk/provider-utils": "^4.0.57",
+      "@ai-sdk/anthropic": "^3.0.89"
+    },
+    "@fastify/busboy": "^3.2.2",
+    "@ai-sdk/provider-utils": {
+      "undici": "^6.29.0"
+    }
   }
 }

@@ -14,6 +14,7 @@ import FormData from "form-data";
 import jsonwebtoken from "jsonwebtoken";
 import u from "@/utils";
 import crypto from "node:crypto";
+import { fetchBinaryWithLimit } from "./safeUrl";
 
 /**
  * 使用 Node.js 内置 vm 模块运行供应商代码
@@ -121,9 +122,8 @@ export async function zipImageResolution(completeBase64: string, width: number, 
 
 //url转Base64
 export async function urlToBase64(url: string): Promise<string> {
-  const res = await axios.get(url, { responseType: "arraybuffer" });
-  const mime = res.headers["content-type"] || "image/jpeg";
-  const b64 = Buffer.from(res.data).toString("base64");
+  const { buffer, contentType: mime } = await fetchBinaryWithLimit(url);
+  const b64 = buffer.toString("base64");
   return `data:${mime};base64,${b64}`;
 }
 

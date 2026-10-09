@@ -1,4 +1,4 @@
-import fg from "fast-glob";
+import { listFiles } from "./utils/listFiles";
 import path from "path";
 import { readFile, writeFile } from "fs/promises";
 import crypto from "crypto";
@@ -100,7 +100,7 @@ function matchWhitelist(routeKey: string): { allowed: boolean; readOnly: boolean
 
 export default async function generateRouter(): Promise<void> {
   // glob 得到 entries
-  let entries: string[] = await fg(["src/routes/**/*.ts"]);
+  let entries: string[] = (await listFiles("src/routes", [".ts"])).map((file) => `src/routes/${file}`);
   // 排序
   entries = entries.sort((a, b) => a.localeCompare(b));
 

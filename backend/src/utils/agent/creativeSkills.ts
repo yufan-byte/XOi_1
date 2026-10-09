@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import fg from "fast-glob";
+import { listFiles } from "../listFiles";
 import { tool, jsonSchema, type ToolSet } from "ai";
 import getPath from "@/utils/getPath";
 import { parseFrontmatter } from "./skillsTools";
@@ -29,7 +29,7 @@ export async function loadCreativeSkills(input: unknown, root = getPath("skills"
   }
   if (!blocks.length) return { prompt: "", tools: {} };
   // Cross-skill references are part of the imported suite; expose text only, never execution.
-  const resources = await fg("**/*.{md,json,jsonl,yaml}", { cwd: suite, onlyFiles: true, followSymbolicLinks: false });
+  const resources = await listFiles(suite, [".md", ".json", ".jsonl", ".yaml"]);
   resources.forEach((file) => allowed.add(file));
   return {
     prompt: `\n\n## 本轮用户加载的创作 Skills\n采用以下专业方法完成当前任务。项目数据读取、写入和 XML 输出格式仍以本应用工具与原有角色约定为准。文档中的本地文件操作改用现有项目工具；不声称执行 Python、Shell、Dashboard 或媒体生产。需要参考资料时调用 read_creative_skill_file，路径相对于 drama-skills 目录。只处理用户本轮要求的阶段。\n${blocks.join("\n\n")}\n\n可读取的资料：\n${resources.join("\n")}`,

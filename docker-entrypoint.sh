@@ -23,4 +23,8 @@ for d in serve web skills models modelPrompt assets vendor fonts; do
 done
 
 echo "[entrypoint] 资产就绪，启动服务…"
+if [ "$(id -u)" = "0" ]; then
+  chown -R node:node "${DATA_DIR}"
+  exec gosu node "$@"
+fi
 exec "$@"

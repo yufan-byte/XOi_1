@@ -26,6 +26,7 @@ export default router.post(
       }
     });
     const [insertFlowId] = await u.db("o_imageFlow").insert({
+      userId: (req as any).user.id,
       flowData: JSON.stringify({ edges, nodes }),
     });
     return res.status(200).send(success({ id: insertFlowId }));

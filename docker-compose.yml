@@ -4,6 +4,11 @@ services:
     image: xoi:v1            # 构建产物标签
     container_name: xoi
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - NET_RAW
+    pids_limit: 256
     ports:
       # 左边宿主机端口(可用 PORT=.env 覆盖),右边容器内固定端口
       - "${PORT:-10588}:10588"
@@ -11,7 +16,7 @@ services:
       NODE_ENV: prod
       # 管理员账号仅在【首次初始化数据库】时生效，之后修改请在系统设置里改密
       XOI_ADMIN_USERNAME: ${XOI_ADMIN_USERNAME:-admin}
-      XOI_ADMIN_PASSWORD: ${XOI_ADMIN_PASSWORD:-admin123}
+      XOI_ADMIN_PASSWORD: ${XOI_ADMIN_PASSWORD:?请设置高强度初始管理员密码}
       TZ: Asia/Shanghai
       # ── new-api 模型网关（v3.0 起：账号/额度/日志的唯一权威）──
       # 这几个变量原来没有透传进容器，等于线上必然连不上网关和数据库。在这里显式传。

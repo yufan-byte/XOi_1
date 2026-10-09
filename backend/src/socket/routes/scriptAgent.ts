@@ -84,6 +84,11 @@ export default (nsp: Namespace) => {
       console.log("[scriptAgent] 更新思考配置:", thinkConfig);
     });
 
+    socket.on("disconnect", () => {
+      abortController?.abort();
+      abortController = null;
+    });
+
     socket.on("stop", () => {
       abortController?.abort();
       abortController = null;

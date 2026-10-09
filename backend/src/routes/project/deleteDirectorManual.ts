@@ -1,3 +1,4 @@
+import { skillDirectory } from "@/utils/skillDirectory";
 import express from "express";
 import u from "@/utils";
 import fs from "node:fs/promises";
@@ -22,7 +23,7 @@ export default router.post(
         return;
       }
 
-      const artPromptsDir = u.getPath(["skills", "story_skills", name]);
+      const artPromptsDir = skillDirectory(u.getPath(["skills", "story_skills"]), name);
 
       try {
         const stat = await fs.stat(artPromptsDir);
@@ -35,7 +36,7 @@ export default router.post(
       }
       res.status(200).send(success({ message: "删除成功" }));
     } catch (err) {
-      res.status(500).send(error(u.error(err).message || "删除失败"));
+      res.status((err as any).status || 500).send(error(u.error(err).message || "删除失败"));
     }
   },
 );

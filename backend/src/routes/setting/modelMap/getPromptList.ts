@@ -1,7 +1,7 @@
 import express from "express";
 import { error, success } from "@/lib/responseFormat";
 import u from "@/utils";
-import fg from "fast-glob";
+import { listFiles } from "@/utils/listFiles";
 import fs from "fs/promises";
 import path from "path";
 const router = express.Router();
@@ -9,10 +9,7 @@ const router = express.Router();
 export default router.get("/", async (req, res) => {
   const modelPromptRoot = u.getPath(["modelPrompt"]);
 
-  const entries = await fg("**/*.md", {
-    cwd: modelPromptRoot.replace(/\\/g, "/"),
-    onlyFiles: true,
-  });
+  const entries = await listFiles(modelPromptRoot, [".md"]);
 
   const result = await Promise.all(
     entries.map(async (entry) => {

@@ -44,3 +44,17 @@ PRD_Template.md
 /start.sh
 /LICENSE
 /NOTICES.txt
+
+# 私密配置与运行时账户/素材禁止进入镜像构建上下文
+**/.env
+**/.env.*
+!**/.env.example
+**/.npmrc
+**/.workbuddy
+**/.xoi-run
+**/.npm-cache
+backend/data/gallery_works.json
+backend/data/reseller.json
+backend/data/media
+backend/data/skills/covers
+!frontend/atelier/src/styles/shadcn-theme.LICENSE.md

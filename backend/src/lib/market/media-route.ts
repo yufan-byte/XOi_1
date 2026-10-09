@@ -17,6 +17,8 @@ import fs from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Router } from "express";
+import { fetchPublicResponse } from "@/utils/safeUrl";
+import { safeInlineMediaType } from "@/utils/mediaSecurity";
 import u from "@/utils";
 
 type MediaMap = Record<string, string>;
@@ -73,6 +75,8 @@ function cachedTypeOf(cached: string): string | null {
  * <video preload="metadata"> 只会取首帧那一段，不会把整段 mp4 拉下来。
  */
 function sendMedia(res: import("express").Response, file: string, type: string | null) {
+  res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
+  type = safeInlineMediaType(type || "application/octet-stream");
   res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   return res.sendFile(file, type ? { headers: { "Content-Type": type } } : {});
 }
@@ -124,9 +128,10 @@ export default async function mediaRouter(): Promise<Router> {
 
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 60_000);
-      const resp = await fetch(upstream, { signal: ctrl.signal, redirect: "follow" });
+      const resp = await fetchPublicResponse(upstream, { signal: ctrl.signal }, MAX_BYTES);
       if (!resp.ok || !resp.body) {
         clearTimeout(timer);
+        await resp.body?.cancel();
         return res.status(502).json({ code: 502, message: `upstream ${resp.status}` });
       }
 

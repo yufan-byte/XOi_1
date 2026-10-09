@@ -716,6 +716,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
       name: "o_imageFlow",
       builder: (table) => {
         table.increments("id");
+        table.bigInteger("userId").index();
         table.text("flowData").notNullable();
         table.unique(["id"]);
       },

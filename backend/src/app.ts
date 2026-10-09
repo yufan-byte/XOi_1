@@ -39,11 +39,17 @@ import { getPlatformPolicy } from "@/utils/platformPolicy";
 import { db, dbReady } from "@/utils/db";
 import { rateLimiter } from "@/middleware/rateLimiter";
 import { runWithGatewayUser } from "@/lib/gateway/context";
+import { loadAuthUser } from "@/utils/loadAuthUser";
+import { createResourceLoader } from "@/utils/resourceAccess";
+import { resourceScope } from "@/middleware/resourceScope";
 
 const app = express();
 app.disable("x-powered-by");
 if (process.env.XOI_TRUST_PROXY) app.set("trust proxy", process.env.XOI_TRUST_PROXY.split(",").map((value) => value.trim()));
 const server = http.createServer(app);
+const generationLimiter = rateLimiter({ windowMs: 60000, max: 60, keyGenerator: (req) => String((req as any).user?.id || req.ip) });
+const thumbnailLimiter = rateLimiter({ windowMs: 60000, max: 120 });
+let thumbnailsInFlight = 0;
 
 export default async function startServe(randomPort: Boolean = false) {
   await dbReady;
@@ -126,12 +132,18 @@ export default async function startServe(randomPort: Boolean = false) {
   console.log("文件目录:", ossDir);
   app.use(
     "/oss",
+    (req, res, next) => req.query.size ? thumbnailLimiter(req, res, next) : next(),
     (req, res, next) => {
+      // Uploaded media is never an executable same-origin document (including legacy SVG files).
+      res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
       // 如果传参 type=small，则返回小图
       if (req.query.size) {
         const size = req.query.size as string;
         const smallImageBaseDir = path.join(ossDir, "smallImage");
-        const originalPath = path.join(ossDir, req.path);
+        let decodedPath: string;
+        try { decodedPath = decodeURIComponent(req.path); } catch { return res.status(400).end(); }
+        const originalPath = path.resolve(ossDir, `.${decodedPath}`);
+        if (!originalPath.startsWith(`${path.resolve(ossDir)}${path.sep}`)) return res.status(403).end();
 
         // 解析 size 参数
         let sizeSubDir: string;
@@ -145,23 +157,30 @@ export default async function startServe(randomPort: Boolean = false) {
         if (dimensMatch) {
           const w = parseInt(dimensMatch[1], 10);
           const h = parseInt(dimensMatch[2], 10);
-          sizeSubDir = `${w}x${h}`;
-          sizeOpts = { type: "dimensions", width: w, height: h };
+          if (w < 1 || h < 1 || w > 2048 || h > 2048) return res.status(400).json({ message: "缩略图尺寸范围为 1~2048" });
+          const width = Math.ceil(w / 64) * 64, height = Math.ceil(h / 64) * 64;
+          sizeSubDir = `${width}x${height}`;
+          sizeOpts = { type: "dimensions", width, height };
         } else if (percentMatch) {
           const pct = parseFloat(percentMatch[1]);
-          sizeSubDir = `${percentMatch[1]}p`;
-          sizeOpts = { type: "percentage", value: pct };
+          if (!Number.isFinite(pct) || pct < 1 || pct > 100) return res.status(400).json({ message: "缩略图比例范围为 1~100" });
+          const percentage = Math.ceil(pct / 10) * 10;
+          sizeSubDir = `${percentage}p`;
+          sizeOpts = { type: "percentage", value: percentage };
         } else {
           // 无效的 size 参数，降级返回原图
           express.static(ossDir, { acceptRanges: false })(req, res, next);
           return;
         }
 
-        const ext = path.extname(req.path);
-        const base = path.basename(req.path, ext);
-        const dir = path.dirname(req.path);
+        const ext = path.extname(decodedPath);
+        const base = path.basename(decodedPath, ext);
+        const dir = path.dirname(decodedPath);
         const smallImagePath = path.join(smallImageBaseDir, dir, `${base}_${sizeSubDir}${ext}`);
+        if (!smallImagePath.startsWith(`${path.resolve(smallImageBaseDir)}${path.sep}`)) return res.status(403).end();
 
+        if (thumbnailsInFlight >= 8) return res.status(429).json({ message: "缩略图处理繁忙，请稍后重试" });
+        thumbnailsInFlight++;
         ensureThumbnail(originalPath, smallImagePath, sizeOpts).then((thumbnailPath) => {
           if (thumbnailPath) {
             res.sendFile(thumbnailPath);
@@ -169,7 +188,7 @@ export default async function startServe(randomPort: Boolean = false) {
             // 缩略图生成失败，降级返回原图
             express.static(ossDir, { acceptRanges: false })(req, res, next);
           }
-        });
+        }).catch(next).finally(() => { thumbnailsInFlight--; });
         return;
       }
       return next();
@@ -186,6 +205,7 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use(
     "/skills",
     (req, res, next) => {
+      res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
       /\.(jpe?g|png|gif|webp|svg|ico|bmp|mp4|webm)$/i.test(req.path) ? next() : res.status(403).end();
     },
     express.static(skillsDir, { acceptRanges: false }),
@@ -317,7 +337,7 @@ export default async function startServe(randomPort: Boolean = false) {
 
     if (!token) return res.status(401).send({ message: "未提供token" });
     try {
-      const userInfo = await resolveIdentity(token, tokenKey as string, (id) => u.db("o_user").where("id", id).first());
+      const userInfo = await resolveIdentity(token, tokenKey as string, loadAuthUser);
       (req as any).user = userInfo;
       if (userInfo.role !== "admin" && !["GET", "HEAD"].includes(req.method) &&
           !/^\/api\/(pay|setting\/loginConfig)(\/|$)/.test(req.path) &&
@@ -330,18 +350,23 @@ export default async function startServe(randomPort: Boolean = false) {
     }
   });
 
-  // 项目级统一越权防护：大量历史路由接收 projectId 后直接查业务表，统一在入口校验归属。
-  // 具体资源（script/assets/storyboard）仍应在各路由用 projectId 联合过滤；这里先封住横向越权主入口。
-  app.use("/api", async (req, res, next) => {
-    const identity = (req as any).user as { id?: number; role?: string } | undefined;
-    if (!identity || identity.role === "admin") return next();
-    const rawProjectId = req.body?.projectId ?? req.query?.projectId;
-    if (rawProjectId === undefined || rawProjectId === null || rawProjectId === "") return next();
-    const projectId = Number(rawProjectId);
-    if (!Number.isSafeInteger(projectId) || projectId <= 0) return res.status(400).json({ message: "项目参数无效" });
-    const project = await u.db("o_project").where({ id: projectId, userId: identity.id }).select("id").first();
-    if (!project) return res.status(403).json({ message: "无权访问该项目" });
-    return next();
+  app.use("/api", resourceScope(createResourceLoader(db)));
+
+  // Shared prompt/style libraries affect every user and are administrative configuration.
+  app.use([
+    "/api/project/addVisualManual", "/api/project/editVisualManual", "/api/project/deleteVisualManual",
+    "/api/project/addDirectorManual", "/api/project/editDirectorlManual", "/api/project/deleteDirectorManual",
+    "/api/artStyle/addArtStyle", "/api/artStyle/editArtStyle",
+  ], requireAdmin);
+  app.use("/api", rateLimiter({ windowMs: 60000, max: 1200, keyGenerator: (req) => String((req as any).user?.id || req.ip) }));
+  app.use([
+    "/api/download-output", "/api/canvas-files", "/api/canvas-image-tasks", "/api/canvas-video",
+    "/api/canvas-llm", "/api/v1/canvas/image-tasks", "/api/v1/videos", "/api/v1/chat", "/api/v1/responses",
+    "/api/v1/images", "/api/v1/audio", "/api/assetsGenerate", "/api/production/editImage/generateFlowImage",
+    "/api/production/workbench/generateVideo", "/api/production/workbench/batchGenerateVideo",
+  ], (req, res, next) => {
+    if (["GET", "HEAD"].includes(req.method) && req.path !== "/") return next();
+    generationLimiter(req, res, next);
   });
 
   // 管理员专属路由保护

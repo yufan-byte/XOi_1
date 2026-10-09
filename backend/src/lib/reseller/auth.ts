@@ -15,6 +15,7 @@ import type { Request } from "express";
 import axios from "axios";
 import u from "@/utils";
 import { resolveIdentity } from "@/utils/authIdentity";
+import { loadAuthUser } from "@/utils/loadAuthUser";
 import { newApiSelfByAdmin, assertConfigured, type NewApiUser } from "@/utils/newapi";
 
 const baseURL = () => (process.env.NEWAPI_BASE_URL || "http://127.0.0.1:3000").trim().replace(/\/+$/, "");
@@ -34,7 +35,7 @@ async function currentUid(req: Request): Promise<number | null> {
     if (rawToken) {
       const tokenKey = (await u.db("o_setting").where("key", "tokenKey").select("value").first())?.value as string | undefined;
       if (tokenKey) {
-        const identity = await resolveIdentity(rawToken, tokenKey, (id) => u.db("o_user").where("id", id).first());
+        const identity = await resolveIdentity(rawToken, tokenKey, loadAuthUser);
         uid = identity.id ?? null;
       }
     }

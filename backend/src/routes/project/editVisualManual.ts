@@ -1,3 +1,4 @@
+import { skillDirectory } from "@/utils/skillDirectory";
 import express from "express";
 import u from "@/utils";
 import { error, success } from "@/lib/responseFormat";
@@ -37,7 +38,7 @@ export default router.post(
         return;
       }
 
-      const mainPath = u.getPath(["skills", "art_skills", stylePath]);
+      const mainPath = skillDirectory(u.getPath(["skills", "art_skills"]), stylePath);
       if (!fs.existsSync(mainPath)) {
         return res.status(400).send(error("视觉手册不存在"));
       }
@@ -110,7 +111,7 @@ export default router.post(
 
       res.status(200).send(success());
     } catch (err) {
-      res.status(500).send({ error: String(err) });
+      res.status((err as any).status || 500).send({ error: (err as Error).message });
     }
   },
 );

@@ -20,7 +20,9 @@
  * 红线自查：只透传，不代理 /api/token/*；用户令牌只存在于服务端。
  */
 import express, { type Request, type Response, type NextFunction } from "express";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { allowedGatewayTail } from "@/utils/gatewayProxyPath";
 import { getUserGatewayCredentials } from "@/lib/gateway/newapi";
 
 const router = express.Router();
@@ -29,21 +31,21 @@ const router = express.Router();
  *  ⚠️ 视频相关（videos / video-tasks / async-result）**不放这里**：画布视频走 XOi 自己的
  *  供应商管线（canvas-stubs 的 /api/v1/videos* 适配层，o_points 计费+预扣/退款看门狗），
  *  与画布图片同一套口径；转发网关会绕开这套计费且契约不匹配。 */
-const ALLOWED_PREFIXES = [
-  "chat/",          // LLM 节点（含 SSE 流式）
-  "responses",      // OpenAI Responses API（codexCli 模式）
-  "images/",        // 直连生图 / 图生图（edits 是 multipart）
-  "audio/",         // 语音合成（二进制）
-  "tts/",           // 音色列表等
-  "models",         // 模型清单
-];
-
 const HOP_BY_HOP = new Set(["content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive"]);
 
 router.use(async (req: Request, res: Response, next: NextFunction) => {
   const tail = String(req.url || "").replace(/^\/+/, "");
-  const allowed = ALLOWED_PREFIXES.some((p) => tail === p || tail.startsWith(p));
+  let allowed: boolean;
+  try { allowed = allowedGatewayTail(tail); }
+  catch { return res.status(400).json({ message: "代理路径无效" }); }
   if (!allowed) return next();
+  if (!["GET", "POST", "DELETE", "HEAD"].includes(req.method)) return res.sendStatus(405);
+
+  const controller = new AbortController();
+  const cancel = () => { if (!res.writableFinished) controller.abort(); };
+  res.on("close", cancel);
+  const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+  timer.unref();
 
   try {
     const userId = Number((req as any).user?.id);
@@ -55,32 +57,45 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
     if (req.method !== "GET" && req.method !== "HEAD") {
       const contentType = String(req.headers["content-type"] || "");
       if (contentType.includes("application/json")) body = JSON.stringify(req.body ?? {});
-      else if (contentType) body = req;
+      else if (contentType) {
+        const maxBytes = 32 * 1024 * 1024;
+        if (Number(req.headers["content-length"]) > maxBytes) return res.status(413).json({ message: "请求体超过 32MB" });
+        let bytes = 0;
+        body = new Transform({ transform(chunk, _encoding, callback) {
+          bytes += chunk.length;
+          callback(bytes > maxBytes ? new Error("请求体超过 32MB") : null, bytes > maxBytes ? undefined : chunk);
+        } });
+        void pipeline(req, body, { signal: controller.signal }).catch(() => controller.abort());
+      }
     }
 
     const headers: Record<string, string> = { Authorization: `Bearer ${cred.apiKey}` };
     if (req.headers.accept) headers.accept = String(req.headers.accept);
-    if (body !== req) headers["content-type"] = contentTypeOf(req) || "application/json";
-    else if (req.headers["content-type"]) headers["content-type"] = String(req.headers["content-type"]);
+    headers["content-type"] = contentTypeOf(req) || "application/json";
 
     const upstream = await fetch(`${cred.baseUrl}/${tail}`, {
       method: req.method,
       headers,
       body,
-      // 视频成片下载 / 长对话可能远超默认时长；不设 abort，交给上游与网关自己的超时
-      ...(body === req ? { duplex: "half" } : {}),
+      signal: controller.signal,
+      redirect: "manual",
+      ...(body instanceof Transform ? { duplex: "half" } : {}),
     } as RequestInit);
 
     res.status(upstream.status);
     upstream.headers.forEach((value, key) => {
-      if (!HOP_BY_HOP.has(key)) res.setHeader(key, value);
+      if (!HOP_BY_HOP.has(key) && key !== "set-cookie") res.setHeader(key, value);
     });
     if (!upstream.body) return res.end();
-    Readable.fromWeb(upstream.body as any).pipe(res);
+    await pipeline(Readable.fromWeb(upstream.body as any), res, { signal: controller.signal });
   } catch (e) {
     console.error("[ai-proxy] 转发失败:", (e as Error).message);
-    if (!res.headersSent) res.status(502).json({ code: 502, msg: `模型网关转发失败：${(e as Error).message}`, data: null });
+    if (!res.headersSent && !res.destroyed) res.status(502).json({ code: 502, msg: "模型网关转发失败，请稍后重试", data: null });
     else res.end();
+  } finally {
+    clearTimeout(timer);
+    res.off("close", cancel);
+    controller.abort();
   }
 });
 

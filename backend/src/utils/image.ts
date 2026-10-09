@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import fss from "fs";
 import path from "node:path";
-import sharp from "sharp";
+import sharp, { type FitEnum } from "sharp";
 
 /**
  * 图片缩放选项
@@ -12,7 +12,7 @@ export interface ResizeOptions {
   /** 最大高度（默认 256 */
   height?: number;
   /** 缩放策略，默认等比缩放不超出边界 */
-  fit?: keyof sharp.FitEnum;
+  fit?: keyof FitEnum;
   /** 是否禁止放大（默认 true） */
   withoutEnlargement?: boolean;
 }

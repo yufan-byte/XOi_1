@@ -58,6 +58,7 @@ export default async (knex: Knex): Promise<void> => {
   });
 
   // 添加新字段
+  await addColumn("o_imageFlow", "userId", "bigInteger");
   await addColumn("o_prompt", "useData", "text");
   // 添加新字段
   await addColumn("o_agentDeploy", "type", "string");

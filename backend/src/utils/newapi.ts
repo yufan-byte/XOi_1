@@ -298,6 +298,11 @@ export async function adminUpdateUser(uid: number, patch: { password?: string; d
     ...(patch.group ? { group: patch.group } : {}),
   });
   await unwrap<unknown>(res, "user/update");
+  if (patch.password) {
+    // Password reset must revoke already issued XOi JWTs as well as NewAPI's own sessions.
+    const { db } = await import("./db");
+    await db("o_user").where("id", uid).increment("session_version", 1);
+  }
 }
 
 /** 团队模式：删除真实 NewAPI 成员账号。 */

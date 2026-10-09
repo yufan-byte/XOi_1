@@ -4,7 +4,7 @@ import path from "path";
 import isPathInside from "is-path-inside";
 import getPath from "@/utils/getPath";
 import * as fs from "fs";
-import fg from "fast-glob";
+import { listFiles } from "../listFiles";
 
 type SkillAttribution =
   //剧本Agent
@@ -274,9 +274,7 @@ export function createSkillTools(skills: { name: string; description: string }[]
 
 export async function scanSkills(folderPath: string) {
   const unixPath = toUnixPath(folderPath);
-  const entries = await fg(unixPath, {
-    onlyFiles: true,
-    absolute: true,
-  });
-  return entries;
+  if (!unixPath.endsWith("/*.md")) throw new Error("技能扫描仅支持目录下的 Markdown 文件");
+  const directory = unixPath.slice(0, -5);
+  return (await listFiles(directory, [".md"], false)).map((file) => path.resolve(directory, file));
 }

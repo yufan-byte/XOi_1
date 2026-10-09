@@ -1,3 +1,4 @@
+import { skillDirectory } from "@/utils/skillDirectory";
 import express from "express";
 import u from "@/utils";
 import { error, success } from "@/lib/responseFormat";
@@ -36,7 +37,7 @@ export default router.post(
         return;
       }
 
-      const mainPath = u.getPath(["skills", "story_skills", directorManual]);
+      const mainPath = skillDirectory(u.getPath(["skills", "story_skills"]), directorManual);
       if (fs.existsSync(mainPath)) {
         return res.status(400).send(error("请勿填写重复名称的视觉手册"));
       }
@@ -98,7 +99,7 @@ export default router.post(
 
       res.status(200).send(success());
     } catch (err) {
-      res.status(500).send({ error: String(err) });
+      res.status((err as any).status || 500).send({ error: (err as Error).message });
     }
   },
 );

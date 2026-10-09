@@ -1,7 +1,7 @@
 import express from "express";
 import u from "@/utils";
 import { z } from "zod";
-import sharp from "sharp";
+import sharp, { type OverlayOptions } from "sharp";
 import { validateFields } from "@/middleware/middleware";
 const router = express.Router();
 
@@ -56,7 +56,7 @@ export default router.post(
     const canvasHeight = rowHeights.reduce((a, b) => a + b, 0);
 
     // 为每张图片生成带标号的合成层
-    const compositeInputs: sharp.OverlayOptions[] = [];
+    const compositeInputs: OverlayOptions[] = [];
 
     for (let i = 0; i < validImages.length; i++) {
       const img = validImages[i];

@@ -1,3 +1,6 @@
+import { fetchBinaryWithLimit } from "@/utils/safeUrl";
+import { safeInlineMediaType } from "@/utils/mediaSecurity";
+import { OwnedTasks } from "@/utils/ownedTasks";
 import express from "express";
 import u from "@/utils";
 import { getActionPoints, getUserPoints } from "@/utils/points";
@@ -501,7 +504,7 @@ router.post("/canvas-llm", async (req, res) => {
 });
 
 // 任务存储（内存）
-const imageTasks = new Map<string, { status: string; result?: any; error?: string }>();
+const imageTasks = new OwnedTasks<{ status: string; result?: any; error?: string }>((id) => imageDeliveredMarkers.delete(id));
 
 // deliveryMarkerRegistry：CAS 终态仲裁闘门的反向白嫖守卫数据源 —— 图片流水线 aiImage.save() 落盘成功后在此登记 taskId，
 //   finalizeFail 进入结算裁决时据此判别是否实质交付以防“近超时却已出货被错退”的薅羊毛场景(R1 场景守护)．
@@ -567,7 +570,7 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
 
     // ② atomic-reserve：submit 瞬间事务性预扣 N 锁额度；失败路径经下方 CAS 闸门条件全额退还满足“一点 API 生成就扣／不成则归还”心智，
     //   audit 维度(vendor_id/model_name 列)由 checkAndDeductPoints 内部依 ctx 自动写 o_points_log 无需额外维护。
-    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const taskId = `task_${u.uuid()}`;
     const reserve = await reservePoints({
       userId,
       requestId: `canvas-image:${taskId}`,
@@ -582,7 +585,10 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
       return res.status(400).json({ error: reserve.message ?? "积分不足，无法发起图片生成任务" });
     }
 
-    imageTasks.set(taskId, { status: "running" });
+    if (!imageTasks.create(taskId, Number(userId), { status: "running" })) {
+      await releasePoints(reserve, "任务并发上限");
+      return res.status(429).json({ error: "生成任务过多，请等待现有任务完成" });
+    }
     console.log(
       `[canvas-image] 创建任务 ${taskId}, prompt="${(prompt || "").slice(0, 60)}", model=${
         model || "(auto)"
@@ -707,7 +713,7 @@ router.post("/canvas-image-tasks", canvasImageTaskCreate);
 // GET /api/canvas-image-tasks/:task_id
 router.get("/canvas-image-tasks/:task_id", (req, res) => {
   const taskId = req.params.task_id;
-  const task = imageTasks.get(taskId);
+  const task = imageTasks.getForUser(taskId, Number((req as any).user?.id));
   if (!task) {
     return res.status(404).json({ error: "任务不存在" });
   }
@@ -759,7 +765,7 @@ router.post("/v1/canvas/image-tasks", async (req: any, res: any) => {
 });
 
 router.get("/v1/canvas/image-tasks/:task_id", (req: any, res: any) => {
-  const task = imageTasks.get(req.params.task_id);
+  const task = imageTasks.getForUser(req.params.task_id, Number(req.user?.id));
   if (!task) return res.status(404).json({ code: 404, msg: "任务不存在", data: null });
   return res.json({ code: 0, msg: "", data: upstreamTaskView(req.params.task_id, task) });
 });
@@ -767,11 +773,11 @@ router.get("/v1/canvas/image-tasks/:task_id", (req: any, res: any) => {
 router.post("/v1/canvas/image-tasks/status", (req: any, res: any) => {
   const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
   // 未知的任务不上报（上游按 id 对账，塞一个永远 running 的假任务会让节点卡死）
-  res.json({ code: 0, msg: "", data: ids.filter((id) => imageTasks.has(id)).map((id) => upstreamTaskView(id, imageTasks.get(id))) });
+  res.json({ code: 0, msg: "", data: ids.slice(0, 500).filter((id) => imageTasks.getForUser(id, Number(req.user?.id))).map((id) => upstreamTaskView(id, imageTasks.getForUser(id, Number(req.user?.id)))) });
 });
 
 router.delete("/v1/canvas/image-tasks/:task_id", (_req: any, res: any) => {
-  // 内存任务表无持久化，删除即前端本地概念；返回成功让上游把节点标记清掉
+  if (!imageTasks.deleteForUser(_req.params.task_id, Number(_req.user?.id))) return res.status(404).json({ code: 404, msg: "任务不存在或尚未完成", data: null });
   res.json({ code: 0, msg: "", data: null });
 });
 
@@ -793,7 +799,7 @@ router.get("/canvas-comfy-tasks/:task_id", (req, res) => {
 //   其 videoRequest 内部封装 创建任务→pollTask 每5秒探直到 completed/failed 或10分钟超时→下载 base64 整条流水线,
 //   caller 单个 await .run() 即阻塞至成品无需自造远程轮询)。
 type CanvasVideoTaskState = { status: "running" | "succeeded" | "failed"; result?: any; error?: string };
-const canvasVideoTasks = new Map<string, CanvasVideoTaskState>();
+const canvasVideoTasks = new OwnedTasks<CanvasVideoTaskState>((id) => videoDeliveredMarkers.delete(id));
 
 // deliveryMarkerRegistry：CAS 终态仲裁闸门的反向白嫖守卫数据源 —— 视频流水线 vid.save() 落盘成功后在此登记 taskId，
 //   finalizeFail 进入结算裁决时据此判别是否实质交付以防“近超时却已出货被错退”的薅羊毛场景（R1 场景守护）。
@@ -834,9 +840,7 @@ async function resolveCanvasMediaRef(
       return { type: hintType, base64: String(dataUrl).replace(/^data:[^;]+;base64,/i, "") };
     }
     if (/^https?:\/\//i.test(rawUrl)) {
-      const r = await fetch(rawUrl);
-      if (!r.ok) return null;
-      const buf = Buffer.from(await r.arrayBuffer());
+      const { buffer: buf } = await fetchBinaryWithLimit(rawUrl);
       return { type: hintType, base64: buf.toString("base64") };
     }
     console.warn("[canvas-video] 未识别的媒体协议已跳过:", rawUrl.slice(0, 120));
@@ -915,7 +919,7 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     //   既满足“一点 API 生成就扣／不成则归还”心智，又令前端 xoi-bridge.pickCost 可嗅探 submit 响应顶层 cost 秒级弹金卡根治迟到体感。
     //   audit 维度(vendor_id/model_name 列)由 checkAndDeductPoints 内部依 ctx 自动写 o_points_log 无需额外维护。
     const pricingCtx = { vendorId: String(cfg!.vendorId!), modelName: String(vm.modelName!) };
-    const taskId = `v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const taskId = `v_${u.uuid()}`;
     const reserve = await reservePoints({
       userId,
       requestId: `canvas-video:${taskId}`,
@@ -932,7 +936,10 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     }
 
     // ③ 取号入册即时响应(fire-and-forget)；顶层附 cost 快照供前端 pickCost 点击秒级唤金卡（balance 为快照非权威最新,UI 展示余额请另调 refreshProfile）.
-    canvasVideoTasks.set(taskId, { status: "running" });
+    if (!canvasVideoTasks.create(taskId, Number(userId), { status: "running" })) {
+      await releasePoints(reserve, "任务并发上限");
+      return res.status(429).json({ error: "生成任务过多，请等待现有任务完成" });
+    }
     res.json({
       task_id: taskId,
       pointsDeducted: reserve.deducted && reserve.deducted > 0 ? reserve.deducted : null,
@@ -1151,20 +1158,20 @@ router.post("/v1/videos", wrapVideoCreated(async (req: any, res: any) => {
 }));
 
 router.get("/v1/videos/:task_id", (req: any, res: any) => {
-  const t = canvasVideoTasks.get(req.params.task_id);
+  const t = canvasVideoTasks.getForUser(req.params.task_id, Number((req as any).user?.id));
   if (!t) return res.status(404).json({ code: 1, msg: "任务不存在或已过期", data: null });
   res.json({ code: 0, msg: "", data: videoTaskToUpstream(req.params.task_id, t, req.query.model) });
 });
 
 router.get("/v1/videos/:task_id/content", (req: any, res: any) => {
-  const t = canvasVideoTasks.get(req.params.task_id);
+  const t = canvasVideoTasks.getForUser(req.params.task_id, Number((req as any).user?.id));
   const url: string = t?.result?.url || t?.result?.videos?.[0]?.url || "";
   if (t?.status !== "succeeded" || !url) return res.status(404).json({ code: 1, msg: "成片尚未就绪", data: null });
   res.redirect(url);
 });
 
 router.get("/v1/async-result/:task_id", (req: any, res: any) => {
-  const t = canvasVideoTasks.get(req.params.task_id);
+  const t = canvasVideoTasks.getForUser(req.params.task_id, Number((req as any).user?.id));
   if (!t) return res.status(404).json({ code: 1, msg: "任务不存在或已过期", data: null });
   res.json({ code: 0, msg: "", data: videoTaskToUpstream(req.params.task_id, t, req.query.model) });
 });
@@ -1175,13 +1182,13 @@ router.get("/v1/video-tasks", (_req: any, res: any) => {
 });
 
 router.delete("/v1/video-tasks/:task_id", (_req: any, res: any) => {
-  canvasVideoTasks.delete(_req.params.task_id);
+  if (!canvasVideoTasks.deleteForUser(_req.params.task_id, Number(_req.user?.id))) return res.status(404).json({ code: 1, msg: "任务不存在或尚未完成", data: null });
   res.json({ code: 0, msg: "", data: null });
 });
 
 // GET /api/canvas-video/:task_id — 前端轮询查任务状态(对称 /api/canvas-image-tasks/:task_id @643 内存 Map 查表风格)
 router.get("/canvas-video/:task_id", (req, res) => {
-  const t = canvasVideoTasks.get(req.params.task_id);
+  const t = canvasVideoTasks.getForUser(req.params.task_id, Number((req as any).user?.id));
   if (!t) return res.status(404).json({ error: "任务不存在或已过期" });
   res.json(t);
 });
@@ -1233,6 +1240,9 @@ router.get("/download-output", async (req, res) => {
     const url = String(req.query.url || "");
     const name = String(req.query.name || "output.jpg");
     const inline = req.query.inline === "1" || req.query.inline === "true";
+    res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, no-store");
 
     if (!url) {
       return res.status(400).json({ error: "缺少 url 参数" });
@@ -1253,7 +1263,7 @@ router.get("/download-output", async (req, res) => {
           svg: "image/svg+xml", mp4: "video/mp4", webm: "video/webm",
           mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav",
         };
-        const contentType = mimeMap[ext] || "application/octet-stream";
+        const contentType = safeInlineMediaType(mimeMap[ext] || "application/octet-stream");
         res.setHeader("Content-Type", contentType);
         res.setHeader(
           "Content-Disposition",
@@ -1261,7 +1271,7 @@ router.get("/download-output", async (req, res) => {
             ? `inline; filename="${encodeURIComponent(name)}"`
             : `attachment; filename="${encodeURIComponent(name)}"`
         );
-        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.setHeader("Cache-Control", "private, no-store");
         return res.send(buffer);
       } catch (e: any) {
         console.error("[download-output] 读取本地文件失败:", relPath, e.message);
@@ -1272,11 +1282,8 @@ router.get("/download-output", async (req, res) => {
     // 外部 URL：代理请求
     if (url.startsWith("http://") || url.startsWith("https://")) {
       try {
-        const resp = await fetch(url);
-        if (!resp.ok) {
-          return res.status(resp.status).json({ error: `上游返回 ${resp.status}` });
-        }
-        const contentType = resp.headers.get("content-type") || "application/octet-stream";
+        const { buffer, contentType: upstreamType } = await fetchBinaryWithLimit(url);
+        const contentType = safeInlineMediaType(upstreamType);
         res.setHeader("Content-Type", contentType);
         res.setHeader(
           "Content-Disposition",
@@ -1284,11 +1291,10 @@ router.get("/download-output", async (req, res) => {
             ? `inline; filename="${encodeURIComponent(name)}"`
             : `attachment; filename="${encodeURIComponent(name)}"`
         );
-        const buffer = Buffer.from(await resp.arrayBuffer());
         return res.send(buffer);
       } catch (e: any) {
         console.error("[download-output] 代理请求失败:", url, e.message);
-        return res.status(502).json({ error: "代理请求失败" });
+        return res.status(e.status === 400 ? 400 : 502).json({ error: e.status === 400 ? "不允许访问该地址" : "代理请求失败" });
       }
     }
 
