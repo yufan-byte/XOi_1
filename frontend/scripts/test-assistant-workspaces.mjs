@@ -1,17 +1,19 @@
 // Isolated browser test of the real assistant SFC. UI wrappers/stores/router are mocked;
 // Vue, the component's handlers and browser video decoding are real. No paid APIs run.
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { parse, compileScript } from '@vue/compiler-sfc';
+import { parse, compileScript, compileStyleAsync } from '@vue/compiler-sfc';
 import { build } from 'esbuild';
 const require = createRequire(import.meta.url);
 const frontend = fileURLToPath(new URL('../', import.meta.url));
 const source = await readFile(process.env.ASSISTANT_SFC || new URL('../src/views/aiAssistant/index.vue', import.meta.url), 'utf8');
 // watch is supplied by the app's auto-import plugin in production.
 const { descriptor } = parse(source.replace('<script setup lang="ts">', '<script setup lang="ts">\nimport { watch } from "vue";'));
+const style = await compileStyleAsync({source: descriptor.styles[0].content, filename:frontend+'src/views/aiAssistant/index.vue', id:'assistant-workspace-test', preprocessLang:'scss'});
+if (style.errors.length) throw new Error(String(style.errors));
 const compiled = compileScript(descriptor, { id: 'assistant-workspace-test', inlineTemplate: true });
 const mocks = {
   'vue-router': `import {reactive} from 'vue'; export const useRoute=()=>reactive({query:{}}); export const useRouter=()=>({push:path=>{location.hash=path}});`,
@@ -25,13 +27,14 @@ const mocks = {
   '@/components/ModelCostHint.vue': `export default {render:()=>null};`,
   '@/components/modelSelect.vue': `import {h} from 'vue'; export default {props:['modelValue','label'],emits:['update:modelValue','update:label','change'],setup(p,{emit}){return ()=>h('select',{'aria-label':'测试模型',value:p.modelValue,onChange:e=>{emit('update:modelValue',e.target.value);emit('update:label',e.target.value);emit('change',e.target.value)}},['newapi:canvas-model','newapi:vision-model'].map(v=>h('option',{value:v},v)))}};`,
 };
-const entry = `import {createApp,h} from 'vue';import Assistant from 'assistant-test';const app=createApp(Assistant);app.component('t-button',{inheritAttrs:false,setup(_,ctx){return ()=>h('button',ctx.attrs,ctx.slots.default?.())}});app.config.warnHandler=()=>{};app.mount('#app');`;
+const entry = `import {createApp,h} from 'vue';import Assistant from 'assistant-test';const app=createApp(Assistant);app.component('t-button',{inheritAttrs:false,setup(_,ctx){return ()=>h('button',ctx.attrs,ctx.slots.default?.())}});app.component('router-link',{props:['to'],setup(p,ctx){return ()=>h('a',{href:'#'+p.to},ctx.slots.default?.())}});app.config.warnHandler=()=>{};app.mount('#app');`;
 const bundle = await build({ stdin: { contents: entry, resolveDir: frontend }, bundle: true, format: 'iife', write: false, define: { 'process.env.NODE_ENV': '"test"', __VUE_OPTIONS_API__: 'true', __VUE_PROD_DEVTOOLS__: 'false', __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false' }, plugins: [{ name: 'assistant-isolation', setup(b) {
   b.onResolve({ filter: /^assistant-test$/ }, () => ({ path: 'assistant', namespace: 'sfc' }));
   b.onLoad({ filter: /.*/, namespace: 'sfc' }, () => ({ contents: compiled.content, loader: 'ts', resolveDir: frontend }));
   b.onResolve({ filter: /.*/ }, args => {
     if (args.path === 'vue') return { path: require.resolve('vue/dist/vue.runtime.esm-bundler.js') };
     if (mocks[args.path]) return { path: args.path, namespace: 'mock' };
+    if (args.path === '@/utils/referenceImages') return { path: frontend + 'src/utils/referenceImages.ts' };
     if (args.path === '@/utils/videoFrames') return { path: frontend + 'src/utils/videoFrames.ts' };
     if (args.path.startsWith('@/assets/')) return { path: args.path, namespace: 'asset' };
   });
@@ -41,17 +44,20 @@ const bundle = await build({ stdin: { contents: entry, resolveDir: frontend }, b
 const server = createServer((req,res) => {
   if (req.url === '/test.js') {res.setHeader('Content-Type','text/javascript');res.end(bundle.outputFiles[0].text);return;}
   if (req.url?.includes('catalog.json')) {res.setHeader('Content-Type','application/json');res.end('{"data":[]}');return;}
-  if (req.url === '/') {res.setHeader('Content-Type','text/html');res.end('<div id="app"></div><script src="/test.js"></script>');return;}
+  if (req.url === '/') {res.setHeader('Content-Type','text/html');res.end('<style>body{margin:0;font-family:system-ui,sans-serif;}#app{height:100vh;}.modelSlot select{width:100%;border:0;background:transparent;font-size:12px;}'+style.code+'</style><div id="app"></div><script src="/test.js"></script>');return;}
   res.writeHead(404);res.end();
 });
 await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fixture = process.env.VIDEO_FIXTURE;
 if (!fixture) throw new Error('Set VIDEO_FIXTURE to a local MP4/WebM');
-const browser = await chromium.launch({channel:'chrome',headless:true});
+const sharedBrowser = Boolean(process.env.BROWSER_CDP_URL);
+const browser = sharedBrowser ? await chromium.connectOverCDP(process.env.BROWSER_CDP_URL) : await chromium.launch({headless:true,args:['--disable-gpu']});
+const context = await browser.newContext();
 const failures=[];
 try {
-  const page=await browser.newPage();
+  const page=await context.newPage();
+  page.setDefaultTimeout(60000);
   await page.addInitScript(() => {
     window.__testBlobUrls=[];
     const create=URL.createObjectURL.bind(URL);
@@ -67,90 +73,92 @@ try {
     await route.fulfill({contentType:'text/event-stream',body:outcome==='error' ? 'data: {"error":"视觉模型错误"}\n\n' : 'data: {"content":"分析完成：复刻提示词"}\n\ndata: [DONE]\n\n'}).catch(()=>{});
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
-  const canvas=page.getByRole('button',{name:'▧ 画布创作',exact:true});
-  const analysis=page.getByRole('button',{name:'◉ 分析助手',exact:true});
   const editor=page.locator('textarea');
+  const send=page.getByRole('button',{name:'发送',exact:true});
   const videoChip=page.locator('.editorSkills button').filter({hasText:/mp4|webm/});
-  await canvas.waitFor();
-  await editor.fill('画布的未发送草稿');
-  await page.locator('input[type="file"]').setInputFiles(fixture);
-  await page.getByLabel('测试模型').selectOption('newapi:canvas-model');
+  await editor.waitFor();
+  assert.equal(await page.getByRole('button',{name:/画布创作|分析助手/}).count(),0,'One composer, no mode switch');
+  await page.getByLabel('测试模型').selectOption('newapi:vision-model');
   await page.locator('.skillButton').click();
   await page.locator('.skillOption').filter({hasText:'影视分镜'}).click();
-  await analysis.click();
-  assert.equal(await editor.inputValue(),'');
-  assert.equal(await videoChip.count(),0,'Plain switching must not transfer video');
-  assert.equal(await page.locator('.skillCount').count(),0,'Skill selection belongs to the workspace');
-  await editor.fill('分析助手的未发送草稿');
-  await page.getByLabel('测试模型').selectOption('newapi:vision-model');
-  await canvas.click();
-  assert.equal(await editor.inputValue(),'画布的未发送草稿');
-  assert.equal(await videoChip.count(),1);
-  assert.equal(await page.getByLabel('测试模型').inputValue(),'newapi:canvas-model');
-  assert.equal(await page.locator('.skillCount').innerText(),'1');
-  assert.equal(requests.length,0,'Switching never calls a model');
-
-  // The explicit action transfers a copy and performs real browser frame extraction.
-  await page.getByRole('button',{name:'◉ 抽帧分析',exact:true}).click();
+  assert.equal(requests.length,0,'Choosing skills and models must not invoke a model');
+  if(process.env.SCREENSHOT_DIR) {
+    await page.setViewportSize({width:1440,height:900});
+    await page.screenshot({path:process.env.SCREENSHOT_DIR+'/desktop.png'});
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await page.screenshot({path:process.env.SCREENSHOT_DIR+'/mobile.png'});
+    await page.setViewportSize({width:1440,height:900});
+  }
+  // A reference-only request runs real browser video extraction automatically.
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  assert.equal(await send.isEnabled(),true);
+  await send.click();
   await page.locator('.analysisHandoff').waitFor();
   assert.equal(requests.length,1);
   assert.equal(requests[0].model,'newapi:vision-model');
-  assert.match(requests[0].content,/分析助手的未发送草稿/);
-  assert.match(requests[0].content,/画布的未发送草稿/);
+  assert.equal(requests[0].skills[0],'builtin-film');
   assert.equal(requests[0].analysisVideo.frames.length,12);
   assert.equal(await videoChip.count(),0);
-  await editor.fill('分析的下一轮草稿');
-  await canvas.click();
-  assert.equal(await editor.inputValue(),'画布的未发送草稿');
-  assert.equal(await videoChip.count(),1,'Consuming analysis copy must preserve canvas video');
-  // Ensure the original Blob remains valid after the analysis copy is removed.
-  assert.equal(await page.evaluate(async ()=>(await fetch(window.__testBlobUrls[0])).ok),true,'Original video must remain readable after consuming the analysis copy');
-  await page.waitForFunction(()=>document.querySelectorAll('.messageWrapper').length===0);
-  await analysis.click();
-  assert.equal(await editor.inputValue(),'分析的下一轮草稿');
-  await page.locator('.messageWrapper').first().waitFor();
-  assert.equal(await page.locator('.messageWrapper').count(),2);
-  assert.equal(await page.locator('.analysisFrameStrip img').count(),12,'Switches preserve sampled-frame previews');
-  await page.getByRole('button',{name:'发送',exact:true}).click();
+  await page.locator('.videoAnalysisPreview summary').click();
+  assert.equal(await page.locator('.analysisFrameStrip img').count(),12);
+  await editor.fill('节奏再快一点');
+  await send.click();
   await page.waitForFunction(()=>document.querySelectorAll('.analysisHandoff').length===2);
-  assert.deepEqual(requests[1].messages.map(m=>m.role),['user','assistant'],'Follow-ups retain context');
+  assert.deepEqual(requests[1].messages.map(m=>m.role),['user','assistant']);
   assert.equal(requests[1].analysisVideo,undefined);
 
-  // Busy switches cannot mutate the session; explicit Stop makes switching available.
+  // Returning to the page resumes the active conversation and its selected skill.
+  await page.waitForTimeout(450);
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelectorAll('.messageWrapper').length===4);
+  assert.equal(await page.locator('.skillCount').innerText(),'1');
+  await editor.fill('设计一段开场');
+  await page.locator('input[type="file"]').setInputFiles({name:'reference.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=','base64')});
+  await send.click();
+  await page.waitForFunction(()=>document.querySelectorAll('.analysisHandoff').length===3);
+  assert.equal(requests[2].messages.length,4);
+  assert.equal(requests[2].analysisImages.length,1);
+  assert.match(requests[2].analysisImages[0].dataUrl,/^data:image\/jpeg;base64,/);
+
   outcome='hold';
   await editor.fill('等待中的请求');
-  await page.getByRole('button',{name:'发送',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('.assistantModeBar button').disabled);
-  assert.equal(await canvas.isDisabled(),true);
-  assert.equal(await analysis.isDisabled(),true);
+  await send.click();
+  await page.waitForFunction(()=>document.querySelector('.stopButton'));
+  assert.equal(await page.getByLabel('新建对话').isDisabled(),true);
   assert.equal(await page.locator('.analysisHandoff').first().isDisabled(),true);
   await page.getByRole('button',{name:'停止',exact:true}).click();
   release?.();
-  await page.waitForFunction(()=>!document.querySelector('.assistantModeBar button').disabled);
+  await send.waitFor();
 
   outcome='error';
   await page.locator('input[type="file"]').setInputFiles(fixture);
-  await page.getByRole('button',{name:'◉ 抽帧分析',exact:true}).click();
+  await send.click();
   await page.getByText('请求失败: 视觉模型错误',{exact:true}).waitFor();
-  assert.equal(await videoChip.count(),1,'Failure leaves video available for retry');
-  await canvas.click();
-  await page.getByRole('button',{name:'◉ 抽帧分析',exact:true}).click();
-  await page.getByText('已切到分析助手并保留原草稿，请先处理已有附件，再添加本轮视频',{exact:true}).waitFor();
-  assert.equal(requests.length,4,'Existing analysis attachment must not be silently replaced or trigger a call');
-  assert.equal(await videoChip.count(),1);
+  assert.equal(await videoChip.count(),1,'A failed reference stays available for retry');
+  await editor.fill('不要让这条未发送草稿混入交接');
   await page.locator('.analysisHandoff').first().click();
   await page.waitForURL(/#\/canvas/);
   const handoff=await page.evaluate(()=>JSON.parse(localStorage.getItem('xoi_canvas_handoff_v1')));
   assert.match(handoff.prompt,/复刻提示词/);
-  assert.equal(handoff.assets.length,0,'Report handoff must exclude unrelated draft/failed attachments');
-  assert.equal(handoff.model,'newapi:canvas-model','Analysis vision model must not override canvas model');
+  assert.doesNotMatch(handoff.prompt,/未发送草稿/);
+  assert.equal(handoff.assets.length,0);
+  assert.equal(handoff.model,'newapi:vision-model','One chosen model is carried into the plan handoff');
+  assert.match(page.url(),/source=xoi&handoff=1/);
   await page.evaluate(()=> {localStorage.setItem('token','test.'+btoa(JSON.stringify({id:2}))+'.signature');window.__testUserId.value=2});
   await page.waitForFunction(()=>document.querySelectorAll('.messageWrapper').length===0);
   assert.equal(await editor.inputValue(),'');
   assert.equal(await videoChip.count(),0);
-  await canvas.click();
-  assert.equal(await editor.inputValue(),'');
-  assert.equal(await videoChip.count(),0,'Changing accounts must clear both workspace drafts');
+  // An in-flight response from a previous account must not enter the new account's conversation.
+  outcome='hold';
+  await editor.fill('上一账号的进行中回复');
+  await send.click();
+  await page.waitForFunction(()=>document.querySelector('.stopButton'));
+  await page.waitForTimeout(100);
+  await page.evaluate(()=>{localStorage.setItem('token','test.'+btoa(JSON.stringify({id:3}))+'.signature');window.__testUserId.value=3});
+  release?.();
+  await page.waitForFunction(()=>document.querySelectorAll('.messageWrapper').length===0);
+  assert.equal(await send.count(),1);
   assert.deepEqual(failures,[]);
-  console.log(JSON.stringify({passed:true,chatRequests:requests.length,checks:['independent drafts/assets/skills/models','no calls on switch','explicit frame analysis','preserved conversation and previews','busy/stop boundary','preserved existing analysis attachments','report-only canvas handoff','account isolation']}));
-} finally { await browser.close(); await new Promise(resolve=>server.close(resolve)); }
+  console.log(JSON.stringify({passed:true,chatRequests:requests.length,checks:['single composer','automatic video extraction','reference-only send','real image rasterization','same conversation follow-up','active conversation resume','busy/stop','failed attachment retry','explicit plan handoff','account isolation']}));
+} finally { await context.close(); if (!sharedBrowser) await browser.close(); await new Promise(resolve=>server.close(resolve)); }

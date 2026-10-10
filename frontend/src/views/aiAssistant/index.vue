@@ -1,405 +1,101 @@
 <template>
-  <div class="aiAssistant" :class="{ focusMode, emptyMode: visibleMessages.length === 0, analysisMode: agentMode === 'analysis' }">
+  <div class="aiAssistant creativeWorkspace" :class="{ emptyMode: !visibleMessages.length }">
+    <header class="workspaceHeader">
+      <router-link to="/aiAssistant" class="workspaceBrand"><img src="@/assets/XOI_logo.png" alt="XOi" /><span>创作</span></router-link>
+      <nav class="workspaceNav" aria-label="创作工作区">
+        <span class="current">对话</span>
+        <router-link to="/canvas?source=xoi" @click="rememberConversation">画布</router-link>
+        <router-link to="/director3d" @click="rememberConversation">导演台</router-link>
+      </nav>
+      <div class="sessionActions">
+        <button type="button" class="chromeToggle" aria-label="打开工作台导航" @click="uiPrefs.toggleAiAssistantChrome()"><i-menu-unfold /></button>
+        <button type="button" :aria-expanded="showHistory" @click="showHistory = !showHistory"><i-history /><span>历史</span></button>
+        <button type="button" :disabled="status !== 'idle'" aria-label="新建对话" @click="newConversation"><i-plus /><span>新对话</span></button>
+      </div>
+    </header>
+
+    <aside v-if="showHistory" class="historyDrawer" aria-label="对话历史">
+      <header><strong>对话历史</strong><button type="button" aria-label="关闭历史" @click="showHistory = false"><i-close /></button></header>
+      <p v-if="!conversations.length" class="emptyHint">还没有对话，开始聊聊你的想法吧。</p>
+      <div class="conversationList">
+        <button v-for="cv in [...conversations].reverse()" :key="cv.id" type="button" :class="{ active: cv.id === activeId }" :disabled="status !== 'idle'" @click="switchConversation(cv.id)"><strong>{{ cv.title || '新的创作' }}</strong><small>{{ cv.messages.length }} 条消息</small></button>
+      </div>
+      <button v-if="conversations.length" type="button" class="clearAllBtn" :disabled="status !== 'idle'" @click="clearConversations">清空历史</button>
+    </aside>
+
     <div class="assistantPanel">
-
-      <!-- ===== 顶部 HeaderBar ===== -->
-      <header v-show="!focusMode" class="panelHeader">
-        <div class="projectRow">
-          <img class="logoAvatar" src="@/assets/XOI_logo.png" alt="XOi" />
-          <span class="projectTitle" aria-label="项目名称">XOi 创作工坊</span>
-          <button type="button" class="pageTrigger" aria-label="画布页码" @click="toastRoadmap('Page 多标签隔离')">
-            <span>Page&nbsp;{{ pageNumber }}</span>
-            <i-arrow-down size="14px" />
-          </button>
-        </div>
-        <div class="sessionRow">
-          <span class="sessionTitle">{{ activeSessionTitle }}</span>
-          <div class="sessionActions">
-            <button type="button" class="iconBtn" v-if="agentMode === 'analysis'" :disabled="status !== 'idle'" title="新建分析对话" @click="newConversation">
-              <!-- lucide message-square-plus 同款手感·inline svg 免依赖 sprite 缺失问题 -->
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h9"></path>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="10" y1="10" x2="14" y2="10"></line>
-              </svg>
-            </button>
-            <button type="button" class="iconBtn" v-if="agentMode === 'analysis'" :disabled="status !== 'idle'" title="分析历史" @click="showHistory = !showHistory">
-              <i-history size="18px" />
-            </button>
-            <button type="button" class="iconBtn"
-                    :title="focusMode ? '沉浸专注模式（外围导航已屏蔽）' : '收拢至沉浸专注创作'"
-                    @click="uiPrefs.toggleAiAssistantChrome()">
-              <i-menu-unfold v-if="focusMode" size="18px" />
-              <i-menu-fold v-else size="18px" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <!-- ===== 历史抽屉 · 内存态刷新即丢(view-back 行为非真持久化)===== -->
-      <transition name="slide-fade">
-        <aside v-if="showHistory" class="historyDrawer">
-          <header class="drawerHead">
-            <span>历史会话</span>
-            <button class="closeBtn" @click="showHistory = false"><i-close /></button>
-          </header>
-          <ul class="conversationList">
-            <li v-if="conversations.length === 0" class="emptyHint">暂无分析历史</li>
-            <li
-              v-for="(cv, idx) in [...conversations].reverse()"
-              :key="cv.id"
-              :class="{ active: cv.id === activeId }"
-              @click="switchConversation(cv.id)">
-              <div class="cvTitle">#{{ conversations.length - idx }}&nbsp;{{ cv.title }}</div>
-              <div class="cvMeta">共 {{ cv.messages.length }} 条 · 提问 {{ cv.messages.filter((m:any)=>m.role==='user').length }}</div>
-            </li>
-          </ul>
-          <footer class="drawerFoot">
-            <button class="clearAllBtn" @click="clearConversations"><i-delete-one />清空历史</button>
-          </footer>
-        </aside>
-      </transition>
-
-      <!-- ===== 中央 MainContent · 空态 ↔ 消息流自适应切换 ===== -->
-      <main ref="mainRef" class="mainScrollArea">
-        <transition name="fade" mode="out-in">
-          <!-- ── 空态:IP 吉祥物 + 业务化 PromptCard ×3 ── -->
-          <section v-if="visibleMessages.length === 0" key="empty" class="emptyStage">
-            <section v-if="agentMode === 'canvas'" class="mioraBanner" aria-label="无限画布功能轮播">
-              <div ref="bannerCarouselRef" class="bannerStage">
-                <button
-                  v-for="banner in visibleBanners"
-                  :key="banner.position"
-                  type="button"
-                  class="bannerCard"
-                  :data-banner-offset="banner.offset"
-                  :class="{ active: banner.offset === 0, clickable: Boolean(banner.linkUrl || banner.videoUrl) }"
-                  :style="bannerCardStyle(banner)"
-                  :aria-label="banner.alt"
-                  @pointerdown="handleBannerPointerDown"
-                  @pointermove="handleBannerPointerMove"
-                  @pointerup="handleBannerPointerUp"
-                  @pointercancel="handleBannerPointerCancel"
-                  @click="openBanner(banner)">
-                  <span class="bannerCardInner">
-                    <img
-                      v-if="banner.imageUrl"
-                      :src="banner.imageUrl"
-                      :alt="banner.alt"
-                      draggable="false"
-                      decoding="async"
-                      loading="eager"
-                      fetchpriority="high"
-                    />
-                    <span class="bannerFeatureCard" :class="{ withImage: Boolean(banner.imageUrl) }" :style="banner.imageUrl ? undefined : { background: banner.grad }">
-                      <small>XOi CREATIVE STUDIO</small>
-                      <strong>{{ banner.title }}</strong>
-                      <p>{{ banner.desc }}</p>
-                      <em>打开工作区 <span>↗</span></em>
-                    </span>
-                    <span v-if="banner.offset === 0 && banner.videoUrl" class="bannerPlay" aria-hidden="true">▶</span>
-                  </span>
-                </button>
-                <button type="button" class="bannerArrow bannerArrowLeft" aria-label="上一张" @click.stop="changeBanner(-1)">‹</button>
-                <button type="button" class="bannerArrow bannerArrowRight" aria-label="下一张" @click.stop="changeBanner(1)">›</button>
-              </div>
-              <div class="bannerDots" aria-label="轮播切换">
-                <button v-for="(banner, index) in canvasBanners" :key="banner.alt" type="button" :class="{ active: index === activeBannerIndex }" :aria-label="`切换到第 ${index + 1} 张`" @click="selectBanner(index)"></button>
-              </div>
-            </section>
-
-            <section v-if="agentMode === 'analysis'" class="launchIntro" aria-label="分析助手说明">
-              <h1>先看懂参考，再把方案交给画布</h1>
-              <p>分析助手负责聊天、参考拆解和 Skill 方案。上传视频后点击“抽帧分析”，使用支持工具调用和看图的模型；满意后再带入画布制作。</p>
-            </section>
-            <section v-if="agentMode === 'canvas'" class="mioraHero" aria-label="创作类型">
-              <div class="creationTabs" role="tablist">
-                <button v-for="category in creationCategories" :key="category.key" type="button" :class="{ active: activeCategory === category.key }" @click="activeCategory = category.key">
-                  <span class="categoryIcon" v-html="category.icon"></span>
-                  <span>{{ category.label }}</span>
-                </button>
-              </div>
-            </section>
-
-            <div class="legacyEmpty" aria-hidden="true">
-            <div class="mascotWrap">
-              <!--
-                IP 吉祥物·三件事严守 plan 第四部分策略:
-                  ① viewBox 直搬 Miora 原值 "0 0 48 48"(此前误写成 -12/-12/72/72 致坐标系整体错位);
-                  ② ip-body 方块的 width/height/transform 三元组一字不改地照搬 ref-miora-sidebar.html L56 原值
-                     (width=63.8367 height=63.8367 transform=matrix(-1 0 0 1 55.1021 -7.34692)),
-                     只把 fill 由 url(#pattern0_8850_1320)[指向被 docx 掐剩孤'i'无法解码的PNG data-uri]
-                       换成纯黑 #000000 以弃外图版权依赖;
-                     该 mirror 平移矩阵决定了身躯边界框的实际落点 ≈ (-8.74,-7.35)-(55.10,56.49),
-                     必须保留否则后续双眼会相对躯壳位移失准;
-                  ③ 四条 ip-eye-white/pupil 贝塞尔曲线 path 因同样遭 docx 字符上限截断不可 verbatim 还原,
-                    抽象化为与原 viewBox 同系下的竖椭圆+实心圆替代;圆心按原文各 path 起点
-                      (M22.1682/M13.9745/M23.6896/M15.6084)所提示的两簇光学区估位列于身躯上方左右对称.
-                   .ip-eye-white/.ip-eye-pupil/.ip-body 类名沿用使全局 xo-ipBlink* 关键帧与暗模式 filter 不破链.
-              -->
-              <svg class="mascotArt" width="48" height="48" viewBox="0 0 48 48" fill="none" role="img" aria-label="XOi 助手吉祥物">
-                <defs>
-                  <!-- 身躯贴图 · verbatim 直录 ref-miora-sidebar.html L62-L68 的 pattern/use/image 三件套骨架；
-                       patternContentUnits=objectBoundingBox 使 pattern 局部坐标系归一到 [0..1]×[0..1]；
-                       use scale(0.0013587)=1/736 将 736×736 image 缩进单位框恰好铺满 rect 边界。
-                       ref 里 xlink:href 是被 docx w:t 上限掐剩孤 'i' 无法 decode 的内嵌 base64 data-uri，
-                       此处改引本仓 assets/ip_body.png(user 已下到的原图)经 Vite 解析为 URL 同源加载：
-                         一甩脱万级 base64 致源码膨胀、二还原 Miora IP 形象真貌、
-                         三暗模式 .ip-body filter brightness/invert 整体作用于位图仍转中度灰辨识未损。-->
-                  <pattern id="pattern0_8850_1320" patternContentUnits="objectBoundingBox" width="1" height="1">
-                    <use href="#image0_8850_1320" transform="scale(0.0013587)" />
-                  </pattern>
-                  <image id="image0_8850_1320" width="736" height="736" preserveAspectRatio="none"
-                         :href="ipBodyUrl" :xlink:href="ipBodyUrl"></image>
-                </defs>
-                <!-- 身躯方块 · 三元组(width63.8367 / height63.8367 / transform matrix(-1 0 0 1 55.1021 -7.34692))
-                     连同 viewBox "0 0 48 48" 四件全部直录 ref L53/L56 守 geometry-verbatim 底线一字不改；
-                     fill 复刻 url(#pattern0_8850_1320) 指 pattern → image → 本仓 ip_body.png 真·IP 贴图；
-                     rx 移除回归原文方正轮廓 —— PNG 位图自身已含角色造型细节不再需 css 圆角软化补救。-->
-                <rect class="ip-body" width="63.8367" height="63.8367"
-                      transform="matrix(-1 0 0 1 55.1021 -7.34692)"
-                      fill="url(#pattern0_8850_1320)"></rect>
-                <!-- 双白眼球·两道贝塞尔曲线 path 直录自 ref(docx 行宽折叠曾误判其残缺实则各以 X.XXXXZ 闭合并无缺失),
-                     配合下方 @keyframes ipBlinkWhite scaleY 缩放完成眨眼上半动作 -->
-                <path class="ip-eye-white" d="M22.1682 25.68C22.1682 28.7196 23.9078 31.1836 26.5445 31.1836C29.1812 31.1836 31.7166 28.5869 31.7166 25.5474C31.7166 22.5079 29.5791 20.0438 26.9424 20.0438C24.3057 20.0438 22.1682 22.6405 22.1682 25.68Z" fill="#ffffff"></path>
-                <path class="ip-eye-white" d="M13.9745 23.8886C13.1461 26.2792 13.9581 28.6821 15.4825 29.2103C17.0069 29.7385 18.7027 28.0878 19.5311 25.6972C20.3594 23.3066 19.7952 20.9404 18.2707 20.4122C16.7463 19.884 14.8028 21.498 13.9745 23.8886Z" fill="#ffffff"></path>
-                <!-- 双瞳孔·配 @keyframes ipBlinkPupil translateY 微移收尾下半眨眼 -->
-                <path class="ip-eye-pupil" d="M23.6896 23.5078C23.4533 24.8850 23.9870 26.1849 25.29 26.4085C26.5929 26.6321 28.2994 25.7017 28.5357 24.3246C28.7720 22.9474 28.0932 21.6309 26.7903 21.4073C25.4874 21.1838 23.9259 22.1307 23.6896 23.5078Z" fill="#000000"></path>
-                <path class="ip-eye-pupil" d="M15.6084 22.5914C15.2502 23.6791 15.3989 24.7558 16.2037 25.0209C17.0084 25.2859 18.2456 24.6530 18.6038 23.5652C18.9621 22.4775 18.7225 21.3780 17.9178 21.1129C17.1130 20.8479 15.9667 21.5036 15.6084 22.5914Z" fill="#000000"></path>
-              </svg>
-              <h3 class="greetTitle">{{ inspirationMode ? '打开灵感盒' : '你好！我是' }} <span class="gradient-text">{{ inspirationMode ? '✦' : 'XOi' }}</span></h3>
-              <p class="greetSub">{{ inspirationMode ? '从一个提示词开始，也可以继续改写成你的版本' : '短剧创作搭档 · 点张灵感卡起步' }}</p>
-            </div>
-            <div class="promptCards">
-              <article
-                v-for="(card, ci) in promptCards"
-                :key="ci"
-                class="promptCard"
-                @click="pickPrompt(card.prompt)">
-                <h4 class="cardTitle">{{ card.title }}</h4>
-                <p class="cardDesc">{{ card.desc }}</p>
-              </article>
-            </div>
-            <footer class="cardsFootnote">内容由 AI 生成，仅供参考</footer>
-            </div>
-          </section>
-
-          <!-- ── 有消息时:沿用原有气泡体系(user 紫→蓝渐变右贴边 / assistant material 半透毛玻璃头像靠左)── -->
-          <section v-else key="list" ref="messagesRef" class="messageList">
-            <div v-for="message in visibleMessages" :key="message.id" class="messageWrapper" :class="message.role">
-              <img v-if="message.role === 'assistant'" src="@/assets/XOI_logo.png" alt="AI" class="messageAvatarImg" />
-              <div class="messageBubble" :class="message.role">
-                <div class="messageContent" v-html="formatMessage(message.content)"></div>
-                <button
-                  v-if="message.role === 'assistant' && message.status === 'complete'"
-                  type="button"
-                  class="msgCopyBtn"
-                  :title="copiedId === message.id ? '已复制到剪贴板' : '复制本条回复'"
-                  @click="handleMsgCopy(message, $event)"
-                >
-                  <!-- lucide copy 同款手感·inline svg 免依赖 sprite 缺失问题 -->
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                  </svg>{{ copiedId === message.id ? "已复制" : "复制" }}
-                </button>
-                <div v-if="message.status === 'pending' || (message.status === 'streaming' && !message.content)" class="typingIndicator agentPendingState">
-                  <div class="agentPendingTop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg><span>{{ message.toolStatus || "正在分析创作需求" }}</span></div>
-                  <div class="agentPendingProgress"><span></span></div>
-                </div>
-                <div v-if="message.video" class="videoAnalysisPreview">
-                  <p>{{ message.video.name }} · {{ formatFrameTime(message.video.duration) }} · {{ message.video.frames.length }} 张抽样帧</p>
-                  <div class="analysisFrameStrip">
-                    <figure v-for="frame in message.video.frames" :key="frame.time">
-                      <img :src="frame.dataUrl" :alt="`视频 ${formatFrameTime(frame.time)} 的抽样画面`" loading="lazy" />
-                      <figcaption>{{ formatFrameTime(frame.time) }}</figcaption>
-                    </figure>
-                  </div>
-                  <small>依据抽样画面分析，未读取音轨；精确剪辑点需进一步检测。</small>
-                </div>
-                <p v-if="message.toolStatus && message.status === 'streaming' && message.content" class="analysisToolStatus" role="status">{{ message.toolStatus }}</p>
-                <button v-if="message.role === 'assistant' && message.status === 'complete' && message.content" type="button" class="analysisHandoff" :disabled="status !== 'idle'" title="仅交接这条文字方案，进入画布后再执行生成" @click="openCanvasWithPrompt(`请根据以下分析方案继续创作，先规划再生成：\n${message.content}`, true)">将此方案带入画布 →</button>
+      <main ref="mainRef" class="mainScrollArea" aria-label="创作对话">
+        <section v-if="!visibleMessages.length" class="welcome">
+          <span class="welcomeMark" aria-hidden="true">✦</span>
+          <h1>今天，想把什么拍成作品？</h1>
+          <p>从一个想法或一段参考开始，一起把故事和镜头打磨好。</p>
+        </section>
+        <section v-else ref="messagesRef" class="messageList" aria-label="对话内容">
+          <div class="conversationTitle">{{ activeSessionTitle }}</div>
+          <article v-for="message in visibleMessages" :key="message.id" class="messageWrapper" :class="message.role">
+            <span v-if="message.role === 'assistant'" class="messageAvatar" aria-label="XOi">✦</span>
+            <div class="messageBubble" :class="message.role">
+              <div class="messageContent" v-html="formatMessage(message.content)"></div>
+              <div v-if="message.images?.length" class="referenceImages"><img v-for="image in message.images" :key="image.name" :src="image.dataUrl" :alt="image.name" /></div>
+              <div v-if="message.status === 'pending' || (message.status === 'streaming' && !message.content)" class="agentPendingState" role="status"><span class="progressDot"></span>{{ message.toolStatus || '正在整理你的想法…' }}</div>
+              <details v-if="message.video" class="videoAnalysisPreview">
+                <summary>{{ message.video.name }} · {{ message.video.frames.length }} 张参考画面 <span>查看抽帧</span></summary>
+                <div class="analysisFrameStrip"><figure v-for="frame in message.video.frames" :key="frame.time"><img :src="frame.dataUrl" :alt="`视频 ${formatFrameTime(frame.time)} 的抽样画面`" loading="lazy" /><figcaption>{{ formatFrameTime(frame.time) }}</figcaption></figure></div>
+                <small>按抽样画面分析，未读取音轨；镜头边界与运动为推测。</small>
+              </details>
+              <p v-if="message.toolStatus && message.status === 'streaming' && message.content" class="analysisToolStatus" role="status">{{ message.toolStatus }}</p>
+              <div v-if="message.role === 'assistant' && message.status === 'complete' && message.content" class="replyActions">
+                <button type="button" class="analysisHandoff" :disabled="status !== 'idle'" @click="openCanvasWithPrompt(`根据这份创作方案继续制作，先整理执行计划：\n${message.content}`, true)"><i-cube />在画布制作 <span>↗</span></button>
+                <button type="button" class="msgCopyBtn" @click="handleMsgCopy(message, $event)"><i-copy />{{ copiedId === message.id ? '已复制' : '复制' }}</button>
               </div>
             </div>
-          </section>
-        </transition>
+          </article>
+        </section>
       </main>
 
-      <!-- 与无限画布共用交互语义的完整 Agent Composer；保留本页 Tab 灵感提示。 -->
-      <footer
-        ref="composerRef"
-        class="composerToolbar upstreamComposer"
-        :class="{ popoverOpen: showAssetMenu || showSkillPicker || Boolean(openSetting) }"
-        @click.self="focusComposer">
-        <div class="assistantModeBar" role="group" aria-label="选择工作区">
-          <button type="button" :class="{ selected: agentMode === 'canvas' }" :aria-pressed="agentMode === 'canvas'" title="制作作品；切换会保留分析和草稿" :disabled="status !== 'idle'" @click="switchAgentMode('canvas')">▧ 画布创作</button>
-          <button type="button" :class="{ selected: agentMode === 'analysis' }" :aria-pressed="agentMode === 'analysis'" title="讨论方案、拆解参考；切换不会调用模型" :disabled="status !== 'idle'" @click="switchAgentMode('analysis')">◉ 分析助手</button>
-          <span>{{ status !== 'idle' ? '正在分析；停止或完成后可切换工作区' : hasVideoAttachment ? '抽帧分析将调用看图与工具模型，按用量结算' : agentMode === 'canvas' ? '制作作品 · 进入画布执行；切换保留草稿' : '先讨论、拆参考 · 对话保留，方案可交给画布' }}</span>
-          <button v-if="agentMode === 'analysis'" type="button" :disabled="status !== 'idle'" aria-label="新建分析对话" title="新建分析对话" @click="newConversation"><i-plus /></button>
-          <button v-if="agentMode === 'analysis'" type="button" :disabled="status !== 'idle'" aria-label="分析历史" title="分析历史" @click="showHistory = !showHistory"><i-history /></button>
+      <footer ref="composerRef" class="composerToolbar" @click.self="focusComposer">
+        <div v-if="showAssetMenu" class="assetMenu popover">
+          <strong>添加参考</strong>
+          <button type="button" @click="attachmentInputRef?.click(); showAssetMenu = false"><i-paperclip /><span>上传图片或视频<small>视频发送后自动抽帧</small></span></button>
+          <button type="button" @click="openAssetPicker"><i-folder-open /><span>我的素材<small>使用已保存的参考素材</small></span></button>
         </div>
-        <div v-if="visibleMessages.length === 0" class="composerMascot" aria-hidden="true">
-          <video src="/miora-home/mascot-preview.webm" autoplay muted loop playsinline></video>
+        <aside v-if="showSkillPicker" ref="skillPickerRef" class="skillPicker popover" :style="{ maxHeight: `${skillPickerHeight}px` }" aria-label="选择创作技能">
+          <header><strong>创作技能</strong><router-link to="/skills">浏览全部 ↗</router-link></header>
+          <div class="skillPickerTop"><div class="skillTabs"><button type="button" :class="{ active: skillTab === 'general' }" @click="skillTab = 'general'">通用</button><button type="button" :class="{ active: skillTab === 'mine' }" @click="skillTab = 'mine'">我的</button></div><input v-model="skillKeyword" type="search" placeholder="搜索技能" aria-label="搜索技能" /></div>
+          <p v-if="skillsLoading" class="skillEmpty">正在读取技能…</p><p v-else-if="!filteredSkills.length" class="skillEmpty">暂无技能，可去技能库添加。</p>
+          <div v-else class="skillList"><button v-for="skill in filteredSkills" :key="skill.path" type="button" class="skillOption" :class="{ selected: selectedSkills.includes(skill.path) }" @click="toggleSkill(skill.path)"><span class="skillGlyph">{{ skill.emoji }}</span><span class="skillCopy"><strong>{{ skill.name }}</strong><small>{{ skill.desc }}</small></span><span class="skillOfficial">{{ selectedSkills.includes(skill.path) ? '✓' : '+' }}</span></button></div>
+          <button v-if="selectedSkills.length" type="button" class="clearSkills" @click="clearSelectedSkills">清空已选技能</button>
+        </aside>
+        <div v-if="composerAttachments.length || activeSkillOptions.length" class="editorSkills">
+          <button v-for="file in composerAttachments" :key="file.id" type="button" :disabled="status !== 'idle'" :title="`移除 ${file.name}`" @click="removeComposerAttachment(file.id)"><img v-if="file.type.startsWith('image/')" :src="file.dataUrl" alt="" /><i-video v-else /><span>{{ file.name }}</span><i-close /></button>
+          <button v-for="skill in activeSkillOptions" :key="skill.path" type="button" :disabled="status !== 'idle'" :title="`移除 ${skill.name}`" @click="toggleSkill(skill.path)"><span>{{ skill.emoji }} {{ skill.name }}</span><i-close /></button>
         </div>
-        <transition name="skill-pop">
-          <aside
-            v-if="showSkillPicker"
-            ref="skillPickerRef"
-            class="skillPicker"
-            :style="{ height: `${skillPickerHeight}px`, maxHeight: `${skillPickerHeight}px` }"
-            aria-label="选择创作技能">
-            <h3>Skill</h3>
-            <div class="skillPickerTop">
-              <div class="skillTabs"><button type="button" :class="{ active: skillTab === 'general' }" @click="skillTab = 'general'">通用</button><button type="button" :class="{ active: skillTab === 'mine' }" @click="skillTab = 'mine'">我的</button></div>
-              <div class="skillSearchRow"><t-icon name="search" /><input v-model="skillKeyword" type="search" placeholder="搜索 Skill" aria-label="搜索技能" /></div>
-            </div>
-            <div v-if="skillsLoading" class="skillEmpty">正在读取 Skills…</div>
-            <div v-else-if="!filteredSkills.length" class="skillEmpty"><strong>还没有可调用的 Skill</strong><span>先去 Skills 页面安装需要的写作、视觉或导演能力</span><router-link to="/skills">浏览 Skills →</router-link></div>
-            <div v-else class="skillList">
-              <button v-for="skill in filteredSkills" :key="skill.path" type="button" class="skillOption" :class="{ selected: selectedSkills.includes(skill.path) }" @click="toggleSkill(skill.path)">
-                <span class="skillGlyph"><i-toolkit size="20px" /></span><span class="skillCopy"><strong>{{ skill.name }}</strong><small>{{ skill.desc }}</small></span><span class="skillOfficial">{{ selectedSkills.includes(skill.path) ? '已选' : (skill.source === 'general' ? '通用' : '已安装') }}</span>
-              </button>
-            </div>
-            <div class="skillPickerDivider"></div>
-            <div class="skillPickerActions">
-              <router-link to="/skills"><i-plus /><span>添加技能</span><i-right class="actionArrow" /></router-link>
-              <router-link to="/skills"><i-cube /><span>管理技能</span></router-link>
-              <button v-if="selectedSkills.length" type="button" class="clearSkills" @click="clearSelectedSkills">清空本轮已选</button>
-            </div>
-          </aside>
-        </transition>
-        <div class="editorRow" :class="{ hasInput: Boolean(inputValue), hasSkills: composerAttachments.length || activeSkillOptions.length }" @click="focusComposer">
-          <div v-if="composerAttachments.length || activeSkillOptions.length" class="editorSkills">
-            <button v-for="file in composerAttachments" :key="file.id" type="button" :title="`移除 ${file.name}`" @click.stop="removeComposerAttachment(file.id)">
-              <span>{{ file.type.startsWith('image/') ? '🖼' : file.type.startsWith('video/') ? '🎬' : '🎵' }}</span>{{ file.name }}<i-close size="12px" />
-            </button>
-            <button v-for="skill in activeSkillOptions" :key="skill.path" type="button" :title="`移除 ${skill.name}`" @click.stop="toggleSkill(skill.path)">
-              <span>{{ skill.emoji }}</span>{{ skill.name }}<i-close size="12px" />
-            </button>
+        <textarea ref="taRef" v-model="inputValue" rows="3" :disabled="status !== 'idle'" :placeholder="visibleMessages.length ? '继续聊，或告诉我哪里需要调整…' : '描述你的想法，或上传一段想参考的影像…'" aria-label="创作需求" @keydown.tab="handleSkillTab" @keydown.enter.exact.prevent="handleSend" @input="autogrowTextarea"></textarea>
+        <div v-if="hasVideoAttachment" class="referenceHint">发送后自动抽取参考画面 · 不读取音轨</div>
+        <div class="composerBottom">
+          <div class="toolbarLeft">
+            <input ref="attachmentInputRef" hidden type="file" multiple accept="image/*,video/*" @change="onComposerFilesSelected" />
+            <button type="button" class="assetTrigger" :disabled="status !== 'idle'" aria-label="添加参考" :aria-expanded="showAssetMenu" @click.stop="toggleAssetMenu"><i-paperclip /><span>参考</span></button>
+            <button ref="skillButtonRef" type="button" class="skillButton" :disabled="status !== 'idle'" :class="{ active: selectedSkills.length }" :aria-expanded="showSkillPicker" @click="toggleSkillPicker"><i-toolkit /><span>技能</span><span v-if="selectedSkills.length" class="skillCount">{{ selectedSkills.length }}</span></button>
           </div>
-          <textarea
-            ref="taRef"
-            v-model="inputValue"
-            rows="1"
-            :disabled="status === 'pending' || status === 'streaming'"
-            :placeholder="inputValue ? (agentMode === 'analysis' ? '描述分析需求，或继续讨论方案' : '描述创作目标，进入画布执行') : ''"
-            :aria-label="agentMode === 'analysis' ? '描述分析需求' : '描述创作目标'"
-            @keydown.tab="handleSkillTab"
-            @keydown.backspace="handleComposerBackspace"
-            @keydown.delete="handleComposerDelete"
-            @keydown.enter.exact.prevent="handleSend"
-            @input="autogrowTextarea"></textarea>
-          <div v-if="!inputValue" class="completionHint promptCycleHint" aria-hidden="true">
-            <span class="promptSpark">✦</span><span class="promptCycleLabel">{{ completionSuggestion || (agentMode === 'analysis' ? '上传参考视频，或让我拆解创作需求' : cyclePromptText) }}</span><kbd>Tab 补全</kbd>
+          <div class="toolbarRight">
+            <fieldset class="modelSlot" aria-label="对话模型" :disabled="status !== 'idle'"><modelSelect v-model="selectedModelValue" v-model:label="selectedModelLabel" type="text" size="small" placeholder="选择模型" :disabled="status !== 'idle'" @change="onPickModel" /></fieldset>
+            <button type="button" class="costToggle" :aria-expanded="showBillingGuide" aria-label="查看对话费用" @click="showBillingGuide = !showBillingGuide">用量</button>
+            <button v-if="status === 'idle'" type="button" class="sendButton" :disabled="!inputValue.trim() && !composerAttachments.length" aria-label="发送" @click="handleSend"><span>发送</span><span aria-hidden="true">↑</span></button>
+            <button v-else type="button" class="stopButton" aria-label="停止" @click="handleStop"><span aria-hidden="true">■</span>停止</button>
           </div>
         </div>
-
-        <div class="toolbarLeft">
-          <input ref="attachmentInputRef" hidden type="file" multiple accept="image/*,video/*,audio/*" @change="onComposerFilesSelected" />
-          <button type="button" class="roundIconBtn assetTrigger" aria-label="添加素材" title="添加素材" @click.stop="toggleAssetMenu">
-            <i-paperclip size="16px" /><span class="toolLabel">素材</span>
-          </button>
-          <div v-if="showAssetMenu" class="assetMenu">
-            <div class="assetMenuHeader"><strong>添加素材</strong><span>把参考内容带入这次创作</span></div>
-            <button type="button" @click="attachmentInputRef?.click(); showAssetMenu = false"><span class="assetMenuIcon"><i-paperclip size="18px" /></span><span class="assetMenuCopy"><b>上传文件</b><small>图片、视频、音频</small></span><kbd>⌘ U</kbd></button>
-            <button type="button" @click="openAssetPicker"><span class="assetMenuIcon"><i-folder-open size="18px" /></span><span class="assetMenuCopy"><b>我的素材</b><small>从无限创意画布资产库选择</small></span><kbd>⌘ M</kbd></button>
-          </div>
-          <button ref="skillButtonRef" type="button" class="roundIconBtn skillButton" :class="{ active: showSkillPicker || selectedSkills.length }" title="搭配 Skills" @click="toggleSkillPicker">
-            <i-toolkit size="16px" /><span class="toolLabel">Skill</span>
-            <span v-if="selectedSkills.length" class="skillCount">{{ selectedSkills.length }}</span>
-          </button>
-          <button v-if="hasVideoAttachment" type="button" class="roundIconBtn analyzeVideoButton" :disabled="status !== 'idle'" title="抽取 12 帧分析画面；当前模型需支持工具调用与看图" @click="handleAnalyzeVideo">◉ <span>抽帧分析</span></button>
-          <div class="modelSlot" aria-label="选择对话模型">
-            <span class="modelSlotLabel">{{ agentMode === "analysis" ? "分析模型" : "模型" }}</span>
-            <modelSelect
-              v-model="selectedModelValue"
-              v-model:label="selectedModelLabel"
-              type="text"
-              size="small"
-              placeholder="选择模型"
-              @change="onPickModel" />
-            <ModelCostHint
-              v-if="selectedModelValue"
-              class="composerCostHint"
-              :model="selectedModelName"
-              type="text"
-              :input-length="inputValue.length" />
-          </div>
-          <div class="composerSetting">
-            <button type="button" class="settingPill" title="图片设置" @click="openComposerSetting('image')">▧ <span>{{ imageQuality }} · {{ imageSize }}</span></button>
-            <div v-if="openSetting === 'image'" class="settingMenu mediaSettingMenu imageSettingMenu">
-              <h3>图像设置</h3><label>质量</label>
-              <div class="settingSegment"><button v-for="value in imageQualities" :key="value" type="button" :class="{ selected: imageQuality === value }" @click="imageQuality = value">{{ value }}</button></div>
-              <div class="settingTitleRow"><label>尺寸</label><label class="alignToggle">16倍数对齐 <input v-model="alignImageSize" type="checkbox"><span></span></label></div>
-              <div class="dimensionRow"><span>W</span><strong>{{ imageDimensions.width }}</strong><em>↔</em><span>H</span><strong>{{ imageDimensions.height }}</strong></div>
-              <label>宽高比</label>
-              <div class="ratioGrid"><button v-for="value in imageSizes" :key="value" type="button" :class="{ selected: imageSize === value }" @click="imageSize = value"><i :style="ratioPreviewStyle(value)"></i><span>{{ value }}</span></button></div>
-            </div>
-          </div>
-          <div class="composerSetting">
-            <button type="button" class="settingPill" title="视频设置" @click="openComposerSetting('video')">▣ <span>{{ videoQuality }} · {{ videoSize }}</span></button>
-            <div v-if="openSetting === 'video'" class="settingMenu mediaSettingMenu videoSettingMenu">
-              <h3>视频设置</h3><label>清晰度</label>
-              <div class="settingSegment"><button v-for="value in videoQualities" :key="value" type="button" :class="{ selected: videoQuality === value }" @click="videoQuality = value">{{ value }}</button></div>
-              <label>尺寸</label><div class="dimensionRow"><span>W</span><strong>{{ videoDimensions.width }}</strong><em>↔</em><span>H</span><strong>{{ videoDimensions.height }}</strong></div>
-              <div class="videoSizeGrid"><button v-for="item in videoSizeOptions" :key="item.value" type="button" :class="{ selected: videoSize === item.value }" @click="videoSize = item.value"><i :class="`shape-${item.shape}`"></i><span>{{ item.value }}</span><small>{{ item.label }}</small></button></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="toolbarRight">
-          <button type="button" class="roundIconBtn reasoningButton" :class="{ active: reasoningEnabled }" :title="reasoningEnabled ? '推理已开启' : '推理已关闭'" :aria-label="reasoningEnabled ? '关闭推理' : '开启推理'" :aria-pressed="reasoningEnabled" @click="reasoningEnabled = !reasoningEnabled">✦<span class="toolLabel">推理</span></button>
-          <t-button
-            v-if="status === 'idle'"
-            theme="primary"
-            shape="square"
-            class="sendButton"
-            :disabled="!inputValue.trim()"
-            @click="handleSend"
-            aria-label="发送">
-            <template #icon><i-send size="15px" /></template>
-            <span class="sendButtonLabel">{{ agentMode === "canvas" ? "进入画布" : "发送分析" }}</span>
-          </t-button>
-          <t-button
-            v-else
-            theme="warning"
-            shape="square"
-            class="stopButton"
-            @click="handleStop"
-            aria-label="停止">
-            <template #icon><i-pause-one size="15px" /></template>
-          </t-button>
-        </div>
-
+        <div v-if="showBillingGuide" class="billingGuide" role="status"><ModelCostHint :model="selectedModelName || defaultTextModel" type="text" :input-length="inputValue.length" /><small>对话按模型实际用量结算；视频分析包含工具规划、看图和整理回复。图片与视频生成在画布中单独确认。</small></div>
       </footer>
 
-      <Teleport to="body">
-        <div v-if="showAssetPicker" class="assetPickerOverlay" role="dialog" aria-modal="true" aria-label="选择我的素材" @click.self="closeAssetPicker">
-          <div class="assetPickerDialog">
-            <iframe :key="assetPickerKey" class="assetPickerFrame" :src="assetPickerSrc" title="无限创意画布素材库"></iframe>
-          </div>
-        </div>
-      </Teleport>
-
-      <section v-if="messages.length === 0 && agentMode === 'canvas'" class="inspirationShowcase" aria-labelledby="inspiration-heading">
-        <header>
-          <h2 id="inspiration-heading"><i-bulb />优质灵感</h2>
-          <div class="inspirationActions">
-            <button type="button" @click="shuffleInspirations">↻ 换一批</button>
-            <router-link to="/inspiration">查看更多灵感 <i-right /></router-link>
-          </div>
-        </header>
-        <div class="inspirationGrid">
-          <article v-for="item in inspirationItems" :key="item.title" class="inspirationCard">
-            <router-link class="inspirationMedia" :to="`/inspiration/${item.detailIndex}`" :aria-label="`在 XOi 查看灵感：${item.title}`">
-              <img :src="item.image" :alt="item.title" loading="lazy" />
-            </router-link>
-            <span class="inspirationInfo"><strong>{{ item.title }}</strong><small>{{ item.category }}</small><button type="button" @click="useInspiration(item.prompt)">使用提示词</button></span>
-          </article>
-        </div>
+      <section v-if="!visibleMessages.length" class="taskStarters" aria-label="从一个创作任务开始">
+        <button type="button" @click="attachmentInputRef?.click()"><span class="starterIcon">▣</span><strong>拆解参考</strong><small>看懂画面与镜头语言</small><span class="starterArrow">↗</span></button>
+        <button type="button" @click="pickPrompt('帮我设计一段60秒短片的分镜。先聊清楚故事、风格和想传达的情绪。')"><span class="starterIcon">▦</span><strong>打磨分镜</strong><small>把故事变成镜头方案</small><span class="starterArrow">↗</span></button>
+        <button type="button" @click="pickPrompt('帮我策划一支产品短片。先确认产品、目标人群和核心卖点，再一起确定创意方向。')"><span class="starterIcon">✧</span><strong>策划短片</strong><small>找到创意与表达方向</small><span class="starterArrow">↗</span></button>
       </section>
-
+      <p class="composerFootnote">{{ visibleMessages.length ? '方案可以继续修改，准备好后再制作。' : '先聊清楚，再让作品发生。' }}</p>
     </div>
+    <Teleport to="body"><div v-if="showAssetPicker" class="assetPickerOverlay" role="dialog" aria-modal="true" aria-label="选择我的素材" @click.self="closeAssetPicker"><div class="assetPickerDialog"><button type="button" class="pickerClose" aria-label="关闭素材库" @click="closeAssetPicker"><i-close /></button><iframe :key="assetPickerKey" class="assetPickerFrame" :src="assetPickerSrc" title="创作素材库"></iframe></div></div></Teleport>
   </div>
 </template>
 
@@ -411,6 +107,7 @@ import { MessagePlugin } from "tdesign-vue-next";
 import axios from "@/utils/axios";
 import settingStore from "@/stores/setting";
 import { showPointsToast } from "@/utils/pointsToast";
+import { prepareReferenceImages, type ReferenceImage } from "@/utils/referenceImages";
 import { extractAnalysisFrames, formatFrameTime, type AnalysisVideo } from "@/utils/videoFrames";
 // Miora IP 身躯贴图 · 736×737 PNG 经 Vite ESM-import 解析为运行期 hashed URL，
 // 注入下方 <image :href=:xlink:href> 以还原本仓此前无法解码的那张外图真貌。
@@ -446,95 +143,6 @@ const creationCategories = [
   { key: "gaming", label: "互动游戏", icon: "⌘" },
   { key: "web", label: "网页应用", icon: "▱" },
 ];
-type CanvasBanner = { imageUrl?: string; videoUrl?: string; linkUrl?: string; alt: string; title?: string; desc?: string; grad?: string; route?: string };
-// 功能导流卡：全部指向站内四个创作模块（第三方推广/返佣广告已按「统一走 new-api」方案清除，不再依赖外部 CDN 图）。
-const canvasBanners: CanvasBanner[] = [
-  { alt: "无限创意画布", title: "让灵感成为作品", desc: "把提示词、参考图、分镜与生成结果放进同一张画布，持续推演你的创意。", imageUrl: "/miora-home/ai-creative-canvas.png", route: "/canvas" },
-  { alt: "镜头导演台", title: "镜头导演台", desc: "搭建 3D 场景、安排人物走位、设计镜头与关键帧，把导演想法变成可预演的分镜。", imageUrl: "/miora-home/director-stage.png", route: "/director3d" },
-  { alt: "AI影像创作中心", title: "AI 影像创作中心", desc: "从故事、剧本到镜头与成片，漫剧创作在同一条流水线上持续推进。", imageUrl: "/miora-home/film-pipeline.png", route: "/project" },
-  { alt: "创作智能体", title: "创作智能体", desc: "一句话描述创意，智能体帮你拆解成海报、视频、品牌视觉等可执行的创作任务。", imageUrl: "/miora-home/creative-agent.png", route: "/aiAssistant" },
-];
-const bannerCarouselRef = ref<HTMLElement | null>(null);
-const activeBannerPosition = ref(0);
-const activeBannerIndex = computed(() => (activeBannerPosition.value % canvasBanners.length + canvasBanners.length) % canvasBanners.length);
-const bannerDragX = ref(0);
-let bannerPointerStart: number | null = null;
-let bannerDragged = false;
-const visibleBanners = computed(() => [-1, 0, 1].map((offset) => {
-  const position = activeBannerPosition.value + offset;
-  const index = (position % canvasBanners.length + canvasBanners.length) % canvasBanners.length;
-  return { ...canvasBanners[index], offset, position, index };
-}));
-// 轮播两侧的卡片仍然在 DOM 中，但因为 3D 变换和容器溢出，浏览器可能把它们
-// 误判为不可见并推迟 lazy image 的请求。提前把整组素材放入浏览器缓存，切换时
-// 只做位置变化，不再出现“滑到中间才加载”的白色占位。
-const preloadedBannerImages = new Set<string>();
-function preloadBannerImages() {
-  for (const banner of canvasBanners) {
-    if (!banner.imageUrl || preloadedBannerImages.has(banner.imageUrl)) continue;
-    const image = new Image();
-    image.decoding = "async";
-    image.src = banner.imageUrl;
-    preloadedBannerImages.add(banner.imageUrl);
-  }
-}
-// Keep the carousel visually compact while preserving its reserved layout height.
-const BANNER_WIDTH = "min(calc(100vw - 2rem), 860px)";
-const SIDE_BANNER_WIDTH = "min(84vw, 620px)";
-function bannerAngle(offset: number) { return offset === 0 ? 0 : offset < 0 ? 12 : -12; }
-function bannerCardStyle(banner: { offset: number }) {
-  const progress = Math.max(-1, Math.min(1, bannerDragX.value / 160));
-  const angle = bannerAngle(banner.offset) - progress * 12;
-  const active = banner.offset === 0;
-  return {
-    left: active ? `calc(50% + ${bannerDragX.value}px)` : banner.offset < 0 ? `calc(50% - ${SIDE_BANNER_WIDTH} + 16px + ${bannerDragX.value}px)` : `calc(50% + ${SIDE_BANNER_WIDTH} - 16px + ${bannerDragX.value}px)`,
-    width: active ? BANNER_WIDTH : SIDE_BANNER_WIDTH,
-    translate: "-50% -50%",
-    zIndex: active ? 3 : 1,
-    // The stage owns the perspective. Applying a second perspective to each
-    // card can make off-centre descendants get culled by WebKit's compositor.
-    transform: `rotateY(${angle}deg)`,
-    transformOrigin: "center center",
-    // A 12deg side card is still front-facing. Hiding its backface here can
-    // otherwise turn the card into a blank painted surface in Safari/WebKit.
-    backfaceVisibility: "visible" as const,
-    touchAction: "pan-y",
-  };
-}
-function selectBanner(index: number) {
-  activeBannerPosition.value = index;
-}
-function changeBanner(step: number) {
-  activeBannerPosition.value += step;
-}
-function handleBannerPointerDown(event: globalThis.PointerEvent) {
-  bannerPointerStart = event.clientX;
-  bannerDragged = false;
-  (event.currentTarget as HTMLButtonElement).setPointerCapture(event.pointerId);
-}
-function handleBannerPointerMove(event: globalThis.PointerEvent) {
-  if (bannerPointerStart === null) return;
-  bannerDragX.value = Math.max(-180, Math.min(180, event.clientX - bannerPointerStart));
-  bannerDragged = Math.abs(bannerDragX.value) > 4;
-}
-function finishBannerDrag(step = 0) {
-  bannerPointerStart = null;
-  if (step) activeBannerPosition.value += step;
-  window.requestAnimationFrame(() => { bannerDragX.value = 0; });
-}
-function handleBannerPointerUp(event: globalThis.PointerEvent) {
-  if (bannerPointerStart === null) return;
-  const distance = event.clientX - bannerPointerStart;
-  bannerDragged = Math.abs(distance) > 4;
-  finishBannerDrag(Math.abs(distance) > 60 ? (distance < 0 ? 1 : -1) : 0);
-}
-function handleBannerPointerCancel() { bannerDragged = false; finishBannerDrag(); }
-function openBanner(banner: CanvasBanner & { index: number; position: number }) {
-  if (bannerDragged) { bannerDragged = false; return; }
-  if (banner.position !== activeBannerPosition.value) { activeBannerPosition.value = banner.position; return; }
-  // 功能导流卡一律站内跳转（外部推广链接已清除）
-  if (banner.route) router.push(banner.route);
-}
 async function openCanvasWithPrompt(preset = inputValue.value.trim(), reportOnly = false) {
   if (status.value !== "idle") return;
   const prompt = preset.trim();
@@ -555,7 +163,7 @@ async function openCanvasWithPrompt(preset = inputValue.value.trim(), reportOnly
       skills: activeSkillOptions.value.map((skill) => ({ path: skill.path, name: skill.name, group: skill.group })),
       image: { size: imageSize.value, quality: imageQuality.value },
       video: { size: videoSize.value, quality: videoQuality.value },
-      model: reportOnly ? modeDrafts.canvas?.modelValue || "" : selectedModelValue.value || "",
+      model: selectedModelValue.value || "",
       reasoning: reasoningEnabled.value,
       assets,
       source: "aiAssistant",
@@ -565,7 +173,8 @@ async function openCanvasWithPrompt(preset = inputValue.value.trim(), reportOnly
     MessagePlugin.warning("画布入口数据暂时无法保存，请重试");
     return;
   }
-  router.push("/canvas?handoff=1");
+  rememberConversation();
+  router.push("/canvas?source=xoi&handoff=1");
 }
 
 interface Message {
@@ -575,6 +184,7 @@ interface Message {
   status?: "pending" | "streaming" | "complete" | "error";
   toolStatus?: string;
   video?: AnalysisVideo;
+  images?: ReferenceImage[];
 }
 interface Conversation {
   id: number;
@@ -596,7 +206,7 @@ const skillKeyword = ref("");
 const skillsLoading = ref(false);
 const skillOptions = ref<SkillOption[]>([]);
 const selectedSkills = ref<string[]>([]);
-const selectedSkillsKey = computed(() => `xo_assistant_selected_skills_v1:${userId.value || 'anonymous'}:${agentMode.value}`);
+const selectedSkillsKey = computed(() => `xo_assistant_selected_skills_v1:${userId.value || 'anonymous'}:creative`);
 const installedSkillsKey = computed(() => `xoi_installed_creative_skills_v1:${userId.value || 'anonymous'}`);
 const skillEmoji = ["🎬", "✦", "🎨", "🧩", "✍️", "🎞️", "💡", "🪄"];
 const generalSkills: SkillOption[] = [
@@ -620,18 +230,7 @@ const completionSuggestion = computed(() => {
   };
   return suggestions[skill.group] || `根据我的描述使用「${skill.name}」完成创作，并给出可直接使用的结果。`;
 });
-const cyclePrompts = [
-  "帮我画一组卡通 IP 形象设计",
-  "为品牌设计一套高级感视觉识别",
-  "生成一支 60 秒电影感短片分镜",
-  "做一张适合电商首页的产品主视觉",
-  "设计一个东方奇幻世界观和角色设定",
-];
-const cyclePromptIndex = ref(0);
-const cyclePrompt = computed(() => cyclePrompts[cyclePromptIndex.value]);
-const cyclePromptText = ref(cyclePrompts[0]);
-let cyclePromptPhase: "typing" | "holding" | "deleting" = "typing";
-let cyclePromptTimer: number | undefined;
+const cyclePrompt = computed(() => "为我设计一段60秒电影感短片分镜，先确认故事和风格。");
 const filteredSkills = computed(() => {
   const keyword = skillKeyword.value.trim().toLowerCase();
   const sourceItems = skillOptions.value.filter((item) => item.source === skillTab.value);
@@ -639,7 +238,8 @@ const filteredSkills = computed(() => {
 });
 function readSavedSkills(): string[] {
   try {
-    const legacy = agentMode.value === "canvas" ? localStorage.getItem(`xo_assistant_selected_skills_v1:${userId.value || 'anonymous'}`) : null;
+    const prefix = `xo_assistant_selected_skills_v1:${userId.value || 'anonymous'}`;
+    const legacy = localStorage.getItem(`${prefix}:analysis`) || localStorage.getItem(`${prefix}:canvas`) || localStorage.getItem(prefix);
     const saved = JSON.parse(localStorage.getItem(selectedSkillsKey.value) || legacy || "[]");
     return Array.isArray(saved) ? saved.filter((path) => skillOptions.value.some((skill) => skill.path === path)).slice(0, 4) : [];
   } catch { return []; }
@@ -730,86 +330,9 @@ onMounted(() => window.addEventListener("resize", updateSkillPickerHeight));
 onBeforeUnmount(() => document.removeEventListener("pointerdown", closeSkillPickerOnOutside));
 onBeforeUnmount(() => window.removeEventListener("message", handleAssetPickerMessage));
 onBeforeUnmount(() => window.removeEventListener("resize", updateSkillPickerHeight));
-onMounted(preloadBannerImages);
-function scheduleCyclePrompt(delay = 60) {
-  cyclePromptTimer = window.setTimeout(runCyclePrompt, delay);
-}
-function runCyclePrompt() {
-  if (inputValue.value || status.value !== "idle" || document.hidden || completionSuggestion.value) {
-    scheduleCyclePrompt(240);
-    return;
-  }
-  const target = cyclePrompt.value;
-  if (cyclePromptPhase === "typing") {
-    cyclePromptText.value = target.slice(0, cyclePromptText.value.length + 1);
-    if (cyclePromptText.value === target) {
-      cyclePromptPhase = "holding";
-      scheduleCyclePrompt(1800);
-    } else scheduleCyclePrompt(62);
-    return;
-  }
-  if (cyclePromptPhase === "holding") {
-    cyclePromptPhase = "deleting";
-    scheduleCyclePrompt(45);
-    return;
-  }
-  cyclePromptText.value = cyclePromptText.value.slice(0, -1);
-  if (!cyclePromptText.value) {
-    cyclePromptIndex.value = (cyclePromptIndex.value + 1) % cyclePrompts.length;
-    cyclePromptPhase = "typing";
-    scheduleCyclePrompt(320);
-  } else scheduleCyclePrompt(34);
-}
-onMounted(() => scheduleCyclePrompt(180));
-onBeforeUnmount(() => cyclePromptTimer && window.clearTimeout(cyclePromptTimer));
-
 // ----- 会话内存态 -----
 const messages = ref<Message[]>([]);
-const agentMode = ref<"canvas" | "analysis">("canvas");
-const visibleMessages = computed(() => agentMode.value === "analysis" ? messages.value : []);
-function switchAgentMode(mode: "canvas" | "analysis") {
-  if (status.value !== "idle" || agentMode.value === mode) return;
-  modeDrafts[agentMode.value] = {
-    text: inputValue.value, attachments: [...composerAttachments.value], skills: [...selectedSkills.value],
-    modelValue: selectedModelValue.value, modelLabel: selectedModelLabel.value,
-  };
-  const draft = modeDrafts[mode];
-  agentMode.value = mode;
-  inputValue.value = draft?.text || "";
-  composerAttachments.value = [...(draft?.attachments || [])];
-  selectedSkills.value = draft ? [...draft.skills] : readSavedSkills();
-  if (draft) {
-    selectedModelValue.value = draft.modelValue;
-    selectedModelLabel.value = draft.modelLabel;
-  }
-  delete modeDrafts[mode]; // 当前编辑器持有附件；缓存仅保存另一个工作区。
-  showHistory.value = false;
-  showSkillPicker.value = false;
-  showAssetMenu.value = false;
-  closeAssetPicker();
-  openSetting.value = null;
-  nextTick(() => { taRef.value?.focus(); if (mode === "analysis") scrollToBottom(); });
-}
-function handleAnalyzeVideo() {
-  if (status.value !== "idle") return;
-  const videos = composerAttachments.value.filter((asset) => asset.type.startsWith("video/"));
-  if (videos.length !== 1) { MessagePlugin.warning("请保留一个要分析的视频"); return; }
-  if (agentMode.value === "canvas") {
-    const prompt = inputValue.value.trim();
-    const video = videos[0];
-    switchAgentMode("analysis");
-    if (composerAttachments.value.length) {
-      MessagePlugin.info("已切到分析助手并保留原草稿，请先处理已有附件，再添加本轮视频");
-      return;
-    }
-    // 显式分析动作才传递视频；独立 Blob 地址避免移除分析附件时破坏画布草稿。
-    composerAttachments.value = [{ ...video, id: `analysis-${Date.now()}-${Math.random()}`,
-      dataUrl: video.file ? URL.createObjectURL(video.file) : video.dataUrl }];
-    if (prompt) inputValue.value = [inputValue.value.trim(), prompt].filter(Boolean).join("\n");
-  }
-  if (!inputValue.value.trim()) inputValue.value = "分析这个视频的画面、叙事、构图，并给出可在画布制作的复刻提示词";
-  void handleSend();
-}
+const visibleMessages = computed(() => messages.value);
 const conversations = ref<Conversation[]>([]);
 const activeId = ref<number | null>(null);
 const seqCounter = ref(0);
@@ -819,9 +342,8 @@ function genTitle(seed?: string) {
   return seed?.slice(0, 20)?.replace(/\s+/gim, "") ?? "";
 }
 const activeSessionTitle = computed(() => {
-  if (agentMode.value === "canvas") return "画布创作草稿";
   if (!messages.value.length) {
-    return "新分析对话";
+    return "新的创作";
   }
   return (
     conversations.value.find((c) => c.id === activeId.value)?.title ||
@@ -851,11 +373,11 @@ interface PersistedSessionLite {
 // 从本仓 token 解 JWT payload 取 uid 作命名空间后缀实现「换号互不可见」语义;
 // token 缺失/格式破损/chat.ts auth-optional 匿名场景降级共享 anon 桶不阻断聊天主线。
 function sessionBucketKey(): string {
-  let uid = "anon";
+  let uid = userId.value ? String(userId.value) : "anon";
   try {
     const tk = typeof localStorage !== "undefined" ? localStorage.getItem("token") || "" : "";
     const seg = tk.split(".")[1];
-    if (seg && /^[A-Za-z0-9_-]+$/.test(seg)) {
+    if (!userId.value && seg && /^[A-Za-z0-9_-]+$/.test(seg)) {
       // base64url → base64 → 正确 UTF-8 文本(payload 含中文 name 不能裸用 atob 否则乱码但不影响取数字 id 此处仍走严谨解码保险)
       const b64 = seg.replace(/-/g, "+").replace(/_/g, "/");
       const jsonStr = decodeURIComponent(
@@ -873,6 +395,10 @@ function schedulePersist(): void {
   if (__persistTimer != null) clearTimeout(__persistTimer);
   __persistTimer = setTimeout(() => {
     __persistTimer = null;
+    persistSessionsNow();
+  }, SESSION_PERSIST_DEBOUNCE_MS);
+}
+function persistSessionsNow(): void {
     try {
       const liteArr: PersistedSessionLite[] =
         [...conversations.value]
@@ -883,13 +409,21 @@ function schedulePersist(): void {
             msgs: c.messages.map<PersistedMessageLite>((m) => ({
               id: m.id,
               role: m.role,
-              status: m.status === "error" ? "error" : "complete",
-              content: m.content ?? "",     // abort 中途 content 可能 undefined → 兜底空串避 JSON.stringify 输出 undefined 致 NaN 行为
+              status: m.status && m.status !== "complete" ? "error" : "complete",
+              content: m.content || (m.role === "assistant" && m.status !== "complete" ? "回复尚未完成，请重试。" : ""),
             })),
           }));
       localStorage.setItem(sessionBucketKey(), JSON.stringify(liteArr));
     } catch {/* quota-exceeded / 序列化失败 静默放弃此次落盘 UI 主线不受损 */}
-  }, SESSION_PERSIST_DEBOUNCE_MS);
+}
+function rememberConversation() {
+  try {
+    if (activeId.value == null) sessionStorage.removeItem(`${sessionBucketKey()}:active`);
+    else sessionStorage.setItem(`${sessionBucketKey()}:active`, String(activeId.value));
+  } catch {}
+  try { sessionStorage.setItem(`${sessionBucketKey()}:draft`, inputValue.value); } catch {}
+  syncCurrentIntoActiveConv(savedSnapshotOfMessages());
+  persistSessionsNow();
 }
 
 function restorePersistedSessions(): void {
@@ -918,33 +452,36 @@ function restorePersistedSessions(): void {
     }
     if (!restored.length) return;
     conversations.value = restored;
+    const active = restored.find((cv) => String(cv.id) === sessionStorage.getItem(`${sessionBucketKey()}:active`));
+    if (active) { activeId.value = active.id; messages.value = active.messages.map((m) => ({ ...m })); }
     // ⚠️ 显式 NOT 推进 seqCounter ——[index.vue L386] 新 Conversation 的 id 实际取自 Date.now()
     //   而 non-dependent 于 ++seqCounter,故此处无需调整它;
     //   若按早前设想跑 Math.max(restored.map(c=>c.id)) 会把 Date.now 量级的十万亿级大整数灌进
     //   seqCounter,经下方 activeSessionTitle 渲染出「第 178691500xxxxx 个空白画布」这种荒谬长串。
     //   seqCounter 维持自身小计数量纲供标题文案正常即可。
-    // 用户自行展开右上角历史抽屉点击某条 view-back 回填输入框查看往期文字(view-back = 展示复刻非真接续上下文,R3 SSE body messages[] 由 handleSend 当场组历史10条发服务端不受抽屉切换影响)。
+    // 画布返回、页面刷新和历史选择都继续使用同一段文字上下文。
   } catch {/* 数据损坏/schema 漂移反序列化失败 静默退化为空白画布默认态 */}
 }
 restorePersistedSessions();
 
 // ----- 编辑器/SSE 流式核心(沿用原 handler,协议字段零变动)-----
-const inputValue = ref("");
+const inputValue = ref(sessionStorage.getItem(`${sessionBucketKey()}:draft`) || "");
 type ComposerAttachment = { id: string; name: string; type: string; size: number; dataUrl: string; file?: File };
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
 const composerAttachments = ref<ComposerAttachment[]>([]);
-type WorkspaceDraft = { text: string; attachments: ComposerAttachment[]; skills: string[]; modelValue: string; modelLabel: string };
-const modeDrafts: Partial<Record<"canvas" | "analysis", WorkspaceDraft>> = {};
 function releaseWorkspaceAttachments() {
-  for (const asset of [...composerAttachments.value, ...Object.values(modeDrafts).flatMap((draft) => draft.attachments)]) {
+  for (const asset of composerAttachments.value) {
     if (asset.file && asset.dataUrl.startsWith("blob:")) URL.revokeObjectURL(asset.dataUrl);
   }
 }
 function resetAssistantWorkspace() {
   abortController?.abort();
   releaseWorkspaceAttachments();
-  delete modeDrafts.canvas;
-  delete modeDrafts.analysis;
+  requestEpoch += 1;
+  status.value = "idle";
+  showSkillPicker.value = false;
+  showAssetMenu.value = false;
+  closeAssetPicker();
   composerAttachments.value = [];
   inputValue.value = "";
   messages.value = [];
@@ -953,6 +490,7 @@ function resetAssistantWorkspace() {
   showHistory.value = false;
   if (__persistTimer != null) { clearTimeout(__persistTimer); __persistTimer = null; }
   restorePersistedSessions();
+  inputValue.value = sessionStorage.getItem(`${sessionBucketKey()}:draft`) || "";
 }
 const hasVideoAttachment = computed(() => composerAttachments.value.some((file) => file.type.startsWith("video/")));
 
@@ -978,11 +516,12 @@ function readComposerFile(file: File): Promise<ComposerAttachment> {
 }
 
 async function onComposerFilesSelected(event: Event) {
+  if (status.value !== "idle") return;
   const input = event.target as HTMLInputElement;
   const files = Array.from(input.files || []);
   input.value = "";
   if (!files.length) return;
-  const allowed = files.filter((file) => /^(image|video|audio)\//.test(file.type));
+  const allowed = files.filter((file) => /^(image|video)\//.test(file.type));
   const total = [...composerAttachments.value, ...allowed].filter((file) => !file.type.startsWith("video/")).reduce((sum, file) => sum + file.size, 0);
   if (total > 4 * 1024 * 1024 || allowed.some((file) => file.size > 100 * 1024 * 1024) || composerAttachments.value.length + allowed.length > 4) {
     MessagePlugin.warning("最多 4 个附件；单个视频不超过 100MB，其他素材总大小不超过 4MB");
@@ -990,7 +529,7 @@ async function onComposerFilesSelected(event: Event) {
   }
   try {
     composerAttachments.value.push(...await Promise.all(allowed.map(readComposerFile)));
-    if (allowed.length !== files.length) MessagePlugin.info("当前支持图片、视频和音频素材");
+    if (allowed.length !== files.length) MessagePlugin.info("当前支持图片和视频参考");
   } catch {
     MessagePlugin.error("附件读取失败，请重新选择");
   }
@@ -1013,7 +552,7 @@ function closeAssetPicker() {
 }
 
 function handleAssetPickerMessage(event: MessageEvent) {
-  if (event.origin !== window.location.origin) return;
+  if (status.value !== "idle" || !showAssetPicker.value || event.origin !== window.location.origin) return;
   const data = event.data;
   if (!data || typeof data !== "object") return;
   if (data.type === "xoi:asset-picker-close") {
@@ -1057,12 +596,17 @@ const taRef = ref<HTMLTextAreaElement | null>(null);
 const messagesRef = ref<HTMLElement | null>(null);
 const mainRef = ref<HTMLElement | null>(null);
 let abortController: AbortController | null = null;
+let requestEpoch = 0;
+onMounted(scrollToBottom);
 onBeforeUnmount(() => {
+  rememberConversation();
+  requestEpoch += 1;
   abortController?.abort();
+  if (__persistTimer != null) clearTimeout(__persistTimer);
   releaseWorkspaceAttachments();
 });
 
-const savedSnapshotOfMessages = (): Message[] => messages.value.map(({ video, ...message }) => ({ ...message }));
+const savedSnapshotOfMessages = (): Message[] => messages.value.map(({ video, images, ...message }) => ({ ...message }));
 
 function pickPrompt(text: string) {
   inputValue.value = text;
@@ -1127,23 +671,19 @@ async function handleMsgCopy(msg: Message, e: MouseEvent) {
 
 // 发送(HTTP SSE 流式)— 原 endpoint/body 字段契约完全保留
 async function handleSend() {
-  if (!inputValue.value.trim() || status.value !== "idle") return;
-
-  // Keep creative execution in the independent canvas Agent.
-  if (agentMode.value === "canvas") {
-    openCanvasWithPrompt();
-    return;
-  }
-
-  const videos = composerAttachments.value.filter((asset) => asset.type.startsWith("video/"));
+  if ((!inputValue.value.trim() && !composerAttachments.value.length) || status.value !== "idle") return;
+  const attachments = [...composerAttachments.value];
+  const model = selectedModelValue.value || undefined;
+  const skills = activeSkillOptions.value.map((skill) => skill.path);
+  const videos = attachments.filter((asset) => asset.type.startsWith("video/"));
   if (videos.length > 1) { MessagePlugin.warning("一次请分析一个视频，先移除多余视频"); return; }
-  if (composerAttachments.value.some((asset) => !asset.type.startsWith("video/"))) {
-    MessagePlugin.warning("分析助手当前只读取文本和视频抽样帧；请移除图片 / 音频，或转到画布使用");
-    return;
+  if (attachments.some((asset) => !/^(image|video)\//.test(asset.type))) {
+    MessagePlugin.warning("请使用图片或视频参考"); return;
   }
+  const content = inputValue.value.trim() || (videos.length ? "分析这段参考的画面、叙事和镜头语言，整理可用于创作的方案。" : "分析这些参考图片的构图、色彩和风格，给出创作建议。");
   const historyMessages = messages.value.filter((message) => message.role === "user" || message.status === "complete").slice(-10).map((message) => ({ role: message.role, content: message.content }));
   const tsBase = Date.now();
-  const userMessage: Message = { id: String(tsBase), role: "user", content: inputValue.value + (videos[0] ? `\n[视频：${videos[0].name}]` : ""), status: "complete" };
+  const userMessage: Message = { id: String(tsBase), role: "user", content: content + attachments.map((asset) => `\n[参考：${asset.name}]`).join(""), status: "complete" };
   const assistantMessage: Message = { id: String(tsBase + 1), role: "assistant", content: "", status: "pending" };
 
   messages.value.push(userMessage);
@@ -1151,7 +691,6 @@ async function handleSend() {
   messages.value.push(assistantMessage);
   scrollToBottom();
 
-  const content = inputValue.value;
   inputValue.value = "";
 
   // 若尚未归档本轮为新 Conversation 则即时登记一条用于后续历史回看
@@ -1167,15 +706,21 @@ async function handleSend() {
   }
 
   status.value = "pending";
+  const epoch = ++requestEpoch;
+  rememberConversation();
   abortController?.abort();
   abortController = new AbortController();
+  const controller = abortController;
 
   try {
+    const analysisImages = await prepareReferenceImages(attachments.filter((asset) => asset.type.startsWith("image/")), controller.signal);
+    if (epoch !== requestEpoch) return;
+    if (analysisImages.length) messages.value[messages.value.length - 2].images = analysisImages;
     let analysisVideo: AnalysisVideo | undefined;
     if (videos[0]) {
       const current = messages.value[messages.value.length - 1];
       current.toolStatus = "正在读取视频并抽帧";
-      analysisVideo = await extractAnalysisFrames({ name: videos[0].name, source: videos[0].file || videos[0].dataUrl }, abortController.signal, (progress) => { current.toolStatus = progress; });
+      analysisVideo = await extractAnalysisFrames({ name: videos[0].name, source: videos[0].file || videos[0].dataUrl }, controller.signal, (progress) => { current.toolStatus = progress; });
       current.video = analysisVideo;
       current.toolStatus = `已抽取 ${analysisVideo.frames.length} 帧，正在提交分析`;
       scrollToBottom();
@@ -1185,11 +730,12 @@ async function handleSend() {
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: localStorage.getItem("token") || "" },
-        body: JSON.stringify({ content, messages: historyMessages, skills: activeSkillOptions.value.map((skill) => skill.path), model: selectedModelValue.value || undefined, agentMode: "analysis", analysisVideo }),
-        signal: abortController.signal,
+        body: JSON.stringify({ content, messages: historyMessages, skills, model, agentMode: "analysis", analysisVideo, analysisImages: analysisImages.length ? analysisImages : undefined }),
+        signal: controller.signal,
       },
     );
 
+    if (epoch !== requestEpoch) { await response.body?.cancel(); return; }
     if (!response.ok) {
       let errorMsg = `HTTP ${response.status}`;
       try {
@@ -1220,6 +766,7 @@ async function handleSend() {
     let sawDone = false;
     while (true) {
       const { done, value } = await reader.read();
+      if (epoch !== requestEpoch) { await reader.cancel(); return; }
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -1252,7 +799,7 @@ async function handleSend() {
     }
     if (streamError) throw new Error(streamError);
     if (!sawDone) throw new Error("响应连接提前结束，请重试");
-    if (videos[0]) removeComposerAttachment(videos[0].id);
+    for (const asset of attachments) removeComposerAttachment(asset.id);
     // 流式过程每个 chunk 以 {...spread} 整体重建末位对象保响应式(git HEAD 验证过的写法);
     // 故此处绝不可复用上方缓存的 lastMessage——那引用早被 spread 弃置成脱队游魂,
     // 给它盖章不会落到 DOM 实际渲染所读的现行对象头上·须现场重取数组末位才是承载数据的真身,
@@ -1263,19 +810,21 @@ async function handleSend() {
     // 完成:同步归档快照进入对应 Conversation 用于历史回看
     syncCurrentIntoActiveConv(savedSnapshotOfMessages());
   } catch (e: any) {
+    if (epoch !== requestEpoch) return;
     if (e.name === "AbortError") {
       const lm = messages.value[messages.value.length - 1];
-      if (lm) { lm.status = "error"; lm.content += "\n\n已停止本次分析"; lm.toolStatus = "已停止"; }
+      if (lm) { lm.status = "error"; lm.content += "\n\n已停止本次回复"; lm.toolStatus = "已停止"; }
     } else {
       console.error("[aiAssistant] 发送失败:", e);
       const lm = messages.value[messages.value.length - 1];
       if (lm) {
-        lm.toolStatus = "本次分析未完成";
+        lm.toolStatus = "本次回复未完成";
         lm.content = `${lm.content ? lm.content + "\n\n" : ""}请求失败: ${e.message}`;
         lm.status = "error";
       }
     }
   } finally {
+    if (epoch !== requestEpoch) return;
     status.value = "idle";
     syncCurrentIntoActiveConv(savedSnapshotOfMessages());
   }
@@ -1298,7 +847,7 @@ function syncCurrentIntoActiveConv(snapshot: Message[]) {
 
 // ----- 会话管理动作 -----
 function newConversation() {
-  if (status.value !== "idle") { MessagePlugin.info("请先停止当前分析，再新建对话"); return; }
+  if (status.value !== "idle") { MessagePlugin.info("请先停止当前回复，再新建对话"); return; }
   // 当前若有完整完成的消息则先把它们归档好(便于稍后从历史里看回来),然后开启新的一张空白
   if (activeId.value != null) {
     syncCurrentIntoActiveConv(savedSnapshotOfMessages());
@@ -1306,29 +855,30 @@ function newConversation() {
   messages.value = [];
   activeId.value = null;
   showHistory.value = false;
+  rememberConversation();
   nextTick(() => taRef.value?.focus());
 }
 
 function switchConversation(id: number) {
-  if (status.value !== "idle") { MessagePlugin.info("请先停止当前分析，再切换对话"); return; }
-  switchAgentMode("analysis");
+  if (status.value !== "idle") { MessagePlugin.info("请先停止当前回复，再切换对话"); return; }
   const cv = conversations.value.find((x) => x.id === id);
   if (!cv) return;
-  // 先存住当前活跃对话最新进度再做视图替换(view-back 行为:展示历史不代表真接续上下文)
+  // 保存当前对话后恢复所选对话；后续请求携带恢复后的上下文。
   syncCurrentIntoActiveConv(savedSnapshotOfMessages());
   activeId.value = id;
   messages.value = JSON.parse(JSON.stringify(cv.messages));
+  rememberConversation();
   showHistory.value = false;
   scrollToBottom();
 }
 
 function clearConversations() {
-  if (status.value !== "idle") { MessagePlugin.info("请先停止当前分析，再清空历史"); return; }
+  if (status.value !== "idle") { MessagePlugin.info("请先停止当前回复，再清空历史"); return; }
   conversations.value = [];
   activeId.value = null;
   messages.value = [];
   // 同步清掉浅档历史 localStorage 桶避免刷新后又冒出来与刚清空的内存态不一致
-  try { localStorage.removeItem(sessionBucketKey()); } catch {}
+  try { localStorage.removeItem(sessionBucketKey()); sessionStorage.removeItem(`${sessionBucketKey()}:active`); if (__persistTimer != null) clearTimeout(__persistTimer); } catch {}
   MessagePlugin.success("已清空历史会话");
 }
 
@@ -1393,6 +943,29 @@ const selectedModelLabel = ref<string>(
   typeof localStorage !== "undefined" ? localStorage.getItem(MODEL_LBL_KEY) || "" : "",
 );
 const selectedModelName = computed(() => String(selectedModelValue.value || "").split(/:(.+)/)[1] || String(selectedModelValue.value || ""));
+const defaultTextModel = ref("");
+const defaultImageModel = ref("");
+const defaultVideoModel = ref("");
+const showBillingGuide = ref(false);
+
+async function loadCreationDefaults() {
+  try {
+    const response = await fetch("/api/config", { headers: { Authorization: localStorage.getItem("token") || "" } });
+    if (!response.ok) return;
+    const config = await response.json();
+    defaultTextModel.value = String(config?.chat_model || config?.chat_models?.[0] || "");
+    defaultImageModel.value = String(config?.image_model || config?.image_models?.[0] || "");
+    defaultVideoModel.value = String(config?.video_model || config?.video_models?.[0] || "");
+    if (!selectedModelValue.value && defaultTextModel.value) {
+      selectedModelValue.value = `newapi:${defaultTextModel.value}`;
+      selectedModelLabel.value = defaultTextModel.value;
+      onPickModel(selectedModelValue.value);
+    }
+  } catch {
+    // 默认模型读取失败不阻断创作，模型选择器仍可单独加载。
+  }
+}
+onMounted(loadCreationDefaults);
 function onPickModel(value: string /* , _detail?: any */) {
   try {
     localStorage.setItem(MODEL_VAL_KEY, value);
@@ -1446,7 +1019,7 @@ function acceptSkillCompletion() {
 }
 function acceptCyclePrompt() {
   if (completionSuggestion.value) return acceptSkillCompletion();
-  inputValue.value = agentMode.value === "analysis" ? "帮我拆解创作需求，整理可交给画布制作的方案" : cyclePrompt.value;
+  inputValue.value = cyclePrompt.value;
   nextTick(() => { autogrowTextarea(); taRef.value?.focus(); });
 }
 function handleSkillTab(event: KeyboardEvent) {
@@ -1529,682 +1102,30 @@ function useInspiration(prompt: string) {
 </script>
 
 <style lang="scss" scoped>
-.aiAssistant {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: transparent;
-  --sidebar-w: clamp(280px, 30vw, 360px);
+.creativeWorkspace {
+  --surface: var(--td-bg-color-container, #fff); --ink: var(--td-text-color-primary, #242321); --muted: var(--td-text-color-secondary, #8b8883); --line: var(--td-component-border, #ebe9e5); --accent: #e66b35;
+  color:var(--ink);background:var(--td-bg-color-page,#faf9f6);height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;font-family:inherit;
+  button {font:inherit;cursor:pointer;color:inherit;} button:disabled{opacity:.4;cursor:not-allowed;} a{color:inherit;text-decoration:none;} button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
 }
-.assistantPanel {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-  box-sizing: border-box;
-}
-.skillPicker{position:absolute;z-index:45;left:14px;bottom:155px;display:flex;flex-direction:column;width:min(540px,calc(100% - 28px));height:min(421px,calc(100vh - 230px));padding:8px;box-sizing:border-box;overflow:hidden;border:1px solid rgba(0,0,0,.1);border-radius:18px;background:rgba(255,255,255,.97);box-shadow:0 18px 48px rgba(23,23,28,.16);backdrop-filter:blur(20px)}
-.skillSearchRow{display:flex;align-items:center;gap:7px;height:42px;flex:none;padding:0 13px;border-radius:13px;background:#f1f1f1;color:#858585;font-size:19px}.skillSearchRow input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#252525;font:400 15px/1.4 Inter,"PingFang SC",sans-serif}.skillSearchRow input::placeholder{color:#858585}.skillSearchRow input::-webkit-search-cancel-button{display:none}.skillSectionLabel{height:42px;padding:17px 13px 0;box-sizing:border-box;color:#b6b6b6;font-size:13px}.skillList{min-height:0;flex:1;overflow-y:auto;padding-right:2px;scrollbar-width:thin}.skillOption{display:flex;align-items:center;width:100%;height:38px;gap:8px;padding:0 13px;border:0;border-radius:11px;background:transparent;color:#222;text-align:left;cursor:pointer;transition:background .15s ease}.skillOption:hover,.skillOption.selected{background:#f0f0f0}.skillGlyph{display:grid;place-items:center;width:20px;flex:none;font-size:16px;filter:grayscale(1)}.skillCopy{display:flex;align-items:baseline;min-width:0;flex:1;gap:7px}.skillCopy strong{flex:none;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:500;letter-spacing:.01em}.skillCopy small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#929292;font-size:13px}.skillOfficial{flex:none;color:#aaa;font-size:12px}.skillOption.selected .skillOfficial{color:#ff7417}.skillPickerDivider{height:1px;flex:none;margin:8px -8px;background:#e8e8e8}.skillPickerActions{position:relative;display:flex;flex-direction:column;flex:none}.skillPickerActions a,.skillPickerActions button{display:flex;align-items:center;gap:9px;height:38px;padding:0 13px;border:0;border-radius:11px;background:transparent;color:#222;text-decoration:none;font-size:14px;cursor:pointer}.skillPickerActions a:hover,.skillPickerActions button:hover{background:#f1f1f1}.skillPickerActions svg{font-size:17px}.actionArrow{margin-left:auto;color:#888}.skillPickerActions .clearSkills{position:absolute;right:6px;bottom:0;height:38px;color:#999;font-size:12px}.skillEmpty{flex:1;padding:34px;text-align:center;color:var(--text-tertiary,#999);font-size:13px}.activeSkills{grid-column:1/-1;display:flex;align-items:center;gap:7px;overflow-x:auto;padding:0 2px 8px}.activeSkillsLabel{flex:none;color:var(--text-tertiary,#8b9099);font-size:11px}.activeSkills button{display:inline-flex;align-items:center;gap:5px;flex:none;padding:5px 9px;border:1px solid rgba(255,122,26,.2);border-radius:999px;background:rgba(255,122,26,.08);color:#d85d00;font-size:11px;cursor:pointer}.skillButton{position:relative}.skillButton.active{color:#ff7417;background:#fff0e7}.skillCount{position:absolute;right:-3px;top:-4px;display:grid;place-items:center;min-width:15px;height:15px;padding:0 3px;border-radius:9px;background:#ff7417;color:#fff;font-size:9px;font-weight:700}.skill-pop-enter-active,.skill-pop-leave-active{transition:.18s cubic-bezier(.16,1,.3,1);transform-origin:left bottom}.skill-pop-enter-from,.skill-pop-leave-to{opacity:0;transform:translateY(8px) scale(.98)}
-@media(max-width:720px){.skillPicker{left:8px;bottom:150px;width:calc(100% - 16px)}.skillCopy strong{max-width:48%}}
-
-/* ===== HeaderBar ===== */
-.panelHeader {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 4px 10px;
-  border-bottom: 1px solid rgba(120, 120, 140, 0.08);
-}
-.projectRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.logoAvatar {
-  width: 34px;
-  height: 34px;
-  object-fit: contain;
-  border-radius: 50%;
-  border: 1px solid rgba(120, 120, 140, 0.16);
-  cursor: pointer;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
-}
-.logoAvatar:hover {
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.28);
-  transform: translateY(-1px);
-}
-.projectTitle {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 260px;
-  cursor: pointer;
-  color: var(--text-primary, inherit);
-  padding: 4px 6px;
-  border-radius: 6px;
-  transition: background 0.2s ease;
-  &:hover { background: rgba(118, 75, 162, 0.06); }
-}
-.pageTrigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 4px 10px;
-  background: transparent;
-  border: none;
-  border-radius: 999px;
-  color: var(--text-secondary, inherit);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  &:hover { background: rgba(120, 120, 140, 0.06); }
-}
-.sessionRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-.sessionTitle {
-  font-size: 13px;
-  color: var(--text-secondary, inherit);
-  opacity: 0.85;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.sessionActions {
-  display: inline-flex;
-  gap: 4px;
-}
-.iconBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
-  color: var(--text-primary, #444);
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-  &:hover { background: rgba(120, 120, 140, 0.1); color: #667eea; }
-}
-
-/* ===== History Drawer ===== */
-.historyDrawer {
-  position: absolute;
-  top: 64px;
-  bottom: 168px;
-  right: 16px;
-  width: 320px;
-  background: var(--td-bg-color-container, #ffffffcc);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(120, 120, 140, 0.12);
-  border-radius: 14px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.drawerHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  font-weight: 600;
-  font-size: 13px;
-  border-bottom: 1px solid rgba(120, 120, 140, 0.08);
-}
-.closeBtn { border: none; background: transparent; cursor: pointer; padding: 4px; }
-.conversationList {
-  flex: 1;
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  overflow-y: auto;
-}
-.emptyHint {
-  padding: 16px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-disabled, #aaa);
-}
-.conversationList li {
-  padding: 8px 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.18s ease;
-  &:not(:last-child) { margin-bottom: 4px; }
-  &:hover { background: rgba(102, 126, 234, 0.07); }
-  &.active { background: linear-gradient(135deg, rgba(0,212,255,.12), rgba(123,97,255,.12)); }
-}
-.cvTitle { font-size: 13px; font-weight: 600; color: var(--text-primary,#222); white-space: nowrap; overflow:hidden;text-overflow:ellipsis;}
-.cvMeta { font-size: 11px; color: var(--text-disabled,#bbb); margin-top: 2px; }
-.drawerFoot { padding: 8px; border-top: 1px solid rgba(120,120,140,.08);}
-.clearAllBtn{display:inline-flex;gap:6px;align-items:center;border:none;background:transparent;color:#e05b5b;font-size:12px;padding:6px 10px;border-radius:8px;cursor:pointer;&:hover{background:rgba(255,90,90,.09);} }
-
-/* ===== Main Scroll Area(empty-state <-> message-list fade-switcher)===== */
-.mainScrollArea {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  scroll-behavior: smooth;
-  padding-bottom: 8px;
-}
-.mainScrollArea::-webkit-scrollbar { width: 6px; }
-.mainScrollArea::-webkit-scrollbar-thumb { background: rgba(120,120,140,.18); border-radius: 3px;}
-
-.emptyStage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 70%;
-  padding: 40px 20px 60px;
-  animation: stage-fade-in 0.45s cubic-bezier(0.16,1,0.3,1);
-}
-@keyframes stage-fade-in { from {opacity:0; transform:translateY(14px);} to {opacity:1; transform:none;} }
-.mascotWrap { display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:24px;}
-.mascotArt { width:96px;height:96px;display:block;filter:drop-shadow(0 8px 24px rgba(0,0,0,.18));}
-.greetTitle { font-size: 22px; font-weight:700; margin:6px 0 2px;letter-spacing:-0.02em;line-height:1.2;}
-.greetSub {font-size:13px;color:var(--text-secondary,inherit);margin:0;}
-.gradient-text{
-  background:linear-gradient(135deg,#00d4ff,#667eea 60%,#7b61ff);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-}
-.promptCards {
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(min(220px,42vw),1fr));
-  gap:12px;width:min(720px,92%);
-}
-.promptCard {
-  background:rgba(245,245,245,.86);
-  border:1px solid rgba(120,120,140,.08);
-  border-radius:14px;padding:14px 16px;cursor:pointer;
-  transition:all 0.25s cubic-bezier(0.16,1,0.3,1);
-  &:hover{background:#EEEEEECC;transform:translateY(-2px);border-color:rgba(102,126,234,.35);box-shadow:0 10px 28px rgba(102,126,234,.14);}
-}
-.cardTitle{margin:0 0 6px;font-size:14px;font-weight:700;color:var(--text-primary,#111);}
-.cardDesc{margin:0;font-size:12px;line-height:1.55;color:var(--text-secondary,#777);}
-.cardsFootnote{margin-top:22px;font-size:11px;color:var(--text-disabled,#bbb);}
-
-/* message-list(沿用原 bubble 体格·渐变保色不改) */
-.fade-enter-active,.fade-leave-active{transition:opacity .2s ease;}
-.fade-enter-from,.fade-leave-to{opacity:0;}
-.slide-fade-enter-active,.slide-fade-leave-active{transition:all .28s cubic-bezier(.16,1,.3,1);}
-.slide-fade-enter-from,.slide-fade-leave-to{opacity:0;transform:translateX(28px);}
-.messageList{padding:18px 0 24px;}
-.messageWrapper{display:flex;gap:12px;margin-bottom:22px;animation:mIn .3s cubic-bezier(.16,1,.3,1);}
-.messageWrapper.user{flex-direction:row-reverse;}
-@keyframes mIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-.messageAvatarImg{width:32px;height:32px;object-fit:contain;flex-shrink:0;}
-
-/* 助手气泡尾部一键复制条·默认即常驻微显(opacity>.8 免得在浅色毛玻璃底上看漏·触屏无悬停盲区亦可见) */
-.msgCopyBtn{
-  margin-top:11px;padding:4px 11px;border:1px solid rgba(118,75,162,.24);border-radius:9px;
-  display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1.15;
-  color:#5a6271;background-color:rgba(118,75,162,.09);cursor:pointer;opacity:.86;
-  transition:opacity .18s ease,color .18s ease,border-color .18s ease,background-color .18s ease;
-}
-.msgCopyBtn:hover,.msgCopyBtn:focus-visible{opacity:1;color:#764ba2;border-color:#764ba2;background-color:rgba(118,75,162,.16);outline:none;}
-.msgCopyBtn:active{opacity:.85;}
-.messageBubble{max-width:78%;padding:13px 17px;border-radius:18px;font-size:14px;line-height:1.62;display:inline-block;word-break:break-word;}
-.messageBubble.user{
-  background:linear-gradient(135deg,#00d4ff,#7b61ff);color:white;border-bottom-right-radius:6px;
-  box-shadow:0 4px 16px rgba(0,212,255,.3);
-}
-.messageBubble.assistant{
-  background:rgba(245,245,245,.85);backdrop-filter:blur(10px);
-  border:1px solid rgba(120,120,140,.12);color:var(--text-primary,#1d1d1d);
-  border-bottom-left-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.06);
-}
-.messageBubble.user strong,.messageBubble.user em,.messageBubble.user code{color:#fff;}
-.messageContent :deep(pre){
-  background:rgba(0,0,0,.18);border-radius:10px;padding:12px;margin:8px 0;overflow-x:auto;border:1px solid rgba(120,120,140,.14);
-}
-.messageContent :deep(code){background:rgba(0,0,0,.08);padding:2px 7px;border-radius:6px;font-family:var(--font-mono,Menlo,monospace);font-size:13px;}
-.messageContent :deep(pre code){background:none;padding:0;}
-.typingIndicator{display:flex;gap:5px;margin-top:10px;}
-.typingIndicator{align-items:center;gap:9px;color:#777;font-size:12px;min-height:26px;overflow:hidden}
-.thinkingOrb{position:relative;display:grid;place-items:center;width:22px;height:22px;border:1px solid rgba(112,96,212,.3);border-radius:50%;background:linear-gradient(135deg,rgba(0,212,255,.18),rgba(123,97,255,.22));animation:thinking-orb 1.8s ease-in-out infinite}
-.thinkingOrb:before,.thinkingOrb:after{content:"";position:absolute;border-radius:50%;border:1px solid currentColor;opacity:.45}.thinkingOrb:before{inset:4px;color:#6d5bd0;animation:thinking-ring 1.4s linear infinite}.thinkingOrb:after{inset:8px;background:#7b61ff;border:0;opacity:.8;box-shadow:0 0 8px rgba(123,97,255,.65)}
-.thinkingOrb i{display:none}.thinkingText{white-space:nowrap;animation:thinking-text 1.6s ease-in-out infinite}.thinkingSweep{width:54px;height:8px;border-radius:8px;background:linear-gradient(90deg,transparent,#b8b0ea,transparent);animation:thinking-sweep 1.6s ease-in-out infinite}
-@keyframes thinking-orb{0%,100%{transform:scale(.92);filter:saturate(.85)}50%{transform:scale(1.08);filter:saturate(1.3)}}
-@keyframes thinking-ring{to{transform:rotate(360deg)}}
-@keyframes thinking-text{0%,100%{opacity:.45}50%{opacity:1}}
-@keyframes thinking-sweep{0%{transform:translateX(-18px);opacity:0}40%{opacity:.8}100%{transform:translateX(18px);opacity:0}}
-.agentPendingState{display:flex;flex-direction:column;align-items:stretch;gap:12px;width:250px;min-height:88px;padding:16px;border:1px solid #e2e2e2;border-radius:16px;background:#f5f5f5;color:#777;box-sizing:border-box}
-.agentPendingTop{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:#737373}.agentPendingTop span{width:auto;height:auto;background:none;opacity:1;border-radius:0;animation:none}.agentPendingTop svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;animation:agent-loader-spin 1s linear infinite}.agentPendingProgress{height:6px;overflow:hidden;border-radius:8px;background:#ddd}.agentPendingProgress span{display:block;width:18%;height:100%;border-radius:8px;background:#292929;opacity:1;animation:agent-progress 2.5s ease-in-out infinite}@keyframes agent-loader-spin{to{transform:rotate(360deg)}}@keyframes agent-progress{0%{transform:translateX(-120%);width:20%}55%{transform:translateX(150%);width:42%}100%{transform:translateX(360%);width:20%}}
-@keyframes typing{0%,60%,100%{transform:translateY(0);opacity:.3;}30%{transform:translateY(-7px);opacity:1;}}
-
-/* ===== Composer Toolbar ===== */
-.composerToolbar{
-  flex-shrink:0;padding:12px 14px 16px;
-  display:grid;
-  grid-template-columns:auto 1fr auto;
-  grid-template-rows:auto auto;
-  grid-template-areas:
-    "left mid right"
-    "editor editor editor";
-  column-gap:10px;row-gap:9px;
-  background:transparent;
-}
-.toolbarLeft{grid-area:left;display:inline-flex;align-items:center;gap:8px;}
-.toolbarRight{grid-area:right;display:inline-flex;align-items:center;gap:8px;}
-.editorRow{
-  grid-area:editor;display:flex;align-items:flex-start;align-content:flex-start;flex-wrap:wrap;gap:8px;
-  border-radius:14px;padding:8px 14px;background:rgba(245,245,245,.72);
-  border:1px solid rgba(125,125,150,.18);
-  transition:border-color .22s ease,background .22s ease,box-shadow .22s ease;
-  &:focus-within{border-color:#f57400;background:#fff;box-shadow:0 0 0 3px rgba(245,116,0,.10);}
-}
-.editorSkills{display:flex;align-items:center;flex-wrap:wrap;gap:6px;max-width:100%}.editorSkills button{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:0;border-radius:999px;background:#171717;color:#fff;font:500 13px/1 Inter,"PingFang SC",sans-serif;cursor:pointer;white-space:nowrap}.editorSkills button:hover{background:#333}.editorSkills button>span{font-size:14px;filter:grayscale(1) brightness(3)}.completionHint{display:flex;align-items:center;min-width:0;height:32px;gap:9px;padding:0;border:0;background:transparent;color:#999;text-align:left;cursor:pointer;font:400 14px/1.4 Inter,"PingFang SC",sans-serif}.completionHint kbd{display:grid;place-items:center;height:24px;padding:0 9px;border:1px solid #d5d5d5;border-radius:9px;background:#fff;color:#999;font:400 12px/1 Inter,sans-serif;box-shadow:0 1px 1px rgba(0,0,0,.03)}.completionHint span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.completionHint:hover span{color:#707070}
-.roundIconBtn{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:30px;height:30px;border:none;border-radius:50%;
-  background:transparent;color:var(--text-primary,#333);padding:0;cursor:pointer;
-  transition:all .2s ease;
-  &:hover{background:rgba(120,120,140,.1);color:#667eea;}
-  &.ghost{color:var(--text-disabled,#aaa);cursor:not-allowed;&:hover{background:transparent;color:inherit;}}
-}
-.execPill{
-  display:inline-flex;align-items:center;gap:5px;
-  height:28px;padding:0 10px;border-radius:200px;border:none;
-  background:rgba(245,245,245,.88);color:var(--text-primary,#333);
-  font-size:12px;letter-spacing:.02em;cursor:pointer;
-  transition:background .2s ease,color .2s ease;
-  &:hover{background:#eeeeeecc;color:#667eea;}
-  .pillText{white-space:nowrap;}
-}
-.execPillArrow{opacity:.55;display:inline-flex;align-items:center;}
-.composerSetting{position:relative;display:inline-flex;min-width:0}.settingPill{display:inline-flex;align-items:center;gap:5px;max-width:124px;height:30px;padding:0 10px;border:0;border-radius:999px;background:rgba(245,245,245,.88);color:var(--text-primary,#333);font-size:12px;cursor:pointer}.settingPill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.settingMenu{position:absolute;z-index:60;left:0;bottom:36px;display:flex;flex-wrap:wrap;gap:5px;width:180px;padding:10px;border:1px solid rgba(0,0,0,.1);border-radius:12px;background:#fff;box-shadow:0 12px 30px rgba(0,0,0,.16)}.settingMenu strong{width:100%;font-size:12px;color:#777}.settingMenu button{padding:5px 8px;border:0;border-radius:7px;background:#f2f2f2;color:#444;font-size:11px;cursor:pointer}.settingMenu button.selected{background:#202020;color:#fff}.reasoningButton.active{background:#ece5ff;color:#6741d9}
-.modelSlot{position:relative;display:inline-flex;align-items:center;gap:6px;min-width:190px;}
-.modelSlotLabel{flex:none;color:#8b8790;font-size:11px;}
-.modelSlot :deep(.t-select__wrap),.modelSlot :deep(.t-select){
-  width:150px;border-radius:11px!important;
-}
-.modelSlot :deep(.t-input){height:34px!important;border-radius:11px!important;background:#f4f4f5!important;border-color:transparent!important;font-size:12px!important;}
-.modelSlot :deep(.modelCostHint){display:none!important;}
-.composerCostHint{position:absolute;left:0;top:38px;z-index:2;white-space:nowrap;pointer-events:none;}
-.sendButton,.stopButton{
-  flex-shrink:0;width:38px;height:38px;border-radius:19px;border:none;
-  display:inline-flex;align-items:center;justify-content:center;
-  transition:all .25s cubic-bezier(.16,1,.3,1);
-}
-.sendButton{background:linear-gradient(135deg,#00d4ff,#7b61ff)!important;box-shadow:0 2px 10px rgba(0,212,255,.35);}
-.sendButton:hover:not(:disabled){transform:scale(1.05);box-shadow:0 4px 14px rgba(0,212,255,.46);}
-.sendButton:active:not(:disabled){transform:scale(.94);}
-.sendButton:disabled{opacity:.45;cursor:not-allowed;}
-.stopButton{background:linear-gradient(135deg,#ff6b6b,#ee5a24)!important;box-shadow:0 2px 8px rgba(238,90,36,.3);}
-.stopButton:hover{transform:scale(1.05);}
-
-.editorRow textarea{
-  width:100%;flex:1 0 100%;resize:none;border:none;background:none;outline:none;
-  font-family:inherit;font-size:14px;line-height:1.55;letter-spacing:.01em;
-  color:var(--text-primary,#222);min-height:44px;max-height:160px;
-  padding:4px 6px;
-}
-.editorRow textarea::placeholder{color:var(--text-disabled,#bbbbc5);}
-
-/* focusMode 收掉顶栏腾出更多书写空间 */
-.focusMode .assistantHeaderPlaceholder{}
-.focusMode .mainScrollArea{padding-top:18px;}
-.skillEmpty{display:flex;flex-direction:column;align-items:center;gap:7px}.skillEmpty strong{color:var(--text-primary,#333);font-size:14px}.skillEmpty a{margin-top:5px;color:#ff7417;text-decoration:none;font-weight:600}
-
-/* Miora 首页式创作首屏：所有选择器都限定在 aiAssistant 内，避免影响其它业务页。 */
-.emptyMode .assistantPanel{max-width:1000px;padding:0;overflow:visible}
-.emptyMode .panelHeader{display:none!important}
-.emptyMode .mainScrollArea{flex:0 0 436px;overflow:visible;padding:40px 0 0;overflow-x:clip}
-.emptyMode .emptyStage{display:block;min-height:0;padding:0;overflow:visible}
-.legacyEmpty{display:none}
-.mioraBanner{position:relative;display:flex;flex-direction:column;gap:4px;width:100vw;height:356px;margin:0 calc((1000px - 100vw)/2);overflow-x:clip}
-.bannerStage{position:relative;width:100%;height:350px;perspective:900px;overflow:visible}
-.bannerCard{position:absolute;top:50%;left:50%;aspect-ratio:16/9;height:auto;min-height:0;padding:0;overflow:hidden;border:0;border-radius:16px;background:#f5f5f5;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 18px 44px rgba(0,0,0,.24);cursor:pointer;transition:left .3s ease,width .3s ease,transform .3s ease;transform-style:flat;backface-visibility:visible;-webkit-backface-visibility:visible;isolation:isolate;outline:none}
-.bannerCard:not(.active){box-shadow:0 0 0 1px rgba(0,0,0,.08),0 8px 20px rgba(0,0,0,.2)}.bannerCardInner{position:relative;display:block;width:100%;height:100%;overflow:hidden;border-radius:inherit;background:#f5f5f5;transform:translateZ(0)}.bannerFeatureCard{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:center;gap:12px;width:100%;height:100%;padding:8% 9%;box-sizing:border-box;color:#fff;text-align:left}.bannerFeatureCard strong{font-size:clamp(20px,2.2vw,30px);font-weight:750;letter-spacing:-.02em}.bannerFeatureCard p{margin:0;max-width:34em;color:rgba(255,255,255,.82);font-size:clamp(12px,1.1vw,15px);line-height:1.7}.bannerFeatureCard em{margin-top:6px;color:#fff;font-size:13px;font-style:normal;font-weight:600;opacity:.92}.bannerCard img{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:cover;user-select:none;opacity:1}.bannerPlay{position:absolute;inset:50% auto auto 50%;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:18px;transform:translate(-50%,-50%)}
-.bannerArrow{position:absolute;top:50%;z-index:5;display:grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid rgba(255,255,255,.22);border-radius:50%;background:rgba(20,20,20,.55);color:#fff;font-size:28px;line-height:1;cursor:pointer;transform:translateY(-50%);transition:.2s ease}.bannerArrow:hover{background:#202020;transform:translateY(-50%) scale(1.05)}.bannerArrowLeft{left:calc(50% - min(742px, calc(50vw - 32px)))}.bannerArrowRight{right:calc(50% - min(742px, calc(50vw - 32px)))}
-.bannerDots{position:relative;z-index:4;display:flex;justify-content:center;gap:4px;height:4px}
-.bannerDots button{width:32px;height:4px;padding:0;border:0;border-radius:99px;background:#d2d2d2;cursor:pointer;transition:.25s ease}
-.bannerDots button.active{background:#222}
-.mioraHero{position:relative;display:flex;width:996px;height:170px;margin:-80px 2px 0;gap:24px;z-index:5;pointer-events:none}
-.creationTabs{position:absolute;left:0;bottom:0;display:flex;width:692px;height:32px;padding:4px;gap:4px;border-radius:18px;background:rgba(247,247,247,.92);box-shadow:inset 0 0 0 1px rgba(0,0,0,.025);pointer-events:auto}
-.creationTabs button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;height:24px;padding:0 10px;border:0;border-radius:14px;background:transparent;color:#252525;font:500 13px/1 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;cursor:pointer;transition:.2s ease;white-space:nowrap}
-.creationTabs button:hover{background:#eee}
-.creationTabs button.active{background:#202020;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.18)}
-.categoryIcon{display:grid;place-items:center;width:18px;font-size:16px}
-.mascotPreview{position:absolute;right:60px;top:0;width:220px;height:170px;pointer-events:none}
-.mascotPreview img,.mascotPreview video{position:absolute;inset:0;width:220px;height:170px;object-fit:contain}
-.mascotPreview img{transform:scale(.72);filter:drop-shadow(0 12px 15px rgba(0,0,0,.12))}
-.floatTag{position:absolute;display:flex;align-items:center;justify-content:center;height:28px;border:1px solid rgba(0,0,0,.07);border-radius:99px;background:rgba(255,255,255,.34);backdrop-filter:blur(7px);color:#222;font-size:12px;white-space:nowrap}
-.tagPoster{left:98px;top:15px;width:62px;opacity:.5}.tagVideo{left:164px;top:5px;width:62px;opacity:.3}.tagBrand{left:177px;top:42px;width:64px}.tagVisual{left:139px;top:78px;width:84px}.tagImage{left:185px;top:116px;width:64px;opacity:.7}
-.emptyMode .composerToolbar{position:relative;z-index:8;flex:0 0 160px;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:1fr 36px;grid-template-areas:"editor editor editor" "left mid right";width:996px;height:160px;margin:20px 2px 0;padding:14px 12px 10px;gap:0 8px;border:2px solid transparent;border-radius:20px;background:linear-gradient(#fff,#fff) padding-box,radial-gradient(circle at 65% 100%,rgba(57,188,248,.35),transparent 42%),radial-gradient(circle at 42% 100%,rgba(253,126,20,.3),transparent 40%),#f0f0f0 border-box;box-sizing:border-box;overflow:visible}
-.emptyMode .editorRow{grid-area:editor;align-items:flex-start;align-content:flex-start;padding:6px 14px;border:0;border-radius:0;background:#fff;box-shadow:none!important;cursor:text}
-.emptyMode .editorRow:focus-within{border:0;background:#fff;box-shadow:none!important}
-.emptyMode .editorRow textarea,.emptyMode .editorRow textarea:focus,.emptyMode .editorRow textarea:hover{border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;-webkit-appearance:none;appearance:none}
-.promptCycleHint{width:auto;max-width:calc(100% - 14px);min-height:34px;pointer-events:none;animation:prompt-cycle-in .28s ease}
-.promptCycleHint .promptCycleLabel{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#777;font-size:16px;line-height:1.55}
-.promptCycleHint:hover .promptCycleLabel{color:#222}
-@keyframes prompt-cycle-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.emptyMode .editorRow textarea{min-height:54px;max-height:90px;height:54px;padding:4px 2px;font-size:16px;line-height:1.65;color:#222;letter-spacing:0}
-.emptyMode .editorRow:not(.hasInput) textarea{flex:0 0 2px;width:2px;min-width:2px;max-width:2px;height:34px;min-height:34px;padding:4px 0;overflow:hidden;caret-color:#222}
-.emptyMode .editorRow.hasInput textarea{flex:1 0 100%;width:100%;max-width:100%}
-.emptyMode .editorRow:not(.hasInput) .promptCycleHint{flex:0 1 auto;order:2}
-.emptyMode .editorRow.hasInput .promptCycleHint{display:none}
-.emptyMode .editorRow textarea::placeholder{color:#9d9d9d}
-.emptyMode .toolbarLeft,.emptyMode .toolbarRight{align-self:center;height:32px}
-.emptyMode .modelSlot{display:inline-flex}
-.emptyMode .sendButton,.emptyMode .stopButton{width:32px;height:32px;border-radius:50%;background:#f1f1f1!important;color:#aaa!important;box-shadow:none}
-.emptyMode .sendButton:not(:disabled){background:#202020!important;color:#fff!important}
-.emptyMode .activeSkills{display:none}
-.emptyMode .skillPicker{left:12px;bottom:146px;width:min(540px,calc(100% - 24px));height:min(421px,calc(100vh - 250px))}
-.emptyMode.aiAssistant{overflow-y:auto;background:#fff}
-.emptyMode .assistantPanel{height:auto;min-height:100%}
-/* Infinite Canvas composer visual language. The surrounding page and its Tab
-   suggestion animation remain owned by this Vue view. */
-.upstreamComposer,.emptyMode .upstreamComposer{
-  position:relative;z-index:8;flex:0 0 auto;display:grid;
-  grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto 40px;
-  grid-template-areas:"editor editor" "left right";
-  width:min(996px,calc(100% - 4px));height:auto;min-height:136px;
-  margin:18px 2px 0;padding:12px;gap:8px;
-  border:1px solid #dedede;border-radius:16px;
-  background:rgba(255,255,255,.96);box-shadow:0 16px 42px rgba(45,45,50,.10);
-  box-sizing:border-box;overflow:visible;
-}
-.upstreamComposer .editorRow,.emptyMode .upstreamComposer .editorRow{
-  grid-area:editor;display:flex;min-height:72px;max-height:220px;align-items:flex-start;
-  align-content:flex-start;flex-wrap:wrap;gap:7px;padding:0 4px;border:0;border-radius:0;
-  background:transparent;box-shadow:none!important;cursor:text;overflow-y:auto;
-}
-.upstreamComposer .editorRow:focus-within,.emptyMode .upstreamComposer .editorRow:focus-within{border:0;background:transparent;box-shadow:none!important}
-.upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow textarea,
-.upstreamComposer .editorRow textarea:focus,.emptyMode .upstreamComposer .editorRow textarea:focus{
-  flex:1 0 100%;width:100%;height:52px;min-height:52px;max-height:160px;padding:0 1px;
-  border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;
-  color:#252525;font-size:14px;line-height:20px;caret-color:#222;
-}
-.upstreamComposer .editorRow textarea::placeholder{color:#929292}
-.upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarLeft{grid-area:left;align-self:center;height:40px;gap:4px}
-.upstreamComposer .toolbarRight,.emptyMode .upstreamComposer .toolbarRight{grid-area:right;align-self:center;height:40px;gap:4px}
-.upstreamComposer .roundIconBtn{width:32px;height:32px;color:#3f3f46}
-.upstreamComposer .roundIconBtn:hover{background:#f0f0f0;color:#111}
-.upstreamComposer .settingPill{height:32px;max-width:148px;background:#f2f2f2;color:#333}
-.upstreamComposer .settingPill:hover{background:#e9e9e9}
-.upstreamComposer .sendButton,.emptyMode .upstreamComposer .sendButton,.upstreamComposer .stopButton,.emptyMode .upstreamComposer .stopButton{width:40px;height:40px;border-radius:50%;box-shadow:none}
-.upstreamComposer .sendButton,.emptyMode .upstreamComposer .sendButton{background:#202020!important;color:#fff!important}
-.upstreamComposer .sendButton:disabled,.emptyMode .upstreamComposer .sendButton:disabled{background:#ededed!important;color:#aaa!important}
-.upstreamComposer .reasoningButton.active{background:#ece8ff;color:#6046c8}
-.upstreamComposer .editorSkills button{background:#f3f3f3;color:#333;border:1px solid #e2e2e2}
-.upstreamComposer .promptCycleHint{position:absolute;left:4px;top:0;color:#8a8a8a}
-.upstreamComposer .promptCycleHint .promptCycleLabel{color:#8a8a8a;font-size:14px}
-.upstreamComposer .promptCycleHint kbd{border-color:#d7d7d7;background:#fff;color:#777}
-.assetMenu{position:absolute;left:12px;bottom:52px;z-index:70;display:flex;flex-direction:column;width:224px;padding:8px;border:1px solid #e3e3e3;border-radius:16px;background:rgba(255,255,255,.98);box-shadow:0 18px 42px rgba(30,30,35,.16);animation:asset-menu-in .16s ease-out}.assetMenu:after{content:"";position:absolute;left:20px;bottom:-6px;width:10px;height:10px;border-right:1px solid #e3e3e3;border-bottom:1px solid #e3e3e3;background:#fff;transform:rotate(45deg)}.assetMenu button{display:grid;grid-template-columns:30px 1fr;grid-template-rows:auto auto;column-gap:9px;align-items:center;padding:11px 12px;border:0;border-radius:10px;background:transparent;color:#252525;text-align:left;cursor:pointer;transition:.16s}.assetMenu button:hover{background:#fff1e7;color:#e95f00}.assetMenu button svg{grid-row:1/3;width:18px;height:18px}.assetMenu button span{font-size:13px;font-weight:650}.assetMenu button small{margin-top:2px;color:#999;font-size:11px}.assetMenu button:hover small{color:#c47a4d}@keyframes asset-menu-in{from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:none}}
-/* Skill overlay: general system skills + the user's previously installed skills. */
-.skillPicker,.emptyMode .skillPicker{left:14px;bottom:155px;width:min(740px,calc(100% - 28px));height:min(520px,calc(100vh - 210px));padding:22px 26px;border-color:#dedede;border-radius:22px;background:rgba(255,255,255,.98)}
-.skillPicker h3,.mediaSettingMenu h3{margin:0;color:#242424;font-size:24px;font-weight:650}
-.skillPickerTop{display:grid;grid-template-columns:auto minmax(220px,1fr);gap:16px;align-items:center;margin:22px 0 18px}
-.skillTabs{display:flex;padding:4px;border-radius:13px;background:#f1f1f1}.skillTabs button{height:38px;padding:0 22px;border:0;border-radius:10px;background:transparent;color:#555;font-size:15px;cursor:pointer}.skillTabs button.active{background:#fff;color:#222;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-.skillSearchRow{height:46px;border:1px solid #dedede;background:#fafafa}
-.skillOption{height:72px;padding:0 14px}.skillGlyph{width:42px;height:42px;border:1px solid #dedede;border-radius:12px;background:#fafafa;color:#333;font-size:23px}.skillCopy{display:flex;flex-direction:column;align-items:flex-start;gap:5px}.skillCopy strong{max-width:100%;font-size:16px;font-weight:600}.skillCopy small{width:100%;font-size:13px}.skillOfficial{display:none}
-.skillPickerDivider,.skillPickerActions{display:none}
-/* Full image/video panels, adapted from the Infinite Canvas controls to this light page. */
-.upstreamComposer .mediaSettingMenu{bottom:42px;display:flex;flex-direction:column;flex-wrap:nowrap;gap:14px;width:620px;max-height:min(660px,calc(100vh - 190px));padding:26px;border:1px solid #dedede;border-radius:20px;background:rgba(255,255,255,.98);color:#252525;box-shadow:0 22px 60px rgba(25,25,30,.18);overflow-y:auto}
-.skillPicker,.emptyMode .skillPicker{bottom:214px;max-height:min(520px,calc(100vh - 180px));box-shadow:0 22px 58px rgba(25,25,30,.16)}
-.mediaSettingMenu>label,.settingTitleRow>label{color:#555;font-size:14px;font-weight:600}.settingSegment{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.upstreamComposer .mediaSettingMenu .settingSegment button{height:48px;border:1px solid #ddd;border-radius:24px;background:#fff;color:#333;font-size:16px}.upstreamComposer .mediaSettingMenu button.selected{border-color:#222;background:#222;color:#fff}
-.settingTitleRow{display:flex;align-items:center;justify-content:space-between}.alignToggle{display:flex;align-items:center;gap:9px;font-weight:500!important}.alignToggle input{display:none}.alignToggle span{position:relative;width:34px;height:20px;border-radius:12px;background:#d5d5d5}.alignToggle span:after{content:"";position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:.18s}.alignToggle input:checked+span{background:#222}.alignToggle input:checked+span:after{left:17px}
-.dimensionRow{display:grid;grid-template-columns:auto 1fr 36px auto 1fr;align-items:center;gap:10px}.dimensionRow span{margin-right:-42px;z-index:1;color:#777}.dimensionRow strong{height:52px;padding:0 18px 0 52px;border-radius:13px;background:#f4f4f4;font-size:17px;font-weight:500;line-height:52px}.dimensionRow em{text-align:center;color:#999;font-style:normal}
-.ratioGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.upstreamComposer .mediaSettingMenu .ratioGrid button,.upstreamComposer .mediaSettingMenu .videoSizeGrid button{display:flex;min-height:112px;align-items:center;justify-content:center;flex-direction:column;gap:8px;border:1px solid #ddd;border-radius:16px;background:#fff;color:#333;font-size:15px}.ratioGrid button i{display:block;width:42px;max-height:42px;border:3px solid currentColor}.ratioGrid button span{font-size:16px}
-.videoSizeGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.videoSizeGrid button i{display:block;width:45px;height:30px;border:3px solid currentColor;border-radius:4px}.videoSizeGrid button i.shape-tall,.videoSizeGrid button i.shape-standard-tall{width:25px;height:42px}.videoSizeGrid button i.shape-square{width:36px;height:36px}.videoSizeGrid button i.shape-standard-wide{width:40px;height:31px}.videoSizeGrid button i.shape-cinema{width:50px;height:21px}.videoSizeGrid button small{color:#999;font-size:12px}.videoSizeGrid button.selected small{color:rgba(255,255,255,.7)}
-.mioraHero{height:260px;margin:36px 2px 0}
-.creationTabs{top:0;bottom:auto;transform:none;height:42px;padding:5px;border:1px solid rgba(0,0,0,.06);box-shadow:0 4px 16px rgba(0,0,0,.08)}
-.creationTabs button{height:32px;border-radius:16px;color:#6a6a70;font-size:13px}.creationTabs button:hover{background:#f3f3f5;color:#252525}.creationTabs button.active{background:#222;color:#fff;box-shadow:0 3px 8px rgba(0,0,0,.18)}
-.emptyMode .upstreamComposer{margin-top:28px}
-.upstreamComposer .editorRow{align-items:center;flex-wrap:nowrap;overflow:hidden;min-height:76px}
-.upstreamComposer .editorSkills{display:flex;flex:0 0 auto;flex-wrap:nowrap;max-width:48%;overflow-x:auto;align-items:center}
-.upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow textarea{order:1;flex:1 1 auto;width:auto;min-width:80px;height:52px;min-height:52px;margin:0}
-.upstreamComposer .promptCycleHint,.emptyMode .upstreamComposer .promptCycleHint{position:absolute;left:8px;top:10px;z-index:2;order:0;max-width:calc(100% - 16px);transform:none}
-.upstreamComposer .editorRow:not(.hasInput) textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{flex:0 0 2px;width:2px;min-width:2px;height:34px;min-height:34px;padding:0}
-.upstreamComposer .editorRow.hasInput .promptCycleHint,.emptyMode .upstreamComposer .editorRow.hasInput .promptCycleHint{display:none}
-.upstreamComposer .editorRow.hasSkills .promptCycleHint,.emptyMode .upstreamComposer .editorRow.hasSkills .promptCycleHint{position:static;flex:0 1 auto;max-width:55%;order:2}
-.emptyMode .mioraHero{margin-bottom:24px}
-.emptyMode .upstreamComposer{margin-top:36px}
-.upstreamComposer .editorRow,.emptyMode .upstreamComposer .editorRow{position:relative;overflow:visible}
-.upstreamComposer .editorRow:not(.hasSkills) textarea,.emptyMode .upstreamComposer .editorRow:not(.hasSkills) textarea{flex:1 1 100%;width:100%;min-width:0;max-width:none;height:54px;min-height:54px;padding:4px 2px;overflow:auto}
-.upstreamComposer .editorRow:not(.hasSkills) textarea::placeholder,.emptyMode .upstreamComposer .editorRow:not(.hasSkills) textarea::placeholder{color:transparent}
-.upstreamComposer .editorRow:not(.hasSkills):focus-within textarea::placeholder,.emptyMode .upstreamComposer .editorRow:not(.hasSkills):focus-within textarea::placeholder{color:#929292}
-.upstreamComposer .editorRow:not(.hasSkills) .promptCycleHint,.emptyMode .upstreamComposer .editorRow:not(.hasSkills) .promptCycleHint{position:absolute;left:8px;right:8px;top:8px;z-index:2;display:flex;max-width:none;pointer-events:none;order:initial;transition:opacity .14s ease,visibility .14s ease}
-.upstreamComposer .editorRow:not(.hasSkills):focus-within .promptCycleHint,.emptyMode .upstreamComposer .editorRow:not(.hasSkills):focus-within .promptCycleHint{opacity:0;visibility:hidden}
-.upstreamComposer .editorRow .editorSkills,.emptyMode .upstreamComposer .editorRow .editorSkills{order:0;flex:1 1 100%;width:100%;max-width:100%;min-height:32px;overflow-x:auto;overflow-y:hidden}
-.upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow textarea{order:1;flex:1 1 100%;width:100%;min-width:0;max-width:none;height:54px;min-height:54px;padding:2px 2px 0;line-height:26px;overflow:auto}
-.upstreamComposer .editorRow .promptCycleHint,.emptyMode .upstreamComposer .editorRow .promptCycleHint{position:absolute;left:8px;right:8px;top:8px;z-index:2;display:flex;max-width:none;pointer-events:none;order:2;align-items:center;height:28px;min-height:28px;gap:8px;transition:opacity .14s ease,visibility .14s ease}
-.upstreamComposer .editorRow.hasSkills .promptCycleHint,.emptyMode .upstreamComposer .editorRow.hasSkills .promptCycleHint{top:47px}
-.upstreamComposer .editorRow:focus-within .promptCycleHint,.emptyMode .upstreamComposer .editorRow:focus-within .promptCycleHint{opacity:0;visibility:hidden}
-.upstreamComposer .editorRow:not(.hasInput) textarea::placeholder,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea::placeholder{color:transparent}
-.upstreamComposer .editorRow:not(.hasInput):focus-within textarea::placeholder,.emptyMode .upstreamComposer .editorRow:not(.hasInput):focus-within textarea::placeholder{color:#929292}
-.upstreamComposer .promptCycleHint kbd,.emptyMode .upstreamComposer .promptCycleHint kbd{height:26px;line-height:26px}
-.upstreamComposer .promptCycleHint .promptCycleLabel,.emptyMode .upstreamComposer .promptCycleHint .promptCycleLabel{line-height:26px}
-.emptyMode .mioraHero{height:280px;margin-top:64px}
-.emptyMode .upstreamComposer{margin-top:56px}
-.emptyMode .mioraHero{top:28px;margin-bottom:52px}
-.emptyMode .upstreamComposer{top:44px;margin-bottom:44px}
-.emptyMode .inspirationShowcase{margin-top:74px}
-.upstreamComposer .editorRow:not(.hasInput) textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{padding-left:58px}
-.upstreamComposer .editorRow.hasInput textarea,.emptyMode .upstreamComposer .editorRow.hasInput textarea{padding-left:2px}
-.upstreamComposer .editorRow:not(.hasInput):focus-within .promptCycleHint,.emptyMode .upstreamComposer .editorRow:not(.hasInput):focus-within .promptCycleHint{opacity:1;visibility:visible}
-.assetMenu{width:250px;max-width:calc(100vw - 32px);padding:10px;border-radius:18px;box-shadow:0 20px 48px rgba(25,25,30,.18)}
-.assetMenuHeader{display:flex;flex-direction:column;gap:3px;padding:7px 10px 10px;border-bottom:1px solid #ededed;margin-bottom:4px}
-.assetMenuHeader strong{color:#242424;font-size:14px;font-weight:650;line-height:1.25}
-.assetMenuHeader span{color:#999;font-size:11px;line-height:1.25}
-.assetMenu button{grid-template-columns:36px minmax(0,1fr) auto;grid-template-rows:auto;column-gap:10px;padding:10px}
-.assetMenu button:hover{background:#fff3ea}
-.assetMenuIcon{display:grid;place-items:center;width:32px;height:32px;border:1px solid #e6e6e6;border-radius:10px;background:#fafafa;color:#555;transition:.16s}
-.assetMenu button:hover .assetMenuIcon{border-color:#ffd7bd;background:#fff7f1;color:#e95f00}
-.assetMenuCopy{display:flex;min-width:0;flex-direction:column;gap:3px}
-.assetMenuCopy b{font-size:13px;font-weight:650;line-height:1.2}
-.assetMenuCopy small{margin:0;line-height:1.2;color:#999;font-size:11px}
-.assetMenu button:hover .assetMenuCopy small{color:#c47a4d}
-.assetMenu kbd{padding:3px 6px;border:1px solid #e5e5e5;border-radius:6px;background:#f7f7f7;color:#aaa;font:500 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;transition:.16s}
-.assetMenu button:hover kbd{border-color:#ffc69f;background:#fff4ea;color:#d85d00}
-.assetMenu button:focus-visible{outline:2px solid #ff9a5a;outline-offset:-2px}
-.assetPickerOverlay{position:fixed;inset:0;z-index:300;display:grid;place-items:center;padding:24px;background:rgba(20,20,24,.42);backdrop-filter:blur(5px);animation:asset-picker-fade .16s ease-out}
-.assetPickerDialog{position:relative;width:min(900px,calc(100vw - 36px));height:min(680px,calc(100vh - 48px));overflow:hidden;border:1px solid rgba(0,0,0,.12);border-radius:20px;background:#fff;box-shadow:0 30px 90px rgba(20,20,25,.28)}
-.assetPickerFrame{display:block;width:100%;height:100%;border:0;background:#fff}
-@keyframes asset-picker-fade{from{opacity:0}to{opacity:1}}
-.inspirationShowcase{width:996px;margin:36px 2px 80px;padding-bottom:30px}.inspirationShowcase>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.inspirationShowcase h2{display:flex;align-items:center;gap:8px;margin:0;color:#242424;font-size:20px;font-weight:650}.inspirationShowcase h2 svg{font-size:20px}.inspirationActions{display:flex;align-items:center;gap:8px}.inspirationActions button,.inspirationShowcase header a{display:flex;align-items:center;gap:5px;padding:7px 11px;border:0;border-radius:9px;background:#f1f1f1;color:#555;text-decoration:none;font-size:12px;cursor:pointer;transition:.18s ease}.inspirationActions button:hover,.inspirationShowcase header a:hover{background:#e8e8e8;color:#111}.inspirationGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.inspirationCard{min-width:0;overflow:hidden;border:1px solid #ececef;border-radius:15px;background:#fff;text-align:left;box-shadow:0 5px 18px rgba(25,27,35,.035);transition:transform .22s ease,box-shadow .22s ease}.inspirationCard:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(25,27,35,.1)}.inspirationMedia{position:relative;display:block;aspect-ratio:1.55/1;overflow:hidden;background:#f2f2f3}.inspirationMedia img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .35s ease}.inspirationCard:hover .inspirationMedia img{transform:scale(1.035)}.inspirationInfo{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px 8px;padding:11px 12px 12px}.inspirationInfo strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#26262a;font-size:14px;font-weight:600}.inspirationInfo small{grid-column:1;color:#9a9aa1;font-size:11px}.inspirationInfo button{grid-column:2;grid-row:1/3;padding:6px 9px;border:0;border-radius:8px;background:#f2f2f3;color:#555;font-size:11px;cursor:pointer}.inspirationInfo button:hover{background:#171717;color:#fff}
-
-@media(max-width:1100px){
-  .emptyMode .assistantPanel{max-width:calc(100% - 40px)}
-  .mioraBanner{width:calc(100% + 80px);margin-left:-40px;margin-right:-40px}
-  .mioraHero,.emptyMode .composerToolbar{width:100%;margin-left:0;margin-right:0}
-  .creationTabs{width:calc(100% - 250px)}
-  .inspirationShowcase{width:100%;margin-left:0;margin-right:0}.inspirationGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
-}
-@media(max-width:760px){
-  .emptyMode .assistantPanel{max-width:100%;padding:0 12px}
-  .emptyMode .mainScrollArea{flex-basis:385px;padding-top:20px;overflow:hidden}
-  .mioraBanner{width:100vw;height:230px;margin:0 calc((100% - 100vw)/2)}.bannerStage{height:224px;overflow:hidden}.bannerCard{width:82%;}.bannerArrow{width:32px;height:32px;font-size:23px}.bannerArrowLeft{left:8px}.bannerArrowRight{right:8px}
-  .mioraHero{height:145px;margin-top:-45px}.creationTabs{width:100%;overflow-x:auto}.creationTabs button{min-width:112px}.mascotPreview{display:none}
-  .emptyMode .composerToolbar{width:100%;margin-top:10px}.toolbarRight{gap:3px}
-  .inspirationShowcase{margin-top:28px;padding:0 2px 24px}.inspirationGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.inspirationShowcase h2{font-size:18px}
-}
-
-/* Desktop composition aligned with the spacious upstream Miora landing page. */
-@media(min-width:761px){
-  .emptyMode .assistantPanel{max-width:min(1440px,calc(100% - 64px));padding:0}
-  .emptyMode .mainScrollArea{flex-basis:auto;padding-top:24px;overflow:visible}
-  .emptyMode .mioraBanner{height:clamp(300px,42vh,390px);margin:0 calc((1440px - 100vw)/2)}
-  .emptyMode .bannerStage{height:calc(100% - 18px)}
-  .emptyMode .bannerDots{height:6px;gap:7px}
-  .emptyMode .bannerDots button{width:42px;height:5px}
-  .emptyMode .mioraHero{position:relative;top:auto;z-index:12;width:100%;height:176px;margin:24px 0 0;margin-bottom:0}
-  .emptyMode .creationTabs{left:0;top:auto;bottom:18px;width:min(1040px,calc(100% - 292px));height:52px;padding:5px;border-radius:28px}
-  .emptyMode .creationTabs button{height:42px;border-radius:22px;font-size:15px}
-  .emptyMode .categoryIcon{width:21px;font-size:18px}
-  .emptyMode .mascotPreview{right:4px;top:auto;bottom:-6px;z-index:4;width:270px;height:190px;opacity:1}
-  .emptyMode .mascotPreview img,.emptyMode .mascotPreview video{width:270px;height:190px}
-  .emptyMode .mascotPreview img{transform:scale(.82);filter:drop-shadow(0 16px 20px rgba(0,0,0,.14))}
-  .emptyMode .upstreamComposer{top:auto;width:100%;min-height:198px;margin:8px 0 0;margin-bottom:0;padding:16px 20px 14px;grid-template-rows:minmax(108px,auto) 46px;gap:10px;border-radius:24px;box-shadow:0 18px 50px rgba(40,40,48,.11)}
-  .emptyMode .upstreamComposer .editorRow{min-height:108px;padding:0 4px;gap:8px}
-  .emptyMode .upstreamComposer .editorRow textarea{height:64px;min-height:64px;padding:7px 4px 0;font-size:17px;line-height:30px}
-  .emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{padding:7px 4px 0}
-  .emptyMode .upstreamComposer .editorRow.hasInput textarea{padding-left:4px}
-  .emptyMode .upstreamComposer .editorRow:not(.hasInput) .promptCycleHint{left:28px;right:14px;top:7px;height:30px;min-height:30px;gap:10px}
-  .emptyMode .upstreamComposer .editorRow.hasSkills:not(.hasInput) .promptCycleHint{top:52px}
-  .emptyMode .upstreamComposer .promptCycleHint kbd{width:48px;height:30px;padding:0;border-radius:10px;line-height:30px}
-  .emptyMode .upstreamComposer .promptCycleHint .promptCycleLabel{font-size:17px;line-height:30px}
-  .emptyMode .upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarRight{height:46px;gap:7px}
-  .emptyMode .upstreamComposer .roundIconBtn{width:38px;height:38px}
-  .emptyMode .upstreamComposer .settingPill{height:38px;padding:0 14px;font-size:14px}
-  .emptyMode .upstreamComposer .sendButton,.emptyMode .upstreamComposer .stopButton{width:46px;height:46px}
-  .emptyMode .inspirationShowcase{width:100%;margin:46px 0 100px;padding-bottom:40px}
-  .emptyMode .inspirationShowcase h2{font-size:24px}
-  .emptyMode .inspirationGrid{gap:20px}
-}
-
-/* Composer popovers must sit above the hero tabs and carousel, while the mascot
-   labels stay readable without covering the character. */
-.emptyMode .creationTabs{z-index:2}
-.upstreamComposer.popoverOpen,.emptyMode .upstreamComposer.popoverOpen{z-index:120}
-.upstreamComposer .skillPicker,.emptyMode .upstreamComposer .skillPicker{left:54px;bottom:66px;z-index:100;width:min(740px,calc(100% - 68px));box-sizing:border-box}
-.emptyMode .upstreamComposer:has(.mediaSettingMenu){z-index:80}
-.emptyMode .mediaSettingMenu{z-index:100}
-.emptyMode .upstreamComposer .mediaSettingMenu .ratioGrid button,
-.emptyMode .upstreamComposer .mediaSettingMenu .videoSizeGrid button{position:relative;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease,color .16s ease}
-.emptyMode .upstreamComposer .mediaSettingMenu .ratioGrid button:hover,
-.emptyMode .upstreamComposer .mediaSettingMenu .videoSizeGrid button:hover{border-color:#ff7417;background:#fff8f2}
-.emptyMode .upstreamComposer .mediaSettingMenu .ratioGrid button.selected,
-.emptyMode .upstreamComposer .mediaSettingMenu .videoSizeGrid button.selected{border:2px solid #ff7417;background:#fff1e6;color:#a94300;box-shadow:0 0 0 3px rgba(255,116,23,.14)}
-.emptyMode .upstreamComposer .mediaSettingMenu .ratioGrid button.selected i,
-.emptyMode .upstreamComposer .mediaSettingMenu .videoSizeGrid button.selected i{border-color:#ff7417}
-.emptyMode .mascotPreview{right:clamp(44px,4vw,76px)}
-.emptyMode .mascotPreview .floatTag{z-index:3;background:rgba(255,255,255,.88);box-shadow:0 2px 9px rgba(30,30,30,.08)}
-.emptyMode .mascotPreview .tagPoster{left:auto;right:94px}
-.emptyMode .mascotPreview .tagVideo{left:auto;right:28px}
-.emptyMode .mascotPreview .tagBrand{left:auto;right:4px}
-.emptyMode .mascotPreview .tagVisual{left:auto;right:16px}
-.emptyMode .mascotPreview .tagImage{left:auto;right:0}
-
-/* 2026-10 landing polish: one clear hero, a compact creation mode row, and a
-   composer whose hierarchy stays readable before and after attachments. */
-.emptyMode .assistantPanel{max-width:min(1360px,calc(100% - 48px))}
-.emptyMode .mainScrollArea{padding-top:22px}
-.emptyMode .mioraBanner{height:326px;margin:0 calc((1360px - 100vw)/2)}
-.emptyMode .bannerStage{height:312px}
-.bannerCard{aspect-ratio:2.35/1;border-radius:22px;transition:left .34s cubic-bezier(.22,1,.36,1),width .34s cubic-bezier(.22,1,.36,1),transform .34s cubic-bezier(.22,1,.36,1),filter .25s ease,opacity .25s ease}
-.bannerCard:not(.active){opacity:.68;filter:saturate(.72) brightness(.82)}
-.bannerCard.active{box-shadow:0 0 0 1px rgba(255,255,255,.22),0 24px 60px rgba(16,18,28,.26)}
-.bannerCard img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.bannerFeatureCard{position:absolute;inset:0;z-index:2;justify-content:center;gap:11px;padding:8% 8.5%;background:linear-gradient(90deg,rgba(5,10,20,.92) 0%,rgba(7,12,24,.78) 38%,rgba(7,12,24,.12) 72%,transparent 100%);box-sizing:border-box}
-.bannerFeatureCard.withImage{background:linear-gradient(90deg,rgba(4,9,18,.94) 0%,rgba(4,9,18,.76) 38%,rgba(4,9,18,.10) 73%,transparent 100%)}
-.bannerFeatureCard small{color:rgba(255,255,255,.58);font-size:10px;font-weight:700;letter-spacing:.16em}
-.bannerFeatureCard strong{max-width:12em;font-size:clamp(24px,2.15vw,34px);line-height:1.16}
-.bannerFeatureCard p{max-width:30em;color:rgba(255,255,255,.72);font-size:clamp(12px,1vw,14px);line-height:1.65}
-.bannerFeatureCard em{display:inline-flex;align-items:center;gap:8px;width:max-content;margin-top:7px;padding:8px 12px;border:1px solid rgba(255,255,255,.18);border-radius:99px;background:rgba(255,255,255,.10);font-size:12px;backdrop-filter:blur(8px)}
-.bannerFeatureCard em span{font-size:14px}
-.bannerArrow{width:36px;height:36px;border-color:rgba(255,255,255,.35);background:rgba(17,18,24,.58);font-size:24px;backdrop-filter:blur(8px)}
-.bannerArrowLeft{left:max(18px,calc(50% - 465px))}.bannerArrowRight{right:max(18px,calc(50% - 465px))}
-.emptyMode .bannerDots{height:6px;gap:7px}.emptyMode .bannerDots button{width:26px;height:4px;background:#d8d8dc}.emptyMode .bannerDots button.active{width:48px;background:#252529}
-
-.emptyMode .mioraHero{top:auto;height:64px;margin:12px 0 0}
-.emptyMode .creationTabs{inset:auto 0 8px 0;width:100%;height:48px;padding:5px;border:1px solid #e8e8eb;border-radius:24px;background:#f7f7f8;box-shadow:none}
-.emptyMode .creationTabs button{height:36px;border-radius:18px;color:#666;font-size:14px}
-.emptyMode .creationTabs button.active{background:#222;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.16)}
-.emptyMode .mascotPreview{display:none}
-
-.upstreamComposer,.emptyMode .upstreamComposer{top:auto;width:100%;min-height:214px;margin:8px 0 20px;padding:16px 18px 12px;grid-template-rows:minmax(138px,auto) 44px;gap:8px;border:1px solid #dddddf;border-radius:22px;background:#fff;box-shadow:0 14px 38px rgba(30,32,38,.09)}
-.upstreamComposer:focus-within,.emptyMode .upstreamComposer:focus-within{border-color:#b8b8bd;box-shadow:0 16px 42px rgba(30,32,38,.12),0 0 0 3px rgba(35,35,38,.04)}
-.upstreamComposer .editorRow,.emptyMode .upstreamComposer .editorRow{min-height:138px;max-height:260px;padding:2px 4px;gap:6px}
-.upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow textarea{height:108px;min-height:108px;padding:5px 4px 0;font-size:16px;line-height:28px}
-.upstreamComposer .editorRow:not(.hasInput) textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{height:108px;min-height:108px;padding:5px 4px 0}
-.upstreamComposer .editorRow .promptCycleHint,.emptyMode .upstreamComposer .editorRow .promptCycleHint{left:8px;right:8px;top:7px;height:34px;min-height:34px;gap:9px}
-.upstreamComposer .editorRow.hasSkills .promptCycleHint,.emptyMode .upstreamComposer .editorRow.hasSkills .promptCycleHint{top:44px}
-.promptSpark{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:9px;background:#fff1e7;color:#e76308;font-size:13px}
-.upstreamComposer .promptCycleHint .promptCycleLabel,.emptyMode .upstreamComposer .promptCycleHint .promptCycleLabel{flex:1;color:#73737a;font-size:15px;line-height:28px}
-.upstreamComposer .promptCycleHint kbd,.emptyMode .upstreamComposer .promptCycleHint kbd{width:auto;height:25px;padding:0 8px;border-color:#e0e0e3;background:#f7f7f8;color:#929298;line-height:25px}
-.upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarLeft,.upstreamComposer .toolbarRight,.emptyMode .upstreamComposer .toolbarRight{height:44px;gap:6px}
-.upstreamComposer .roundIconBtn.assetTrigger,.upstreamComposer .roundIconBtn.skillButton,.upstreamComposer .roundIconBtn.reasoningButton{width:auto;height:34px;gap:7px;padding:0 11px;border-radius:11px;background:#f4f4f5;color:#4a4a50;font-size:13px}
-.upstreamComposer .roundIconBtn.assetTrigger:hover,.upstreamComposer .roundIconBtn.skillButton:hover,.upstreamComposer .roundIconBtn.reasoningButton:hover{background:#eaeaec;color:#1f1f22}
-.upstreamComposer .roundIconBtn.skillButton.active,.upstreamComposer .roundIconBtn.reasoningButton.active{background:#fff0e6;color:#d95700}
-.toolLabel{font:600 12px/1 Inter,"PingFang SC",sans-serif}
-.upstreamComposer .settingPill{height:34px;padding:0 11px;border-radius:11px;background:#f4f4f5}
-.upstreamComposer .sendButton,.emptyMode .upstreamComposer .sendButton,.upstreamComposer .stopButton,.emptyMode .upstreamComposer .stopButton{width:38px;height:38px}
-.composerMascot{position:absolute;z-index:3;right:26px;top:-138px;width:210px;height:150px;overflow:hidden;pointer-events:none;mix-blend-mode:multiply;filter:drop-shadow(0 13px 18px rgba(25,25,30,.16))}
-.composerMascot video{display:block;width:100%;height:100%;object-fit:contain}
-.emptyMode .inspirationShowcase{margin-top:18px}
-
-@media(min-width:761px){
-  .emptyMode .upstreamComposer{z-index:20;margin-top:clamp(12px,calc(100vh - 600px),320px)}
-}
-
-@media(max-width:760px){
-  .emptyMode .assistantPanel{max-width:100%}
-  .emptyMode .mioraBanner{height:238px;margin:0 calc((100% - 100vw)/2)}
-  .emptyMode .bannerStage{height:224px}
-  .bannerCard{aspect-ratio:1.8/1;border-radius:17px}
-  .bannerFeatureCard{padding:8%}.bannerFeatureCard p{display:none}.bannerFeatureCard small{font-size:8px}.bannerFeatureCard strong{font-size:22px}
-  .bannerArrowLeft{left:8px}.bannerArrowRight{right:8px}
-  .emptyMode .mioraHero{height:66px;margin-top:12px}
-  .emptyMode .creationTabs{overflow-x:auto}.emptyMode .creationTabs button{min-width:108px}
-  .emptyMode .upstreamComposer{min-height:142px;margin-top:10px;padding:12px;grid-template-rows:minmax(66px,auto) auto}
-  .emptyMode .composerMascot{right:18px;top:-126px;width:168px;height:116px}
-  .upstreamComposer .toolbarLeft,.emptyMode .upstreamComposer .toolbarLeft{flex-wrap:wrap;height:auto}
-  .toolLabel{display:none}
-  .upstreamComposer .roundIconBtn.assetTrigger,.upstreamComposer .roundIconBtn.skillButton,.upstreamComposer .roundIconBtn.reasoningButton{width:34px;padding:0}
-  .modelSlot{min-width:0}.modelSlotLabel{display:none}.modelSlot :deep(.t-select__wrap),.modelSlot :deep(.t-select){width:130px}.composerCostHint{display:none!important}
-  .upstreamComposer .settingPill{max-width:118px;padding:0 9px;font-size:11px}
-}
-
-.assistantModeBar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 0 12px; }
-.assistantModeBar button, .analysisHandoff { border:1px solid var(--td-component-border, #dce0e8); background:transparent; color:inherit; border-radius:10px; padding:8px 12px; cursor:pointer; }
-.assistantModeBar button:disabled, .analysisHandoff:disabled { opacity:.55; cursor:not-allowed; }
-.assistantModeBar button.selected { background:var(--td-brand-color-light, #eef0ff); color:var(--td-brand-color, #6757e8); border-color:var(--td-brand-color, #6757e8); }
-.assistantModeBar span, .analysisToolStatus { color:var(--td-text-color-secondary, #777); font-size:12px; }
-.videoAnalysisPreview { margin-top:14px; max-width:600px; }
-.videoAnalysisPreview p { font-size:12px; overflow-wrap:anywhere; }
-.videoAnalysisPreview small { color:var(--td-text-color-secondary, #777); }
-.analysisFrameStrip { display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; }
-.analysisFrameStrip figure { flex:0 0 110px; margin:0; }
-.analysisFrameStrip img { width:110px; height:76px; object-fit:contain; background:#151515; border-radius:6px; }
-.analysisFrameStrip figcaption { text-align:center; font-size:11px; margin-top:3px; }
-.analysisHandoff { margin-top:12px; font-size:12px; }
-.analyzeVideoButton { white-space:nowrap; }
-.upstreamComposer, .emptyMode .upstreamComposer { grid-template-areas:"agent agent" "editor editor" "left right"; grid-template-rows:auto auto auto; }
-.emptyMode .upstreamComposer { grid-template-areas:"agent agent" "editor editor" "billing billing" "guide guide" "left right"; grid-template-rows:auto minmax(72px,auto) auto auto auto; }
-.assistantModeBar { grid-area:agent; }
-.analysisMode .launchIntro { grid-template-columns:1fr; margin-top:40px; }
-.analysisMode .composerSetting, .analysisMode .reasoningButton { display:none; }
-.upstreamComposer .analyzeVideoButton { width:auto; padding:0 10px; font-size:12px; }
-.upstreamComposer .sendButton, .emptyMode .upstreamComposer .sendButton { width:auto; min-width:96px; padding:0 14px; border-radius:20px; }
-@media(max-width:760px) {
-  .upstreamComposer, .emptyMode .upstreamComposer { grid-template-columns:minmax(0,1fr); grid-template-areas:"agent" "editor" "billing" "guide" "left" "right"; grid-template-rows:repeat(6,auto); }
-  .assistantModeBar span { flex-basis:100%; }
-  .upstreamComposer .toolbarLeft, .emptyMode .upstreamComposer .toolbarLeft { flex-wrap:wrap; overflow:visible; }
-  .upstreamComposer .toolbarRight, .emptyMode .upstreamComposer .toolbarRight { justify-content:flex-end; }
-}
-
-</style>
-
-<!-- 非 scoped 全局段:IP mascot 眨眼动效 + 暗模式身体灰度适配 + 减弱运动守护(affectation 不能受 scoped 数据属性哈希约束否则 :root/.dark 选择器失配)-->
-<style lang="scss">
-.ip-eye-white,.ip-eye-pupil{transform-box:fill-box;transform-origin:center;}
-.ip-eye-white{animation:xo-ipBlinkWhite 4.2s ease-in-out infinite;}
-.ip-eye-pupil{animation:xo-ipBlinkPupil 4.2s ease-in-out infinite;}
-@keyframes xo-ipBlinkWhite{0%,44%,48%,100%{transform:scaleY(1);}46%{transform:scaleY(.08);}}
-@keyframes xo-ipBlinkPupil{0%,44%,48%,100%{transform:translateY(0) scaleY(1);}46%{transform:translateY(.8px) scaleY(.12);}}
-@media(prefers-reduced-motion:reduce){.ip-eye-white,.ip-eye-pupil{animation:none;}}
-/* 暗模式:IP 身躯亮度反相转中度灰维持辨识度 */
-:root[data-theme=dark] .ip-body,:root.dark .ip-body{filter:brightness(0) invert(.45);}
+.workspaceHeader{height:76px;flex-shrink:0;padding:0 36px;display:flex;align-items:center;gap:30px;border-bottom:1px solid var(--line);background:var(--surface);}
+.workspaceBrand{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:650;white-space:nowrap;} .workspaceBrand img{width:27px;height:27px;object-fit:contain;}
+.workspaceNav{display:flex;align-items:center;gap:24px;font-size:13px;color:var(--muted);height:100%;}.workspaceNav>*{height:100%;display:flex;align-items:center;position:relative;}.workspaceNav .current{color:var(--ink);font-weight:600;}.workspaceNav .current:after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--ink);border-radius:2px;}.workspaceNav a:hover{color:var(--accent);}
+.sessionActions{margin-left:auto;display:flex;gap:8px;}.sessionActions button{border:0;background:none;padding:8px 10px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:6px;color:var(--muted);}.sessionActions button:hover{background:var(--td-bg-color-secondarycontainer,#f4f3f0);color:var(--ink);}.sessionActions button:last-child{border:1px solid var(--line);color:var(--ink);}
+.assistantPanel{width:min(840px,calc(100% - 64px));margin:0 auto;display:flex;flex-direction:column;flex:1;min-height:0;padding:20px 0 14px;}.emptyMode .assistantPanel{justify-content:center;padding-bottom:8vh;}.mainScrollArea{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;}.emptyMode .mainScrollArea{flex:0 0 auto;overflow:visible;}
+.welcome{padding:0 0 30px;text-align:center;}.welcomeMark{display:block;color:var(--accent);font-size:31px;margin-bottom:18px;}.welcome h1{font-size:clamp(26px,2.7vw,36px);font-weight:650;letter-spacing:-1px;line-height:1.5;margin:0 0 12px;}.welcome p{font-size:14px;color:var(--muted);line-height:1.8;margin:0;}
+.composerToolbar{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px 20px 14px;box-shadow:0 8px 30px #24201806;flex-shrink:0;transition:border-color .2s,box-shadow .2s;}.composerToolbar:focus-within{border-color:#d5c2b2;box-shadow:0 8px 35px #24201809;}.composerToolbar textarea{width:100%;display:block;box-sizing:border-box;background:none;border:none;outline:none;color:var(--ink);font:inherit;font-size:15px;line-height:1.8;resize:none;min-height:64px;max-height:150px;padding:0 2px 12px;}.emptyMode textarea{min-height:106px;}.composerToolbar textarea::placeholder{color:var(--muted);opacity:.85;}
+.composerBottom{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:8px;}.toolbarLeft,.toolbarRight{display:flex;align-items:center;gap:8px;min-width:0;}.toolbarLeft button,.costToggle{background:none;border:none;border-radius:8px;padding:7px 9px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);}.toolbarLeft button:hover,.costToggle:hover,.toolbarLeft .active{background:var(--td-bg-color-secondarycontainer,#f4f3f0);color:var(--ink);}.skillCount{font-size:10px;background:#f6e6db;color:#bd693f;padding:0 5px;border-radius:4px;}
+.modelSlot{width:176px;min-width:0;margin:0;padding:0;border:0;}.modelSlot:disabled{pointer-events:none;opacity:.6;}.modelSlot :deep(.modelCostHint){display:none;}.modelSlot :deep(.t-input){background:transparent;border:0;box-shadow:none;height:30px;font-size:12px;color:var(--muted);}.modelSlot :deep(.t-input__inner){font-size:12px;color:var(--muted);}.modelSlot :deep(.t-input__suffix){color:var(--muted);}.sendButton,.stopButton{border:0;border-radius:10px;background:var(--ink);color:var(--surface)!important;min-height:36px;padding:0 13px;font-size:12px;display:flex;align-items:center;gap:13px;}.sendButton:disabled{background:var(--td-bg-color-secondarycontainer,#efeeea);color:var(--muted)!important;opacity:.6;}.stopButton{gap:8px;}.sendButton:hover:not(:disabled){background:#48423c;}.referenceHint{font-size:11px;color:var(--muted);padding-bottom:8px;}
+.editorSkills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;}.editorSkills button{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--td-bg-color-page,#faf9f6);border-radius:8px;font-size:12px;padding:5px 8px;max-width:230px;}.editorSkills img{width:28px;height:28px;object-fit:cover;border-radius:4px;}.editorSkills button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.editorSkills svg{flex-shrink:0;}
+.billingGuide{border-top:1px solid var(--line);margin-top:10px;padding-top:12px;display:flex;gap:12px;flex-direction:column;font-size:12px;}.billingGuide small{color:var(--muted);line-height:1.8;}
+.taskStarters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:20px;}.taskStarters button{display:grid;grid-template-columns:30px 1fr 12px;grid-template-rows:22px 20px;gap:0 8px;align-items:center;text-align:left;padding:16px 12px;background:transparent;border:1px solid transparent;border-radius:12px;}.taskStarters button:hover{background:var(--surface);border-color:var(--line);}.starterIcon{grid-row:1/3;font-size:21px;color:#a48973;}.taskStarters strong{font-size:13px;font-weight:550;}.taskStarters small{grid-column:2;font-size:11px;color:var(--muted);}.starterArrow{grid-column:3;grid-row:1/3;color:var(--muted);}.composerFootnote{margin:14px 0 0;text-align:center;font-size:11px;color:var(--muted);}
+.conversationTitle{color:var(--muted);font-size:12px;text-align:center;margin:8px 0 28px;}.messageList{padding:0 10px 24px;}.messageWrapper{display:flex;gap:14px;align-items:flex-start;margin-bottom:30px;}.messageWrapper.user{justify-content:flex-end;}.messageAvatar{color:var(--accent);font-size:22px;flex-shrink:0;width:25px;padding-top:3px;}.messageBubble{min-width:0;max-width:calc(100% - 42px);font-size:14px;line-height:1.9;}.messageBubble.user{border-radius:16px 16px 4px 16px;background:var(--td-bg-color-secondarycontainer,#efede8);padding:12px 18px;}.messageContent{overflow-wrap:anywhere;}.messageContent :deep(pre){white-space:pre-wrap;padding:14px;background:var(--td-bg-color-secondarycontainer,#efede8);border-radius:10px;}.messageContent :deep(code){font-size:12px;}.replyActions{display:flex;align-items:center;gap:14px;margin-top:18px;}.replyActions button{display:flex;align-items:center;gap:6px;font-size:12px;border:0;background:transparent;color:var(--muted);padding:6px 0;}.replyActions .analysisHandoff{border:1px solid var(--line);padding:7px 10px;border-radius:8px;color:var(--ink);}.replyActions .analysisHandoff:hover:not(:disabled){border-color:#c7b5a8;background:var(--surface);}.referenceImages{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.referenceImages img{max-width:160px;height:100px;object-fit:contain;border-radius:8px;}
+.agentPendingState{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;padding-top:4px;}.progressDot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.5s ease infinite;}.analysisToolStatus{font-size:12px;color:var(--muted);}.videoAnalysisPreview{margin-top:14px;font-size:12px;max-width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;}.videoAnalysisPreview summary{cursor:pointer;overflow-wrap:anywhere;}.videoAnalysisPreview summary span{color:var(--muted);margin-left:8px;}.videoAnalysisPreview small{color:var(--muted);display:block;margin-top:6px;font-size:11px;}.analysisFrameStrip{display:flex;gap:8px;overflow:auto;margin-top:10px;padding-bottom:6px;}.analysisFrameStrip figure{flex:0 0 110px;margin:0;}.analysisFrameStrip img{width:110px;height:72px;object-fit:contain;background:#252525;border-radius:5px;}.analysisFrameStrip figcaption{font-size:10px;text-align:center;color:var(--muted);}
+.popover{position:absolute;bottom:calc(100% + 10px);left:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 10px 50px #00000016;z-index:30;}.assetMenu{width:240px;}.assetMenu>strong{display:block;font-size:13px;margin-bottom:10px;}.assetMenu button{border:none;background:none;width:100%;text-align:left;display:flex;gap:10px;align-items:center;padding:10px 4px;border-radius:8px;font-size:13px;}.assetMenu button:hover{background:var(--td-bg-color-page,#faf9f6);}.assetMenu small{display:block;font-size:11px;color:var(--muted);margin-top:3px;}
+.skillPicker{width:min(460px,calc(100vw - 70px));display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;}.skillPicker header{display:flex;justify-content:space-between;font-size:13px;margin-bottom:14px;}.skillPicker header a{font-size:11px;color:var(--muted);}.skillPickerTop{display:flex;justify-content:space-between;gap:12px;padding-bottom:12px;}.skillTabs{display:flex;gap:4px;}.skillTabs button{border:0;border-radius:6px;background:none;padding:5px 9px;font-size:12px;color:var(--muted);}.skillTabs .active{background:var(--td-bg-color-secondarycontainer,#f4f3f0);color:var(--ink);}.skillPickerTop input{min-width:0;width:160px;border:1px solid var(--line);border-radius:6px;background:transparent;padding:6px 9px;font:inherit;font-size:12px;color:var(--ink);}.skillList{overflow:auto;min-height:0;}.skillOption{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:none;border:0;border-radius:8px;padding:10px 7px;}.skillOption:hover,.skillOption.selected{background:var(--td-bg-color-secondarycontainer,#f4f3f0);}.skillGlyph{width:24px;flex-shrink:0;}.skillCopy{flex:1;min-width:0;}.skillCopy strong{display:block;font-size:12px;font-weight:550;}.skillCopy small{display:block;font-size:11px;color:var(--muted);line-height:1.6;margin-top:3px;}.skillOfficial{color:var(--muted);}.clearSkills{margin-top:10px;border:0;background:none;color:var(--muted)!important;font-size:11px!important;}.skillEmpty{color:var(--muted);font-size:12px;}
+.historyDrawer{position:absolute;right:24px;top:68px;width:310px;max-height:calc(100% - 90px);z-index:40;padding:18px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 45px #00000018;display:flex;flex-direction:column;box-sizing:border-box;}.historyDrawer header{display:flex;align-items:center;justify-content:space-between;font-size:14px;margin-bottom:14px;}.historyDrawer header button{border:0;background:none;padding:4px;}.conversationList{overflow:auto;}.conversationList button{display:flex;flex-direction:column;text-align:left;gap:5px;width:100%;border:0;padding:12px 8px;border-radius:8px;background:none;}.conversationList button:hover,.conversationList button.active{background:var(--td-bg-color-secondarycontainer,#f4f3f0);}.conversationList strong{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}.conversationList small,.emptyHint{color:var(--muted);font-size:11px;}.clearAllBtn{border:0;border-top:1px solid var(--line);background:none;text-align:left;margin-top:12px;padding:14px 8px 0;font-size:11px!important;color:var(--muted)!important;}
+.assetPickerOverlay{position:fixed;inset:0;z-index:5000;display:grid;place-items:center;background:#0006;padding:24px;}.assetPickerDialog{position:relative;width:min(1040px,95vw);height:min(720px,90vh);background:var(--td-bg-color-container,#fff);border-radius:16px;overflow:hidden;}.assetPickerFrame{width:100%;height:100%;border:0;}.pickerClose{position:absolute;top:12px;right:12px;z-index:1;border:1px solid #ddd;border-radius:8px;padding:8px;cursor:pointer;}
+@keyframes pulse{50%{opacity:.3;}}
+@media(max-width:700px){.workspaceHeader{padding:0 18px;gap:20px;height:62px;}.workspaceNav{gap:16px;font-size:12px;}.sessionActions{gap:1px;}.sessionActions button{padding:7px;}.sessionActions button span,.chromeToggle{display:none!important;}.assistantPanel{width:calc(100% - 32px);padding-top:16px;}.emptyMode .assistantPanel{padding-bottom:4vh;}.welcome{padding-bottom:24px;}.welcome h1{font-size:26px;letter-spacing:-.5px;}.welcome p{max-width:280px;margin:auto;font-size:12px;}.welcomeMark{margin-bottom:12px;}.composerToolbar{padding:16px 14px 12px;border-radius:16px;}.composerToolbar textarea{font-size:14px;}.composerBottom{gap:4px;flex-wrap:wrap;}.toolbarLeft{gap:2px;}.toolbarRight{gap:2px;margin-left:auto;}.toolbarLeft button{padding:7px 5px;}.modelSlot{width:128px;}.costToggle{padding:7px 5px;font-size:11px;}.sendButton{gap:6px;padding:0 10px;}.taskStarters{gap:2px;margin-top:14px;}.taskStarters button{padding:10px 4px;grid-template-columns:1fr;grid-template-rows:26px 23px;text-align:center;gap:0;}.starterIcon{grid-row:1;}.taskStarters strong{font-size:12px;}.taskStarters small,.starterArrow{display:none;}.messageList{padding-left:0;padding-right:0;}.messageWrapper{gap:8px;}.messageBubble{max-width:calc(100% - 30px);font-size:13px;}.messageAvatar{width:22px;}.historyDrawer{right:12px;width:min(310px,calc(100vw - 24px));top:58px;}.skillPicker{width:min(460px,calc(100vw - 32px));}.composerFootnote{font-size:10px;}}
+@media(prefers-reduced-motion:reduce){.progressDot{animation:none;}}
 </style>

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import { ANALYSIS_TOOLS, runAssistantChat, streamAssistantResponse, validateAnalysisVideo, validateAssistantInput, type AnalysisVideo, type AssistantEvent } from "./videoAnalysis";
+import { ANALYSIS_TOOLS, runAssistantChat, streamAssistantResponse, validateAnalysisVideo, validateAssistantInput, validateReferenceImages, type AnalysisVideo, type AssistantEvent } from "./videoAnalysis";
 
 const config = { baseUrl: "https://gateway.example/v1/", apiKey: "test-only", model: "vision-tools" };
 const signal = () => new AbortController().signal;
@@ -74,6 +74,27 @@ test("text conversations make one streaming request with no tool or media access
     requests++;
     assert.equal(JSON.parse(String(init?.body)).tools, undefined);
     return streamed("这是一个故事");
+  }) as typeof fetch });
+  assert.equal(requests, 1);
+});
+
+test("image references are decoded locally, reject URLs/corrupt files, and cannot add tools", async () => {
+  const image = { name: "构图参考.jpg", dataUrl: (await fixture()).frames[0].dataUrl };
+  const clean = await validateAssistantInput({ content: "分析参考构图", agentMode: "analysis", analysisImages: [image] });
+  assert.equal(clean.images?.length, 1);
+  await assert.rejects(validateReferenceImages([{ ...image, dataUrl: "http://localhost/private" }]));
+  await assert.rejects(validateReferenceImages([{ ...image, dataUrl: "data:image/jpeg;base64,YmFk" }]));
+  await assert.rejects(validateReferenceImages(Array(5).fill(image)));
+  const large = await sharp({ create: { width: 1537, height: 10, channels: 3, background: "white" } }).jpeg().toBuffer();
+  await assert.rejects(validateReferenceImages([{ ...image, dataUrl: `data:image/jpeg;base64,${large.toString("base64")}` }]));
+  let requests = 0;
+  await runAssistantChat({ config, messages: [{ role: "user", content: "分析参考构图" }], images: clean.images, signal: signal(), emit: () => {}, fetcher: (async (_, init) => {
+    requests++;
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.tools, undefined);
+    assert.equal(body.messages[0].content, "分析参考构图");
+    assert.equal(body.messages[1].content.filter((part: any) => part.type === "image_url").length, 1);
+    return streamed("参考画面采用居中构图");
   }) as typeof fetch });
   assert.equal(requests, 1);
 });
