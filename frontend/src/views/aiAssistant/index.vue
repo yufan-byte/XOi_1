@@ -108,13 +108,17 @@
               </div>
             </section>
 
-            <section class="mioraHero" aria-label="创作类型">
-              <div class="creationTabs" role="tablist">
-                <button v-for="category in creationCategories" :key="category.key" type="button" :class="{ active: activeCategory === category.key }" @click="activeCategory = category.key">
-                  <span class="categoryIcon" v-html="category.icon"></span>
-                  <span>{{ category.label }}</span>
-                </button>
+            <section class="launchIntro" aria-labelledby="launch-title">
+              <div class="launchIntroCopy">
+                <span class="launchEyebrow"><i-magic /> 创作 Agent</span>
+                <h1 id="launch-title">先把想法讲清楚，剩下的交给画布</h1>
+                <p>文本模型先理解与拆解需求，进入画布后再按任务选择图片或视频模型。进入画布本身不扣媒体积分。</p>
               </div>
+              <ol class="launchSteps" aria-label="创作流程">
+                <li><b>01</b><span><strong>描述想法</strong><small>支持素材与 Skill</small></span></li>
+                <li><b>02</b><span><strong>AI 规划</strong><small>当前文本模型思考</small></span></li>
+                <li><b>03</b><span><strong>画布生成</strong><small>按需选择图片 / 视频模型</small></span></li>
+              </ol>
             </section>
 
             <div class="legacyEmpty" aria-hidden="true">
@@ -209,6 +213,18 @@
         </transition>
       </main>
 
+      <section v-if="messages.length === 0" class="creationDock" aria-label="选择创作类型">
+        <div class="creationDockMascot" aria-hidden="true">
+          <video src="/miora-home/mascot-preview.webm" autoplay muted loop playsinline></video>
+        </div>
+        <div class="creationTabs" role="tablist">
+          <button v-for="category in creationCategories" :key="category.key" type="button" :class="{ active: activeCategory === category.key }" :aria-selected="activeCategory === category.key" @click="activeCategory = category.key">
+            <span class="categoryIcon" v-html="category.icon"></span>
+            <span>{{ category.label }}</span>
+          </button>
+        </div>
+      </section>
+
       <!-- 与无限画布共用交互语义的完整 Agent Composer；保留本页 Tab 灵感提示。 -->
       <footer
         ref="composerRef"
@@ -271,6 +287,43 @@
           </div>
         </div>
 
+        <div v-if="messages.length === 0" class="composerBillingBar">
+          <div class="billingNow">
+            <span class="billingStatusDot" aria-hidden="true"></span>
+            <span class="billingLabel">当前思考</span>
+            <strong>{{ selectedModelLabel || defaultTextModel || '系统默认模型' }}</strong>
+            <ModelCostHint
+              v-if="selectedModelName || defaultTextModel"
+              class="inlineCostHint"
+              :model="selectedModelName || defaultTextModel"
+              type="text"
+              :input-length="inputValue.length"
+              compact />
+          </div>
+          <button type="button" class="billingGuideToggle" :aria-expanded="showBillingGuide" @click.stop="showBillingGuide = !showBillingGuide">
+            {{ showBillingGuide ? '收起计费详情' : '查看生成模型与积分' }}
+            <i-down :class="{ rotated: showBillingGuide }" />
+          </button>
+        </div>
+
+        <transition name="billing-guide">
+          <section v-if="messages.length === 0 && showBillingGuide" class="billingGuide" aria-label="模型与积分说明">
+            <article class="billingGuideCard textCard">
+              <span class="billingGuideIcon">✦</span>
+              <div><small>对话规划</small><strong>{{ selectedModelLabel || defaultTextModel || '系统默认文本模型' }}</strong><ModelCostHint :model="selectedModelName || defaultTextModel" type="text" :input-length="inputValue.length" compact /></div>
+            </article>
+            <article class="billingGuideCard">
+              <span class="billingGuideIcon">▧</span>
+              <div><small>图片生成 · 进入画布后可更换</small><strong>{{ defaultImageModel || '选择图片模型后显示价格' }}</strong><ModelCostHint v-if="defaultImageModel" :model="defaultImageModel" type="image" compact /></div>
+            </article>
+            <article class="billingGuideCard">
+              <span class="billingGuideIcon">▣</span>
+              <div><small>视频生成 · 进入画布后可更换</small><strong>{{ defaultVideoModel || '选择视频模型后显示价格' }}</strong><ModelCostHint v-if="defaultVideoModel" :model="defaultVideoModel" type="video" compact /></div>
+            </article>
+            <p>仅在实际调用模型时结算；图片 / 视频不会因进入画布而扣费，最终以网关返回的实际用量为准。</p>
+          </section>
+        </transition>
+
         <div class="toolbarLeft">
           <input ref="attachmentInputRef" hidden type="file" multiple accept="image/*,video/*,audio/*" @change="onComposerFilesSelected" />
           <button type="button" class="roundIconBtn assetTrigger" aria-label="添加素材" title="添加素材" @click.stop="toggleAssetMenu">
@@ -285,8 +338,8 @@
             <i-toolkit size="16px" /><span class="toolLabel">Skill</span>
             <span v-if="selectedSkills.length" class="skillCount">{{ selectedSkills.length }}</span>
           </button>
-          <div class="modelSlot" aria-label="选择对话模型">
-            <span class="modelSlotLabel">模型</span>
+          <div class="modelSlot" aria-label="选择负责思考的文本模型">
+            <span class="modelSlotLabel">思考模型</span>
             <modelSelect
               v-model="selectedModelValue"
               v-model:label="selectedModelLabel"
@@ -335,6 +388,7 @@
             @click="handleSend"
             aria-label="发送">
             <template #icon><i-send size="15px" /></template>
+            <span v-if="messages.length === 0" class="sendButtonLabel">进入画布</span>
           </t-button>
           <t-button
             v-else
@@ -454,8 +508,8 @@ function preloadBannerImages() {
   }
 }
 // Keep the carousel visually compact while preserving its reserved layout height.
-const BANNER_WIDTH = "min(calc(100vw - 2rem), 860px)";
-const SIDE_BANNER_WIDTH = "min(84vw, 620px)";
+const BANNER_WIDTH = "min(calc(100vw - 2rem), 740px)";
+const SIDE_BANNER_WIDTH = "min(82vw, 520px)";
 function bannerAngle(offset: number) { return offset === 0 ? 0 : offset < 0 ? 12 : -12; }
 function bannerCardStyle(banner: { offset: number }) {
   const progress = Math.max(-1, Math.min(1, bannerDragX.value / 160));
@@ -1108,6 +1162,29 @@ const selectedModelLabel = ref<string>(
   typeof localStorage !== "undefined" ? localStorage.getItem(MODEL_LBL_KEY) || "" : "",
 );
 const selectedModelName = computed(() => String(selectedModelValue.value || "").split(/:(.+)/)[1] || String(selectedModelValue.value || ""));
+const defaultTextModel = ref("");
+const defaultImageModel = ref("");
+const defaultVideoModel = ref("");
+const showBillingGuide = ref(false);
+
+async function loadCreationDefaults() {
+  try {
+    const response = await fetch("/api/config", { headers: { Authorization: localStorage.getItem("token") || "" } });
+    if (!response.ok) return;
+    const config = await response.json();
+    defaultTextModel.value = String(config?.chat_model || config?.chat_models?.[0] || "");
+    defaultImageModel.value = String(config?.image_model || config?.image_models?.[0] || "");
+    defaultVideoModel.value = String(config?.video_model || config?.video_models?.[0] || "");
+    if (!selectedModelValue.value && defaultTextModel.value) {
+      selectedModelValue.value = `newapi:${defaultTextModel.value}`;
+      selectedModelLabel.value = defaultTextModel.value;
+      onPickModel(selectedModelValue.value);
+    }
+  } catch {
+    // 默认模型读取失败不阻断创作，模型选择器仍可单独加载。
+  }
+}
+onMounted(loadCreationDefaults);
 function onPickModel(value: string /* , _detail?: any */) {
   try {
     localStorage.setItem(MODEL_VAL_KEY, value);
@@ -1880,6 +1957,140 @@ function useInspiration(prompt: string) {
   .upstreamComposer .roundIconBtn.assetTrigger,.upstreamComposer .roundIconBtn.skillButton,.upstreamComposer .roundIconBtn.reasoningButton{width:34px;padding:0}
   .modelSlot{min-width:0}.modelSlotLabel{display:none}.modelSlot :deep(.t-select__wrap),.modelSlot :deep(.t-select){width:130px}.composerCostHint{display:none!important}
   .upstreamComposer .settingPill{max-width:118px;padding:0 9px;font-size:11px}
+}
+
+/* 2026-10-08 creation launch redesign: compact the oversized carousel, remove
+   the accidental viewport-height spacer, and make model ownership / billing
+   understandable before the user enters the canvas. */
+.emptyMode.aiAssistant{
+  background:
+    radial-gradient(circle at 58% 18%,rgba(255,132,52,.075),transparent 28%),
+    linear-gradient(180deg,#fff 0%,#fbfbfc 72%,#fff 100%);
+}
+.emptyMode .assistantPanel{max-width:min(1160px,calc(100% - 44px))}
+.emptyMode .mainScrollArea{padding-top:18px;overflow:visible}
+.emptyMode .emptyStage{width:100%}
+.emptyMode .mioraBanner{height:280px;margin:0 calc((1160px - 100vw)/2)}
+.emptyMode .bannerStage{height:272px}
+.emptyMode .bannerCard{aspect-ratio:2.62/1;border-radius:20px}
+.emptyMode .bannerFeatureCard{padding:7% 8.5%;gap:8px}
+.emptyMode .bannerFeatureCard strong{font-size:clamp(23px,1.8vw,30px)}
+.creationDock{position:relative;width:100%;height:116px;flex:none;margin:8px 0 0}
+.emptyMode .creationTabs{inset:auto 0 0 0;width:100%;height:46px;padding:5px;border:1px solid #e8e8eb;border-radius:24px;background:rgba(247,247,248,.92);box-shadow:none;backdrop-filter:blur(14px)}
+.emptyMode .creationTabs button{height:36px;border-radius:18px;color:#666;font-size:14px}.emptyMode .creationTabs button.active{background:#222;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.16)}
+.creationDockMascot{position:absolute;right:26px;bottom:43px;z-index:3;width:156px;height:96px;overflow:hidden;pointer-events:none;mix-blend-mode:multiply;filter:drop-shadow(0 10px 14px rgba(25,25,30,.14))}
+.creationDockMascot video{display:block;width:100%;height:100%;object-fit:contain}
+
+.launchIntro{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(470px,.95fr);align-items:center;gap:36px;
+  width:100%;margin:18px 0 4px;padding:4px 2px 0;box-sizing:border-box;
+}
+.launchEyebrow{display:inline-flex;align-items:center;gap:7px;color:#db5e08;font-size:12px;font-weight:720;letter-spacing:.08em;text-transform:uppercase}
+.launchEyebrow svg{font-size:15px}
+.launchIntro h1{margin:8px 0 6px;color:#171719;font-size:clamp(25px,2vw,32px);font-weight:740;line-height:1.16;letter-spacing:-.035em}
+.launchIntro p{max-width:560px;margin:0;color:#77777f;font-size:13px;line-height:1.7}
+.launchSteps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.launchSteps li{position:relative;display:flex;align-items:center;gap:10px;min-width:0;padding:12px 13px;border:1px solid #e9e9eb;border-radius:15px;background:rgba(255,255,255,.88);box-shadow:0 5px 18px rgba(30,30,35,.035)}
+.launchSteps li:not(:last-child):after{content:"";position:absolute;right:-9px;top:50%;z-index:2;width:9px;height:1px;background:#dedee1}
+.launchSteps b{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:9px;background:#fff1e7;color:#d95700;font-size:10px}
+.launchSteps span{display:flex;min-width:0;flex-direction:column;gap:2px}.launchSteps strong{overflow:hidden;color:#29292d;font-size:12px;font-weight:680;text-overflow:ellipsis;white-space:nowrap}.launchSteps small{overflow:hidden;color:#9999a1;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+
+.upstreamComposer,.emptyMode .upstreamComposer{border-color:#e2e2e5;background:rgba(255,255,255,.96);box-shadow:0 18px 55px rgba(34,35,42,.10),0 1px 0 rgba(255,255,255,.8) inset}
+.emptyMode .upstreamComposer{
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-rows:minmax(88px,auto) auto auto 44px;
+  grid-template-areas:"editor editor" "billing billing" "guide guide" "left right";
+  min-height:0;margin:8px 0 18px;padding:14px 16px 12px;gap:8px 12px;border-radius:24px;
+}
+.emptyMode .upstreamComposer .editorRow{min-height:88px;max-height:210px;padding:2px 6px}
+.emptyMode .upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{height:68px;min-height:68px;font-size:16px;line-height:27px}
+.emptyMode .upstreamComposer .editorRow .promptCycleHint{top:6px}
+.composerMascot{display:none}
+
+.composerBillingBar{grid-area:billing;display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:34px;padding:7px 10px;border:1px solid #eeeef0;border-radius:12px;background:#fafafa;color:#6f6f77;font-size:11px}
+.billingNow{display:flex;min-width:0;align-items:center;gap:7px;overflow:hidden}.billingNow strong{max-width:220px;overflow:hidden;color:#29292d;font-size:12px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}.billingLabel{flex:none}.billingStatusDot{width:7px;height:7px;flex:none;border-radius:50%;background:#27a66a;box-shadow:0 0 0 4px rgba(39,166,106,.10)}
+.inlineCostHint{margin-left:5px;padding-left:10px;border-left:1px solid #e4e4e7;white-space:nowrap}
+.billingGuideToggle{display:inline-flex;align-items:center;gap:5px;flex:none;padding:5px 7px;border:0;border-radius:8px;background:transparent;color:#d45a08;font-size:11px;font-weight:650;cursor:pointer}.billingGuideToggle:hover{background:#fff0e6}.billingGuideToggle svg{font-size:13px;transition:transform .18s ease}.billingGuideToggle svg.rotated{transform:rotate(180deg)}
+.billingGuide{grid-area:guide;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:2px 0 4px}.billingGuide>p{grid-column:1/-1;margin:0;padding:3px 3px 0;color:#9a9aa1;font-size:10px;line-height:1.5}
+.billingGuideCard{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:9px;min-width:0;padding:10px 11px;border:1px solid #e9e9ec;border-radius:13px;background:#fff}.billingGuideCard.textCard{border-color:#ffdcca;background:#fffaf7}.billingGuideIcon{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:#f4f4f5;color:#555;font-size:14px}.textCard .billingGuideIcon{background:#fff0e6;color:#d95700}.billingGuideCard>div{display:flex;min-width:0;flex-direction:column;gap:2px}.billingGuideCard small{overflow:hidden;color:#929299;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.billingGuideCard strong{overflow:hidden;color:#29292d;font-size:12px;font-weight:680;text-overflow:ellipsis;white-space:nowrap}.billingGuideCard :deep(.modelCostHint){font-size:9px}.billingGuideCard :deep(.modelCostHint .dot){display:none}
+.billing-guide-enter-active,.billing-guide-leave-active{transition:.18s ease}.billing-guide-enter-from,.billing-guide-leave-to{opacity:0;transform:translateY(-4px)}
+
+.emptyMode .modelSlot{min-width:250px;padding:0 5px 0 9px;border:1px solid #e7e7e9;border-radius:11px;background:#f7f7f8}.emptyMode .modelSlotLabel{color:#77777e;font-size:10px;font-weight:650}.emptyMode .modelSlot :deep(.t-select__wrap),.emptyMode .modelSlot :deep(.t-select){width:164px}.emptyMode .modelSlot :deep(.t-input){background:transparent!important}
+.emptyMode .composerCostHint{display:none}
+.emptyMode .sendButton{display:inline-flex!important;width:auto!important;min-width:104px!important;padding:0 16px!important;border-radius:12px!important;gap:7px;background:#1f1f21!important;box-shadow:0 7px 16px rgba(25,25,28,.17)!important}
+.sendButtonLabel{font-size:12px;font-weight:670;white-space:nowrap}
+.emptyMode .reasoningButton:after{content:"文本";font-size:10px;font-weight:500;opacity:.58}
+.emptyMode .inspirationShowcase{margin-top:30px}
+
+@media(min-width:761px){.emptyMode .upstreamComposer{margin-top:8px}}
+@media(max-width:980px){
+  .launchIntro{grid-template-columns:1fr;gap:16px}.launchSteps{max-width:680px}.emptyMode .toolbarLeft{overflow-x:auto;overflow-y:hidden;padding-bottom:2px}.emptyMode .modelSlot{min-width:220px}
+}
+@media(max-width:760px){
+  .emptyMode .assistantPanel{max-width:100%;padding:0 12px}.emptyMode .mainScrollArea{padding-top:12px;overflow:visible}.emptyMode .mioraBanner{height:226px}.emptyMode .bannerStage{height:218px}.emptyMode .bannerCard{aspect-ratio:1.75/1}.launchIntro{margin-top:12px}.launchIntro h1{font-size:24px}.launchSteps{display:flex;overflow-x:auto}.launchSteps li{min-width:154px}.creationDock{height:98px;margin-top:6px}.creationDockMascot{right:12px;bottom:41px;width:120px;height:72px}.emptyMode .upstreamComposer{grid-template-rows:minmax(72px,auto) auto auto auto;margin-top:7px}.emptyMode .upstreamComposer .editorRow{min-height:72px}.emptyMode .upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea{height:54px;min-height:54px}.composerBillingBar{align-items:flex-start}.billingNow{flex-wrap:wrap}.billingLabel,.inlineCostHint{display:none}.billingGuide{grid-template-columns:1fr}.billingGuide>p{grid-column:1}.emptyMode .toolbarLeft{grid-column:1/-1;flex-wrap:nowrap}.emptyMode .toolbarRight{grid-column:1/-1;justify-content:flex-end}.emptyMode .modelSlot{min-width:210px}.emptyMode .modelSlotLabel{display:inline}.emptyMode .sendButton{min-width:96px!important}.emptyMode .reasoningButton:after{display:none}
+}
+
+/* Final visual polish: a calm creation surface with one clear primary action. */
+.creationDock{height:110px;margin-top:10px}
+.emptyMode .creationTabs{
+  height:54px;padding:6px;border:1px solid rgba(44,39,35,.07);border-radius:19px;
+  background:rgba(247,246,245,.82);box-shadow:0 8px 26px rgba(37,32,28,.045),inset 0 1px 0 rgba(255,255,255,.85);
+}
+.emptyMode .creationTabs button{
+  position:relative;height:40px;gap:9px;border:1px solid transparent;border-radius:14px;color:#77736f;
+  font-size:13px;font-weight:590;transition:background .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.emptyMode .creationTabs button:hover{background:rgba(255,255,255,.74);color:#35312e}
+.emptyMode .creationTabs button.active{
+  border-color:rgba(235,103,20,.15);background:linear-gradient(180deg,#fff 0%,#fff8f3 100%);color:#26221f;
+  box-shadow:0 5px 16px rgba(54,45,38,.08),0 1px 2px rgba(54,45,38,.045);
+}
+.emptyMode .creationTabs button.active:after{content:"";position:absolute;left:50%;bottom:3px;width:18px;height:2px;border-radius:2px;background:#ef6b14;transform:translateX(-50%)}
+.emptyMode .creationTabs .categoryIcon{display:grid;place-items:center;width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.72);color:#8d8883;font-size:14px;transition:.18s ease}
+.emptyMode .creationTabs button.active .categoryIcon{background:#fff0e6;color:#e66008}
+.creationDockMascot{right:30px;bottom:47px;width:148px;height:90px;filter:drop-shadow(0 12px 17px rgba(25,25,30,.12))}
+
+.upstreamComposer,.emptyMode .upstreamComposer{
+  border:1px solid rgba(46,39,33,.085);border-radius:26px;background:linear-gradient(180deg,rgba(255,255,255,.99) 0%,rgba(255,253,251,.98) 100%);
+  box-shadow:0 24px 70px rgba(40,34,29,.09),0 3px 12px rgba(40,34,29,.035),inset 0 1px 0 #fff;
+}
+.emptyMode .upstreamComposer{margin-top:8px;padding:15px 16px 13px;gap:7px 12px}
+.upstreamComposer:focus-within,.emptyMode .upstreamComposer:focus-within{border-color:rgba(229,104,26,.24);box-shadow:0 26px 74px rgba(40,34,29,.105),0 0 0 3px rgba(238,108,25,.055)}
+.emptyMode .upstreamComposer .editorRow{padding:4px 8px 0}
+.emptyMode .upstreamComposer .promptCycleHint{left:9px;right:9px;top:8px;gap:11px}
+.promptSpark{width:32px;height:32px;border-radius:11px;background:linear-gradient(145deg,#fff5ee,#ffe9db);color:#e75f07;box-shadow:0 5px 14px rgba(225,92,8,.09)}
+.upstreamComposer .promptCycleHint .promptCycleLabel,.emptyMode .upstreamComposer .promptCycleHint .promptCycleLabel{color:#7d7874;font-size:15px}
+.upstreamComposer .promptCycleHint kbd,.emptyMode .upstreamComposer .promptCycleHint kbd{border:0;background:#f4f2f0;color:#aaa49f;box-shadow:none}
+
+.composerBillingBar{
+  min-height:32px;padding:7px 5px 8px;border:0;border-top:1px solid #f0ece9;border-radius:0;background:transparent;color:#827d78;
+}
+.billingNow{gap:7px}.billingNow strong{color:#302c29;font-size:11px;font-weight:680}.billingStatusDot{width:6px;height:6px;background:#32aa72;box-shadow:0 0 0 4px rgba(50,170,114,.09)}
+.inlineCostHint{border-left-color:#e9e4e0;color:#928d88}
+.billingGuideToggle{padding:6px 9px;border-radius:9px;color:#d85b08;font-size:10px}.billingGuideToggle:hover{background:#fff1e7}
+.billingGuide{gap:7px;padding:3px 0 5px}
+.billingGuideCard{grid-template-columns:30px minmax(0,1fr);gap:9px;padding:9px 10px;border-color:#eeeae7;border-radius:12px;background:rgba(255,255,255,.8);box-shadow:0 3px 12px rgba(44,38,34,.025)}
+.billingGuideCard.textCard{border-color:#f4d8c5;background:#fff8f3}.billingGuideIcon{width:30px;height:30px;border-radius:9px}.billingGuide>p{color:#a09a95}
+
+.emptyMode .toolbarLeft,.emptyMode .toolbarRight{height:42px}
+.upstreamComposer .roundIconBtn.assetTrigger,.upstreamComposer .roundIconBtn.skillButton,.upstreamComposer .roundIconBtn.reasoningButton,.upstreamComposer .settingPill{
+  height:36px;border:1px solid transparent;border-radius:12px;background:#f5f3f1;color:#55504c;transition:.17s ease;
+}
+.upstreamComposer .roundIconBtn.assetTrigger:hover,.upstreamComposer .roundIconBtn.skillButton:hover,.upstreamComposer .roundIconBtn.reasoningButton:hover,.upstreamComposer .settingPill:hover{border-color:#e9e3df;background:#fff;color:#2c2926;box-shadow:0 4px 11px rgba(44,38,34,.06)}
+.emptyMode .modelSlot{height:36px;min-width:238px;padding:0 4px 0 10px;border:1px solid transparent;border-radius:12px;background:#f5f3f1;gap:7px}
+.emptyMode .modelSlot:hover{border-color:#e9e3df;background:#fff}
+.emptyMode .modelSlotLabel{color:#8a847f;font-size:10px;letter-spacing:.02em}
+.emptyMode .modelSlot :deep(.t-input){height:32px!important;padding-left:7px!important;border:0!important;background:transparent!important;box-shadow:none!important;color:#302c29!important}
+.emptyMode .modelSlot :deep(.t-input__inner){font-size:12px;font-weight:620}
+.emptyMode .sendButton{height:38px!important;min-width:108px!important;border-radius:13px!important;background:linear-gradient(135deg,#262321,#171615)!important;box-shadow:0 9px 20px rgba(25,22,20,.18)!important}
+.emptyMode .sendButton:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 12px 24px rgba(25,22,20,.23)!important}
+.emptyMode .sendButton:disabled{background:#f2f0ee!important;color:#b8b3af!important;box-shadow:none!important}
+
+@media(max-width:760px){
+  .creationDock{height:96px}.creationDockMascot{right:12px;bottom:46px;width:116px;height:70px}
+  .emptyMode .creationTabs{height:48px;padding:5px;border-radius:17px}.emptyMode .creationTabs button{height:36px;min-width:104px;border-radius:12px}
+  .emptyMode .creationTabs .categoryIcon{width:21px;height:21px}.emptyMode .upstreamComposer{border-radius:22px;padding:12px}
+  .composerBillingBar{align-items:center}.billingGuideToggle{white-space:nowrap}.emptyMode .modelSlot{min-width:205px}
 }
 </style>
 

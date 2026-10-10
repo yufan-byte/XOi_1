@@ -49,8 +49,6 @@ const server = createServer((req,res) => {
 });
 await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const fixture = process.env.VIDEO_FIXTURE;
-if (!fixture) throw new Error('Set VIDEO_FIXTURE to a local MP4/WebM');
 const sharedBrowser = Boolean(process.env.BROWSER_CDP_URL);
 const browser = sharedBrowser ? await chromium.connectOverCDP(process.env.BROWSER_CDP_URL) : await chromium.launch({headless:true,args:['--disable-gpu']});
 const context = await browser.newContext();
@@ -75,6 +73,14 @@ try {
   assert.equal(await page.locator('.creativeWorkspace, .assistantModeBar, .analysisHandoff').count(),0);
   assert.equal(await page.locator('.bannerStage').count(),1,'Restore original creation carousel');
   assert.equal(await page.locator('.creationTabs button').count(),5);
+  assert.equal(await page.locator('.mainScrollArea .creationTabs').count(),0,'Categories must not move back under the carousel');
+  assert.equal(await page.locator('.creationDock .creationTabs').count(),1,'Restore user placement immediately above composer');
+  assert.equal(await page.locator('.composerBillingBar').count(),1,'Keep the model and cost controls');
+  assert.equal(await page.locator('.sendButtonLabel').innerText(),'进入画布');
+  const dockPosition=await page.evaluate(()=>{const dock=document.querySelector('.creationDock'), composer=document.querySelector('.upstreamComposer');const a=dock.getBoundingClientRect(),b=composer.getBoundingClientRect();return {adjacent:dock.nextElementSibling===composer,gap:b.top-a.bottom,active:getComputedStyle(dock.querySelector('button.active')).backgroundImage};});
+  assert.equal(dockPosition.adjacent,true);
+  assert.ok(dockPosition.gap>=0 && dockPosition.gap<=20,'Categories sit beside the composer without a viewport-height gap');
+  assert.match(dockPosition.active,/linear-gradient/,'Keep the user’s light selected tab style');
   await page.getByLabel('测试模型').selectOption('newapi:vision-model');
   await page.locator('.skillButton').click();
   await page.locator('.skillOption').filter({hasText:'影视分镜'}).click();
@@ -91,7 +97,7 @@ try {
   assert.equal(handoff.assets[0].name,'reference.png');
   assert.equal(requests.filter(url=>url.includes('/chat/stream')).length,0,'Homepage must route to the original canvas Agent');
   assert.deepEqual(failures,[]);
-  console.log('PASS: restored creation homepage; original carousel/settings; skill and attachment handoff; no standalone analysis call');
+  console.log('PASS: restored user-designed homepage; categories beside composer; light selected tab; billing controls; original canvas handoff; no standalone analysis call');
 } finally {
   await context.close();
   if (!sharedBrowser) await browser.close();
