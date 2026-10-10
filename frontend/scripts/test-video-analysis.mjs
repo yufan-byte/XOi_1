@@ -74,9 +74,12 @@ try {
   assert.equal(await page.locator(".analysisHandoff").count(), 2);
   assert.equal(await page.locator(".messageWrapper.assistant").last().locator(".typingIndicator").count(), 0);
 
-  // Mode switches archive text-only history, and mobile composer controls stay usable.
+  // Mode switches preserve the active conversation and sampled frames; mobile controls stay usable.
   await page.getByRole("button", { name: "▧ 画布创作", exact: true }).click();
   await page.getByRole("button", { name: "◉ 分析助手", exact: true }).click();
+  await page.locator(".messageWrapper").first().waitFor();
+  assert.equal(await page.locator(".analysisHandoff").count(), 2);
+  assert.equal(await page.locator(".analysisFrameStrip img").count(), 24);
   await page.setViewportSize({ width: 390, height: 844 });
   const collapse = page.getByRole("button", { name: "收起侧栏", exact: true });
   if (await collapse.isVisible()) await collapse.click();
@@ -86,11 +89,10 @@ try {
   const stored = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("xo_assistant_sessions")).map(([, value]) => value).join(""));
   assert.ok(!stored.includes("data:image/jpeg;base64"), "Do not persist sampled images in conversation history");
 
-  // Remove the failed video's chip before transferring the successful report to canvas.
+  // Report-only handoff ignores the failed video still in the composer.
   await page.setViewportSize({ width: 1365, height: 1050 });
   await page.getByRole("button", { name: "分析历史", exact: true }).click();
   await page.locator(".conversationList li").first().click();
-  await page.locator(".editorSkills button").filter({ hasText: /mp4|webm/ }).click();
   await page.locator(".analysisHandoff").first().click();
   await page.waitForURL(/#\/canvas/);
   const handoff = await page.evaluate(() => JSON.parse(localStorage.getItem("xoi_canvas_handoff_v1")));
