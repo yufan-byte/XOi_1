@@ -352,10 +352,12 @@ export function XoiCanvasBackControl() {
     if (!back) return null;
     const toChat = back === "aiAssistant";
     const toSquare = back === "square";
+    const toDirector = back === "director3d";
     const go = () => {
         sessionStorage.removeItem(BACK_KEY);
         // 宿主 Vue 工作台是对话页 / 灵感广场（同源 iframe，沿用 app-top-nav 的回跳写法）
-        const parentHash = toChat ? "#/aiAssistant" : toSquare ? "#/square" : "";
+        const directorScene = sessionStorage.getItem("xoi_director_return_scene_v1") || "";
+        const parentHash = toChat ? "#/aiAssistant" : toSquare ? "#/square" : toDirector ? `#/director3d${directorScene ? `?scene=${encodeURIComponent(directorScene)}` : ""}` : "";
         if (parentHash) {
             if (window.parent !== window) window.parent.location.hash = parentHash;
             else window.location.hash = parentHash;
@@ -365,7 +367,7 @@ export function XoiCanvasBackControl() {
     };
     return (
         <div data-xoi-canvas-back className="pointer-events-auto absolute left-1/2 top-4 z-[90] -translate-x-1/2">
-            <Button icon={<ArrowLeft className="size-4" />} onClick={go}>{toChat ? "回到对话" : toSquare ? "回到广场" : "返回首页"}</Button>
+            <Button icon={<ArrowLeft className="size-4" />} onClick={go}>{toChat ? "回到对话" : toSquare ? "回到广场" : toDirector ? "返回导演台" : "返回首页"}</Button>
         </div>
     );
 }

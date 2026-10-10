@@ -76,3 +76,6 @@ deploy/
 # Python 工具脚本的字节码缓存
 __pycache__/
 *.pyc
+
+# 购买的完整技能包由本地导入，部署时单独同步。
+backend/data/skills/purchased/

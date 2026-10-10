@@ -1,5 +1,10 @@
 <template>
-  <main v-if="isLibrary" class="director3d-library">
+  <main v-if="identityState !== 'ready'" class="director-identity-gate">
+    <h1>{{ identityState === 'checking' ? '正在验证账号' : '暂时无法打开导演工作台' }}</h1>
+    <p>{{ identityState === 'checking' ? '确认登录身份后载入你的场景。' : identityError }}</p>
+    <button v-if="identityState === 'error'" type="button" @click="loadDirectorIdentity">重新验证</button>
+  </main>
+  <main v-else-if="isLibrary" class="director3d-library">
     <section class="director-library-hero">
       <div class="director-library-grid" aria-hidden="true"></div>
       <div class="director-library-copy">
@@ -67,6 +72,7 @@
         <span>＋</span>
       </button>
     </div>
+    <DirectorSkillsPanel :key="`skills-${activeProjectId}`" :project-id="activeProjectId" :owner-id="ownerId" :project-name="currentProject?.name || '未命名场景'" :get-iframe="() => iframeRef" />
     <iframe
       ref="iframeRef"
       :key="activeProjectId"
@@ -155,7 +161,7 @@
         </div>
         <footer class="project-dialog-footer">
           <button class="project-footer-button" type="button" @click="goToLibrary">返回导演台库</button>
-          <button class="project-footer-button" type="button" @click="openRenameProject">重命名当前场景</button>
+          <button class="project-footer-button" type="button" @click="() => openRenameProject()">重命名当前场景</button>
           <button class="project-footer-button danger" type="button" :disabled="projects.length === 1" @click="() => openDeleteProject()">删除当前场景</button>
         </footer>
 
@@ -187,6 +193,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import DirectorSkillsPanel from "@/components/director/DirectorSkillsPanel.vue";
 import directorLibraryHero from "@/assets/director3d/director-library-hero.png";
 import directorProjectPreview from "@/assets/director3d/director-project-preview.png";
 
@@ -211,27 +218,31 @@ type DirectorProject = {
   updatedAt?: number;
 };
 
-const PROJECTS_STORAGE_KEY = "director3d-projects-v1";
-const ACTIVE_PROJECT_STORAGE_KEY = "director3d-active-project-v1";
-const LEGACY_PROJECT_ID = "director3d-main";
 const route = useRoute();
 const router = useRouter();
+const identityState = ref<"checking" | "ready" | "error">("checking");
+const identityError = ref("");
+const ownerId = ref("");
+const verifiedToken = ref("");
+const projectsStorageKey = () => `director3d-projects-v2:u${ownerId.value}`;
+const activeProjectStorageKey = () => `director3d-active-project-v2:u${ownerId.value}`;
+const isOwnedProjectId = (id: string) => id.startsWith(`director3d-u${ownerId.value}-`);
 
 function getInitialProjects(): DirectorProject[] {
   try {
-    const stored = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY) || "[]");
+    const stored = JSON.parse(localStorage.getItem(projectsStorageKey()) || "[]");
     if (Array.isArray(stored) && stored.length) {
-      return stored.filter((item): item is DirectorProject => typeof item?.id === "string" && typeof item?.name === "string");
+      const owned = stored.filter((item): item is DirectorProject => typeof item?.id === "string" && isOwnedProjectId(item.id) && typeof item?.name === "string");
+      if (owned.length) return owned;
     }
   } catch {
-    // 使用下面的迁移默认值
+    // 本账号的新场景从空白开始，旧公共工程归属不明，不自动迁移。
   }
-  // 迁移既有独立导演台，让此前的创作内容成为第一个可见文件。
-  return [{ id: LEGACY_PROJECT_ID, name: "1号场景", createdAt: Date.now() }];
+  return [{ id: `director3d-u${ownerId.value}-${crypto.randomUUID()}`, name: "1号场景", createdAt: Date.now() }];
 }
 
-const projects = ref<DirectorProject[]>(getInitialProjects());
-const activeProjectId = ref(localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY) || projects.value[0].id);
+const projects = ref<DirectorProject[]>([]);
+const activeProjectId = ref("");
 const projectPanelVisible = ref(false);
 const emptyOnFirstLoad = new Set<string>();
 const projectAction = ref<"rename" | "delete" | null>(null);
@@ -239,10 +250,49 @@ const projectActionTargetId = ref<string | null>(null);
 const projectNameDraft = ref("");
 const projectBarMetrics = ref({ width: "192px", height: "56px" });
 const isLibrary = computed(() => !route.query.scene);
-const sortedProjects = computed(() => [...projects.value].sort((a, b) => a.createdAt - b.createdAt));
+const sortedProjects = computed(() => [...projects.value].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)));
 
-if (!projects.value.some((project) => project.id === activeProjectId.value)) {
-  activeProjectId.value = projects.value[0].id;
+async function loadDirectorIdentity() {
+  identityState.value = "checking";
+  try {
+    const token = localStorage.getItem("token") || "";
+    if (!token) throw new Error("请先登录后使用导演工作台");
+    const response = await fetch("/api/auth/me", { headers: { Authorization: token }, cache: "no-store" });
+    if (!response.ok) throw new Error("登录身份验证失败，请重新登录");
+    const data = await response.json();
+    const userId = Number(data?.user?.id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) throw new Error("账号身份无效");
+    if (localStorage.getItem("token") !== token) throw new Error("账号已切换，请重新验证");
+    ownerId.value = String(userId);
+    verifiedToken.value = token;
+    projects.value = getInitialProjects();
+    const savedId = localStorage.getItem(activeProjectStorageKey());
+    activeProjectId.value = projects.value.some((project) => project.id === savedId) ? savedId! : projects.value[0].id;
+    const scene = Array.isArray(route.query.scene) ? route.query.scene[0] : route.query.scene;
+    if (scene && !projects.value.some((project) => project.id === scene)) {
+      await router.replace({ path: "/director3d" });
+    } else if (scene) {
+      activeProjectId.value = scene;
+    }
+    persistProjectState();
+    identityState.value = "ready";
+  } catch (error) {
+    ownerId.value = "";
+    verifiedToken.value = "";
+    projects.value = [];
+    activeProjectId.value = "";
+    identityError.value = error instanceof Error ? error.message : "请检查网络后重试";
+    identityState.value = "error";
+  }
+}
+
+function guardAccountChange() {
+  if (identityState.value === "ready" && localStorage.getItem("token") !== verifiedToken.value) {
+    identityState.value = "checking";
+    projects.value = [];
+    activeProjectId.value = "";
+    void loadDirectorIdentity();
+  }
 }
 
 const currentProject = computed(() => projects.value.find((project) => project.id === activeProjectId.value));
@@ -255,7 +305,7 @@ watch(
   () => route.query.scene,
   (scene) => {
     const id = Array.isArray(scene) ? scene[0] : scene;
-    if (!id || !projects.value.some((project) => project.id === id) || id === activeProjectId.value) return;
+    if (identityState.value !== "ready" || !id || !projects.value.some((project) => project.id === id) || id === activeProjectId.value) return;
     activeProjectId.value = id;
     loading.value = true;
     persistProjectState();
@@ -264,8 +314,9 @@ watch(
 );
 
 function persistProjectState() {
-  localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects.value));
-  localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, activeProjectId.value);
+  if (!ownerId.value) return;
+  localStorage.setItem(projectsStorageKey(), JSON.stringify(projects.value));
+  localStorage.setItem(activeProjectStorageKey(), activeProjectId.value);
 }
 
 function openProject(id: string) {
@@ -306,8 +357,9 @@ function formatProjectDate(timestamp: number) {
 }
 
 function createProject() {
+  if (identityState.value !== "ready") return;
   const nextNumber = projects.value.length + 1;
-  const id = `director3d-${crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+  const id = `director3d-u${ownerId.value}-${crypto.randomUUID()}`;
   projects.value.push({ id, name: `${nextNumber}号场景`, createdAt: Date.now(), updatedAt: Date.now() });
   emptyOnFirstLoad.add(id);
   activeProjectId.value = id;
@@ -329,8 +381,8 @@ function switchProject(id: string) {
   void router.replace({ path: "/director3d", query: { scene: id } });
 }
 
-function openRenameProject() {
-  const project = currentProject.value;
+function openRenameProject(id = currentProject.value?.id) {
+  const project = projects.value.find((item) => item.id === id);
   if (!project) return;
   projectNameDraft.value = project.name;
   projectActionTargetId.value = project.id;
@@ -338,7 +390,7 @@ function openRenameProject() {
 }
 
 function confirmRenameProject() {
-  const project = currentProject.value;
+  const project = projects.value.find((item) => item.id === projectActionTargetId.value);
   const name = projectNameDraft.value.trim();
   if (!project || !name) return;
   project.name = name;
@@ -436,6 +488,7 @@ function formatBytes(bytes: number): string {
 
 // MONOFORM 出站协议仅两条：{source:'monoform', type:'export', kind:'image'|'video', blob, width?, height?}
 async function handleMessage(event: MessageEvent) {
+  if (identityState.value !== "ready" || event.origin !== window.location.origin || event.source !== iframeRef.value?.contentWindow) return;
   const data = event.data;
   if (!data || data.source !== "monoform" || data.type !== "export" || !data.blob) {
     return;
@@ -504,15 +557,37 @@ async function sendExportToCanvas() {
 
 onMounted(() => {
   window.addEventListener("message", handleMessage);
+  window.addEventListener("storage", guardAccountChange);
+  window.addEventListener("focus", guardAccountChange);
+  void loadDirectorIdentity();
 });
 
 onUnmounted(() => {
   window.removeEventListener("message", handleMessage);
+  window.removeEventListener("storage", guardAccountChange);
+  window.removeEventListener("focus", guardAccountChange);
   dismissExport();
 });
 </script>
 
 <style scoped lang="scss">
+.director-identity-gate {
+  min-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #f7f7f6;
+  color: #292929;
+  text-align: center;
+
+  h1 { margin: 0; font-size: 22px; font-weight: 650; }
+  p { margin: 0; color: #777; font-size: 14px; }
+  button { margin-top: 8px; padding: 10px 18px; border: 1px solid #ddd; border-radius: 9px; background: #fff; cursor: pointer; }
+}
+
+
 .director3d-library {
   --director-accent: #f57442;
   --director-accent-bright: #ff8a57;

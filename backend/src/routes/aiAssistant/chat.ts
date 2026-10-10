@@ -1,7 +1,7 @@
 import express from "express";
 import u from "@/utils";
 import { success, error } from "@/lib/responseFormat";
-import { assertAllowedVendor, getUserGatewayCredentials } from "@/lib/gateway/newapi";
+import { getAssistantAiConfig } from "@/utils/aiAssistant/modelConfig";
 import fs from "fs";
 import path from "path";
 import isPathInside from "is-path-inside";
@@ -36,33 +36,6 @@ async function buildSkillsContext(input: unknown): Promise<string> {
   return blocks.length ? `\n\n本轮已由用户启用以下 Skills。请遵循其中与请求相关的工作流：\n${blocks.join("\n\n")}` : "";
 }
 
-// 模型选择由管理员统一配置，凭据按当前 new-api 用户动态取得。
-async function getAiConfig(userId: number, requestedModel?: unknown): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
-  const agentConfig = await u.db("o_agentDeploy").where("key", "universalAi").first();
-  if (!agentConfig) return null;
-  const configured = String(agentConfig.modelName || agentConfig.model || "").trim();
-  if (!configured) return null;
-  const separator = configured.indexOf(":");
-  const vendorId = separator >= 0 ? configured.slice(0, separator) : String(agentConfig.vendorId || "newapi");
-  let model = separator >= 0 ? configured.slice(separator + 1) : configured;
-  assertAllowedVendor(vendorId);
-  if (vendorId !== "newapi") throw new AssistantError("AI 助手必须配置为 NewAPI 模型");
-  if (requestedModel) {
-    const requested = String(requestedModel).trim();
-    const requestedSeparator = requested.indexOf(":");
-    const requestedVendor = requestedSeparator >= 0 ? requested.slice(0, requestedSeparator) : "";
-    const requestedName = requestedSeparator >= 0 ? requested.slice(requestedSeparator + 1) : requested;
-    if (requestedVendor !== "newapi" || !requestedName) throw new AssistantError("所选模型不是 NewAPI 可用模型");
-    const available = await u.vendor.getModelList("newapi");
-    if (!available.some((item: any) => String(item?.modelName || "") === requestedName && item?.type === "text")) {
-      throw new AssistantError("所选模型当前不可用，请重新选择");
-    }
-    model = requestedName;
-  }
-  const credentials = await getUserGatewayCredentials(userId);
-  return { ...credentials, model };
-}
-
 // 主站分析助手：只授予视觉分析权限，画布创作由 /canvas 的独立 Agent 处理。
 router.post("/stream", async (req, res) => {
   const controller = new AbortController();
@@ -82,7 +55,7 @@ router.post("/stream", async (req, res) => {
   try {
     const { skills = [], model: requestedModel } = req.body;
     const { content, messages, video } = await validateAssistantInput(req.body);
-    const aiConfig = await getAiConfig(Number((req as any).user?.id), requestedModel);
+    const aiConfig = await getAssistantAiConfig(Number((req as any).user?.id), requestedModel);
     if (!aiConfig) throw new AssistantError("未配置 AI 模型，请联系管理员配置供应商和 Agent");
     const skillsContext = await buildSkillsContext(skills);
     const apiMessages: Message[] = [
@@ -115,7 +88,7 @@ router.post("/", async (req, res) => {
     return res.status(400).json(error("内容不能为空"));
   }
 
-  const aiConfig = await getAiConfig(Number(userId), requestedModel);
+  const aiConfig = await getAssistantAiConfig(Number(userId), requestedModel);
   if (!aiConfig) {
     return res.status(400).json(error("未配置AI模型，请联系管理员在设置中配置供应商和Agent"));
   }
