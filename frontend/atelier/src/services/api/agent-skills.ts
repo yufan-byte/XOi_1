@@ -1,4 +1,13 @@
-import { apiPost } from "@/services/api/request";
+import { DIRECTOR_SKILLS } from "../../../../../shared/directorSkills";
+import { backendJson } from "@/xoi/backend";
+import { getOwnerTag, ownerDbName } from "@/xoi/owner";
+import localforage from "localforage";
+
+async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+    const result = await backendJson<{ code: number; data: T; message?: string }>(path, { method: "POST", json: body || {} });
+    if (result.code !== 200 && result.code !== 0) throw new Error(result.message || "技能读取失败");
+    return result.data;
+}
 
 export const AGENT_SKILL_CONTENT_MAX_LENGTH = 20_000;
 
@@ -31,14 +40,15 @@ function frontmatter(content: string) {
 export async function fetchSystemAgentSkills() {
     try {
         const paths = await apiPost<string[]>("/api/setting/skillManagement/getSkillList");
-        const selected = (paths || []).filter((path) => /\.md$/i.test(path)).slice(0, 80);
+        const selected = (paths || []).filter((path) => /\.md$/i.test(path) && (!path.startsWith("purchased/") || /\/SKILL\.md$/i.test(path))).slice(0, 80);
         const remote = await Promise.all(selected.map(async (path, sort): Promise<AgentSkill> => {
             const content = await apiPost<string>("/api/setting/skillManagement/getSkillContent", { path });
             const meta = frontmatter(content);
+            const director = DIRECTOR_SKILLS.find((skill) => path === `purchased/director/${skill.id}/SKILL.md`);
             const fallback = path.split("/").at(-2) || path.split("/").pop()?.replace(/\.md$/i, "") || path;
-            return { id: path, ownerUserId: "", source: "system", name: meta.name || fallback, description: meta.description || "系统创作工作流", coverUrl: "", coverStorageKey: "", content, enabled: true, sort, createdAt: "", updatedAt: "", hasFiles: /\/SKILL\.md$/i.test(path) };
+            return { id: path, ownerUserId: "", source: "system", name: director?.name || meta.name || fallback, description: director?.description || meta.description || "系统创作工作流", coverUrl: "", coverStorageKey: "", content, enabled: true, sort, createdAt: "", updatedAt: "", hasFiles: /\/SKILL\.md$/i.test(path) };
         }));
-        if (remote.length) return remote;
+        if (remote.length) return [...BUILTIN_SAFE_SKILLS, ...remote];
     } catch {
         // 本地宿主未部署系统 Skill 接口时使用安全内置库。
     }
@@ -54,16 +64,33 @@ const BUILTIN_SAFE_SKILLS: AgentSkill[] = [
 ];
 
 export async function fetchSystemAgentSkillFile(id: string, path: string) {
+    if (!/\/SKILL\.md$/i.test(id) || !path || /^[\\/]/.test(path) || path.split(/[\\/]/).includes("..")) throw new Error("只能读取当前技能目录内的辅助文件");
     const root = id.replace(/\/SKILL\.md$/i, "");
     return { path, kind: "file" as const, content: await apiPost<string>("/api/setting/skillManagement/getSkillContent", { path: `${root}/${path}` }), sort: 0 };
 }
 
+function userLibrary() {
+    return localforage.createInstance({ name: ownerDbName("agent_skills"), storeName: "library" });
+}
 export async function fetchUserAgentSkills(_token: string) {
-    return [] as AgentSkill[];
+    const items = await userLibrary().getItem<AgentSkill[]>("items");
+    return Array.isArray(items) ? items : [];
 }
-export async function saveUserAgentSkill(_token: string, skill: Partial<AgentSkill>) {
-    return skill as AgentSkill;
+export async function saveUserAgentSkill(token: string, patch: Partial<AgentSkill>) {
+    const items = await fetchUserAgentSkills(token);
+    const previous = items.find(item => item.id === patch.id);
+    const now = new Date().toISOString();
+    const skill: AgentSkill = {
+        id: previous?.id || `user-skill-${crypto.randomUUID()}`, ownerUserId: getOwnerTag(), source: "user",
+        name: patch.name?.trim() || previous?.name || "未命名技能", description: patch.description || "", coverUrl: patch.coverUrl || "", coverStorageKey: patch.coverStorageKey || "",
+        content: patch.content?.trim() || "", enabled: true, sort: previous?.sort || 0, createdAt: previous?.createdAt || now, updatedAt: now,
+    };
+    if (!skill.content || Array.from(skill.content).length > AGENT_SKILL_CONTENT_MAX_LENGTH) throw new Error("技能内容须在 1–20000 字之间");
+    await userLibrary().setItem("items", [skill, ...items.filter(item => item.id !== skill.id)]);
+    return skill;
 }
-export async function deleteUserAgentSkill(_token: string, _id: string) {
+export async function deleteUserAgentSkill(token: string, id: string) {
+    const items = await fetchUserAgentSkills(token);
+    await userLibrary().setItem("items", items.filter(item => item.id !== id));
     return true;
 }

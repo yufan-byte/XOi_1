@@ -1,7 +1,8 @@
 "use client";
+import "./canvas-skill-library.css";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { FileUp, Pencil, Search, Trash2, Wrench } from "lucide-react";
+import { Check, FileUp, Pencil, Search, Trash2, Wrench } from "lucide-react";
 import { App, Button, Empty, Form, Input, Modal, Popover, Spin } from "antd";
 
 import { AgentSkillCover, AgentSkillCoverEditor } from "@/components/agent-skill-cover";
@@ -32,8 +33,9 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     const [form] = Form.useForm<Pick<AgentSkill, "name" | "description" | "coverUrl" | "coverStorageKey" | "content">>();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
-    const [tab, setTab] = useState<"system" | "user">("system");
+    const [tab, setTab] = useState<"all" | "director" | "system" | "user">("all");
     const [query, setQuery] = useState("");
+    const [previewId, setPreviewId] = useState("");
     const [editingSkill, setEditingSkill] = useState<AgentSkill | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const editingCoverUrl = Form.useWatch("coverUrl", form);
@@ -45,8 +47,11 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
 
     const skills = useMemo(() => {
         const keyword = query.trim().toLowerCase();
-        return (tab === "system" ? systemSkills : userSkills).filter((skill) => !keyword || `${skill.name} ${skill.description}`.toLowerCase().includes(keyword));
+        const source = tab === "user" ? userSkills : tab === "system" ? systemSkills.filter(skill => !skill.id.startsWith("purchased/director/")) : tab === "director" ? systemSkills.filter(skill => skill.id.startsWith("purchased/director/")) : [...systemSkills, ...userSkills];
+        return source.filter(skill => !keyword || `${skill.name} ${skill.description}`.toLowerCase().includes(keyword));
     }, [query, systemSkills, tab, userSkills]);
+    const preview = skills.find(skill => `${skill.source}:${skill.id}` === previewId) || skills[0];
+    const isSelected = (skill: AgentSkill) => selectedSkills?.some(selected => selected.id === skill.id && selected.source === skill.source);
 
     const selectSkill = (skill: AgentSkill) => {
         onSelect({ id: skill.id, name: skill.name, source: skill.source });
@@ -90,50 +95,36 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     };
 
     const content = (
-        <div className="w-[420px] max-w-[calc(100vw-24px)]" onPointerDown={(event) => event.stopPropagation()}>
-            <div className="relative mb-3">
-                <div className="text-sm font-semibold">Skill</div>
-                {tab === "user" ? (
-                    <Button size="small" className="!absolute !right-0 !top-1/2 !-translate-y-1/2" icon={<FileUp className="size-3.5" />} onClick={() => fileInputRef.current?.click()}>
-                        导入
-                    </Button>
-                ) : null}
+        <div className="canvas-skill-library" style={{ "--skill-hover-bg": theme.toolbar.itemHover, "--skill-border": theme.node.stroke, "--skill-muted": theme.node.muted, "--skill-fill": theme.node.fill } as CSSProperties} onPointerDown={event => event.stopPropagation()}>
+            <div className="canvas-skill-search">
+                <Input allowClear prefix={<Search className="size-4 opacity-55" />} placeholder="搜索技能" aria-label="搜索技能" value={query} onChange={event => setQuery(event.target.value)} />
+                <Button size="small" icon={<FileUp className="size-3.5" />} onClick={() => fileInputRef.current?.click()}>导入</Button>
             </div>
-            <div className="mb-3 flex items-center gap-2">
-                <div className="flex shrink-0 rounded-lg p-0.5" style={{ background: theme.node.fill }}>
-                    <button type="button" className="rounded-md px-3 py-1.5 text-xs" style={tab === "system" ? { background: theme.toolbar.activeBg, color: theme.toolbar.activeText } : { color: theme.node.muted }} onClick={() => setTab("system")}>
-                        通用
-                    </button>
-                    <button type="button" className="rounded-md px-3 py-1.5 text-xs" style={tab === "user" ? { background: theme.toolbar.activeBg, color: theme.toolbar.activeText } : { color: theme.node.muted }} onClick={() => setTab("user")}>
-                        我的
-                    </button>
-                </div>
-                <Input allowClear size="small" prefix={<Search className="size-3.5 opacity-55" />} placeholder="搜索 Skill" value={query} onChange={(event) => setQuery(event.target.value)} />
-            </div>
-            <div className="thin-scrollbar h-[260px] overflow-y-auto">
-                <Spin spinning={isLoading}>
-                    {skills.length ? (
-                        skills.map((skill) => (
-                            <div key={skill.id} className="group flex items-center gap-2 rounded-xl px-2 py-2 transition hover:bg-[var(--skill-hover-bg)]" style={{ "--skill-hover-bg": theme.toolbar.itemHover } as CSSProperties}>
-                                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => selectSkill(skill)}>
-                                    <AgentSkillCover name={skill.name} coverUrl={skill.coverUrl} coverStorageKey={skill.coverStorageKey} borderColor={theme.node.stroke} background={theme.node.fill} />
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-sm font-medium">{skill.name}</span>
-                                        <span className="block truncate text-xs opacity-55">{skill.description || "自定义创作工作流"}</span>
-                                    </span>
+            <div className="canvas-skill-columns">
+                <nav className="canvas-skill-categories" aria-label="技能分类">
+                    {([["all", "全部"], ["director", "导演与分镜"], ["system", "通用创作"], ["user", "我的"]] as const).map(([key, label]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => setTab(key)}>{tab === key ? <Check className="size-3.5" /> : <span className="size-3.5" />}{label}</button>)}
+                </nav>
+                <div className="canvas-skill-list thin-scrollbar">
+                    <Spin spinning={isLoading}>
+                        {skills.length ? skills.map(skill => (
+                            <div key={`${skill.source}:${skill.id}`} className="canvas-skill-row" data-active={preview === skill}>
+                                <button type="button" className="canvas-skill-item" onClick={() => setPreviewId(`${skill.source}:${skill.id}`)}>
+                                    <strong>{skill.name}{isSelected(skill) ? <Check className="size-3.5" /> : null}</strong>
+                                    <span>{skill.description || "自定义创作工作流"}</span>
                                 </button>
-                                {tab === "user" ? (
-                                    <span className="flex shrink-0 opacity-0 transition group-hover:opacity-100">
-                                        <Button type="text" shape="circle" size="small" icon={<Pencil className="size-3.5" />} aria-label={`编辑 ${skill.name}`} onClick={() => editSkill(skill)} />
-                                        <Button type="text" shape="circle" size="small" icon={<Trash2 className="size-3.5" />} aria-label={`删除 ${skill.name}`} onClick={() => removeSkill(skill)} />
-                                    </span>
-                                ) : null}
+                                {skill.source === "user" ? <div className="canvas-skill-edit"><Button type="text" size="small" icon={<Pencil className="size-3.5" />} aria-label={`编辑 ${skill.name}`} onClick={() => editSkill(skill)} /><Button type="text" size="small" icon={<Trash2 className="size-3.5" />} aria-label={`删除 ${skill.name}`} onClick={() => removeSkill(skill)} /></div> : null}
                             </div>
-                        ))
-                    ) : (
-                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tab === "system" ? "暂无通用 Skill" : "导入 Markdown 或文本创建 Skill"} />
-                    )}
-                </Spin>
+                        )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tab === "user" ? "导入 Markdown 或文本创建技能" : "没有匹配的技能"} />}
+                    </Spin>
+                </div>
+                {preview ? <section className="canvas-skill-preview" aria-label="技能详情">
+                    <AgentSkillCover name={preview.name} coverUrl={preview.coverUrl} coverStorageKey={preview.coverStorageKey} borderColor={theme.node.stroke} background={theme.node.fill} />
+                    <span className="canvas-skill-kind">{preview.id.startsWith("purchased/director/") ? "导演与分镜" : preview.source === "user" ? "我的技能" : "通用创作"}</span>
+                    <h3>{preview.name}</h3>
+                    <p>{preview.description || "把你的工作流带入画布创作。"}</p>
+                    <small>选择后随下一条消息使用，可在输入框中移除。</small>
+                    <Button type="primary" block onClick={() => selectSkill(preview)}>{isSelected(preview) ? "继续使用" : "使用技能"}</Button>
+                </section> : null}
             </div>
             <input
                 ref={fileInputRef}
@@ -161,13 +152,14 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
         <>
             <Popover
                 trigger="click"
-                placement="topLeft"
+                placement="top"
+                arrow={false}
                 open={open}
                 onOpenChange={setOpen}
                 content={content}
                 styles={{ container: { padding: 14, background: theme.toolbar.panel, color: theme.node.text, border: `1px solid ${theme.node.stroke}`, borderRadius: 16 } }}
             >
-                <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Wrench className="size-4" />} title="Skill" aria-label="Skill" />
+                <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Wrench className="size-4" />} title="技能" aria-label="技能" />
             </Popover>
             <Modal title="编辑 Skill" open={Boolean(editingSkill)} width={920} footer={null} destroyOnHidden onCancel={() => setEditingSkill(null)}>
                 <Form form={form} layout="vertical" requiredMark={false}>

@@ -64,101 +64,36 @@ try {
     URL.createObjectURL=(file)=>{const url=create(file);window.__testBlobUrls.push(url);return url};
   });
   page.on('pageerror',err=>failures.push(err.message));
-  let outcome='success', release;
   const requests=[];
   await page.route('**/api/**',async route=> {
-    if (!route.request().url().includes('/chat/stream')) {await route.fulfill({json:{chat_model:'canvas-model'}});return;}
-    const body=route.request().postDataJSON();requests.push(body);
-    if (outcome==='hold') await new Promise(resolve=>{release=resolve});
-    await route.fulfill({contentType:'text/event-stream',body:outcome==='error' ? 'data: {"error":"视觉模型错误"}\n\n' : 'data: {"content":"分析完成：复刻提示词"}\n\ndata: [DONE]\n\n'}).catch(()=>{});
+    requests.push(route.request().url());
+    await route.fulfill({json:{chat_model:'canvas-model'}});
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   const editor=page.locator('textarea');
-  const send=page.getByRole('button',{name:'发送',exact:true});
-  const videoChip=page.locator('.editorSkills button').filter({hasText:/mp4|webm/});
   await editor.waitFor();
-  assert.equal(await page.getByRole('button',{name:/画布创作|分析助手/}).count(),0,'One composer, no mode switch');
+  assert.equal(await page.locator('.creativeWorkspace, .assistantModeBar, .analysisHandoff').count(),0);
+  assert.equal(await page.locator('.bannerStage').count(),1,'Restore original creation carousel');
+  assert.equal(await page.locator('.creationTabs button').count(),5);
   await page.getByLabel('测试模型').selectOption('newapi:vision-model');
   await page.locator('.skillButton').click();
   await page.locator('.skillOption').filter({hasText:'影视分镜'}).click();
-  assert.equal(requests.length,0,'Choosing skills and models must not invoke a model');
-  if(process.env.SCREENSHOT_DIR) {
-    await page.setViewportSize({width:1440,height:900});
-    await page.screenshot({path:process.env.SCREENSHOT_DIR+'/desktop.png'});
-    await page.setViewportSize({width:390,height:844});
-    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-    await page.screenshot({path:process.env.SCREENSHOT_DIR+'/mobile.png'});
-    await page.setViewportSize({width:1440,height:900});
-  }
-  // A reference-only request runs real browser video extraction automatically.
-  await page.locator('input[type="file"]').setInputFiles(fixture);
-  assert.equal(await send.isEnabled(),true);
-  await send.click();
-  await page.locator('.analysisHandoff').waitFor();
-  assert.equal(requests.length,1);
-  assert.equal(requests[0].model,'newapi:vision-model');
-  assert.equal(requests[0].skills[0],'builtin-film');
-  assert.equal(requests[0].analysisVideo.frames.length,12);
-  assert.equal(await videoChip.count(),0);
-  await page.locator('.videoAnalysisPreview summary').click();
-  assert.equal(await page.locator('.analysisFrameStrip img').count(),12);
-  await editor.fill('节奏再快一点');
-  await send.click();
-  await page.waitForFunction(()=>document.querySelectorAll('.analysisHandoff').length===2);
-  assert.deepEqual(requests[1].messages.map(m=>m.role),['user','assistant']);
-  assert.equal(requests[1].analysisVideo,undefined);
-
-  // Returning to the page resumes the active conversation and its selected skill.
-  await page.waitForTimeout(450);
-  await page.reload();
-  await page.waitForFunction(()=>document.querySelectorAll('.messageWrapper').length===4);
-  assert.equal(await page.locator('.skillCount').innerText(),'1');
-  await editor.fill('设计一段开场');
+  await page.locator('.skillButton').click();
   await page.locator('input[type="file"]').setInputFiles({name:'reference.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=','base64')});
-  await send.click();
-  await page.waitForFunction(()=>document.querySelectorAll('.analysisHandoff').length===3);
-  assert.equal(requests[2].messages.length,4);
-  assert.equal(requests[2].analysisImages.length,1);
-  assert.match(requests[2].analysisImages[0].dataUrl,/^data:image\/jpeg;base64,/);
-
-  outcome='hold';
-  await editor.fill('等待中的请求');
-  await send.click();
-  await page.waitForFunction(()=>document.querySelector('.stopButton'));
-  assert.equal(await page.getByLabel('新建对话').isDisabled(),true);
-  assert.equal(await page.locator('.analysisHandoff').first().isDisabled(),true);
-  await page.getByRole('button',{name:'停止',exact:true}).click();
-  release?.();
-  await send.waitFor();
-
-  outcome='error';
-  await page.locator('input[type="file"]').setInputFiles(fixture);
-  await send.click();
-  await page.getByText('请求失败: 视觉模型错误',{exact:true}).waitFor();
-  assert.equal(await videoChip.count(),1,'A failed reference stays available for retry');
-  await editor.fill('不要让这条未发送草稿混入交接');
-  await page.locator('.analysisHandoff').first().click();
-  await page.waitForURL(/#\/canvas/);
+  await page.locator('.editorSkills button').filter({hasText:'reference.png'}).waitFor();
+  await editor.fill('设计一段产品开场');
+  await page.getByRole('button',{name:'发送',exact:true}).click();
+  assert.match(await page.evaluate(()=>location.hash),/canvas\?source=xoi&handoff=1/);
   const handoff=await page.evaluate(()=>JSON.parse(localStorage.getItem('xoi_canvas_handoff_v1')));
-  assert.match(handoff.prompt,/复刻提示词/);
-  assert.doesNotMatch(handoff.prompt,/未发送草稿/);
-  assert.equal(handoff.assets.length,0);
-  assert.equal(handoff.model,'newapi:vision-model','One chosen model is carried into the plan handoff');
-  assert.match(page.url(),/source=xoi&handoff=1/);
-  await page.evaluate(()=> {localStorage.setItem('token','test.'+btoa(JSON.stringify({id:2}))+'.signature');window.__testUserId.value=2});
-  await page.waitForFunction(()=>document.querySelectorAll('.messageWrapper').length===0);
-  assert.equal(await editor.inputValue(),'');
-  assert.equal(await videoChip.count(),0);
-  // An in-flight response from a previous account must not enter the new account's conversation.
-  outcome='hold';
-  await editor.fill('上一账号的进行中回复');
-  await send.click();
-  await page.waitForFunction(()=>document.querySelector('.stopButton'));
-  await page.waitForTimeout(100);
-  await page.evaluate(()=>{localStorage.setItem('token','test.'+btoa(JSON.stringify({id:3}))+'.signature');window.__testUserId.value=3});
-  release?.();
-  await page.waitForFunction(()=>document.querySelectorAll('.messageWrapper').length===0);
-  assert.equal(await send.count(),1);
+  assert.equal(handoff.prompt,'设计一段产品开场');
+  assert.equal(handoff.model,'newapi:vision-model');
+  assert.equal(handoff.skills[0].path,'builtin-film');
+  assert.equal(handoff.assets[0].name,'reference.png');
+  assert.equal(requests.filter(url=>url.includes('/chat/stream')).length,0,'Homepage must route to the original canvas Agent');
   assert.deepEqual(failures,[]);
-  console.log(JSON.stringify({passed:true,chatRequests:requests.length,checks:['single composer','automatic video extraction','reference-only send','real image rasterization','same conversation follow-up','active conversation resume','busy/stop','failed attachment retry','explicit plan handoff','account isolation']}));
-} finally { await context.close(); if (!sharedBrowser) await browser.close(); await new Promise(resolve=>server.close(resolve)); }
+  console.log('PASS: restored creation homepage; original carousel/settings; skill and attachment handoff; no standalone analysis call');
+} finally {
+  await context.close();
+  if (!sharedBrowser) await browser.close();
+  server.close();
+}

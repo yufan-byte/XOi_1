@@ -9,6 +9,7 @@ import { useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAgentSkillSelection, type CanvasAssistantReference } from "../types";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
+import { CanvasReferenceAnalysisPopover } from "./canvas-reference-analysis-popover";
 import { CanvasAgentSkillPopover } from "./canvas-agent-skill-popover";
 import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
 import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
@@ -103,6 +104,7 @@ export function CanvasAssistantComposer({
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Menu className="size-4" />} aria-label="添加素材" />
                         </Dropdown>
                         {onSkillSelect && onSkillRemove ? <CanvasAgentSkillPopover selectedSkills={selectedSkills} onSelect={onSkillSelect} onDeleteSelected={onSkillRemove} /> : null}
+                        <CanvasReferenceAnalysisPopover references={references} model={effectiveConfig.textModel} skills={selectedSkills} disabled={isRunning} onInsert={report => onPromptChange([prompt.trim(), report].filter(Boolean).join("\n\n"))} />
                         {codexControls}
                         <CanvasImageSettingsPopover
                             config={imageConfig}
