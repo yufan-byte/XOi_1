@@ -88,7 +88,7 @@ export function validateDirectorPlan(input: unknown, skill: DirectorSkill, maxSh
       if (s.camera !== undefined) {
         if (!skill.canApplyCamera) throw new DirectorInputError("这个技能须保留原机位，只能输出制作建议");
         const points = s.camera?.keyframes;
-        if (!Array.isArray(points) || points.length < 2 || points.length > 8 || points[0]?.t !== 0 || points.at(-1)?.t !== 1) throw new DirectorInputError("运镜路径须包含起点、终点，最多 8 个关键点");
+        if (!Array.isArray(points) || points.length < 2 || points.length > 8 || points[0]?.t !== 0 || points[points.length - 1]?.t !== 1) throw new DirectorInputError("运镜路径须包含起点、终点，最多 8 个关键点");
         let last = -1;
         shot.camera = { keyframes: points.map(k => {
           if (typeof k.t !== "number" || !Number.isFinite(k.t) || k.t < 0 || k.t > 1 || k.t <= last) throw new DirectorInputError("运镜时间顺序无效");
