@@ -154,7 +154,7 @@ export function CanvasAssistantPanel({
     const [closing, setClosing] = useState(false);
     const [resizing, setResizing] = useState(false);
     const [composerReferenceIds, setComposerReferenceIds] = useState<string[]>([]);
-    const [selectedSkills, setSelectedSkills] = useState<CanvasAgentSkillSelection[]>([]);
+    const [selectedSkills, setSelectedSkills] = useState<CanvasAgentSkillSelection[]>(() => sessions.find(session => session.id === activeSessionId && (session.provider || "api") === mode)?.activeSkills || []);
     const [removedReferenceIds, setRemovedReferenceIds] = useState<Set<string>>(new Set());
     const [pendingDelete, setPendingDelete] = useState<PendingDeleteConfirmation | null>(null);
     const [codexConfirmations, setCodexConfirmations] = useState<CodexConfirmation[]>([]);
@@ -246,7 +246,7 @@ export function CanvasAssistantPanel({
     const startChatSession = () => {
         setSelectedSkills([]);
         if (activeSession && activeSession.messages.length === 0) {
-            commitSessions(sessionsRef.current, activeSession.id);
+            updateSession(activeSession.id, session => ({ ...session, activeSkills: [] }));
             return;
         }
         const session = createSession(mode);
@@ -261,6 +261,7 @@ export function CanvasAssistantPanel({
             || next.find((session) => (session.provider || "api") === mode);
         if (!selected) { selected = createSession(mode); next.unshift(selected); }
         commitSessions(next, selected.id);
+        if (removing.some(session => session.id === resolvedActiveSessionId)) setSelectedSkills(selected.activeSkills || []);
         if (!next.some((session) => (session.provider || "api") === mode && session.messages.length)) {
             const draft = drafts.current[mode];
             if (draft?.skills === selectedSkills) draft.skills = [];
@@ -270,21 +271,27 @@ export function CanvasAssistantPanel({
         setCheckedChatIds((previous) => previous.filter((id) => !ids.includes(id)));
     };
 
+    const applyComposerSkills = (skills: CanvasAgentSkillSelection[]) => {
+        setSelectedSkills(skills);
+        if (activeSession) updateSession(activeSession.id, session => ({ ...session, activeSkills: skills }));
+    };
+
     const selectComposerSkill = (skill: CanvasAgentSkillSelection) => {
         const existingIndex = selectedSkills.findIndex((selected) => selected.id === skill.id && selected.source === skill.source);
         if (existingIndex >= 0) {
-            setSelectedSkills(selectedSkills.map((selected, index) => (index === existingIndex ? skill : selected)));
+            applyComposerSkills(selectedSkills.map((selected, index) => (index === existingIndex ? skill : selected)));
             return;
         }
         if (selectedSkills.length >= MAX_CANVAS_AGENT_SKILLS) {
             appMessage.warning(`最多选择 ${MAX_CANVAS_AGENT_SKILLS} 个 Skill`);
             return;
         }
-        setSelectedSkills([...selectedSkills, skill]);
+        applyComposerSkills([...selectedSkills, skill]);
     };
 
     const removeComposerSkill = (id: string, source: CanvasAgentSkillSelection["source"]) => {
-        setSelectedSkills((current) => current.filter((skill) => skill.id !== id || skill.source !== source));
+        setSelectedSkills(current => current.filter(skill => skill.id !== id || skill.source !== source));
+        if (activeSession) updateSession(activeSession.id, session => ({ ...session, activeSkills: (session.activeSkills || []).filter(skill => skill.id !== id || skill.source !== source) }));
     };
 
     const executeCanvasTool = async (action: CanvasAgentAction, messageReferenceNodeIds: string[], activeSkills: CanvasAgentSkillSelection[], provider: "api" | "codex", signal: AbortSignal): Promise<CanvasAgentToolResult> => {
@@ -374,7 +381,7 @@ export function CanvasAssistantPanel({
         setPrompt(drafts.current[next]?.prompt || "");
         setComposerReferenceIds(drafts.current[next]?.references || []);
         setRemovedReferenceIds(new Set());
-        setSelectedSkills(drafts.current[next]?.skills || []);
+        setSelectedSkills(drafts.current[next]?.skills || nextSessions.find(session => session.id === activeSessionIdRef.current)?.activeSkills || []);
         setCheckedChatIds([]);
         setDeleteChatIds([]);
     };
@@ -405,7 +412,7 @@ export function CanvasAssistantPanel({
         if (abortRef.current) return;
         if (mode === "codex" && codex.status !== "ready") { setView("connect"); appMessage.info("请先连接本地 Codex 服务"); return; }
         const session = activeSession || createSession(mode);
-        const activeSkills = skillOverride !== undefined ? skillOverride || [] : selectedSkills.length ? selectedSkills : session.activeSkills || [];
+        const activeSkills = skillOverride !== undefined ? skillOverride || [] : selectedSkills;
         let activeSkillContents: Array<{ id: string; source: CanvasAgentSkillSelection["source"]; name: string; content: string; hasFiles?: boolean }> = [];
 
         if (activeSkills.length) {
@@ -443,7 +450,6 @@ export function CanvasAssistantPanel({
         appendMessage(session.id, { id: assistantId, role: "assistant", text: "", status: "thinking", activity: "正在理解画布和创作目标" });
         setPrompt("");
         setComposerReferenceIds([]);
-        setSelectedSkills([]);
         setRemovedReferenceIds(new Set(selectedNodeIds));
 
         const requestConfig = {
@@ -535,6 +541,7 @@ export function CanvasAssistantPanel({
     useEffect(() => {
         if (!initialRequest || consumedInitialRequestRef.current === initialRequest) return;
         consumedInitialRequestRef.current = initialRequest;
+        setSelectedSkills(initialRequest.skills);
         onInitialRequestConsumed?.();
         void sendMessage(initialRequest.prompt, initialRequest.references, initialRequest.skills, initialRequest.skills.length > 0);
     }, [initialRequest, onInitialRequestConsumed]);
@@ -645,7 +652,7 @@ export function CanvasAssistantPanel({
                             onToggleChecked={(id, checked) => setCheckedChatIds((previous) => (checked ? [...new Set([...previous, id])] : previous.filter((item) => item !== id)))}
                             onOpen={(id) => {
                                 commitSessions(sessionsRef.current, id);
-                                setSelectedSkills([]);
+                                setSelectedSkills(sessionsRef.current.find(session => session.id === id)?.activeSkills || []);
                                 setView("chat");
                             }}
                             onRename={(id, title) => updateSession(id, (session) => ({ ...session, title, updatedAt: new Date().toISOString() }))}

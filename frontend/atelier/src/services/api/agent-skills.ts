@@ -40,14 +40,15 @@ function frontmatter(content: string) {
 export async function fetchSystemAgentSkills() {
     try {
         const paths = await apiPost<string[]>("/api/setting/skillManagement/getSkillList");
-        const selected = (paths || []).filter((path) => /\.md$/i.test(path) && (!path.startsWith("purchased/") || /\/SKILL\.md$/i.test(path))).slice(0, 80);
-        const remote = await Promise.all(selected.map(async (path, sort): Promise<AgentSkill> => {
+        const selected = (paths || []).filter((path) => /(?:^|\/)SKILL\.md$/i.test(path) || /^community\/[^/]+\.md$/i.test(path));
+        const results = await Promise.allSettled(selected.map(async (path, sort): Promise<AgentSkill> => {
             const content = await apiPost<string>("/api/setting/skillManagement/getSkillContent", { path });
             const meta = frontmatter(content);
             const director = DIRECTOR_SKILLS.find((skill) => path === `purchased/director/${skill.id}/SKILL.md`);
-            const fallback = path.split("/").at(-2) || path.split("/").pop()?.replace(/\.md$/i, "") || path;
+            const fallback = /(?:^|\/)SKILL\.md$/i.test(path) ? path.split("/").at(-2) || "系统技能" : path.split("/").pop()?.replace(/\.md$/i, "") || path;
             return { id: path, ownerUserId: "", source: "system", name: director?.name || meta.name || fallback, description: director?.description || meta.description || "系统创作工作流", coverUrl: "", coverStorageKey: "", content, enabled: true, sort, createdAt: "", updatedAt: "", hasFiles: /\/SKILL\.md$/i.test(path) };
         }));
+        const remote = results.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
         if (remote.length) return [...BUILTIN_SAFE_SKILLS, ...remote];
     } catch {
         // 本地宿主未部署系统 Skill 接口时使用安全内置库。

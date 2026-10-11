@@ -103,7 +103,7 @@ export function CanvasAssistantComposer({
                         >
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Menu className="size-4" />} aria-label="添加素材" />
                         </Dropdown>
-                        {onSkillSelect && onSkillRemove ? <CanvasAgentSkillPopover selectedSkills={selectedSkills} onSelect={onSkillSelect} onDeleteSelected={onSkillRemove} /> : null}
+                        {onSkillSelect && onSkillRemove ? <CanvasAgentSkillPopover selectedSkills={selectedSkills} onSelect={onSkillSelect} onDeleteSelected={onSkillRemove} onInsertExample={example => onPromptChange([prompt.trim(), example].filter(Boolean).join("\n\n"))} /> : null}
                         <CanvasReferenceAnalysisPopover references={references} model={effectiveConfig.textModel} skills={selectedSkills} disabled={isRunning} onInsert={report => onPromptChange([prompt.trim(), report].filter(Boolean).join("\n\n"))} />
                         {codexControls}
                         <CanvasImageSettingsPopover
