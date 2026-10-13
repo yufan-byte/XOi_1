@@ -363,7 +363,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [agentConfig, setAgentConfig] = useState<CanvasAgentConfig | null>(null);
     const [initialAgentRequest, setInitialAgentRequest] = useState<{ prompt: CanvasPendingAgentRequest["prompt"]; references: CanvasAssistantReference[]; skills: CanvasPendingAgentRequest["skills"] } | null>(null);
     const [viewport, setViewport] = useState<ViewportTransform>({ x: 0, y: 0, k: 1 });
-    const [canvasTool, setCanvasTool] = useState<"select" | "pan">("select");
+    const [canvasTool, setCanvasTool] = useState<"select" | "pan">("pan");
     const [size, setSize] = useState({ width: 1200, height: 720 });
     const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
     const [agentReferenceNodeClick, setAgentReferenceNodeClick] = useState<{ nodeId: string | null; version: number }>({ nodeId: null, version: 0 });

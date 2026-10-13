@@ -1,5 +1,5 @@
 <template>
-  <div class="project">
+  <div class="project director-projects">
     <div class="header project-hero">
       <div class="hero-copy">
         <span class="project-eyebrow">XOi STORY STUDIO</span>
@@ -51,9 +51,10 @@
     <!-- 项目列表 -->
     <div v-else-if="filteredProjects.length > 0" class="list">
       <t-card hoverShadow class="card" v-for="(project, index) in filteredProjects" :key="project.id" :class="`card-${project.projectType}`" @click="openProject(project.id)">
-        <div class="card-visual" aria-hidden="true">
-          <span>{{ project.projectType === 'novel' ? 'NOVEL TO FILM' : 'SCRIPT STUDIO' }}</span>
-          <strong>{{ String(index + 1).padStart(2, '0') }}</strong>
+        <div class="projectSlate">
+          <div class="slateClapper" aria-hidden="true"></div>
+          <div class="slateHeading"><span>导演制作档案 <small>PRODUCTION FILE</small></span><b>#{{ String(project.id).slice(-6) }}</b></div>
+          <div class="slateFields"><span><small>创作方式</small>{{ project.projectType === 'novel' ? '小说改编' : '剧本创作' }}</span><span><small>画幅</small>{{ project.videoRatio || '待设置' }}</span><span :class="`slateState-${progressState(project)}`"><small>制作状态</small>{{ progressState(project) === 'done' ? '已完成' : progressState(project) === 'doing' ? '进行中' : '待开始' }}</span></div>
         </div>
         <div class="cardHead">
           <div class="title">
@@ -762,5 +763,59 @@ function delProjcer(projectId: string | undefined) {
     .toolbar { align-items: stretch; flex-direction: column; }
     .toolbar .search { width: 100%; }
   }
+}
+</style>
+
+<style lang="scss" scoped>
+.director-projects {
+  --td-brand-color:#242a31; --td-brand-color-hover:#39414b; --td-brand-color-active:#161b21;
+  --td-brand-color-light:#e9edf1; --td-brand-color-light-hover:#dfe5eb;
+  --director-amber:#dbab55;
+  padding:20px 24px 32px; background:#f1f3f5; color:#20262e;
+  :deep(.storyWorkspaceHeader) { background:#f8f9fa; border-color:#dbe0e5; border-radius:12px; }
+  :deep(.workspaceIndex) { border-color:#424a55; background:#242a31; color:#e5bd71; border-radius:7px; }
+  :deep(.workspaceEyebrow),:deep(.workspaceCopy p) { color:#727c87; }
+  :deep(.workspaceEyebrow span) { color:#697582; }
+  :deep(.workspaceEyebrow i) { background:#c2cad2; }
+  :deep(.workspaceTitleRow h1) { color:#20262e; }
+  :deep(.workspaceMeta span) { color:#697582; border-color:#dbe0e5; background:#fff; border-radius:5px; }
+  :deep(.addBtn) { border-color:#242a31 !important; background:#242a31 !important; background-image:none !important; color:#fff !important; border-radius:7px; box-shadow:none !important; }
+  :deep(.addBtn:hover) { border-color:#3a4552 !important; background:#3a4552 !important; }
+  .toolbar { margin:0 0 16px; padding:10px 12px; border:1px solid #dce1e6; border-radius:10px; background:#fafbfc; }
+  .toolbar .tabs { gap:6px; }
+  .toolbar .tab { border-radius:6px; color:#77818c; }
+  .toolbar .tab.active { background:#242a31; color:#fff; }
+  .toolbar :deep(.t-input) { background:#fff; border-color:#dbe0e5; border-radius:6px; }
+  .list { grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; }
+  .list :deep(.t-card.card) { padding:0 20px 18px; border-radius:12px; border:1px solid #d7dde4; background:#fff; box-shadow:0 3px 12px #17212e06; }
+  .list :deep(.t-card.card:hover) { transform:translateY(-2px); border-color:#9aa6b3; box-shadow:0 10px 24px #17212e12; }
+  .projectSlate { overflow:hidden; margin:0 -20px 18px; border-radius:11px 11px 0 0; background:linear-gradient(145deg,#2c333d,#1d232b); color:#eef1f5; }
+  .slateClapper { height:14px; border-bottom:2px solid #141a20; background:repeating-linear-gradient(135deg,#424c59 0 19px,#ced4da 19px 38px); }
+  .slateHeading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 18px 15px; }
+  .slateHeading span { display:flex; flex-direction:column; gap:7px; font-size:14px; font-weight:600; }
+  .slateHeading small { color:#9aa7b6; font-size:8px; letter-spacing:.18em; }
+  .slateHeading b { color:#e5bd71; font:500 17px ui-monospace,monospace; }
+  .slateFields { display:grid; grid-template-columns:1fr 1fr 1fr; margin:0 18px 18px; border-top:1px solid #46505d; padding-top:12px; }
+  .slateFields span { display:flex; flex-direction:column; gap:6px; padding-left:10px; border-left:1px solid #46505d; font-size:11px; }
+  .slateFields span:first-child { padding-left:0; border:0; }
+  .slateFields small { color:#96a3b3; font-size:9px; }
+  .slateFields .slateState-done { color:#a9ceba; }
+  .slateFields .slateState-doing { color:#e5bd71; }
+  .list .quick-create { min-height:320px; border:1px dashed #abb7c3; border-radius:12px; background:#e9edf1; color:#4a5664; }
+  .list .quick-create:hover { border-color:#586777; background:#e3e8ee; }
+  .list .quick-create .quick-create-icon { color:#4a5664; background:#dbe2e9; border-radius:8px; }
+  .list .quick-create .quick-create-title { color:#333e4b; }
+  .list .quick-create .quick-create-desc { color:#74808c; }
+  .list .card .cardHead .typeTag { color:#596675; background:#eaf0f5; border-radius:5px; }
+  .list .card .bottomMenu { border-color:#e6eaee; }
+  .list .card .bottomMenu .open-label { color:#485b6e; }
+  .list .card .bottomMenu .editBtn:hover { color:#334b63; background:#e9eff5; }
+  :deep(.t-tag) { color:#596675; background:#f0f3f6; border-color:#dde4eb; border-radius:5px; }
+  :deep(.ppSeg) { border-color:#dce2e8; border-radius:5px; background:#f7f9fb; color:#83909c; }
+  :deep(.ppSeg.state-doing) { border-color:#d5bd88; background:#faf6ec; color:#806326; }
+  :deep(.ppSeg.state-doing .ppDot) { border-color:#b78f46; background:#fff; }
+  :deep(.ppSeg.state-done) { border-color:#d0dbd5; background:#edf3ef; color:#557462; }
+  :deep(.ppSeg.state-done .ppDot) { background:#688c76; }
+  @media(max-width:700px) { padding:14px; .list { grid-template-columns:minmax(0,1fr); } }
 }
 </style>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -31,6 +31,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         hasMoved: false,
         startedOnBackground: false,
     });
+    const viewportRef = useRef(viewport);
     const scaleRef = useRef(viewport.k);
     const frameRef = useRef<number | null>(null);
     const nextViewportRef = useRef<ViewportTransform | null>(null);
@@ -39,7 +40,8 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
 
     useEffect(() => {
         scaleRef.current = viewport.k;
-    }, [viewport.k]);
+        viewportRef.current = viewport;
+    }, [viewport]);
 
     useEffect(
         () => () => {
@@ -82,31 +84,45 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         };
     }, []);
 
-    const handleWheel = (event: React.WheelEvent<HTMLDivElement> | WheelEvent) => {
+    const queueViewportChange = useCallback((next: ViewportTransform) => {
+        nextViewportRef.current = next;
+        if (frameRef.current !== null) return;
+        frameRef.current = requestAnimationFrame(() => {
+            frameRef.current = null;
+            const pending = nextViewportRef.current;
+            nextViewportRef.current = null;
+            if (pending) {
+                viewportRef.current = pending;
+                scaleRef.current = pending.k;
+                onViewportChange(pending);
+            }
+        });
+    }, [onViewportChange]);
+
+    const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement> | WheelEvent) => {
         const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("[data-canvas-no-zoom],.ant-modal,.ant-popover,.ant-dropdown,.ant-select-dropdown,.ant-picker-dropdown")) return;
         if (event instanceof WheelEvent) {
             if (!event.ctrlKey || !containerRef.current?.contains(target)) return;
             event.preventDefault();
             event.stopPropagation();
-        } else if (target?.closest("[data-canvas-no-zoom],.ant-modal,.ant-popover,.ant-dropdown,.ant-select-dropdown,.ant-picker-dropdown")) return;
-
-        const delta = -event.deltaY;
-        const factor = Math.pow(1.1, delta / 100);
-        const newScale = Math.min(Math.max(viewport.k * factor, 0.05), 5);
+        }
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
-
+        const current = nextViewportRef.current || viewportRef.current;
+        const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1);
+        // Mouse wheels change ~28% per 100px; small trackpad deltas remain continuous.
+        const delta = Math.max(-160, Math.min(160, pixels));
+        const factor = Math.exp(-delta * (event.ctrlKey ? 0.008 : 0.0025));
+        const newScale = Math.min(Math.max(current.k * factor, 0.05), 5);
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
-        const worldX = (mouseX - viewport.x) / viewport.k;
-        const worldY = (mouseY - viewport.y) / viewport.k;
-
-        onViewportChange({
-            x: mouseX - worldX * newScale,
-            y: mouseY - worldY * newScale,
+        queueViewportChange({
+            x: mouseX - ((mouseX - current.x) / current.k) * newScale,
+            y: mouseY - ((mouseY - current.y) / current.k) * newScale,
             k: newScale,
         });
-    };
+    }, [containerRef, queueViewportChange]);
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target instanceof Element ? event.target : null;
@@ -169,15 +185,10 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
                 panState.current.hasMoved = true;
             }
 
-            nextViewportRef.current = {
+            queueViewportChange({
                 x: panState.current.initialX + dx,
                 y: panState.current.initialY + dy,
                 k: scaleRef.current,
-            };
-            if (frameRef.current) return;
-            frameRef.current = requestAnimationFrame(() => {
-                frameRef.current = null;
-                if (nextViewportRef.current) onViewportChange(nextViewportRef.current);
             });
         };
 
@@ -201,7 +212,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             window.removeEventListener("pointercancel", handlePointerUp);
             document.body.style.cursor = "";
         };
-    }, [onCanvasDeselect, onViewportChange]);
+    }, [onCanvasDeselect, queueViewportChange]);
 
     useEffect(() => {
         const container = containerRef.current;
