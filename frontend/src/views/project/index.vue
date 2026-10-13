@@ -768,27 +768,14 @@ function delProjcer(projectId: string | undefined) {
 
 <style lang="scss" scoped>
 .director-projects {
-  --td-brand-color:#242a31; --td-brand-color-hover:#39414b; --td-brand-color-active:#161b21;
-  --td-brand-color-light:#e9edf1; --td-brand-color-light-hover:#dfe5eb;
-  --director-amber:#dbab55;
-  padding:20px 24px 32px; background:#f1f3f5; color:#20262e;
-  :deep(.storyWorkspaceHeader) { background:#f8f9fa; border-color:#dbe0e5; border-radius:12px; }
-  :deep(.workspaceIndex) { border-color:#424a55; background:#242a31; color:#e5bd71; border-radius:7px; }
-  :deep(.workspaceEyebrow),:deep(.workspaceCopy p) { color:#727c87; }
-  :deep(.workspaceEyebrow span) { color:#697582; }
-  :deep(.workspaceEyebrow i) { background:#c2cad2; }
-  :deep(.workspaceTitleRow h1) { color:#20262e; }
-  :deep(.workspaceMeta span) { color:#697582; border-color:#dbe0e5; background:#fff; border-radius:5px; }
-  :deep(.addBtn) { border-color:#242a31 !important; background:#242a31 !important; background-image:none !important; color:#fff !important; border-radius:7px; box-shadow:none !important; }
-  :deep(.addBtn:hover) { border-color:#3a4552 !important; background:#3a4552 !important; }
-  .toolbar { margin:0 0 16px; padding:10px 12px; border:1px solid #dce1e6; border-radius:10px; background:#fafbfc; }
+  // Keep the director slate distinct; page chrome inherits the shared creation palette.
+  padding:20px 24px 24px; background:var(--xoi-workspace-bg,#faf8f6);
+  .toolbar { margin:0 0 16px; padding:10px 12px; border:1px solid var(--xoi-workspace-border,#eee7e2); border-radius:14px; background:#fff; }
   .toolbar .tabs { gap:6px; }
-  .toolbar .tab { border-radius:6px; color:#77818c; }
-  .toolbar .tab.active { background:#242a31; color:#fff; }
-  .toolbar :deep(.t-input) { background:#fff; border-color:#dbe0e5; border-radius:6px; }
+  .toolbar .tab.active { background:linear-gradient(135deg,#ff8847,#f26432); color:#fff; }
   .list { grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; }
-  .list :deep(.t-card.card) { padding:0 20px 18px; border-radius:12px; border:1px solid #d7dde4; background:#fff; box-shadow:0 3px 12px #17212e06; }
-  .list :deep(.t-card.card:hover) { transform:translateY(-2px); border-color:#9aa6b3; box-shadow:0 10px 24px #17212e12; }
+  .list :deep(.t-card.card) { padding:0 20px 18px; border-radius:12px; border:1px solid var(--xoi-workspace-border,#eee7e2); background:#fff; box-shadow:0 3px 12px #302b2806; }
+  .list :deep(.t-card.card:hover) { transform:translateY(-2px); border-color:#d7bfae; box-shadow:0 10px 24px #302b2812; }
   .projectSlate { overflow:hidden; margin:0 -20px 18px; border-radius:11px 11px 0 0; background:linear-gradient(145deg,#2c333d,#1d232b); color:#eef1f5; }
   .slateClapper { height:14px; border-bottom:2px solid #141a20; background:repeating-linear-gradient(135deg,#424c59 0 19px,#ced4da 19px 38px); }
   .slateHeading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 18px 15px; }
@@ -801,21 +788,14 @@ function delProjcer(projectId: string | undefined) {
   .slateFields small { color:#96a3b3; font-size:9px; }
   .slateFields .slateState-done { color:#a9ceba; }
   .slateFields .slateState-doing { color:#e5bd71; }
-  .list .quick-create { min-height:320px; border:1px dashed #abb7c3; border-radius:12px; background:#e9edf1; color:#4a5664; }
-  .list .quick-create:hover { border-color:#586777; background:#e3e8ee; }
-  .list .quick-create .quick-create-icon { color:#4a5664; background:#dbe2e9; border-radius:8px; }
-  .list .quick-create .quick-create-title { color:#333e4b; }
-  .list .quick-create .quick-create-desc { color:#74808c; }
-  .list .card .cardHead .typeTag { color:#596675; background:#eaf0f5; border-radius:5px; }
-  .list .card .bottomMenu { border-color:#e6eaee; }
-  .list .card .bottomMenu .open-label { color:#485b6e; }
-  .list .card .bottomMenu .editBtn:hover { color:#334b63; background:#e9eff5; }
-  :deep(.t-tag) { color:#596675; background:#f0f3f6; border-color:#dde4eb; border-radius:5px; }
-  :deep(.ppSeg) { border-color:#dce2e8; border-radius:5px; background:#f7f9fb; color:#83909c; }
-  :deep(.ppSeg.state-doing) { border-color:#d5bd88; background:#faf6ec; color:#806326; }
-  :deep(.ppSeg.state-doing .ppDot) { border-color:#b78f46; background:#fff; }
-  :deep(.ppSeg.state-done) { border-color:#d0dbd5; background:#edf3ef; color:#557462; }
-  :deep(.ppSeg.state-done .ppDot) { background:#688c76; }
+  .list .quick-create { min-height:320px; border:1px dashed #efd9c8; border-radius:12px; background:#fffbf7; }
+  .list .quick-create:hover { border-color:#e6bd9e; background:#fff8f1; }
+  .list .quick-create .quick-create-icon { color:var(--xoi-workspace-accent,#f57438); background:var(--xoi-workspace-tint,#fff1e7); border-radius:8px; }
+  .list .quick-create .quick-create-title { color:var(--xoi-workspace-text,#302b28); }
+  .list .quick-create .quick-create-desc { color:var(--xoi-workspace-muted,#7c7169); }
+  .list .card .cardHead .typeTag { color:#bc764e; background:var(--xoi-workspace-tint,#fff1e7); border-radius:5px; }
+  .list .card .bottomMenu .open-label { color:#bc764e; }
+  :deep(.addBtn) { border-color:var(--xoi-workspace-accent,#f57438); background:var(--xoi-workspace-accent,#f57438); color:#fff; border-radius:10px; box-shadow:none; }
   @media(max-width:700px) { padding:14px; .list { grid-template-columns:minmax(0,1fr); } }
 }
 </style>
