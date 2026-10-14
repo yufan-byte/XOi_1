@@ -134,8 +134,9 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         const isNodeTarget = Boolean(target?.closest("[data-node-id]"));
         const shouldPan = event.button === 1 || (event.button === 0 && activeTool === "pan" && !isNodeTarget);
         if (activeTool === "pan" && (!target || !event.currentTarget.contains(target))) return;
-        if (target?.closest("[data-canvas-no-zoom]") && activeTool !== "pan") return;
-        if (target?.closest("[data-connection-create-menu]")) return;
+        // Capture runs before menu handlers can stop propagation. Let UI controls
+        // receive their own pointer/click events in both select and pan modes.
+        if (target?.closest("[data-canvas-no-zoom],[data-connection-create-menu]")) return;
         const isBackgroundClick = !target?.closest("[data-node-id],[data-connection-id]");
         if (event.button === 0 && isBackgroundClick && document.activeElement instanceof HTMLElement && (document.activeElement.isContentEditable || document.activeElement instanceof HTMLMediaElement)) document.activeElement.blur();
 
