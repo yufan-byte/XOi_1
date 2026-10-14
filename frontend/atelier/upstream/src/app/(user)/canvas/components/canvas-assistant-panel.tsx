@@ -25,7 +25,7 @@ import {
     X,
 } from "lucide-react";
 import { App, AutoComplete, Button, Dropdown, Modal, Segmented, Switch, Tooltip } from "antd";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { nanoid } from "nanoid";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -61,8 +61,8 @@ import { assistantToPromptReference, CanvasAssistantComposer } from "./canvas-as
 import { CanvasCodexConnectView } from "./canvas-codex-connect-view";
 import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
 
-const PANEL_MOTION_MS = 500;
-const PANEL_MOTION_SECONDS = PANEL_MOTION_MS / 1000;
+const PANEL_OPEN_MS = 280;
+const PANEL_CLOSE_MS = 200;
 const ASSISTANT_NODE_TYPE_META = {
     [CanvasNodeType.Image]: { Icon: ImageIcon, label: "图片" },
     [CanvasNodeType.Panorama]: { Icon: ImageIcon, label: "全景图" },
@@ -152,6 +152,8 @@ export function CanvasAssistantPanel({
     const [deleteChatIds, setDeleteChatIds] = useState<string[]>([]);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [closing, setClosing] = useState(false);
+    const reducedMotion = useReducedMotion();
+    const panelMotionMs = reducedMotion ? 0 : closing ? PANEL_CLOSE_MS : PANEL_OPEN_MS;
     const [resizing, setResizing] = useState(false);
     const [composerReferenceIds, setComposerReferenceIds] = useState<string[]>([]);
     const [selectedSkills, setSelectedSkills] = useState<CanvasAgentSkillSelection[]>(() => sessions.find(session => session.id === activeSessionId && (session.provider || "api") === mode)?.activeSkills || []);
@@ -577,7 +579,7 @@ export function CanvasAssistantPanel({
     const collapse = () => {
         setClosing(true);
         onCollapseStart();
-        window.setTimeout(onCollapse, PANEL_MOTION_MS);
+        window.setTimeout(onCollapse, reducedMotion ? 0 : PANEL_CLOSE_MS);
     };
 
     return (
@@ -585,15 +587,15 @@ export function CanvasAssistantPanel({
             className="flex shrink-0"
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: closing ? 0 : width + 1, opacity: closing ? 0 : 1 }}
-            transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: resizing ? 0 : panelMotionMs / 1000, ease: [0.22, 1, 0.36, 1] }}
             style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
         >
             <motion.aside
                 data-canvas-agent-panel
                 className="relative flex shrink-0 flex-col border-l"
-                initial={{ x: 48 }}
-                animate={{ x: closing ? 28 : 0 }}
-                transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ x: reducedMotion ? 0 : 24 }}
+                animate={{ x: closing && !reducedMotion ? 16 : 0 }}
+                transition={{ duration: resizing ? 0 : panelMotionMs / 1000, ease: [0.22, 1, 0.36, 1] }}
                 style={{ width, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             >
                 <button type="button" className="absolute inset-y-0 left-0 z-40 w-4 -translate-x-1/2 cursor-col-resize" onMouseDown={(event) => { event.preventDefault(); startResize(); }} aria-label="调整右侧面板宽度" />

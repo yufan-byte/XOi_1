@@ -153,7 +153,7 @@
 
   <!-- 个人信息弹窗 - 苹果风格居中 -->
   <Teleport to="body">
-    <Transition name="profile-fade">
+    <Transition name="profile-fade" :duration="{ enter: 240, leave: 160 }">
       <div v-if="showUserProfile" class="profile-overlay" @click.self="showUserProfile = false">
         <Transition name="profile-scale">
           <div v-if="showUserProfile" class="profile-modal">
@@ -214,7 +214,7 @@
 
   <!-- 算力明细：复用 console 内已对接 NewAPI logs 的 UsageDialog，不在 Vue 再造第二套账单。 -->
   <Teleport to="body">
-    <Transition name="profile-fade">
+    <Transition name="profile-fade" :duration="{ enter: 240, leave: 160 }">
       <div v-if="usageFrameOpen" class="topup-frame-overlay" @click.self="usageFrameOpen = false">
         <iframe class="topup-frame usage-frame" :src="usageFrameSrc" title="算力与消费明细" />
       </div>
@@ -225,7 +225,7 @@
        轻遮罩 + 模糊，背后主站内容可见；弹窗本体在 iframe 内居中，
        关闭（X / 遮罩 / 支付到账）由 iframe postMessage xoi:topup:close 收起。 -->
   <Teleport to="body">
-    <Transition name="profile-fade">
+    <Transition name="profile-fade" :duration="{ enter: 240, leave: 160 }">
       <div v-if="topupFrameOpen" class="topup-frame-overlay" @click.self="topupFrameOpen = false">
         <iframe class="topup-frame" :src="topupFrameSrc" title="在线充值" />
       </div>
@@ -234,7 +234,7 @@
 
   <!-- 通知公告弹窗（照造物 announcements：静态 JSON 驱动，站长热换 backend/data/web/announcements.json） -->
   <Teleport to="body">
-    <Transition name="profile-fade">
+    <Transition name="profile-fade" :duration="{ enter: 240, leave: 160 }">
       <div v-if="noticeOpen" class="profile-overlay" @click.self="noticeOpen = false">
         <div class="profile-modal notice-modal">
           <div class="profile-close" @click="noticeOpen = false">

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../../../shared/styles/overlay-motion.css";
 @import "./shadcn-theme.css";
 @source "../../../node_modules/streamdown/dist/*.js";
 

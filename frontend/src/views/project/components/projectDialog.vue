@@ -2,8 +2,9 @@
   <div class="addProject">
     <t-dialog
       class="createProjectDialog"
+      @closed="emit('closed')"
       placement="center"
-      v-model:visible="addProjectShow"
+      v-model:visible="dialogVisible"
       :header="false"
       :close-btn="false"
       width="min(1180px, 94vw)"
@@ -295,7 +296,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted } from "vue";
 import axios from "@/utils/axios";
 import { MdEditor } from "md-editor-v3";
 import { resolveThemeMode } from "@/utils/theme";
@@ -318,10 +319,18 @@ import realUrbanCinematicCover from "@/assets/visual-presets/style-real-urban-ci
 import realUrbanCover from "@/assets/visual-presets/style-real-urban.png";
 
 const addProjectShow = defineModel<boolean>();
+// Lazy mounting starts hidden so TDesign can run its first enter transition.
+const dialogVisible = ref(false);
+onMounted(() => { dialogVisible.value = !!addProjectShow.value; });
+watch(addProjectShow, (visible) => { dialogVisible.value = !!visible; });
+watch(dialogVisible, (visible) => {
+  if (visible !== addProjectShow.value) addProjectShow.value = visible;
+});
 const props = defineProps<{
   projectData?: ProjectData | null;
 }>();
 const emit = defineEmits<{
+  (e: "closed"): void;
   (e: "add", data: ProjectFormData): void;
   (
     e: "edit",

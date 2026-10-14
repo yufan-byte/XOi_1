@@ -1,0 +1,178 @@
+/* Shared by the host, canvas and account iframe. Only animate overlay surfaces,
+   never the canvas viewport or Popper's positioning transform. */
+:root {
+  --xoi-motion-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --xoi-motion-exit: cubic-bezier(0.4, 0, 1, 1);
+  --xoi-motion-fast: 160ms;
+  --xoi-motion-dialog: 240ms;
+  --xoi-motion-drawer: 280ms;
+}
+
+@keyframes xoi-dialog-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes xoi-dialog-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(6px) scale(0.99); }
+}
+@keyframes xoi-popup-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes xoi-popup-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.99); }
+}
+@keyframes xoi-mask-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes xoi-mask-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* TDesign owns mount/unmount and scroll locking. The root specificity also
+   keeps lazy-loaded component CSS from restoring the old zoom animation. */
+:root .t-dialog-zoom__vue-enter-active .t-dialog {
+  animation-name: xoi-dialog-in;
+  animation-duration: var(--xoi-motion-dialog);
+  animation-timing-function: var(--xoi-motion-enter);
+}
+:root .t-dialog-zoom__vue-leave-active .t-dialog {
+  animation-name: xoi-dialog-out;
+  animation-duration: var(--xoi-motion-fast);
+  animation-timing-function: var(--xoi-motion-exit);
+  pointer-events: none;
+}
+:root .t-dialog-zoom__vue-enter-active .t-dialog__mask {
+  animation-duration: var(--xoi-motion-fast);
+  animation-timing-function: ease-out;
+}
+:root .t-dialog-zoom__vue-leave-active .t-dialog__mask {
+  animation-duration: var(--xoi-motion-fast);
+}
+:root .t-popup--animation-enter-active {
+  transition: opacity var(--xoi-motion-fast) var(--xoi-motion-enter);
+}
+:root .t-popup--animation-leave-active {
+  transition: opacity var(--xoi-motion-fast) var(--xoi-motion-exit), visibility var(--xoi-motion-fast);
+  pointer-events: none;
+}
+:root .t-popup--animation-enter-active > .t-popup__content {
+  animation: xoi-popup-in var(--xoi-motion-fast) var(--xoi-motion-enter) both;
+}
+:root .t-popup--animation-leave-active > .t-popup__content {
+  animation: xoi-popup-out var(--xoi-motion-fast) var(--xoi-motion-exit) both;
+}
+:root .t-popup--animation-expand-enter-active[data-popper-placement],
+:root .t-popup--animation-expand-leave-active[data-popper-placement] {
+  animation-duration: var(--xoi-motion-fast);
+}
+:root .t-drawer__content-wrapper {
+  transition: transform var(--xoi-motion-drawer) var(--xoi-motion-enter), visibility var(--xoi-motion-drawer);
+}
+:root .t-drawer__mask { transition: opacity var(--xoi-motion-fast) ease-out; }
+
+/* Custom model pickers keep their existing layout and anchor coordinates. */
+.xoi-model-panel {
+  animation: xoi-popup-in var(--xoi-motion-fast) var(--xoi-motion-enter) both;
+  transform-origin: top center;
+}
+
+/* Host-owned teleported menus and dialogs share the same rhythm. */
+:root .foot-dropdown.drop-enter-active,
+:root .tools-popover.tools-pop-enter-active {
+  transition: opacity var(--xoi-motion-fast) var(--xoi-motion-enter), transform var(--xoi-motion-fast) var(--xoi-motion-enter);
+}
+:root .foot-dropdown.drop-leave-active,
+:root .tools-popover.tools-pop-leave-active {
+  transition: opacity var(--xoi-motion-fast) var(--xoi-motion-exit), transform var(--xoi-motion-fast) var(--xoi-motion-exit);
+  pointer-events: none;
+}
+:root .foot-dropdown.drop-enter-from,
+:root .foot-dropdown.drop-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+:root .profile-overlay.profile-fade-enter-active,
+:root .profile-overlay.profile-fade-leave-active,
+:root .topup-frame-overlay.profile-fade-enter-active,
+:root .topup-frame-overlay.profile-fade-leave-active {
+  transition: opacity var(--xoi-motion-fast) ease-out;
+}
+:root .profile-fade-enter-active > .profile-modal {
+  animation: xoi-dialog-in var(--xoi-motion-dialog) var(--xoi-motion-enter) both;
+  transition: none;
+}
+:root .profile-fade-leave-active > .profile-modal {
+  animation: xoi-dialog-out var(--xoi-motion-fast) var(--xoi-motion-exit) both;
+  transition: none;
+  pointer-events: none;
+}
+
+/* Ant Design's generated rules are unlayered too. Specificity keeps these
+   overrides stable regardless of CSS-in-JS injection order. */
+.ant-modal-root .ant-modal:is(.ant-zoom-enter-active, .ant-zoom-appear-active) {
+  animation-name: xoi-dialog-in;
+  animation-duration: var(--xoi-motion-dialog);
+  animation-timing-function: var(--xoi-motion-enter);
+  transform-origin: center !important;
+}
+.ant-modal-root .ant-modal.ant-zoom-leave-active {
+  animation-name: xoi-dialog-out;
+  animation-duration: var(--xoi-motion-fast);
+  animation-timing-function: var(--xoi-motion-exit);
+  transform-origin: center !important;
+}
+.ant-popover:is(.ant-zoom-big-enter-active, .ant-zoom-big-appear-active),
+.ant-tooltip:is(.ant-zoom-big-fast-enter-active, .ant-zoom-big-fast-appear-active),
+.ant-select-dropdown.ant-slide-up-enter-active,
+.ant-dropdown.ant-slide-up-enter-active {
+  animation-name: xoi-popup-in;
+  animation-duration: var(--xoi-motion-fast);
+  animation-timing-function: var(--xoi-motion-enter);
+}
+.ant-popover.ant-zoom-big-leave-active,
+.ant-tooltip.ant-zoom-big-fast-leave-active,
+.ant-select-dropdown.ant-slide-up-leave-active,
+.ant-dropdown.ant-slide-up-leave-active {
+  animation-name: xoi-popup-out;
+  animation-duration: var(--xoi-motion-fast);
+  animation-timing-function: var(--xoi-motion-exit);
+}
+
+/* Radix waits for animationend on closed surfaces before removing the portal.
+   Tailwind uses individual `translate` for centering; leave it untouched. */
+.xoi-dialog-surface[data-state="open"] {
+  animation: xoi-dialog-in var(--xoi-motion-dialog) var(--xoi-motion-enter) both;
+}
+.xoi-dialog-surface[data-state="closed"] {
+  animation: xoi-dialog-out var(--xoi-motion-fast) var(--xoi-motion-exit) both;
+  pointer-events: none;
+}
+.xoi-dialog-mask[data-state="open"] { animation: xoi-mask-in var(--xoi-motion-fast) ease-out both; }
+.xoi-dialog-mask[data-state="closed"] { animation: xoi-mask-out var(--xoi-motion-fast) ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* A nonzero duration preserves the libraries' animationend cleanup. */
+  :root {
+    --xoi-motion-fast: 1ms;
+    --xoi-motion-dialog: 1ms;
+    --xoi-motion-drawer: 1ms;
+  }
+  :root .profile-fade-enter-active > .profile-modal,
+  :root .t-dialog-zoom__vue-enter-active .t-dialog,
+  .ant-modal-root .ant-modal:is(.ant-zoom-enter-active, .ant-zoom-appear-active),
+  .xoi-dialog-surface[data-state="open"] {
+    animation-name: xoi-mask-in;
+  }
+  :root .profile-fade-leave-active > .profile-modal,
+  :root .t-dialog-zoom__vue-leave-active .t-dialog,
+  .ant-modal-root .ant-modal.ant-zoom-leave-active,
+  .xoi-dialog-surface[data-state="closed"] {
+    animation-name: xoi-mask-out;
+  }
+  .ant-drawer .ant-drawer-content-wrapper,
+  .ant-drawer .ant-drawer-mask {
+    transition-duration: 1ms !important;
+  }
+  .ant-modal-root .ant-modal-mask {
+    animation-duration: 1ms !important;
+  }
+}

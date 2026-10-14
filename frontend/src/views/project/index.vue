@@ -104,7 +104,7 @@
       </t-button>
     </div>
   </div>
-  <projectDialog v-model="dialogShow" :projectData="editProjectData" @add="addProjectFn" @edit="editProjectFn" />
+  <projectDialog v-if="dialogShow || dialogClosing" v-model="dialogShow" @closed="dialogClosing = false" :projectData="editProjectData" @add="addProjectFn" @edit="editProjectFn" />
 </template>
 
 <script setup lang="ts">
@@ -119,6 +119,7 @@ const { clearProjectCache } = imageListCacheStore();
 const { allProject, project } = storeToRefs(projectStore());
 
 const dialogShow = ref(false);
+const dialogClosing = ref(false);
 const loading = ref(true);
 const searchQuery = ref("");
 const activeTab = ref<"all" | "recent">("all");
@@ -181,6 +182,7 @@ onMounted(() => {
 });
 
 watch(dialogShow, (visible) => {
+  dialogClosing.value = !visible;
   if (!visible && route.path === '/project/new') router.replace('/project');
 });
 

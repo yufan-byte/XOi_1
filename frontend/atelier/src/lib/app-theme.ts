@@ -35,6 +35,11 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
         algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         cssVar: { key: dark ? "infinite-canvas-dark" : "infinite-canvas-light" },
         token: {
+            motionDurationFast: "0.16s",
+            motionDurationMid: "0.24s",
+            motionDurationSlow: "0.28s",
+            motionEaseOut: "cubic-bezier(0.22, 1, 0.36, 1)",
+            motionEaseInOut: "cubic-bezier(0.4, 0, 0.2, 1)",
             colorPrimary: color.primary,
             colorInfo: color.primary,
             colorLink: color.primary,

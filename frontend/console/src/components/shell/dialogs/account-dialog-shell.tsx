@@ -11,8 +11,8 @@ export function AccountDialog({ open, onOpenChange, title, description, classNam
       <DialogPrimitive.Portal>
         {/* overlayClassName：iframe 嵌入（主站充值弹窗）时传 bg-transparent backdrop-blur-0，
             遮罩交给宿主画，避免 iframe 内外双层遮罩叠加过暗 */}
-        <DialogPrimitive.Overlay className={cn("fixed inset-0 z-50 bg-white/60 backdrop-blur-[18px] backdrop-saturate-[1.08] animate-in fade-in-0 dark:bg-black/50", overlayClassName)} />
-        <DialogPrimitive.Content className={cn("fixed left-1/2 top-1/2 z-50 grid max-h-[calc(100vh-32px)] w-[min(calc(100%-32px),520px)] -translate-x-1/2 -translate-y-1/2 rounded-[14px] bg-black/[0.09] p-[1.4px] font-medium shadow-[0_1px_3px_rgba(20,20,31,0.06),0_20px_46px_-20px_rgba(20,20,31,0.28)] outline-none animate-in fade-in-0 zoom-in-95 dark:bg-white/[0.09]", className, contentClassName)}>
+        <DialogPrimitive.Overlay className={cn("xoi-dialog-mask fixed inset-0 z-50 bg-white/60 backdrop-blur-[18px] backdrop-saturate-[1.08] animate-in fade-in-0 dark:bg-black/50", overlayClassName)} />
+        <DialogPrimitive.Content className={cn("xoi-dialog-surface fixed left-1/2 top-1/2 z-50 grid max-h-[calc(100vh-32px)] w-[min(calc(100%-32px),520px)] -translate-x-1/2 -translate-y-1/2 rounded-[14px] bg-black/[0.09] p-[1.4px] font-medium shadow-[0_1px_3px_rgba(20,20,31,0.06),0_20px_46px_-20px_rgba(20,20,31,0.28)] outline-none animate-in fade-in-0 zoom-in-95 dark:bg-white/[0.09]", className, contentClassName)}>
           <div className="max-h-[calc(100vh-34.8px)] overflow-y-auto rounded-[12.6px] bg-card px-[22px] pb-[20px] pt-[22px]">
             <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
             <DialogPrimitive.Description className="sr-only">{description || title}</DialogPrimitive.Description>

@@ -9,8 +9,8 @@ export const DialogClose = DialogPrimitive.Close;
 export function DialogContent({ className, children, title, description }: { className?: string; children: React.ReactNode; title?: string; description?: string }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm animate-in fade-in-0" />
-      <DialogPrimitive.Content className={cn("fixed left-1/2 top-1/2 z-50 w-[min(92vw,640px)] -translate-x-1/2 -translate-y-1/2 rounded-shell border bg-card p-6 shadow-pop animate-in fade-in-0 zoom-in-95 outline-none", className)}>
+      <DialogPrimitive.Overlay className="xoi-dialog-mask fixed inset-0 z-50 bg-black/30 backdrop-blur-sm animate-in fade-in-0" />
+      <DialogPrimitive.Content className={cn("xoi-dialog-surface fixed left-1/2 top-1/2 z-50 w-[min(92vw,640px)] -translate-x-1/2 -translate-y-1/2 rounded-shell border bg-card p-6 shadow-pop animate-in fade-in-0 zoom-in-95 outline-none", className)}>
         {title && <DialogPrimitive.Title className="text-lg font-semibold">{title}</DialogPrimitive.Title>}
         {description ? <DialogPrimitive.Description className="mt-1 text-sm text-muted-foreground">{description}</DialogPrimitive.Description> : <DialogPrimitive.Description className="sr-only">对话框</DialogPrimitive.Description>}
         <div className="mt-4">{children}</div>
