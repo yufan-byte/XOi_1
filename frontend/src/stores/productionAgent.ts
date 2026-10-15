@@ -224,11 +224,16 @@ function makeProductionAgentStore(projectId: string) {
       });
     }
 
+    let flowRequestVersion = 0;
     async function getFlowData() {
+      const version = ++flowRequestVersion;
+      const episode = episodesId.value;
+      const token = localStorage.getItem("token");
       const { data } = await axios.post("/production/getFlowData", {
         projectId: projectId,
-        episodesId: episodesId.value,
+        episodesId: episode,
       });
+      if (version !== flowRequestVersion || episode !== episodesId.value || token !== localStorage.getItem("token")) return;
       flowData.value = data;
     }
     async function batchGenerateStoryboard(allIds: number[], compulsory: boolean = false) {
@@ -475,16 +480,23 @@ function makeProductionAgentStore(projectId: string) {
     }
 
     const loadingHistory = ref(false);
+    let historyRequestVersion = 0;
     async function getHistory() {
+      const version = ++historyRequestVersion;
+      const episode = episodesId.value;
+      const token = localStorage.getItem("token");
       loadingHistory.value = true;
-      const { data } = await axios.post(`/agents/getMemory`, {
-        projectId: projectId,
-        episodesId: episodesId.value,
-        agentType: "productionAgent",
-      });
-      messages.value = [];
-      messages.value = [...defMsg, ...data];
-      loadingHistory.value = false;
+      try {
+        const { data } = await axios.post(`/agents/getMemory`, {
+          projectId: projectId,
+          episodesId: episode,
+          agentType: "productionAgent",
+        });
+        if (version !== historyRequestVersion || episode !== episodesId.value || token !== localStorage.getItem("token")) return;
+        messages.value = [...defMsg, ...data];
+      } finally {
+        if (version === historyRequestVersion) loadingHistory.value = false;
+      }
     }
 
     const thinkLevel = ref(0);

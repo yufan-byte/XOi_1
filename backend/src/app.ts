@@ -14,6 +14,7 @@ for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_
   delete process.env[k];
 }
 
+import { mediaStatic } from "@/middleware/mediaStatic";
 import express, { Request, Response, NextFunction } from "express";
 import { Server } from "socket.io";
 import http from "node:http";
@@ -193,7 +194,7 @@ export default async function startServe(randomPort: Boolean = false) {
       }
       return next();
     },
-    express.static(ossDir, { acceptRanges: false }),
+    mediaStatic(ossDir),
   );
   // skills 静态资源
   const skillsDir = u.getPath("skills");

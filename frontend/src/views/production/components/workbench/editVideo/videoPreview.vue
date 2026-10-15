@@ -26,6 +26,9 @@ import { AVCanvas } from "@webav/av-canvas";
 import { Combinator, OffscreenSprite, MP4Clip, AudioClip, ImgClip, VisibleSprite, renderTxt2ImgBitmap } from "@webav/av-cliper";
 import axios from "@/utils/axios";
 import projectStore from "@/stores/project";
+import { uploadOutputArchive } from "@/utils/outputArchiveUpload";
+import { MAX_OUTPUT_ARCHIVE_BYTES, LEGACY_OUTPUT_JSON_BYTES } from "../../../../../../../shared/outputArchivePolicy";
+import { useRoute } from "vue-router";
 import { usePlaybackStore, useTracksStore } from "vue-clip-track";
 import type { Clip, MediaClip, SubtitleClip, TextClip, TransitionClip, Track } from "vue-clip-track";
 import { getTransitionRenderer } from "./utils/transitionRenderers";
@@ -70,6 +73,7 @@ const emit = defineEmits<{
 
 /** 当前分集（由 production/index.vue provide），成片按集归档 */
 const episodesIdRef = inject("episodesId", null) as { value?: number } | null;
+const editorRoute = useRoute();
 
 // AVCanvas 调试数据类型
 export interface AVCanvasDebugData {
@@ -1521,6 +1525,37 @@ interface ExportResult {
   bytes: number;
 }
 
+interface OutputArchiveContext {
+  projectId: number;
+  episodesId?: number;
+  projectName: string;
+  resolution: string;
+  ownerId: string;
+  token: string;
+}
+
+/** Freeze ownership before encoding starts; navigation must not retarget an export. */
+function captureOutputArchiveContext(): OutputArchiveContext | null {
+  if (editorRoute.query.mode === "standalone") return null;
+  const project = projectStore().project;
+  const projectId = Number(project?.id);
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) return null;
+  return {
+    projectId,
+    episodesId: episodesIdRef?.value,
+    projectName: project?.name || "成片",
+    resolution: `${props.canvasWidth}x${props.canvasHeight}`,
+    ownerId: localStorage.getItem("userId") || "",
+    token: localStorage.getItem("token") || "",
+  };
+}
+
+function archiveOwnerUnchanged(context: OutputArchiveContext): boolean {
+  return !!context.ownerId && !!context.token
+    && localStorage.getItem("userId") === context.ownerId
+    && localStorage.getItem("token") === context.token;
+}
+
 interface ExportSegment {
   name: string;
   start: number;
@@ -1610,8 +1645,7 @@ function collectSegments(): ExportSegment[] {
     .map((c) => ({ name: (c as any).name || "镜头", start: c.startTime, end: c.endTime }));
 }
 
-function baseFilename(): string {
-  const name = projectStore().project?.name || "成片";
+function baseFilename(name: string): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
   const stamp = `${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
@@ -1651,11 +1685,13 @@ async function exportVideo(opts: ExportOptions = {}): Promise<ExportResult> {
 
   const { onProgress, shouldCancel } = opts;
   const mode = opts.mode ?? "full";
+  const archiveContext = captureOutputArchiveContext();
+  const filename = baseFilename(archiveContext?.projectName || "成片");
 
   if (mode === "segments") {
     const segments = collectSegments();
     if (!segments.length) throw new Error("主轨上还没有可分段的镜头");
-    const base = baseFilename();
+    const base = filename;
     let bytes = 0;
     for (let i = 0; i < segments.length; i += 1) {
       const seg = segments[i];
@@ -1669,7 +1705,7 @@ async function exportVideo(opts: ExportOptions = {}): Promise<ExportResult> {
       bytes += blob.size;
       saveBlob(blob, `${base}-${seg.name.replace(/[\s/\\]+/g, "")}.mp4`);
       onProgress?.({ ratio: (i + 1) / segments.length, label: `${tag} 已下载` });
-      void archiveOutput(blob, { label: seg.name, durationSec: seg.end - seg.start });
+      await archiveOutput(blob, archiveContext, { label: seg.name, durationSec: seg.end - seg.start });
     }
     return { files: segments.length, bytes };
   }
@@ -1686,14 +1722,14 @@ async function exportVideo(opts: ExportOptions = {}): Promise<ExportResult> {
   }
 
   const blob = await composeRange(start, end, (r) => onProgress?.({ ratio: r, label: "正在合成…" }), shouldCancel);
-  saveBlob(blob, `${baseFilename()}.mp4`);
-  onProgress?.({ ratio: 1, label: "已下载，正在归档…" });
-  void archiveOutput(blob, { durationSec: end - start });
+  saveBlob(blob, `${filename}.mp4`);
+  onProgress?.({ ratio: 1, label: archiveContext ? "已下载，正在归档…" : "已下载" });
+  await archiveOutput(blob, archiveContext, { durationSec: end - start });
   return { files: 1, bytes: blob.size };
 }
 
-/** 单次归档上限，与后端 routes/production/output/saveOutput.ts 的 MAX_OUTPUT_BYTES 保持一致（全局 JSON body 限 25mb） */
-const MAX_ARCHIVE_BYTES = 18 * 1024 * 1024;
+/** Large films use the existing binary upload path rather than inflating them into JSON/base64. */
+const MAX_ARCHIVE_BYTES = MAX_OUTPUT_ARCHIVE_BYTES;
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -1708,9 +1744,8 @@ function blobToBase64(blob: Blob): Promise<string> {
  * 把刚合成的成片存回项目。失败只提示，不影响用户已到手的本地文件；
  * 项目因此有了终点态：成片节点能看到、项目资产库能找到、换设备登录仍在。
  */
-async function archiveOutput(blob: Blob, meta: { label?: string; durationSec?: number } = {}) {
-  const projectIdNum = Number(projectStore().project?.id);
-  if (!projectIdNum) return;
+async function archiveOutput(blob: Blob, context: OutputArchiveContext | null, meta: { label?: string; durationSec?: number } = {}) {
+  if (!context) return;
 
   if (blob.size > MAX_ARCHIVE_BYTES) {
     window.$message.warning(`成片 ${(blob.size / 1024 / 1024).toFixed(1)}MB 超过自动归档上限，已下载到本地但未存入项目资产库`, 6000);
@@ -1719,18 +1754,24 @@ async function archiveOutput(blob: Blob, meta: { label?: string; durationSec?: n
 
   const suffix = meta.label ? ` · ${meta.label}` : "";
   try {
-    const base64Data = await blobToBase64(blob);
+    if (!archiveOwnerUnchanged(context)) throw new Error("账号已变化，已停止自动归档");
+    const content = blob.size > LEGACY_OUTPUT_JSON_BYTES
+      ? { assetUrl: await uploadOutputArchive(context.ownerId, context.token, blob) }
+      : { base64Data: await blobToBase64(blob) };
+    if (!archiveOwnerUnchanged(context)) throw new Error("账号已变化，已停止自动归档");
     const { data } = await axios.post("/production/output/saveOutput", {
-      projectId: projectIdNum,
-      episodesId: episodesIdRef?.value ?? undefined,
-      base64Data,
-      name: `${projectStore().project?.name ?? "成片"}${suffix} · ${new Date().toLocaleString()}`,
+      projectId: context.projectId,
+      episodesId: context.episodesId,
+      ...content,
+      name: `${context.projectName}${suffix} · ${new Date().toLocaleString()}`,
       duration: Math.round(meta.durationSec ?? getContentDuration() / 1e6),
-      resolution: `${props.canvasWidth}x${props.canvasHeight}`,
+      resolution: context.resolution,
       source: "webcodecs",
-    });
+    }, { timeout: 120000 });
+    if (!archiveOwnerUnchanged(context)) return;
     window.$message.success(`成片已存档到项目资产库${suffix}`);
-    emit("output-saved", data);
+    // A late response must not refresh a different project's editor.
+    if (Number(projectStore().project?.id) === context.projectId && episodesIdRef?.value === context.episodesId) emit("output-saved", data);
   } catch (e) {
     const msg = (e as any)?.message ?? "上传失败";
     window.$message.warning(`成片未能归档：${msg}（本地文件已下载）`, 6000);

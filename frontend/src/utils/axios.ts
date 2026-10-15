@@ -53,7 +53,7 @@ instance.interceptors.response.use(
       // 带 expired 标记去登录页：登录页落地会弹「登录已过期」提示。
       // 画布强制登出链路也是跳 /#/login?expired=1 —— 这里若不带标记会把那个带标记的跳转覆盖掉（query 丢失）。
       if (router.currentRoute.value.path !== "/login") {
-        router.push({ path: "/login", query: { expired: "1" } });
+        router.push({ path: "/login", query: { expired: "1", next: `/#${router.currentRoute.value.fullPath}` } });
       }
       MessagePlugin.error(window.$t("common.sessionExpired"));
     }

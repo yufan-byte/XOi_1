@@ -116,7 +116,7 @@ router.beforeEach(async (to, from, next) => {
     return;
   }
   if (!localStorage.getItem("token")) {
-    next("/login");
+    next({ path: "/login", query: { next: `/#${to.fullPath}` } });
     return;
   }
   next();

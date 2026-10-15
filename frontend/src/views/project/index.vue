@@ -7,7 +7,7 @@
         <span class="sub">从故事、剧本到镜头与成片，在同一条创作链路中持续推进。</span>
         <div class="project-stats" aria-label="项目概览">
           <span><strong>{{ doingCount }}</strong>进行中</span>
-          <span><strong>{{ doneCount }}</strong>已完成</span>
+          <span><strong>{{ doneCount }}</strong>已有成片</span>
           <span><strong>{{ allProject.length }}</strong>全部项目</span>
         </div>
       </div>
@@ -26,7 +26,7 @@
     <div class="toolbar">
       <div class="tabs">
         <span class="tab" :class="{ active: activeTab === 'all' }" @click="activeTab = 'all'">全部项目</span>
-        <span class="tab" :class="{ active: activeTab === 'recent' }" @click="activeTab = 'recent'">最近编辑</span>
+        <span class="tab" :class="{ active: activeTab === 'recent' }" @click="activeTab = 'recent'">最近创建</span>
       </div>
       <t-input v-model="searchQuery" class="search" placeholder="搜索项目" clearable>
         <template #prefix><t-icon name="search" /></template>
@@ -48,13 +48,18 @@
         </div>
       </div>
     </div>
+    <div v-else-if="loadError" class="empty" role="alert">
+      <div class="empty-title">项目列表暂时无法加载</div>
+      <div class="empty-desc">{{ loadError }}，已有项目不会被删除。</div>
+      <t-button theme="primary" @click="getAllProject">重新加载</t-button>
+    </div>
     <!-- 项目列表 -->
     <div v-else-if="filteredProjects.length > 0" class="list">
       <t-card hoverShadow class="card" v-for="(project, index) in filteredProjects" :key="project.id" :class="`card-${project.projectType}`" @click="openProject(project.id)">
         <div class="projectSlate">
           <div class="slateClapper" aria-hidden="true"></div>
           <div class="slateHeading"><span>导演制作档案 <small>PRODUCTION FILE</small></span><b>#{{ String(project.id).slice(-6) }}</b></div>
-          <div class="slateFields"><span><small>创作方式</small>{{ project.projectType === 'novel' ? '小说改编' : '剧本创作' }}</span><span><small>画幅</small>{{ project.videoRatio || '待设置' }}</span><span :class="`slateState-${progressState(project)}`"><small>制作状态</small>{{ progressState(project) === 'done' ? '已完成' : progressState(project) === 'doing' ? '进行中' : '待开始' }}</span></div>
+          <div class="slateFields"><span><small>创作方式</small>{{ project.projectType === 'novel' ? '小说改编' : '剧本创作' }}</span><span><small>画幅</small>{{ project.videoRatio || '待设置' }}</span><span :class="`slateState-${progressState(project)}`"><small>制作状态</small>{{ progressState(project) === 'done' ? '已有成片' : progressState(project) === 'doing' ? '进行中' : '待开始' }}</span></div>
         </div>
         <div class="cardHead">
           <div class="title">
@@ -121,10 +126,11 @@ const { allProject, project } = storeToRefs(projectStore());
 const dialogShow = ref(false);
 const dialogClosing = ref(false);
 const loading = ref(true);
+const loadError = ref("");
 const searchQuery = ref("");
 const activeTab = ref<"all" | "recent">("all");
 
-/** 项目整体进度判定：有归档成片=已完成；其余任一段有进展=进行中；全零=未开始 */
+/** 有归档成片只代表已有交付版本，不能据此声称整个多集项目全部完成。 */
 function progressState(item: { progress?: ProjectProgress }): "done" | "doing" | "idle" {
   const p = item.progress;
   if (!p) return "idle";
@@ -161,12 +167,13 @@ const editProjectData = ref<{
 
 function getAllProject() {
   loading.value = true;
+  loadError.value = "";
   axios
     .post("/project/getProject")
     .then(({ data }) => {
       allProject.value = data;
     })
-    .catch(() => {})
+    .catch(() => { loadError.value = "请检查网络连接或稍后重试"; })
     .finally(() => {
       loading.value = false;
     });
@@ -191,30 +198,9 @@ async function openProject(projectId: string | undefined) {
 
   if (!item) return window.$message.error($t("workbench.project.msg.notFound"));
 
-  if (!item.imageModel || !item.videoModel) {
-    window.$message.warning($t("workbench.project.msg.modelProviderDisabled"));
-    return openEdit(item);
-  }
-
-  try {
-    if (item.imageModel) {
-      await axios.post("/modelSelect/getModelDetail", {
-        modelId: item.imageModel,
-      });
-    }
-    if (item.videoModel) {
-      await axios.post("/modelSelect/getModelDetail", {
-        modelId: item.videoModel,
-      });
-    }
-  } catch {
-    window.$message.warning($t("workbench.project.msg.modelProviderDisabled"));
-    return openEdit(item);
-  }
-
+  // Project viewing must not depend on generation provider availability.
   project.value = item;
-  if (item.projectType === "novel") router.push(`/novel`);
-  else if (item.projectType === "script") router.push(`/script`);
+  await router.push({ path: item.projectType === "novel" ? "/novel" : "/script", query: { projectId: String(item.id) } });
 }
 
 function openEdit(item: {
