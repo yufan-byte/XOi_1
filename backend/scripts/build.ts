@@ -70,6 +70,14 @@ const appBuildConfig: esbuild.BuildOptions = {
 
     await esbuild.build(appBuildConfig);
 
+    // svg-captcha resolves its bundled font relative to the compiled app.
+    // Docker copies this asset in its image stage; keep local/VM production
+    // builds self-contained as well so /api/captcha cannot reject startup.
+    const captchaFont = path.resolve("node_modules/svg-captcha/fonts/Comismsh.ttf");
+    const runtimeFonts = path.resolve("data/fonts");
+    fs.mkdirSync(runtimeFonts, { recursive: true });
+    fs.copyFileSync(captchaFont, path.join(runtimeFonts, "Comismsh.ttf"));
+
     console.log("✅ 后端服务构建完成: data/serve/app.js");
     console.log("\n🎉 所有构建任务完成!\n");
   } catch (err) {
