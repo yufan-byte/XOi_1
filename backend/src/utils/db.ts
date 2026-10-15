@@ -1,8 +1,8 @@
 import knex from "knex";
 import pg from "pg";
 import initDB from "@/lib/initDB";
-import fixDB from "@/lib/fixDB";
 import type { DB } from "@/types/database";
+import { ensureWorkspaceTables } from "@/lib/workspace/schema";
 
 type TableName = keyof DB & string;
 type RowType<TName extends TableName> = DB[TName];
@@ -48,6 +48,12 @@ if (!url) {
  * 毫秒时间戳离 Number.MAX_SAFE_INTEGER（9e15）还很远，转 number 是安全的。 */
 pg.types.setTypeParser(pg.types.builtins.INT8, (v: string) => Number(v));
 
+function poolSetting(name: string, fallback: number, upper: number): number {
+  const value = Number(process.env[name] || fallback);
+  if (!Number.isInteger(value) || value < 1 || value > upper) throw new Error(`${name} 必须是 1~${upper} 的整数`);
+  return value;
+}
+
 const db = knex({
   client: "pg",
   connection: url
@@ -55,7 +61,8 @@ const db = knex({
       { connectionString: url }
     : // 占位：让 knex 能构造出来，首次查询时再抛出清楚的连接错误
       { host: "127.0.0.1", port: 5432, database: "new-api", user: "postgres", password: "" },
-  pool: { min: 0, max: 8 },
+  pool: { min: 0, max: poolSetting("XOI_DB_POOL_MAX", 8, 100) },
+  acquireConnectionTimeout: poolSetting("XOI_DB_ACQUIRE_TIMEOUT_MS", 10000, 60000),
 });
 
 /* ---------------------------------------------------------------------
@@ -112,8 +119,13 @@ qbProto.insert = function (...args: any[]) {
 
 export const dbReady = Promise.resolve().then(async () => {
   if (!url) return;
+  // Load migrations only after the Knex instance is initialized. fixDB imports
+  // vendor helpers which in turn reference the shared DB; a static import here
+  // creates a db -> fixDB -> vendor -> db cycle during module evaluation.
+  const { default: fixDB } = await import("@/lib/fixDB");
   await initDB(db);
   await fixDB(db);
+  await ensureWorkspaceTables(db);
 });
 
 const dbClient = Object.assign(<TName extends TableName>(table: TName) => db<RowType<TName>, RowType<TName>[]>(table), db);

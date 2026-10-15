@@ -1,28 +1,34 @@
 import { transform } from "sucrase";
 import fs from "fs";
 import path from "path";
-import u from "@/utils";
+import getPath from "./getPath";
+import vm from "./vm";
+import db from "./db";
 import { vendorCodePath } from "./vendorSecurity";
 
 export function writeCode(id: string | number, tsCode: string) {
-  const rootDir = u.getPath("vendor")
+  const rootDir = getPath("vendor")
   fs.mkdirSync(rootDir, { recursive: true })
   fs.writeFileSync(vendorCodePath(rootDir, id), tsCode);
 }
 
 export function getCode(id: string): string {
-  const rootDir = u.getPath("vendor");
+  const rootDir = getPath("vendor");
   const targetFile = vendorCodePath(rootDir, id);
   if (!fs.existsSync(targetFile)) return "";
   return fs.readFileSync(targetFile, "utf-8");
 }
 
 export async function getModelList(id: string): Promise<Array<any>> {
-  const models = await u.db("o_vendorConfig").where("id", id).select("models").first();
+  if (id === "newapi") {
+    const { getGatewayModels } = await import("@/lib/model-catalog");
+    return getGatewayModels();
+  }
+  const models = await db("o_vendorConfig").where("id", id).select("models").first();
   if (!models || !models.models) return [];
   const code = getCode(id);
   const jsCode = transform(code, { transforms: ["typescript"] }).code;
-  const vendorData = u.vm(jsCode);
+  const vendorData = vm(jsCode);
   if(!vendorData || !vendorData.vendor || !vendorData.vendor.models) return [];
   const combined = [...JSON.parse(JSON.stringify(vendorData.vendor.models)), ...JSON.parse(models?.models ?? "[]")];
   const map = new Map<string, any>();
@@ -60,7 +66,7 @@ export async function fetchVendorModels(id: string): Promise<{ text: string[]; i
     if (!code) return { text: [], image: [], video: [] };
 
     const jsCode = transform(code, { transforms: ["typescript"] }).code;
-    const vendorData = u.vm(jsCode);
+    const vendorData = vm(jsCode);
 
     if (vendorData && vendorData.fetchModels) {
       const result = await vendorData.fetchModels();
@@ -81,6 +87,6 @@ export async function fetchVendorModels(id: string): Promise<{ text: string[]; i
 export function getVendor(id: string) {
   const code = getCode(id);
   const jsCode = transform(code, { transforms: ["typescript"] }).code;
-  const vendorData = u.vm(jsCode);
+  const vendorData = vm(jsCode);
   return vendorData.vendor;
 }
