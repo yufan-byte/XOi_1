@@ -1,4 +1,4 @@
-import knex from "knex";
+import knex, { type Knex } from "knex";
 import pg from "pg";
 import initDB from "@/lib/initDB";
 import type { DB } from "@/types/database";
@@ -128,8 +128,10 @@ export const dbReady = Promise.resolve().then(async () => {
   await ensureWorkspaceTables(db);
 });
 
-const dbClient = Object.assign(<TName extends TableName>(table: TName) => db<RowType<TName>, RowType<TName>[]>(table), db);
-dbClient.schema = db.schema;
+// Keep the real Knex instance: raw/transaction are non-enumerable, so copying
+// it onto a wrapper with Object.assign silently drops them at runtime.
+// The intersection adds table-aware call signatures without losing Knex's API.
+const dbClient = db as (<TName extends TableName>(table: TName) => Knex.QueryBuilder<RowType<TName>, RowType<TName>[]>) & typeof db;
 export default dbClient;
 
 export { db };

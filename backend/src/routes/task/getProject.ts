@@ -15,9 +15,7 @@ export default router.post("/", async (req, res) => {
   // 「column "o_project.id" must appear in the GROUP BY clause or be used in an aggregate function」。
   // MIN(id) 语义等价于「每个名字取一个代表项目」，且 SQLite / PG 两边都合法。
   //
-  // 注意 raw 必须取 `db.raw`（从 "@/utils/db" 具名导入的那个 knex 实例），
-  // 不能用 `u.db.raw` —— u.db 是 `Object.assign(fn, db)` 的产物，运行时并不带 raw 方法
-  // （只拷贝了可枚举属性），TS 却因为交叉类型以为它存在，写到线上就是 500。
+  // raw 来自实际的 Knex 实例；默认导出也保留同一实例的完整 API。
   const list = await u
     .db("o_project")
     .where("userId", userId)
