@@ -1,9 +1,13 @@
 services:
   xoi:
-    build: .                 # 本地构建；若已有推送好的镜像可改 image 并删除此行下方 build 配置
-    image: xoi:v1            # 构建产物标签
+    build:
+      context: .
+      args:
+        XOI_RELEASE_ID: ${XOI_RELEASE_ID:?设置明确的发布版本标签}
+    image: xoi:${XOI_RELEASE_ID:?设置明确的发布版本标签}
     container_name: xoi
     restart: unless-stopped
+    stop_grace_period: 60s
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -11,9 +15,10 @@ services:
     pids_limit: 256
     ports:
       # 左边宿主机端口(可用 PORT=.env 覆盖),右边容器内固定端口
-      - "${PORT:-10588}:10588"
+      - "127.0.0.1:${PORT:-12121}:12121"
     environment:
       NODE_ENV: prod
+      PORT: "12121"
       # 管理员账号仅在【首次初始化数据库】时生效，之后修改请在系统设置里改密
       XOI_ADMIN_USERNAME: ${XOI_ADMIN_USERNAME:-admin}
       XOI_ADMIN_PASSWORD: ${XOI_ADMIN_PASSWORD:?请设置高强度初始管理员密码}
@@ -30,18 +35,37 @@ services:
       # 容器内 127.0.0.1 指向 XOi 自己；new-api 是共享网络上的服务别名。
       NEWAPI_BASE_URL: ${NEWAPI_BASE_URL:-http://new-api:3000}
       NEWAPI_ADMIN_TOKEN: ${NEWAPI_ADMIN_TOKEN:?服务端调用网关管理接口所需}
+      XOI_DB_POOL_MAX: ${XOI_DB_POOL_MAX:-8}
+      XOI_DB_ACQUIRE_TIMEOUT_MS: ${XOI_DB_ACQUIRE_TIMEOUT_MS:-10000}
       XOI_NEWAPI_ONLY: ${XOI_NEWAPI_ONLY:-1}
+      XOI_ALLOWED_ORIGINS: ${XOI_ALLOWED_ORIGINS:?设置正式站点 HTTPS origin，多个用逗号分隔}
+      XOI_TRUST_PROXY: ${XOI_TRUST_PROXY:-}
+      # Required to enable real payments; unset keeps those channels unavailable.
+      XOI_PAY_NOTIFY_HOST: ${XOI_PAY_NOTIFY_HOST:-}
+      # Confirm gateway BATCH_UPDATE_ENABLED=false before setting sync; this flag does not change the gateway.
+      XOI_NEWAPI_QUOTA_MODE: ${XOI_NEWAPI_QUOTA_MODE:?关闭网关批量延迟额度更新并确认后填写 sync}
+      XOI_NEWAPI_REDIS_ENABLED: ${XOI_NEWAPI_REDIS_ENABLED:-0}
+      XOI_AGENT_DB_POOL_MAX: ${XOI_AGENT_DB_POOL_MAX:-8}
+      XOI_MODEL_GLOBAL_CONCURRENCY: ${XOI_MODEL_GLOBAL_CONCURRENCY:-32}
+      XOI_MODEL_USER_CONCURRENCY: ${XOI_MODEL_USER_CONCURRENCY:-3}
+      XOI_MEDIA_GLOBAL_CONCURRENCY: ${XOI_MEDIA_GLOBAL_CONCURRENCY:-64}
+      XOI_MEDIA_USER_CONCURRENCY: ${XOI_MEDIA_USER_CONCURRENCY:-6}
+      XOI_MEDIA_WORKERS: ${XOI_MEDIA_WORKERS:-4}
+      XOI_MEDIA_QUEUE_GLOBAL_LIMIT: ${XOI_MEDIA_QUEUE_GLOBAL_LIMIT:-128}
+      XOI_MEDIA_QUEUE_USER_LIMIT: ${XOI_MEDIA_QUEUE_USER_LIMIT:-8}
+      # Existing file-based canvases must pass the checked migration before switching.
+      XOI_CANVAS_STORAGE: ${XOI_CANVAS_STORAGE:-postgres}
     volumes:
-      # 持久化数据库/OSS资源/画布数据；程序资产由入口脚本从镜像种子实时同步进来
+      # 仅持久化可变数据；程序与静态页面由 /app/release 提供。
       - xoi-data:/app/backend/data
     networks:
       - newapi
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:10588/api/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:12121/api/readyz',{signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 45s
+      start_period: 180s
 
 volumes:
   xoi-data:

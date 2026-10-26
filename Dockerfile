@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # XOi 一体化镜像：管理台/前端构建 → 后端构建 → 运行时精简层
-# 构建后单容器即可对外服务（前端静态页 / API / WebSocket / 资源 全在 10588 端口）
+# 构建后单容器即可对外服务（默认12121）；程序与可变用户数据分离。
 
 # ───────── Stage 0: React 管理台构建 ─────────
 FROM node:22-bookworm-slim AS console-build
@@ -10,8 +10,14 @@ COPY frontend/console/package.json frontend/console/package-lock.json ./
 RUN --mount=type=cache,id=xoi-console-npm,target=/root/.npm \
     npm ci --no-audit --no-fund
 COPY frontend/console/ .
+COPY shared/ /app/shared/
+COPY frontend/src/utils/points.ts /app/frontend/src/utils/points.ts
+COPY frontend/src/utils/dailySpend.ts /app/frontend/src/utils/dailySpend.ts
+COPY frontend/src/assets/XOI_logo.png /app/frontend/src/assets/XOI_logo.png
+COPY frontend/scripts/sync-platform-brand.mjs /app/frontend/scripts/sync-platform-brand.mjs
+COPY frontend/public/brand/ /app/frontend/public/brand/
 # vite outDir = <console>/../public/console
-RUN npm run build
+RUN npm run build && npm run build:one-stop
 
 # ───────── Stage 1: Vue 前端构建 ─────────
 FROM node:22-bookworm-slim AS frontend-build
@@ -27,11 +33,14 @@ COPY frontend/atelier/package.json frontend/atelier/package-lock.json atelier/
 RUN --mount=type=cache,id=xoi-atelier-npm,target=/root/.npm \
     cd atelier && npm ci --no-audit --no-fund
 COPY frontend/ .
+# Canvas/main import the shared billing/director contracts from /app/shared.
+COPY shared/ /app/shared/
 RUN cd atelier && npm run build
 # console 同样从源码构建，避免把本机陈旧的 public/console 打进镜像
 COPY --from=console-build /app/frontend/public/console public/console
+COPY --from=console-build /app/frontend/public/one-stop public/one-stop
 # 生产走同源相对路径（/api）；当前主站约 1 万模块，Node 默认 2GB 堆会在 Rollup 阶段 OOM。
-RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build-only
+RUN node scripts/sync-platform-brand.mjs --check && NODE_OPTIONS=--max-old-space-size=4096 npm run build-only
 
 # ───────── Stage 2: 后端打包（esbuild bundle）─────────
 FROM node:22-bookworm-slim AS backend-build
@@ -49,6 +58,7 @@ COPY backend/package.json backend/package-lock.json ./
 RUN --mount=type=cache,id=xoi-backend-build-npm,target=/root/.npm \
     npm ci --no-audit --no-fund
 COPY backend/ .
+COPY shared/ /app/shared/
 ENV NODE_ENV=prod
 RUN npm run build
 # svg-captcha 被 esbuild 打进 data/serve 后，__dirname 会解析到 data/serve；补齐它预期的 ../fonts。
@@ -76,7 +86,7 @@ RUN npm config set registry https://registry.npmjs.org/ \
           /etc/apt/sources.list 2>/dev/null || true; } \
  # sharp/better-sqlite3/sqlite3 在 glibc linux 上通常有预编译二进制；
  # 装 toolchain 仅作兜底现场编译。
- && apt-get update && apt-get install -y --no-install-recommends python3 make g++ ca-certificates tini gosu \
+ && apt-get update && apt-get install -y --no-install-recommends python3 make g++ ca-certificates tini gosu ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
 COPY backend/package.json backend/package-lock.json ./
@@ -84,23 +94,30 @@ COPY backend/package.json backend/package-lock.json ./
 RUN --mount=type=cache,id=xoi-backend-runtime-npm,target=/root/.npm \
     npm ci --omit=dev --no-audit --no-fund
 
-# 入口脚本：负责把镜像内的“程序与资源资产”同步到数据卷
+# 入口脚本只补齐缺失的可编辑资源，不向数据卷写程序。
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# 内置程序与资源资产（assets-seed）：serve/app.js、前端 web 静态站、
-# AI 技能包(skills)、模型(models)、厂商配置(vendor)、提示词(modelPrompt)、片尾素材(assets)。
-# 这些是不可变的“代码侧”资产；由入口脚本在每次启动时同步到外挂数据卷，
-# 既保证首次开箱即用，又能跟随镜像升级自动刷新，且绝不会覆盖用户的
-# 数据库(db2.sqlite)/上传资源(oss)/画布(canvases)等创作数据。
-COPY --from=backend-build /app/backend/data /app/assets-seed
+# Immutable program: never hidden/overwritten by a persistent data volume.
+COPY --from=backend-build /app/backend/data/serve /app/release/serve
+COPY --from=backend-build /app/backend/data/web /app/release/web
+COPY --from=backend-build /app/backend/data/fonts /app/release/fonts
+COPY --from=backend-build /app/backend/data/skills /app/assets-seed/skills
+COPY --from=backend-build /app/backend/data/models /app/assets-seed/models
+COPY --from=backend-build /app/backend/data/vendor /app/assets-seed/vendor
+COPY --from=backend-build /app/backend/data/modelPrompt /app/assets-seed/modelPrompt
+COPY --from=backend-build /app/backend/data/assets /app/assets-seed/assets
+ARG XOI_RELEASE_ID=unversioned
 RUN mkdir -p data
 
 ENV NODE_ENV=prod \
-    TZ=Asia/Shanghai
+    TZ=Asia/Shanghai \
+    PORT=12121 \
+    XOI_RELEASE_DIR=/app/release \
+    XOI_RELEASE_ID=${XOI_RELEASE_ID}
 
-EXPOSE 10588
+EXPOSE 12121
 
-# tini 作 PID1 正确收割僵尸进程与转发 SIGTERM（优雅关闭 Socket.IO / SQLite）
+# tini forwards SIGTERM; application draining remains necessary for long tasks.
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/backend/docker-entrypoint.sh"]
-CMD ["node", "data/serve/app.js"]
+CMD ["node", "/app/release/serve/app.js"]

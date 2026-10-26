@@ -10,7 +10,6 @@ backend/data/oss
 backend/data/smallImage
 backend/data/web
 backend/data/serve
-backend/data/toonflow.db
 backend/data/db2.sqlite*
 backend/build
 frontend/dist
@@ -55,6 +54,17 @@ PRD_Template.md
 **/.npm-cache
 backend/data/gallery_works.json
 backend/data/reseller.json
+backend/data/reseller.json.*
+backend/data/reseller-agents
+backend/data/announcements.json
+backend/data/**/*.bak*
+backend/data/**/*.tmp
+backend/data/**/*.sqlite*
+backend/data/**/*.db
 backend/data/media
 backend/data/skills/covers
 !frontend/atelier/src/styles/shadcn-theme.LICENSE.md
+!backend/data/skills/**/*.md
+!backend/data/modelPrompt/**/*.md
+!LICENSE
+!NOTICES.txt

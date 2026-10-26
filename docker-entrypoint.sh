@@ -1,30 +1,55 @@
 #!/bin/sh
-# 容器启动前准备：把镜像内的“程序/资源资产”刷新到外挂数据卷，
-# 同时严格保留用户的创作数据(db2.sqlite 数据库、oss 上传资源、canvases 画布等)。
-# 这样首次启动开箱即用，后续重建容器也能自动带上最新版 app.js/web/skills。
+# Only seed missing editable resources. Program/web/fonts live in the immutable image.
 set -e
 
-SEED_DIR="/app/assets-seed"
-DATA_DIR="/app/backend/data"
+SEED_DIR="${XOI_ASSET_SEED_DIR:-/app/assets-seed}"
+DATA_DIR="${XOI_RUNTIME_DATA_DIR:-/app/backend/data}"
+RELEASE_DIR="${XOI_RELEASE_DIR:-/app/release}"
+# Test overrides and deployment paths must never select broad directories.
+case "$DATA_DIR" in ""|/|/app|/app/backend) echo "Unsafe data directory" >&2; exit 1;; esac
+[ "$DATA_DIR" != "$SEED_DIR" ] || { echo "Seed/data directories must differ" >&2; exit 1; }
+case "$DATA_DIR" in */data) ;; *) echo "Runtime directory must be an explicit data directory" >&2; exit 1;; esac
+[ ! -L "$DATA_DIR" ] || { echo "Symlink data directories are not allowed" >&2; exit 1; }
+for asset in serve/app.js web/index.html web/console/index.html web/atelier-canvas/index.html web/one-stop/index.html fonts/Comismsh.ttf; do
+  [ -s "${RELEASE_DIR}/${asset}" ] || { echo "Incomplete XOi release: ${asset}" >&2; exit 1; }
+done
 
 mkdir -p "${DATA_DIR}"
 
-# 仅这些“代码侧”资产随镜像版本同步；其余任何路径都不触碰。
-# 每次（重新）启动都强制对齐：既完成首启播种，又能在重建/升级后带上新版程序文件。
-for d in serve web skills models modelPrompt assets vendor fonts; do
+# Legacy data/serve and data/web remain untouched for rollback/data recovery.
+# The new image never executes or serves those stale program directories.
+
+# Editable resources belong to the operator, not the image. Seed missing files only.
+# Publish updated built-ins separately; never replace an existing custom script on restart.
+for d in skills models modelPrompt assets vendor; do
   if [ -d "${SEED_DIR}/${d}" ]; then
-    echo "[entrypoint] 同步资产 → ${d}"
-    # 经 .tmp 中转后原子替换，避免半截覆盖状态下进程读取到损坏资产
-    rm -rf "${DATA_DIR}/${d}.tmp"
-    cp -a "${SEED_DIR}/${d}" "${DATA_DIR}/${d}.tmp"
-    rm -rf "${DATA_DIR}/${d}"
-    mv "${DATA_DIR}/${d}.tmp" "${DATA_DIR}/${d}"
+    [ ! -L "${DATA_DIR}/${d}" ] || { echo "Symlink resource directories are not allowed" >&2; exit 1; }
+    mkdir -p "${DATA_DIR}/${d}"
+    find "${SEED_DIR}/${d}" -type f -print | while IFS= read -r source_file; do
+      relative_file="${source_file#"${SEED_DIR}/"}"
+      target_file="${DATA_DIR}/${relative_file}"
+      parent_dir="$(dirname "$target_file")"
+      while [ "$parent_dir" != "$DATA_DIR" ]; do
+        [ ! -L "$parent_dir" ] || { echo "Symlink resource parents are not allowed" >&2; exit 1; }
+        parent_dir="$(dirname "$parent_dir")"
+      done
+      if [ ! -e "$target_file" ] && [ ! -L "$target_file" ]; then
+        mkdir -p "$(dirname "$target_file")"
+        cp -p "$source_file" "$target_file"
+      fi
+    done
   fi
 done
 
 echo "[entrypoint] 资产就绪，启动服务…"
-if [ "$(id -u)" = "0" ]; then
-  chown -R node:node "${DATA_DIR}"
+if [ "$(id -u)" = "0" ] && [ "$DATA_DIR" = "/app/backend/data" ]; then
+  # Existing volumes from the preceding release already belong to node.
+  # Avoid scanning every uploaded video on every restart. Permission repair is
+  # an explicit operator step, not an unbounded startup operation.
+  chown node:node "${DATA_DIR}"
+  for d in skills models modelPrompt assets vendor; do
+    [ ! -d "${DATA_DIR}/${d}" ] || chown -R node:node "${DATA_DIR}/${d}"
+  done
   exec gosu node "$@"
 fi
 exec "$@"
