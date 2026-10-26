@@ -11,6 +11,11 @@ RUN --mount=type=cache,id=xoi-console-npm,target=/root/.npm \
     npm ci --no-audit --no-fund
 COPY frontend/console/ .
 COPY shared/ /app/shared/
+# console/src 有一批引用逃出 console 目录，构建前必须存在（否则 vite:css / 资源解析 ENOENT）：
+#   globals.css -> frontend/shared/styles/overlay-motion.css
+#   one-stop/adapters/provider-logos.ts -> frontend/src/assets/providers/*.webp
+COPY frontend/shared/ /app/frontend/shared/
+COPY frontend/src/assets/providers/ /app/frontend/src/assets/providers/
 COPY frontend/src/utils/points.ts /app/frontend/src/utils/points.ts
 COPY frontend/src/utils/dailySpend.ts /app/frontend/src/utils/dailySpend.ts
 COPY frontend/src/assets/XOI_logo.png /app/frontend/src/assets/XOI_logo.png
@@ -45,14 +50,31 @@ RUN node scripts/sync-platform-brand.mjs --check && NODE_OPTIONS=--max-old-space
 # ───────── Stage 2: 后端打包（esbuild bundle）─────────
 FROM node:22-bookworm-slim AS backend-build
 WORKDIR /app/backend
-# 切到阿里云 Debian 源加速 apt（兼容新版 .sources 与传统 sources.list 两种格式）
-RUN npm config set registry https://registry.npmjs.org/ \
- && { sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' \
-          /etc/apt/sources.list.d/*.sources 2>/dev/null \
-     ; sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' \
-          /etc/apt/sources.list 2>/dev/null || true; } \
- && apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
- && rm -rf /var/lib/apt/lists/*
+# 切 Debian 源加速（中国大陆默认阿里云）；源不可达时自动回退官方源，避免整轮构建卡死。
+# 想强制用官方源：--build-arg APT_MIRROR=
+ARG APT_MIRROR=mirrors.aliyun.com
+RUN <<'EOF'
+set -eu
+npm config set registry https://registry.npmjs.org/
+swap() {
+  [ -n "${APT_MIRROR:-}" ] || { echo ">>> APT_MIRROR 为空，使用官方源"; return 0; }
+  for f in /etc/apt/sources.list.d/*.sources /etc/apt/sources.list; do
+    [ -f "$f" ] || continue
+    sed -i "s|$1|$2|g" "$f"
+  done
+}
+swap deb.debian.org "${APT_MIRROR}"
+swap security.debian.org "${APT_MIRROR}"
+if ! apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout=25; then
+  echo ">>> APT_MIRROR=${APT_MIRROR} 不可达，回退官方源重试"
+  swap "${APT_MIRROR}" deb.debian.org
+  apt-get update -o Acquire::Retries=3
+fi
+apt-get install -y --no-install-recommends \
+  -o Acquire::Retries=6 -o Acquire::http::Timeout=60 \
+  python3 make g++
+rm -rf /var/lib/apt/lists/*
+EOF
 COPY backend/package.json backend/package-lock.json ./
 # 打包阶段需要 devDependencies(tsx/esbuild)，全量安装
 RUN --mount=type=cache,id=xoi-backend-build-npm,target=/root/.npm \
@@ -78,16 +100,31 @@ WORKDIR /app/backend
 LABEL org.opencontainers.image.title="XOi" \
       org.opencontainers.image.description="AI 短剧工厂一体化部署"
 
-RUN npm config set registry https://registry.npmjs.org/ \
- # 切到阿里云 Debian 源加速 apt
- && { sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' \
-          /etc/apt/sources.list.d/*.sources 2>/dev/null \
-     ; sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' \
-          /etc/apt/sources.list 2>/dev/null || true; } \
- # sharp/better-sqlite3/sqlite3 在 glibc linux 上通常有预编译二进制；
- # 装 toolchain 仅作兜底现场编译。
- && apt-get update && apt-get install -y --no-install-recommends python3 make g++ ca-certificates tini gosu ffmpeg \
- && rm -rf /var/lib/apt/lists/*
+ARG APT_MIRROR=mirrors.aliyun.com
+RUN <<'EOF'
+set -eu
+npm config set registry https://registry.npmjs.org/
+swap() {
+  [ -n "${APT_MIRROR:-}" ] || { echo ">>> APT_MIRROR 为空，使用官方源"; return 0; }
+  for f in /etc/apt/sources.list.d/*.sources /etc/apt/sources.list; do
+    [ -f "$f" ] || continue
+    sed -i "s|$1|$2|g" "$f"
+  done
+}
+swap deb.debian.org "${APT_MIRROR}"
+swap security.debian.org "${APT_MIRROR}"
+if ! apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout=25; then
+  echo ">>> APT_MIRROR=${APT_MIRROR} 不可达，回退官方源重试"
+  swap "${APT_MIRROR}" deb.debian.org
+  apt-get update -o Acquire::Retries=3
+fi
+# sharp/better-sqlite3 在 glibc linux 上通常有预编译二进制；
+# 装 toolchain 仅作兜底现场编译（预编译包拉不到时 npm 会退回源码编译）。
+apt-get install -y --no-install-recommends \
+  -o Acquire::Retries=6 -o Acquire::http::Timeout=60 \
+  python3 make g++ ca-certificates tini gosu ffmpeg
+rm -rf /var/lib/apt/lists/*
+EOF
 
 COPY backend/package.json backend/package-lock.json ./
 # 独立缓存避免 BuildKit 并行阶段互相破坏；缓存挂载不写入最终镜像，无需 npm cache clean。
