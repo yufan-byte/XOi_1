@@ -6,6 +6,7 @@ import type {
   NotifyVerifyResult,
   PayChannel,
 } from "./types";
+import { isProductionPayment } from "./guards";
 
 /**
  * 模拟渠道：Phase A MVP 主力，零外部资质即可演示完整付费闭环。
@@ -26,6 +27,8 @@ export class SimulateChannel implements PayChannel {
   }
 
   async parseAndVerify(req: any): Promise<NotifyVerifyResult> {
+    // 双保险：即使有人绕过 factory 的 simulationPaymentEnabled 门禁，生产环境也绝不认模拟回调。
+    if (isProductionPayment()) return { ok: false, paid: false, reason: "simulate channel disabled in production" };
     const raw: Record<string, unknown> = { ...(req.query || {}), ...(req.body || {}) };
     delete (raw as any).sign;
     const ot = (raw.out_trade_no || raw.orderId || raw.id) as string | undefined;

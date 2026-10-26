@@ -1,11 +1,26 @@
 import { fetchBinaryWithLimit } from "@/utils/safeUrl";
+import { sharedRateLimiter } from "@/middleware/sharedRateLimiter";
 import { safeInlineMediaType } from "@/utils/mediaSecurity";
-import { OwnedTasks } from "@/utils/ownedTasks";
+import { DurableTasks } from "@/lib/workspace/tasks";
+import { db as taskDb } from "@/utils/db";
+import { recoverGatewayVideo } from "@/lib/workspace/videoRecovery";
 import express from "express";
 import u from "@/utils";
+import { recordDrawStart, recordDrawFinish } from "@/lib/workspace/drawLogs";
+import { recoverLateImage } from "@/lib/workspace/imageRecover";
+import axios from "axios";
 import { getActionPoints, getUserPoints } from "@/utils/points";
 import { capturePoints, releasePoints, reservePoints } from "@/utils/billing";
 import { getUserGatewayCredentials } from "@/lib/gateway/newapi";
+import { trackedGatewayFetch } from "@/lib/gateway/receipts";
+import { getUserCatalog, publicModel, resolveUserCatalogModel } from "@/lib/model-catalog";
+import sharp from "sharp";
+import { imageGenerationTier } from "@/utils/imageGenerationTier";
+import {canvasImageRequest} from "@/utils/canvasImageRequest";
+import { canvasVideoRequest } from "@/utils/canvasVideoRequest";
+import {getGatewayRequestContext} from "@/lib/gateway/context";
+import {mediaQueue,registerMediaHandler,runQueuedRoute} from "@/lib/workspace/mediaQueueRuntime";
+import {queueRequest} from "@/lib/workspace/queueRequest";
 
 /**
  * Infinite Canvas 依赖的 API stubs
@@ -18,88 +33,22 @@ const router = express.Router();
 // GET /api/config — AI 配置（画布初始化时调用）
 router.get("/config", async (req, res) => {
   try {
-    // 从数据库读取已启用的供应商配置
-    const vendors = await u.db("o_vendorConfig").select("id").where("enable", 1);
-
-    const chatModels: string[] = [];
-    const imageModels: string[] = [];
-    const videoModels: string[] = [];
-    let hasApiKey = false;
-    const apiProviders: any[] = [];
-
-    for (const v of vendors) {
-      try {
-        const vendor = u.vendor.getVendor(v.id!);
-        if (!vendor) continue;
-
-        const models = await u.vendor.getModelList(v.id!);
-        const inputs = await u.db("o_vendorConfig").where("id", v.id).first();
-        const inputValues = inputs ? JSON.parse(inputs.inputValues ?? "{}") : {};
-
-        // 检查是否有 API Key
-        const hasKey = v.id === "newapi" || Object.values(inputValues).some(
-          (val) => val && typeof val === "string" && val.trim().length > 0
-        );
-        if (hasKey) hasApiKey = true;
-
-        // 按类型分类模型
-        const providerChatModels: string[] = [];
-        const providerImageModels: string[] = [];
-        const providerVideoModels: string[] = [];
-
-        for (const m of models) {
-          if (m.type === "text") {
-            chatModels.push(m.modelName);
-            providerChatModels.push(m.modelName);
-          } else if (m.type === "image") {
-            imageModels.push(m.modelName);
-            providerImageModels.push(m.modelName);
-          } else if (m.type === "video") {
-            videoModels.push(m.modelName);
-            providerVideoModels.push(m.modelName);
-          }
-        }
-
-        // 构建画布需要的 api_providers 格式
-        const vendorName = (inputs as any)?.name || (vendor as any).name || String(v.id);
-        apiProviders.push({
-          id: String(v.id),
-          name: vendorName,
-          base_url: "",
-          enabled: true,
-          image_models: providerImageModels,
-          chat_models: providerChatModels,
-          video_models: providerVideoModels,
-          has_key: hasKey,
-          key_preview: hasKey ? "已配置" : "",
-        });
-      } catch (e) {
-        // 跳过单个供应商错误
-      }
-    }
-
-    res.json({
-      base_url: "",
-      chat_model: chatModels[0] || "",
-      image_model: imageModels[0] || "",
-      chat_models: chatModels,
-      image_models: imageModels,
-      video_models: videoModels,
-      comfy_instances: [],
-      api_providers: apiProviders,
-      has_api_key: hasApiKey,
-      ms_chat_models: [],
-      has_ms_key: false,
-    });
+    const catalog = await getUserCatalog(Number((req as any).user.id));
+    const models = catalog.models.filter(m => m.selectable);
+    const ofType = (type: string) => models.filter(m => m.type === type).map(m => m.modelName);
+    return res.json({ base_url: "", chat_model: ofType("text")[0] || "", image_model: ofType("image")[0] || "", chat_models: ofType("text"), image_models: ofType("image"), video_models: ofType("video"), audio_models: ofType("audio"),
+      api_providers: [{ id: "newapi", name: "平台模型", base_url: "", enabled: true, has_key: true, key_preview: "已配置", chat_models: ofType("text"), image_models: ofType("image"), video_models: ofType("video"), audio_models: ofType("audio") }],
+      model_catalog: models.map(m => publicModel(m, catalog.factor)), points_per_yuan: 10, has_api_key: true, comfy_instances: [], ms_chat_models: [], has_ms_key: false });
   } catch (e) {
     console.error("[canvas-stubs] 读取模型配置失败:", e);
-    res.json({
+    res.status(502).json({
       base_url: "",
       chat_model: "",
       image_model: "",
       chat_models: [],
       image_models: [],
       video_models: [],
+      audio_models: [],
       comfy_instances: [],
       api_providers: [],
       has_api_key: false,
@@ -436,13 +385,15 @@ router.post("/canvas-llm", async (req, res) => {
     }
 
     // 根据模型名找到对应的供应商
-    const config = await getTextVendorApiConfig(model);
+    const requestedTextModel = String(model || "").replace(/^newapi:/, "");
+    const resolvedTextModel = (await resolveUserCatalogModel(Number(userId), requestedTextModel, "text", !requestedTextModel)).model.modelName;
+    const config = await getTextVendorApiConfig(resolvedTextModel);
     if (!config?.model || config.vendorId !== "newapi") {
       return res.status(400).json({ error: "未配置 NewAPI 文本模型，请联系管理员同步并选择模型" });
     }
 
     const { baseUrl, apiKey } = await getUserGatewayCredentials(Number(userId));
-    const useModel = config.model?.modelName || model || "gpt-4o-mini";
+    const useModel = resolvedTextModel;
 
     // 构建消息
     const apiMessages: any[] = [];
@@ -469,7 +420,7 @@ router.post("/canvas-llm", async (req, res) => {
       }
     }
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await trackedGatewayFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -503,12 +454,12 @@ router.post("/canvas-llm", async (req, res) => {
   }
 });
 
-// 任务存储（内存）
-const imageTasks = new OwnedTasks<{ status: string; result?: any; error?: string }>((id) => imageDeliveredMarkers.delete(id));
+// 任务存储（数据库）；内存只保存当前进程的落盘仲裁标记。
+const imageTasks = new DurableTasks<{ status: string; result?: any; error?: string; recoveryRequired?: boolean }>(taskDb, "image", (id) => imageDeliveredMarkers.delete(id));
 
 // deliveryMarkerRegistry：CAS 终态仲裁闘门的反向白嫖守卫数据源 —— 图片流水线 aiImage.save() 落盘成功后在此登记 taskId，
 //   finalizeFail 进入结算裁决时据此判别是否实质交付以防“近超时却已出货被错退”的薅羊毛场景(R1 场景守护)．
-//   内存级生命周期跟随 imageTasks entries 同寿命勿过早 GC 在途项以免悬空使判决失效崩溃进程。
+//   标记只在当前生成流水线运行期间保留，收尾后清理，避免随历史任务无限增长。
 const imageDeliveredMarkers = new Set<string>();
 
 // POST /api/canvas-image-tasks — 图片生成任务
@@ -516,6 +467,7 @@ const imageDeliveredMarkers = new Set<string>();
 //   与 /api/v1/canvas/image-tasks（上游画布编辑器，见文件底部 /v1/canvas 适配层）。
 const canvasImageTaskCreate = async (req: any, res: any) => {
   try {
+    req.body=canvasImageRequest(req.body);
     const userId = (req as any).user?.id;
     if (!userId) return res.status(401).json({ error: "未登录" });
 
@@ -535,6 +487,7 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
       }
     }
 
+    if ([width,height].some(value=>value!==undefined&&(!Number.isSafeInteger(value)||value<1||value>8192)))return res.status(400).json({error:"图片尺寸须为 1–8192 的整数"});
     // ── 计费重构（serene-splashing-pebble.md · 配套评审探针对抗审视）─────────
     // 把原嵌于异步 IIFE 内部的 modelKey/pricingCtx 解析上移至此提交同步段：
     //   既供 ctx-aware atomic-reserve 定价命中 o_points_price_override 差异化倍率，
@@ -546,20 +499,16 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
         : "";
 
     if (!modelKey) {
-      // 自动找首个可用图模（复刻视频侧 getVendorApiConfig 入口级前置惯例短路即停）
-      const _vendors = await u.db("o_vendorConfig").select("id").where("enable", 1);
-      for (const v of _vendors) {
-        const _models = await u.vendor.getModelList(v.id!);
-        const imgModel = _models.find((m: any) => m.type === "image");
-        if (imgModel) {
-          modelKey = `${v.id}:${imgModel.modelName}`;
-          break;
-        }
-      }
+      modelKey = `newapi:${(await resolveUserCatalogModel(Number(userId), "", "image")).model.modelName}`;
     } else if (!modelKey.includes(":")) {
       // modelName 无 vendorId 前缀时按 findVendorByModel 兜底补齐(split(/:(.+)/) 第二组贪婪捕获保留多冒号modelName审计精度)
       const found = await findVendorByModel(modelKey);
       if (found) modelKey = `${found.vendorId}:${modelKey}`;
+    }
+
+    if (modelKey.startsWith("newapi:")) {
+      const requested = modelKey.slice("newapi:".length);
+      modelKey = `newapi:${(await resolveUserCatalogModel(Number(userId), requested, "image", !requested)).model.modelName}`;
     }
 
     if (!modelKey || !String(modelKey).includes(":")) {
@@ -570,7 +519,7 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
 
     // ② atomic-reserve：submit 瞬间事务性预扣 N 锁额度；失败路径经下方 CAS 闸门条件全额退还满足“一点 API 生成就扣／不成则归还”心智，
     //   audit 维度(vendor_id/model_name 列)由 checkAndDeductPoints 内部依 ctx 自动写 o_points_log 无需额外维护。
-    const taskId = `task_${u.uuid()}`;
+    const taskId = req.__mediaJob?.taskId || `task_${u.uuid()}`;
     const reserve = await reservePoints({
       userId,
       requestId: `canvas-image:${taskId}`,
@@ -585,15 +534,18 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
       return res.status(400).json({ error: reserve.message ?? "积分不足，无法发起图片生成任务" });
     }
 
-    if (!imageTasks.create(taskId, Number(userId), { status: "running" })) {
-      await releasePoints(reserve, "任务并发上限");
-      return res.status(429).json({ error: "生成任务过多，请等待现有任务完成" });
+    if(!req.__mediaJob){
+      const billingId=getGatewayRequestContext()?.billingId||"";
+      const job=await mediaQueue.enqueue("image",taskId,Number(userId),billingId,queueRequest("image",{...req.body,model:modelKey,width,height}),{model:modelKey,modelKey,prompt,sourceId:req.body.source_id,nodeId:req.body.node_id},req.body.clientTaskId||req.body.client_task_id);
+      return res.json({task_id:job.id,status:job.status,pointsDeducted:null,queueMessage:"已进入等待队列，尚未提交上游；实际调用时按用量结算"});
     }
     console.log(
       `[canvas-image] 创建任务 ${taskId}, prompt="${(prompt || "").slice(0, 60)}", model=${
         model || "(auto)"
       }, reservedPoints=${reserve.deducted ?? 0}`
     );
+    // 记账：先落一条 running，成功/失败各回填一次（对标造物 mc_draw_logs）
+    void recordDrawStart({ taskId, userId: Number(userId), model: modelKey, prompt, size: typeof req.body?.size === "string" ? req.body.size : undefined });
 
     // ③ 即刻回执：fire-and-forget 异步流水线后台跑的同时立刻返提交快照(cost 字段塞顶层令前端 xoi-bridge.pickCost 点击秒级唤金卡；balance 为快照非权威最新 UI 应另调 refreshProfile)
     res.json({
@@ -608,11 +560,12 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
     const watchdogTimerRef = { timer: setTimeout(() => {}, 0) }; // 占位待真看守钟赋值覆盖
     const termState = { settled: false as boolean };
 
-    function finalizeOk(resultPayload: any): boolean {
+    async function finalizeOk(resultPayload: any): Promise<boolean> {
       if (termState.settled) return false;                  // 输家静默退出禁动 Map/timer/db
       termState.settled = true;
       clearTimeout(watchdogTimerRef.timer);
-      imageTasks.set(taskId, { status: "succeeded", result: resultPayload });
+      await imageTasks.set(taskId, { status: "succeeded", result: resultPayload });
+      void recordDrawFinish(taskId, "succeeded", { url: resultPayload?.url || resultPayload?.images?.[0]?.url });
       void capturePoints(reserve).catch((settleError: any) => {
         console.error(`[canvas-image] 任务 ${taskId} 结算异常:`, settleError?.message || settleError);
       });
@@ -626,18 +579,20 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
 
       if (imageDeliveredMarkers.has(taskId)) {
         // artifact 已落盘视为实质交付成立：即便走到此处亦升级 succeeded 附 warning 表明曾疑超时不退款防 reverse 白嫖
-        const cur = imageTasks.get(taskId);
+        const cur = await imageTasks.get(taskId);
         const baseResult: any = cur?.result ?? {};
         const prevWarns: string[] = Array.isArray(baseResult.warnings) ? [...baseResult.warnings] : [];
         prevWarns.push(`upstream slow near deadline (${reason})`);
-        imageTasks.set(taskId, { status: "succeeded", result: { ...baseResult, warnings: prevWarns } });
+        await imageTasks.set(taskId, { status: "succeeded", result: { ...baseResult, warnings: prevWarns } });
         await capturePoints(reserve);
         console.warn(`[canvas-image] 任务 ${taskId} 近超时但仍交付成功标注 warning`);
         return true;
       }
 
+      void recordDrawFinish(taskId, "failed", { error: reason });
+
       // 空手归案 failed 条件全额退款(refundPoints 遇非正值会 throw 故 deducted<=0 短路跳过免中断主流程)
-      imageTasks.set(taskId, { status: "failed", error: reason });
+      await imageTasks.set(taskId, { status: /超时|timeout|network|socket|ECONN/i.test(reason) ? "unknown" : "failed", error: reason });
       if (reserve.success && (reserve.deducted || 0) > 0) {
         try {
           await releasePoints(reserve, reason.includes("超时") ? "画布图片超时退还" : "画布图片失败退还");
@@ -650,10 +605,10 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
     }
 
     clearTimeout(watchdogTimerRef.timer);                   // 弃占位启用真看守钟(B 图耗时短维持原 5min 阈值合理)
-    watchdogTimerRef.timer = setTimeout(() => void finalizeFail("图片生成超时（5分钟）"), 5 * 60 * 1000);
+    watchdogTimerRef.timer = setTimeout(() => void finalizeFail("图片生成超时（6分钟）").catch(console.error), 6 * 60 * 1000);
 
-    // 异步执行图片生成：aiImage 使用提前算好的 modelKey 直构不再入册时重复解析供应商/型号
-    (async () => {
+    // Worker awaits completion; waiting is persisted before any upstream request.
+    await (async () => {
       try {
         const aiImage = u.Ai.Image(modelKey as any);
 
@@ -673,13 +628,14 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
         await aiImage.run({
           prompt,
           referenceList,
-          size: "2K",
+          size: imageGenerationTier(size,w,h,rest.resolution),
           aspectRatio,
         });
 
         // 保存图片落盘 + 拼 OSS 同源代理 URL(Vite/nginx 反代到位规避 download-output 死链)
         const imagePath = `/canvas/generated/${taskId}.jpg`;
         await aiImage.save(imagePath);
+        const dimensions=await sharp(await u.oss.getFile(imagePath)).metadata();
         const imageUrl = `/oss${imagePath}`;
 
         // 收尾：登记落盘标志供 CAS 反向白嫖守卫核验；删原 success-time 二次扣除(已在②预扣过 N 锁额度),
@@ -687,36 +643,70 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
         //   envelope 去 cost 字段让四条引擎原生轮询消费方失声,xoi-bridge 全局 hook 于 submit 瞬间统一呈现一次仅一次(UX 时机迁移非功能丢失).
         imageDeliveredMarkers.add(taskId);
         const succResult = {
-          images: [{ url: imageUrl, width: w, height: h }],
+          images: [{ url: imageUrl, width: dimensions.width || w, height: dimensions.height || h }],
           url: imageUrl,
-          width: w,
-          height: h,
+          width: dimensions.width || w,
+          height: dimensions.height || h,
         };
-        if (finalizeOk(succResult)) {
+        if (await finalizeOk(succResult)) {
           console.log(`[canvas-image] 任务 ${taskId} 完成: ${imageUrl}`);
         }
       } catch (e: any) {
         console.error("[canvas-image] 生成错误:", e.message);
+        // 超时先反查造物绘图记录（对标造物 genImage 的 recoverImageCall）：
+        // 我们放弃了，上游可能已出图并计费 —— 命中就把图找回落盘，而不是让钱白花。
+        if (/等待 5 分钟|timeout of \d+ms exceeded/i.test(String(e?.message || ""))) {
+          try {
+            const recovered = await recoverLateImage({ model: String(modelKey), userId: Number(userId), taskId, since: Date.now() - 330_000 });
+            if (recovered) {
+              // 纵深防御：造物站返回的 URL 也走 SSRF 防护（公网校验/DNS rebinding/大小截断），
+              // 防止上游响应被污染时内网地址进入本服务器的出站请求。
+              const { buffer: file } = await fetchBinaryWithLimit(recovered, 128 * 1024 * 1024);
+              const imagePath = `/canvas/generated/${taskId}.jpg`;
+              await u.oss.writeFile(imagePath, Buffer.from(file));
+              const dimensions = await sharp(await u.oss.getFile(imagePath)).metadata();
+              const imageUrl = `/oss${imagePath}`;
+              imageDeliveredMarkers.add(taskId);
+              const recoveredResult = {
+                images: [{ url: imageUrl, width: dimensions.width || 1024, height: dimensions.height || 1024 }],
+                url: imageUrl,
+                width: dimensions.width || 1024,
+                height: dimensions.height || 1024,
+              };
+              if (await finalizeOk(recoveredResult)) {
+                console.log(`[canvas-image] 任务 ${taskId} 经造物绘图记录找回: ${imageUrl}`);
+              }
+              return;
+            }
+          } catch (re: any) {
+            console.warn("[canvas-image] 反查未命中:", re?.message || re);
+          }
+        }
         // 经 CAS 闸门裁决：无 artifacts 则条件全额退款(②预扣部分返还)，已落盘则升格 succeeded 防 reverse 白嫖(R1 场景守护)
         await finalizeFail(e.message || String(e));
+      } finally {
+        imageDeliveredMarkers.delete(taskId);
       }
-    })();
+    })().catch((error: any) => console.error(`[canvas-image] 任务 ${taskId} 状态落库异常:`, error?.message || error));
 
   } catch (e: any) {
     console.error("[canvas-image] 请求错误:", e.message);
-    res.status(500).json({ error: `图片生成失败: ${e.message}` });
+    if(!res.headersSent)res.status(e.status||500).json({ error: `图片生成失败: ${e.message}` });else throw e;
   }
 };
 
 router.post("/canvas-image-tasks", canvasImageTaskCreate);
 
 // GET /api/canvas-image-tasks/:task_id
-router.get("/canvas-image-tasks/:task_id", (req, res) => {
+router.get("/canvas-image-tasks/:task_id", async (req, res) => {
+  // 轮询/查询接口禁止 ETag 304：客户端 !response.ok 会当成失败，节点会永远转圈。
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate"); res.removeHeader("ETag");
   const taskId = req.params.task_id;
-  const task = imageTasks.getForUser(taskId, Number((req as any).user?.id));
+  const task = await imageTasks.getForUser(taskId, Number((req as any).user?.id));
   if (!task) {
     return res.status(404).json({ error: "任务不存在" });
   }
+  if (task.recoveryRequired || task.status === "unknown") return res.status(409).json({ error: "图片任务结果待核实，请勿重复生成", recoveryRequired: true });
   res.json(task);
 });
 
@@ -733,10 +723,26 @@ router.get("/canvas-image-tasks/:task_id", (req, res) => {
  * 这里做薄适配：同一套计费 + 供应商管线，两条路径、两种信封。
  * （此前 /api/v1/canvas/* 整体 404，画布编辑器"能配置模型但一生成就失败"。）
  */
+const imageTaskErrorMessage = (task: any) => {
+  const raw = String(task?.error || "");
+  if (/timeout of \d+ms exceeded|超时|ETIMEDOUT|ECONN|socket hang up/i.test(raw)) return "上游生图超时或未返回结果（本单已退款），请换用其他图片模型重试";
+  if (raw) return raw;
+  if (task?.status === "unknown") return "上游生图未返回结果（本单已退款），请重试或换用其他图片模型";
+  return undefined;
+};
+
 const upstreamTaskView = (taskId: string, task: any) => {
-  const status = task?.status === "succeeded" ? "completed" : task?.status === "failed" ? "failed" : "running";
+  const raw = task?.status;
+  // unknown/超时是终态：必须让画布节点停下来并提示重试，不能映射成"进行中"无限转圈。
+  const status = raw === "succeeded" ? "completed" : raw === "failed" || raw === "unknown" ? "failed" : raw || "queued";
   const images = Array.isArray(task?.result?.images) ? task.result.images.map((i: any) => i?.url).filter(Boolean) : [];
   const single = task?.result?.url || images[0] || "";
+  const message = status === "failed" ? imageTaskErrorMessage(task) || "图片生成失败" : undefined;
+  // 进度条别死在 0%：按已等待时长给一条渐近曲线（约 1.5 分钟到 60%、封顶 95%），
+  // 画布节点就会显示「正在生成 XX%」，用户能看出它在动而不是卡死。
+  const startedAt = Number(task?.queuedAt || task?.startedAt || 0);
+  const elapsed = startedAt > 0 ? Math.max(0, Date.now() - startedAt) : 0;
+  const runningProgress = elapsed ? Math.min(95, Math.round((1 - Math.exp(-elapsed / 90000)) * 95)) : 0;
   return {
     id: taskId,
     source: "canvas" as const,
@@ -745,10 +751,10 @@ const upstreamTaskView = (taskId: string, task: any) => {
     model: task?.model || "",
     prompt: task?.prompt || "",
     status,
-    progress: status === "running" ? 30 : 100,
+    progress: status === "completed" ? 100 : runningProgress,
     image_url: single,
     image_urls: images.length ? images : single ? [single] : [],
-    error: task?.error || "",
+    ...(message ? { error: { message }, retryable: true } : {}),
   };
 };
 
@@ -757,27 +763,34 @@ router.post("/v1/canvas/image-tasks", async (req: any, res: any) => {
   res.json = (body: any) => {
     // 只有成功创建（拿到 task_id）才转成上游信封；错误体原样透传（非 2xx，上游会 fetchErrorDetail 取 message）
     if (body && body.task_id) {
-      return rawJson({ code: 0, msg: "", data: upstreamTaskView(body.task_id, { status: "running", model: req.body?.model, prompt: req.body?.prompt }) });
+      return rawJson({ code: 0, msg: "", data: upstreamTaskView(body.task_id, { status: body.status || "queued", model: req.body?.model, prompt: req.body?.prompt }) });
     }
     return rawJson(body);
   };
   await canvasImageTaskCreate(req, res);
 });
 
-router.get("/v1/canvas/image-tasks/:task_id", (req: any, res: any) => {
-  const task = imageTasks.getForUser(req.params.task_id, Number(req.user?.id));
+router.get("/v1/canvas/image-tasks/:task_id", async (req: any, res: any) => {
+  // 轮询接口绝不能走 ETag/304：上游画布对 !response.ok 直接抛错，304 会让节点永远停在"生成中"。
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.removeHeader("ETag");
+  const task = await imageTasks.getForUser(req.params.task_id, Number(req.user?.id));
   if (!task) return res.status(404).json({ code: 404, msg: "任务不存在", data: null });
-  return res.json({ code: 0, msg: "", data: upstreamTaskView(req.params.task_id, task) });
+  // 超时/待核实不再返回 409（那会让画布节点一直转圈）：改为 failed 视图 + 明确原因，前端可提示重试。
+  const view = upstreamTaskView(req.params.task_id, task);
+  return res.json({ code: 0, msg: "", data: task.recoveryRequired || task.status === "unknown" ? { ...view, recoveryRequired: true } : view });
 });
 
-router.post("/v1/canvas/image-tasks/status", (req: any, res: any) => {
+router.post("/v1/canvas/image-tasks/status", async (req: any, res: any) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.removeHeader("ETag");
   const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
-  // 未知的任务不上报（上游按 id 对账，塞一个永远 running 的假任务会让节点卡死）
-  res.json({ code: 0, msg: "", data: ids.slice(0, 500).filter((id) => imageTasks.getForUser(id, Number(req.user?.id))).map((id) => upstreamTaskView(id, imageTasks.getForUser(id, Number(req.user?.id)))) });
+  const records = await Promise.all(ids.slice(0, 100).map(async id => ({ id, task: await imageTasks.getForUser(id, Number(req.user?.id)) })));
+  res.json({ code: 0, msg: "", data: records.filter(row => row.task).map(row => upstreamTaskView(row.id, row.task)) });
 });
 
-router.delete("/v1/canvas/image-tasks/:task_id", (_req: any, res: any) => {
-  if (!imageTasks.deleteForUser(_req.params.task_id, Number(_req.user?.id))) return res.status(404).json({ code: 404, msg: "任务不存在或尚未完成", data: null });
+router.delete("/v1/canvas/image-tasks/:task_id", async (_req: any, res: any) => {
+  if (!await imageTasks.deleteForUser(_req.params.task_id, Number(_req.user?.id))) return res.status(404).json({ code: 404, msg: "任务不存在或尚未完成", data: null });
   res.json({ code: 0, msg: "", data: null });
 });
 
@@ -798,12 +811,12 @@ router.get("/canvas-comfy-tasks/:task_id", (req, res) => {
 //   首跑依赖 seed 元信息齐全的 agnes-video-v2.0(version='1.1'<2 ⇒ ai.ts 自动注入 input.imageBase64 数组喂老模板,
 //   其 videoRequest 内部封装 创建任务→pollTask 每5秒探直到 completed/failed 或10分钟超时→下载 base64 整条流水线,
 //   caller 单个 await .run() 即阻塞至成品无需自造远程轮询)。
-type CanvasVideoTaskState = { status: "running" | "succeeded" | "failed"; result?: any; error?: string };
-const canvasVideoTasks = new OwnedTasks<CanvasVideoTaskState>((id) => videoDeliveredMarkers.delete(id));
+type CanvasVideoTaskState = { status: "queued" | "cancelled" | "running" | "succeeded" | "failed" | "unknown"; result?: any; error?: string; upstreamId?: string; modelKey?: string; recoveryRequired?: boolean };
+const canvasVideoTasks = new DurableTasks<CanvasVideoTaskState>(taskDb, "video", (id) => videoDeliveredMarkers.delete(id));
 
 // deliveryMarkerRegistry：CAS 终态仲裁闸门的反向白嫖守卫数据源 —— 视频流水线 vid.save() 落盘成功后在此登记 taskId，
 //   finalizeFail 进入结算裁决时据此判别是否实质交付以防“近超时却已出货被错退”的薅羊毛场景（R1 场景守护）。
-//   内存级生命周期跟随 canvasVideoTasks entries 同寿命勿过早 GC 在途项以免悬空使判决失效崩溃进程。
+//   标记只在当前生成流水线运行期间保留，收尾后清理，历史状态由数据库保存。
 const videoDeliveredMarkers = new Set<string>();
 
 // timeoutGuard:超过约15分钟仍未完成任务交由 finalizeFail 裁决(agnes 自身10min 上限留充足余裕给下载/OSS 落盘降假阴率);
@@ -827,7 +840,7 @@ router.get("/canvas-video-pricing", async (req, res) => {
 async function resolveCanvasMediaRef(
   rawUrl: string,
   hintType: "image" | "audio" | "video"
-): Promise<{ type: "image" | "audio" | "video"; base64: string } | null> {
+): Promise<{ type: "image" | "audio" | "video"; base64: string; url?: string } | null> {
   if (!rawUrl || typeof rawUrl !== "string") return null;
   try {
     if (/^data:/i.test(rawUrl)) {
@@ -841,7 +854,7 @@ async function resolveCanvasMediaRef(
     }
     if (/^https?:\/\//i.test(rawUrl)) {
       const { buffer: buf } = await fetchBinaryWithLimit(rawUrl);
-      return { type: hintType, base64: buf.toString("base64") };
+      return { type: hintType, base64: buf.toString("base64"), url: rawUrl };
     }
     console.warn("[canvas-video] 未识别的媒体协议已跳过:", rawUrl.slice(0, 120));
     return null;
@@ -903,7 +916,8 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
       });
     }
 
-    const cfg = await getVendorApiConfig(bareModelName || undefined);
+    const resolvedVideoModel = (await resolveUserCatalogModel(Number(userId), bareModelName, "video", !bareModelName)).model.modelName;
+    const cfg = await getVendorApiConfig(resolvedVideoModel);
     const vm = cfg && cfg.model;
     if (!vm || vm.type !== "video") {
       console.warn(`[canvas-video] 视频模型匹配失败: raw=${rawModelField || "<empty>"}, normalized=${bareModelName || "<empty>"}, matched=${vm?.modelName || "<none>"}, type=${vm?.type || "<none>"}`);
@@ -914,12 +928,29 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     }
     if (cfg!.vendorId !== "newapi") return res.status(400).json({ error: "视频生成只允许使用 NewAPI 模型", message: "视频生成只允许使用 NewAPI 模型" });
 
+    if (/^seedance2\.[05]-(line1(?:-fast)?|full(?:-fast)?)(?:-xoi)?$/.test(String(vm.modelName))) {
+      const enums = vm.enums || {};
+      const resolution = String(body.resolution || "").toLowerCase().replace(/^(480|720|1080)$/, "$1p");
+      const duration = Number(body.duration);
+      if (!enums.duration?.map(String).includes(String(duration)) || !enums.resolution?.map(String).includes(resolution)) {
+        return res.status(400).json({ error: "当前时长或清晰度不在模型支持范围，请重新选择后生成" });
+      }
+      if (body.aspect_ratio && !enums.aspect_ratio?.includes(body.aspect_ratio)) return res.status(400).json({ error: "当前画幅比例不在模型支持范围" });
+      for (const key of ["images", "videos", "audios"] as const) {
+        const list = Array.isArray(body[key]) ? body[key] : [];
+        if (list.length > (vm.referenceLimits?.[key] ?? 0)) return res.status(400).json({ error: `该模型最多支持 ${vm.referenceLimits?.[key] ?? 0} 个${({ images: "参考图", videos: "参考视频", audios: "参考音频" })[key]}` });
+        // These native upstream routes require retrievable URLs; never silently drop local media.
+        if (list.some((item: any) => !/^https?:\/\//i.test(typeof item === "string" ? item : item?.url || ""))) return res.status(400).json({ error: "该线路的参考素材需要公网地址，请上传至对象存储后重试；本次未提交、未扣费" });
+      }
+      body.resolution = resolution;
+    }
+
     // ② 积分门禁：提交即 atomic reserve（serene-splashing-pebble.md 计费重构 · 配套评审探针对抗审视）
     //   替换原“probe 仅探不上账→上游成功后才实扣”的延后扣模式为“submit 瞬间事务预扣 N 锁额度＋后台任一路径经 CAS 仲裁退款”，
     //   既满足“一点 API 生成就扣／不成则归还”心智，又令前端 xoi-bridge.pickCost 可嗅探 submit 响应顶层 cost 秒级弹金卡根治迟到体感。
     //   audit 维度(vendor_id/model_name 列)由 checkAndDeductPoints 内部依 ctx 自动写 o_points_log 无需额外维护。
     const pricingCtx = { vendorId: String(cfg!.vendorId!), modelName: String(vm.modelName!) };
-    const taskId = `v_${u.uuid()}`;
+    const taskId = req.__mediaJob?.taskId || `v_${u.uuid()}`;
     const reserve = await reservePoints({
       userId,
       requestId: `canvas-video:${taskId}`,
@@ -936,9 +967,10 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     }
 
     // ③ 取号入册即时响应(fire-and-forget)；顶层附 cost 快照供前端 pickCost 点击秒级唤金卡（balance 为快照非权威最新,UI 展示余额请另调 refreshProfile）.
-    if (!canvasVideoTasks.create(taskId, Number(userId), { status: "running" })) {
-      await releasePoints(reserve, "任务并发上限");
-      return res.status(429).json({ error: "生成任务过多，请等待现有任务完成" });
+    if(!req.__mediaJob){
+      const modelKey=`${cfg!.vendorId}:${vm.modelName}`;
+      const job=await mediaQueue.enqueue("video",taskId,Number(userId),getGatewayRequestContext()?.billingId||"",queueRequest("video",{...body,model:modelKey}),{model:modelKey,modelKey,prompt,sourceId:body.source_id,nodeId:body.node_id},body.clientTaskId||body.client_task_id);
+      return res.json({task_id:job.id,status:job.status,pointsDeducted:null,queueMessage:"已进入等待队列，尚未提交上游；实际调用时按用量结算"});
     }
     res.json({
       task_id: taskId,
@@ -952,11 +984,11 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     const watchdogTimerRef = { timer: setTimeout(() => {}, 0) }; // 占位待真实看守钟赋值覆盖
     const termState = { settled: false as boolean };
 
-    function finalizeOk(resultPayload: any): boolean {
+    async function finalizeOk(resultPayload: any): Promise<boolean> {
       if (termState.settled) return false;                  // 输家静默退出禁动 Map/timer/db
       termState.settled = true;
       clearTimeout(watchdogTimerRef.timer);
-      canvasVideoTasks.set(taskId, { status: "succeeded", result: resultPayload });
+      await canvasVideoTasks.set(taskId, { status: "succeeded", result: resultPayload });
       void capturePoints(reserve).catch((settleError: any) => {
         console.error(`[canvas-video] 任务 ${taskId} 结算异常:`, settleError?.message || settleError);
       });
@@ -970,18 +1002,20 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
 
       if (videoDeliveredMarkers.has(taskId)) {
         // artifact 已落盘视为实质交付成立：维持 succeeded 附 warning 表明曾疑超时不退款防 reverse 白嫖
-        const cur = canvasVideoTasks.get(taskId);
+        const cur = await canvasVideoTasks.get(taskId);
         const baseResult: any = cur?.result ?? {};
         const prevWarns: string[] = Array.isArray(baseResult.warnings) ? [...baseResult.warnings] : [];
         prevWarns.push(`upstream slow near deadline (${reason})`);
-        canvasVideoTasks.set(taskId, { status: "succeeded", result: { ...baseResult, warnings: prevWarns } });
+        await canvasVideoTasks.set(taskId, { status: "succeeded", result: { ...baseResult, warnings: prevWarns } });
         await capturePoints(reserve);
         console.warn(`[canvas-video] 任务 ${taskId} 近超时但已交付成功标注 warning`);
         return true;
       }
 
       // 空手而归标 failed 并条件全额退款（refundPoints 遇 points<=0 会 throw 故 deducted<=0 短路跳过免中断主流程）
-      canvasVideoTasks.set(taskId, { status: "failed", error: reason });
+      const state = await canvasVideoTasks.get(taskId);
+      // A timeout is not proof of upstream failure. Preserve the remote identity for GET-only recovery.
+      await canvasVideoTasks.set(taskId, { status: state?.upstreamId || /超时|timeout|network|socket|ECONN/i.test(reason) ? "unknown" : "failed", error: reason });
       if (reserve.success && (reserve.deducted || 0) > 0) {
         try {
           await releasePoints(reserve, reason.includes("超时") ? "画布视频超时退还" : "画布视频失败退还");
@@ -994,9 +1028,9 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     }
 
     clearTimeout(watchdogTimerRef.timer);                   // 弃占位启用真看守钟
-    watchdogTimerRef.timer = setTimeout(() => void finalizeFail("视频生成超时(>15 分钟)"), CANVAS_VIDEO_TIMEOUT_MS);
+    watchdogTimerRef.timer = setTimeout(() => void finalizeFail("视频生成超时(>15 分钟)").catch(console.error), CANVAS_VIDEO_TIMEOUT_MS);
 
-    (async () => {
+    await (async () => {
       try {
         // ④ ref→base64 白名单桥接:imgArr 恒按 image 角色/vidArr 按 video/audArr 按 audio(payload 位置已编码意图无需扩展名推断)
         const imgArr: any[] = Array.isArray(body.images) ? body.images : [];
@@ -1015,6 +1049,7 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
             candItems.map(async (c) => resolveCanvasMediaRef(String(c.url ?? ""), c.kind))
           )
         ).filter(Boolean) as Array<{ type: "image" | "audio" | "video"; base64: string }>;
+        if (refs.length !== candItems.length) throw new Error("参考素材读取失败，任务未提交到上游，请检查素材后重试");
 
         // ⑤ VideoConfig 构造(duration/resolution 以 selectedModel.durationResolutionMap 权威档位为准防远端拒收非法参数)
         const drmEntry =
@@ -1056,6 +1091,9 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
 
         // ⑥ pipeline 执行 + OSS 落盘出料(save=path 落本地 fs mkdir -p/auto-strip dataURL prefix;outUrl 拼 /oss 同源代理沿 image-tasks:600 口径 Vite/nginx 反代到位)
         const vid = u.Ai.Video(`${cfg!.vendorId}:${vm.modelName}`);
+        runCfg.onSubmitted = async (upstreamId: string) => {
+          await canvasVideoTasks.set(taskId, { status: "running", upstreamId });
+        };
         await vid.run(runCfg);
         const relSavePath = `/canvas/video/${userId}/${u.uuid()}.mp4`;
         await vid.save(relSavePath);
@@ -1070,24 +1108,26 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
           url: outUrl,
           ...(unsupportedWarnings.length ? { warnings: [...unsupportedWarnings] } : {}),
         };
-        if (finalizeOk(succResult)) {
+        if (await finalizeOk(succResult)) {
           console.log(`[canvas-video] 任务 ${taskId} 完成: ${outUrl}`);
         }
       } catch (e: any) {
         console.error("[canvas-video] 任务失败:", e.message);
         // 经 CAS 闸门裁决：无 artifacts 则条件全额退款(已在②预扣的部分返还)，已落盘则升格 succeeded 防 reverse 白嫖(R1 场景守护)
         await finalizeFail(e.message || String(e));
+      } finally {
+        videoDeliveredMarkers.delete(taskId);
       }
-    })();
+    })().catch((error: any) => console.error(`[canvas-video] 任务 ${taskId} 状态落库异常:`, error?.message || error));
   } catch (e: any) {
     console.error("[canvas-video] 请求处理异常:", e.message);
-    res
-      .status(500)
-      .json({ error: e.message || String(e), message: e.message || String(e) });
+    if(!res.headersSent)res.status(e.status||500).json({ error: e.message || String(e), message: e.message || String(e) });else throw e;
   }
 };
 
 router.post("/canvas-video", canvasVideoTaskCreate);
+registerMediaHandler("image",job=>runQueuedRoute(canvasImageTaskCreate,job));
+registerMediaHandler("video",job=>runQueuedRoute(canvasVideoTaskCreate,job));
 
 /* ============================================================
  * 上游画布编辑器视频通道适配（/api/v1/videos*）
@@ -1109,11 +1149,11 @@ const videoTaskToUpstream = (id: string, t: { status: string; result?: any; erro
     id,
     task_id: id,
     model: typeof model === "string" ? model : undefined,
-    status: completed ? "completed" : t.status === "failed" ? "failed" : "processing",
-    progress: completed ? 100 : t.status === "running" ? 5 : 0,
+    status: completed ? "completed" : t.status === "running" ? "processing" : t.status,
+    progress: completed ? 100 : 0,
     video_url: videoUrl || undefined,
     url: videoUrl || undefined,
-    error: t.status === "failed" ? { message: t.error || "视频生成失败" } : undefined,
+    error: t.error ? { message: t.error } : undefined,
     warnings: Array.isArray(t.result?.warnings) ? t.result.warnings : undefined,
   };
 };
@@ -1125,7 +1165,7 @@ const wrapVideoCreated = (handler: any) => async (req: any, res: any) => {
       return json({
         code: 0,
         msg: "",
-        data: { id: payload.task_id, task_id: payload.task_id, status: "processing", progress: 0, model: req.body?.model },
+        data: { id: payload.task_id, task_id: payload.task_id, status: payload.status || "queued", progress: 0, model: req.body?.model },
         points_deducted: payload.pointsDeducted ?? null,
         balance: payload.balance,
       });
@@ -1136,59 +1176,52 @@ const wrapVideoCreated = (handler: any) => async (req: any, res: any) => {
 };
 
 router.post("/v1/videos", wrapVideoCreated(async (req: any, res: any) => {
-  const b = req.body || {};
-  // 上游 body → 内部 /api/canvas-video 字段：
-  //   seconds→duration；size("720P"/"1080P")→resolution；aspect_ratio 直传（内部已有七档收敛）；
-  //   images/videos/audios 收敛成纯 URL 串数组（上游 videos 可能是 [{url}]）；first_frame 降级为首张参考图。
-  const asUrlList = (v: unknown): string[] =>
-    Array.isArray(v) ? v.map((x) => (typeof x === "string" ? x : (x as any)?.url)).filter((u: unknown): u is string => typeof u === "string" && !!u) : [];
-  const images = [...asUrlList(b.images), ...(typeof b.first_frame === "string" && b.first_frame ? [b.first_frame] : [])];
-  req.body = {
-    prompt: b.prompt,
-    model: typeof b.model === "string" ? b.model : "",
-    duration: Number(b.seconds) > 0 ? Number(b.seconds) : undefined,
-    resolution: typeof b.size === "string" && /^\d{3,4}p$/i.test(b.size) ? b.size : undefined,
-    aspect_ratio: b.aspect_ratio,
-    generate_audio: Boolean(b.generate_audio),
-    images,
-    videos: asUrlList(b.videos),
-    audios: asUrlList(b.audios),
-  };
+  req.body = canvasVideoRequest(req.body || {}, req.headers);
   await canvasVideoTaskCreate(req, res);
 }));
 
-router.get("/v1/videos/:task_id", (req: any, res: any) => {
-  const t = canvasVideoTasks.getForUser(req.params.task_id, Number((req as any).user?.id));
+router.get("/v1/videos/:task_id", async (req: any, res: any) => {
+  // 轮询/查询接口禁止 ETag 304：客户端 !response.ok 会当成失败，节点会永远转圈。
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate"); res.removeHeader("ETag");
+  const t = await recoverGatewayVideo(canvasVideoTasks, req.params.task_id, Number((req as any).user?.id));
   if (!t) return res.status(404).json({ code: 1, msg: "任务不存在或已过期", data: null });
   res.json({ code: 0, msg: "", data: videoTaskToUpstream(req.params.task_id, t, req.query.model) });
 });
 
-router.get("/v1/videos/:task_id/content", (req: any, res: any) => {
-  const t = canvasVideoTasks.getForUser(req.params.task_id, Number((req as any).user?.id));
+router.get("/v1/videos/:task_id/content", async (req: any, res: any) => {
+  const t = await recoverGatewayVideo(canvasVideoTasks, req.params.task_id, Number(req.user?.id));
   const url: string = t?.result?.url || t?.result?.videos?.[0]?.url || "";
   if (t?.status !== "succeeded" || !url) return res.status(404).json({ code: 1, msg: "成片尚未就绪", data: null });
+  // 只放行 http(s) 成品地址（存库值异常时不得把用户重定向到任意协议/地址）
+  if (!/^https?:\/\//i.test(url)) return res.status(404).json({ code: 1, msg: "成片地址无效", data: null });
   res.redirect(url);
 });
 
-router.get("/v1/async-result/:task_id", (req: any, res: any) => {
-  const t = canvasVideoTasks.getForUser(req.params.task_id, Number((req as any).user?.id));
+router.get("/v1/async-result/:task_id", async (req: any, res: any) => {
+  // 轮询/查询接口禁止 ETag 304：客户端 !response.ok 会当成失败，节点会永远转圈。
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate"); res.removeHeader("ETag");
+  const t = await recoverGatewayVideo(canvasVideoTasks, req.params.task_id, Number(req.user?.id));
   if (!t) return res.status(404).json({ code: 1, msg: "任务不存在或已过期", data: null });
   res.json({ code: 0, msg: "", data: videoTaskToUpstream(req.params.task_id, t, req.query.model) });
 });
 
-router.get("/v1/video-tasks", (_req: any, res: any) => {
-  // 内存任务表无持久化；列表面板给空数组即可（列表项形状与轮询 data 一致，将来要展示再从 Map 收敛）
-  res.json({ code: 0, msg: "", data: [] });
+router.get("/v1/video-tasks", async (_req: any, res: any) => {
+  // 轮询/查询接口禁止 ETag 304：客户端 !response.ok 会当成失败，节点会永远转圈。
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate"); res.removeHeader("ETag");
+  const tasks = await canvasVideoTasks.listForUser(Number(_req.user?.id));
+  res.json({ code: 0, msg: "", data: tasks.map(t => ({ ...videoTaskToUpstream(t.id, { ...t, status: t.status ?? "unknown" }), recovery_required: t.recoveryRequired, error: t.recoveryRequired ? { message: "服务重启，查询原任务即可；请勿重复提交" } : undefined })) });
 });
 
-router.delete("/v1/video-tasks/:task_id", (_req: any, res: any) => {
-  if (!canvasVideoTasks.deleteForUser(_req.params.task_id, Number(_req.user?.id))) return res.status(404).json({ code: 1, msg: "任务不存在或尚未完成", data: null });
+router.delete("/v1/video-tasks/:task_id", async (_req: any, res: any) => {
+  if (!await canvasVideoTasks.deleteForUser(_req.params.task_id, Number(_req.user?.id))) return res.status(404).json({ code: 1, msg: "任务不存在或尚未完成", data: null });
   res.json({ code: 0, msg: "", data: null });
 });
 
 // GET /api/canvas-video/:task_id — 前端轮询查任务状态(对称 /api/canvas-image-tasks/:task_id @643 内存 Map 查表风格)
-router.get("/canvas-video/:task_id", (req, res) => {
-  const t = canvasVideoTasks.getForUser(req.params.task_id, Number((req as any).user?.id));
+router.get("/canvas-video/:task_id", async (req, res) => {
+  // 轮询/查询接口禁止 ETag 304：客户端 !response.ok 会当成失败，节点会永远转圈。
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate"); res.removeHeader("ETag");
+  const t = await recoverGatewayVideo(canvasVideoTasks, req.params.task_id, Number((req as any).user?.id));
   if (!t) return res.status(404).json({ error: "任务不存在或已过期" });
   res.json(t);
 });
@@ -1236,6 +1269,9 @@ router.get("/smart-canvas/prompt-templates", (req, res) => {
 // GET /api/download-output — 代理下载/预览输出图片
 // 原项目（Python FastAPI）有此端点，画布用它来预览和下载生成的图片
 router.get("/download-output", async (req, res) => {
+  // 全局 /api 鉴权中间件已要求 token；这里再显式确认一次，防止将来路由被前移到鉴权
+  // 之前时，这个「受限公网抓取代理」意外变成匿名可用的开放代理。
+  if (!(req as any).user) return res.status(401).json({ error: "未登录" });
   try {
     const url = String(req.query.url || "");
     const name = String(req.query.name || "output.jpg");
@@ -1279,8 +1315,10 @@ router.get("/download-output", async (req, res) => {
       }
     }
 
-    // 外部 URL：代理请求
+    // 外部 URL：代理请求。仅公网地址（safeUrl：内网/localhost/DNS rebinding 全拦），
+    // 且有独立限流 —— 它本质是个受限的公网抓取代理，不能无成本滥用。
     if (url.startsWith("http://") || url.startsWith("https://")) {
+      await new Promise<void>((resolve, reject) => sharedRateLimiter("download-output-proxy", 60_000, 30, (r) => String((r as any).user?.id || r.ip))(req, res, (err?: unknown) => err ? reject(err as Error) : resolve()));
       try {
         const { buffer, contentType: upstreamType } = await fetchBinaryWithLimit(url);
         const contentType = safeInlineMediaType(upstreamType);

@@ -15,12 +15,17 @@
  */
 import express from "express";
 import { backendRaw, currentUser } from "@/lib/reseller/auth";
+import { adoptGatewayTopup, discardPendingTopup } from "@/utils/pay/topupAttribution";
 
 const router = express.Router();
 
 router.post("/", async (req, res) => {
   const me = await currentUser(req);
   if (!me) return res.status(401).json({ success: false, message: "请先登录" });
+  const uid = Number(me.id);
+  if (!Number.isSafeInteger(uid) || uid <= 0) {
+    return res.status(401).json({ success: false, message: "请先登录" });
+  }
 
   const b = (req.body ?? {}) as { amount?: unknown; payment_method?: unknown; top_up_code?: unknown };
   const amount = Number(b.amount);
@@ -30,6 +35,39 @@ router.post("/", async (req, res) => {
   const payment_method = String(b.payment_method || "").trim();
   if (!payment_method) {
     return res.status(400).json({ success: false, message: "请选择支付方式" });
+  }
+
+  /**
+   * ⚠️ 资金归属闸门（2026-10-24 渗透实测发现，2026-10-26 审计复核）：
+   * 网关 /api/user/pay 与 /api/user/topup 同源问题——**不认 New-Api-User 模拟头**，
+   * 管理令牌调用时下单/回调记在管理员名下（用户付了钱但额度进 root）。
+   *
+   * 2026-10-26 已修复归属：网关建单成功后，立刻把这笔 pending 订单 CAS 回写为真实登录
+   * 用户（utils/pay/topupAttribution.ts adoptGatewayTopup）——金额/签名保持网关唯一口径；
+   * 回写失败则删除该未支付挂单并不下发支付链接（fail-closed，回调将因「订单不存在」被拒）。
+   *
+   * 本端点保留「默认拒绝 + 显式放行」，不 fail-open：
+   *   1) 读不到 payment_setting 一律拒绝（旧实现 catch 后继续透传，DB 抖动即可绕过闸门）；
+   *   2) 在线充值未开启 → 引导用卡密；
+   *   3) 即使已开启，除非运维显式设置 XOI_ONLINE_TOPUP_VERIFIED=1（代表新归属链路
+   *      已端到端实测：下单归用户 + 真实回调入账到用户），否则仍拒绝。
+   */
+  let enabled = false;
+  try {
+    const pool = (await import("@/lib/agent/db")).db();
+    if (pool) {
+      const sw = await pool.query("SELECT value FROM options WHERE key = 'payment_setting' LIMIT 1");
+      const ps = (() => { try { return JSON.parse(sw.rows[0]?.value || "{}"); } catch { return {}; } })();
+      enabled = ps.enable_online_topup === true;
+    }
+  } catch {
+    return res.status(503).json({ success: false, message: "充值配置暂不可用，请稍后重试或使用卡密兑换" });
+  }
+  if (!enabled) {
+    return res.status(400).json({ success: false, message: "平台尚未开启在线充值，请使用卡密兑换" });
+  }
+  if (process.env.XOI_ONLINE_TOPUP_VERIFIED !== "1") {
+    return res.status(400).json({ success: false, message: "在线充值通道升级中，请使用卡密兑换或联系客服" });
   }
 
   try {
@@ -56,6 +94,24 @@ router.post("/", async (req, res) => {
       const reason = typeof b2?.data === "string" && b2.data ? b2.data : "当前环境暂未开启在线支付，请联系客服";
       return res.status(status === 200 ? 200 : status).json({ success: false, message: reason });
     }
+
+    /**
+     * ✅ 资金归属重指派（修复模拟头 bug 的落点）：
+     * 网关成功建单后、把收银台地址发给浏览器**之前**，把这笔 pending 订单改回真实用户。
+     * 提取不到商户单号、找不到订单行、CAS 回写失败 —— 一律删除挂单并拒绝下发链接。
+     */
+    const payData = (b2.data ?? null) as Record<string, unknown> | null;
+    const tradeNo =
+      payData && typeof payData.out_trade_no === "string" ? payData.out_trade_no.trim() : "";
+    if (!tradeNo) {
+      return res.status(502).json({ success: false, message: "支付订单校验失败，未生成支付链接，请稍后重试或使用卡密兑换" });
+    }
+    const adopted = await adoptGatewayTopup(tradeNo, uid);
+    if (adopted !== "ok") {
+      await discardPendingTopup(tradeNo, uid);
+      return res.status(502).json({ success: false, message: "支付订单归属校验失败，本次支付未创建，请稍后重试或使用卡密兑换" });
+    }
+
     res.status(status).json(body);
   } catch (e) {
     res.status(502).json({ success: false, message: `支付服务不可用：${(e as Error).message}` });

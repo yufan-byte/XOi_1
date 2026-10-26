@@ -22,6 +22,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .env.test.local
 .env.production.local
 .env.local
+.env.*
+!.env.example
+!.env.docker.example
 
 # caches
 .eslintcache
@@ -48,6 +51,7 @@ web/*
 *.sqlite
 
 router.ts
+!src/lib/oneStop/router.ts
 
 database.d.ts
 

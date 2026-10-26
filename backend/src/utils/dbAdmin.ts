@@ -33,12 +33,20 @@ export async function tableExists(name: string): Promise<boolean> {
     return Boolean(res?.rows?.[0]?.ok);
 }
 
-/** 逐张删表。PG 用 CASCADE，不需要（也没有）PRAGMA 那套关外键的办法。 */
+/** 合法表名：仅限普通标识符，禁止引号/点号/空白等一切可注入字符。 */
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_$]*$/;
+
+/** 逐张删表。PG 用 CASCADE，不需要（也没有）PRAGMA 那套关外键的办法。
+ *  表名用 knex 的标识符占位符 `??`（会正确加引号并转义），再做白名单校验，杜绝拼接注入。 */
 export async function dropTables(names: string[]): Promise<void> {
-    for (const n of names) await db.raw(`DROP TABLE IF EXISTS "${n}" CASCADE`);
+    for (const n of names) {
+        if (!IDENT_RE.test(n)) throw new Error(`非法的表名：${n}`);
+        await db.raw("DROP TABLE IF EXISTS ?? CASCADE", [n]);
+    }
 }
 
 /** 清空单表：TRUNCATE + CASCADE，比 DELETE 快且能穿过外键 */
 export async function truncateTable(name: string): Promise<void> {
-    await db.raw(`TRUNCATE TABLE "${name}" CASCADE`);
+    if (!IDENT_RE.test(name)) throw new Error(`非法的表名：${name}`);
+    await db.raw("TRUNCATE TABLE ?? CASCADE", [name]);
 }

@@ -12,10 +12,13 @@ build/
 data/serve/
 *.tgz
 
-# 环境变量
+# 环境变量（除示例模板外，所有 .env.* 变体都不入库；.env.production/.env.staging 曾漏掉）
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+!.env.docker.example
 
 # 日志
 logs/
@@ -79,3 +82,21 @@ __pycache__/
 
 # 购买的完整技能包由本地导入，部署时单独同步。
 backend/data/skills/purchased/
+
+# 内部工作区（记忆/身份/SOUL 等，绝不可入库）
+.workbuddy/
+
+# npm 缓存与本地镜像配置（本地开发环境相关，不入库）
+.npm-cache/
+frontend/.npm-cache/
+frontend/atelier/.npm-cache/
+.npmrc
+
+# 前端构建发布产物（部署时由 sync 脚本生成，不入库；当前约 3.1G）
+backend/data/web/
+
+# 用户生成的媒体文件（运行时落盘内容，不入库；当前约 427M）
+backend/data/media/
+
+# 验收/联调的运行时产物（acceptance 视频+json，不入库）
+backend/data/acceptance/

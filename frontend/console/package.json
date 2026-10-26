@@ -5,10 +5,13 @@
     "type": "module",
     "description": "XOi 控制台：登录/注册页（照搬造物引擎设计，品牌为 XOi）+ 后续管理后台",
     "scripts": {
-        "dev": "vite --host 0.0.0.0 --port 3100",
+        "prebuild": "node ../scripts/sync-platform-brand.mjs --check",
+        "dev": "bash ../../start.sh --skip-docker",
         "build": "vite build",
         "typecheck": "tsc --noEmit",
-        "preview": "vite preview"
+        "build:one-stop": "tsc --noEmit -p tsconfig.one-stop.json && vite build --config vite.one-stop.config.ts",
+        "dev:one-stop": "vite --config vite.one-stop.config.ts",
+        "preview": "bash ../../start.sh --skip-docker"
     },
     "dependencies": {
         "@radix-ui/react-dialog": "^1.1.15",

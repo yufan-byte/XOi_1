@@ -14,8 +14,8 @@ for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_
   delete process.env[k];
 }
 
-import { mediaStatic } from "@/middleware/mediaStatic";
 import express, { Request, Response, NextFunction } from "express";
+import {createDirectorSceneRouter} from "./lib/workspace/directorRouter";
 import { Server } from "socket.io";
 import http from "node:http";
 import expressWs from "express-ws";
@@ -29,33 +29,73 @@ import { resolveIdentity } from "@/utils/authIdentity";
 import { requireAdmin } from "@/middleware/requireAdmin";
 import socketInit from "@/socket/index";
 import { ensureThumbnail, ThumbnailSize } from "@/utils/image";
-import adminOrders from "@/routes/admin/orders";
 import adminTasks from "@/routes/admin/tasks";
 import adminBilling from "@/routes/admin/billing";
 import adminSettings from "@/routes/admin/settings";
 import adminAnnouncements from "@/routes/admin/announcements";
 import adminGateway from "@/routes/admin/gateway";
 import adminCredits from "@/routes/admin/credits";
+import adminStorage from "@/routes/admin/storage";
+import adminUsers from "@/routes/admin/users";
+import adminStats from "@/routes/admin/stats";
 import { getPlatformPolicy } from "@/utils/platformPolicy";
 import { db, dbReady } from "@/utils/db";
 import { rateLimiter } from "@/middleware/rateLimiter";
 import { runWithGatewayUser } from "@/lib/gateway/context";
 import { loadAuthUser } from "@/utils/loadAuthUser";
+import { BILLING_ID_PATTERN, billableOperation } from "../../shared/billableOperations";
+import { productionBillingBlockers, productionPricingBlockers } from "@/utils/productionBillingPolicy";
+import { claimModelBudget,ensureBudgetSchema } from "@/lib/gateway/budgets";
 import { createResourceLoader } from "@/utils/resourceAccess";
 import { resourceScope } from "@/middleware/resourceScope";
+import { sharedRateLimiter,sharedRates } from "@/middleware/sharedRateLimiter";
+import { productionSecurityBlockers } from "@/utils/productionSecurityPolicy";
+import {requestBodyGuard} from "@/middleware/requestBodyGuard";
+import { mediaStatic } from "@/middleware/mediaStatic";
+import {installSecurityLogging} from "@/utils/securityLogging";
+import { servicePort, serviceIdentity, localHealthIdentity } from "@/utils/serviceConfig";
+import { StartupModules } from "@/utils/startupModules";
+import { AnnouncementsStore } from "@/utils/announcementsStore";
+import { readinessProbe } from "@/utils/readinessProbe";
+import {releaseLifecycle} from "@/utils/releaseLifecycle";
+import {privateMedia} from '@/middleware/privateMedia';
 
 const app = express();
+installSecurityLogging();
 app.disable("x-powered-by");
 if (process.env.XOI_TRUST_PROXY) app.set("trust proxy", process.env.XOI_TRUST_PROXY.split(",").map((value) => value.trim()));
 const server = http.createServer(app);
+server.headersTimeout=15000;
+server.requestTimeout=120000;
 const generationLimiter = rateLimiter({ windowMs: 60000, max: 60, keyGenerator: (req) => String((req as any).user?.id || req.ip) });
 const thumbnailLimiter = rateLimiter({ windowMs: 60000, max: 120 });
 let thumbnailsInFlight = 0;
+let draining=false;
+let socketServer:Server|undefined;
+const startupModules = new StartupModules(["agent", "team", "site-config"]);
 
 export default async function startServe(randomPort: Boolean = false) {
+  serviceIdentity(); // Validate the public release tag before starting any background work.
+  const releaseStartMode=process.env.XOI_RELEASE_START_MODE||"active";
+  if(!["active","standby"].includes(releaseStartMode))throw Error("XOI_RELEASE_START_MODE 只支持 active/standby");
+  if(["prod","production"].includes(process.env.NODE_ENV||"")&&process.env.XOI_RELEASE_ROLLOUT_ENABLED==="1"&&!process.env.XOI_RELEASE_CLUSTER)throw Error("生产启用节点发布必须明确设置 XOI_RELEASE_CLUSTER，不能跨部署互相当作备用节点");
+  if(releaseStartMode==="standby")releaseLifecycle.setDraining(true);
+  const securityBlockers=productionSecurityBlockers(process.env);
+  if(securityBlockers.length)throw new Error(securityBlockers.join("；"));
   await dbReady;
+  await (await import("@/lib/workspace/canvasStore")).verifyCanvasStorage();
+  await ensureBudgetSchema();
+  await sharedRates.ensure();
+  await (await import("@/utils/quota")).ensureQuotaOperations();
+  await (await import("@/lib/gateway/receipts")).initializeGatewaySafety();
   await u.writeVersion();
-  const io = new Server(server, { cors: { origin: "*" } });
+  const allowedOrigins = (process.env.XOI_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  // Socket.IO 与 HTTP CORS 共用同一份白名单：未配置时直接拒绝跨源，不再回退 "*"。
+  const io = new Server(server, { cors: { origin: allowedOrigins.length > 0 ? allowedOrigins : false },maxHttpBufferSize:1024*1024 });
+  socketServer=io;
   socketInit(io);
 
   if (process.env.NODE_ENV == "dev") await buildRoute();
@@ -63,13 +103,12 @@ export default async function startServe(randomPort: Boolean = false) {
   expressWs(app);
 
   app.use(logger("dev"));
-  const allowedOrigins = (process.env.XOI_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  // 跨域收紧（2026-10-24）：未配置 XOI_ALLOWED_ORIGINS 时不再反射任意 origin——
+  // 同源部署不需要 CORS 头，浏览器同源策略自然阻止外部站点读取 API。
+  // 需要跨域（前后端分域部署）时在环境变量里列出精确来源即可。
   app.use(
     cors({
-      origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+      origin: allowedOrigins.length > 0 ? allowedOrigins : false,
       credentials: false,
     }),
   );
@@ -90,39 +129,56 @@ export default async function startServe(randomPort: Boolean = false) {
     res.setHeader("X-Download-Options", "noopen");
     // 控制 Referrer 信息
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    // HSTS：HTTPS 部署时强制浏览器后续走加密连接（HTTP 明文访问时该头被忽略，无害）。
+    // 只设 max-age 不含 includeSubDomains——子域未必都有证书。
+    if (req.secure || req.headers["x-forwarded-proto"] === "https") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000");
+    }
     // 权限策略：禁用敏感浏览器特性
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     next();
   });
 
-  // 微信 v3 回调验签要求比对「请求体原始字节」，这里在解析的同时保留副本，
-  // 仅对支付回调子路径生效避免全局内存开销
-  const capturePayRawBody = (req: any, _res: any, buf: Buffer | undefined): boolean => {
-    try {
-      if (typeof req.url === "string" && req.url.startsWith("/api/pay/callback")) {
-        (req as any)._rawBodyText = buf ? buf.toString("utf8") : "";
-      }
-    } catch {}
-    return true;
-  };
-  app.use(["/api/admin", "/api/setting/vendorConfig", "/api/login"], express.json({ limit: "1mb" }));
-  app.use(express.json({ limit: process.env.XOI_JSON_LIMIT || "25mb", verify: capturePayRawBody }));
-  app.use(express.urlencoded({ extended: true, limit: process.env.XOI_FORM_LIMIT || "2mb", verify: capturePayRawBody }));
+  app.use(requestBodyGuard());
+  app.use(["/api/admin", "/api/login", "/api/billing"], express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: process.env.XOI_JSON_LIMIT || "25mb" }));
+  app.use(express.urlencoded({ extended: true, limit: process.env.XOI_FORM_LIMIT || "2mb" }));
+  app.use("/api/login/login",sharedRateLimiter("login-ip",60000,10,req=>req.ip||"unknown"));
+  app.use("/api/login/register",sharedRateLimiter("register-ip",3600000,5,req=>req.ip||"unknown"));
+  app.use("/api/login/captcha",sharedRateLimiter("captcha-ip",60000,30,req=>req.ip||"unknown"));
+  setInterval(()=>{void sharedRates.clean().catch(e=>console.error("[shared-rate] 清理失败",e.message));},600000).unref();
 
   // 容器编排探针：liveness 不依赖外部服务，readiness 同时验证共享 PG 与 NewAPI。
-  app.get("/api/healthz", (_req, res) => res.status(200).json({ status: "ok" }));
-  app.get("/api/readyz", async (_req, res) => {
-    try {
+  app.get("/api/healthz", (_req, res) => res.set("Cache-Control","no-store").status(200).json(localHealthIdentity()));
+  app.get("/api/version", (_req, res) => res.set("Cache-Control","no-store").json(serviceIdentity()));
+  const probeReadiness=readinessProbe(async()=>{
+      if(!startupModules.ready())throw new Error("后台模块尚未就绪");
       await db.raw("select 1");
+      if(!(await import("@/lib/workspace/mediaQueueRuntime")).mediaQueueReady())throw new Error("生成队列调度未就绪");
+      if (["prod", "production"].includes(process.env.NODE_ENV || "")) {
+        const agents = await db("o_agentDeploy").select("key", "modelName");
+        const channels = await db.raw("SELECT id,tag,status,models FROM channels");
+        const blockers = productionBillingBlockers(agents as any, channels.rows);
+        const upstreamChannels = channels.rows.filter((channel: any) => Number(channel.status) === 1 && (process.env.XOI_UPSTREAM_CHANNEL_ID ? Number(channel.id) === Number(process.env.XOI_UPSTREAM_CHANNEL_ID) : String(channel.tag || "").startsWith("zaowu-")));
+        if (!upstreamChannels.length) blockers.push("尚未启用造物上游渠道");
+        for (const channel of upstreamChannels) {
+          const priceRecord = await db("xoi_upstream_pricing_sync").where("channel_id", channel.id).first();
+          blockers.push(...productionPricingBlockers(priceRecord).map(message => `${channel.name || channel.tag || channel.id}：${message}`));
+        }
+        if (blockers.length) throw new Error(`生产计费配置未就绪：${blockers.join("；")}`);
+      }
       const gatewayRoot = String(process.env.NEWAPI_BASE_URL || "http://127.0.0.1:3000")
         .trim().replace(/\/+$/, "").replace(/\/v\d+$/, "");
       const upstream = await fetch(`${gatewayRoot}/api/status`, { signal: AbortSignal.timeout(5000) });
       if (!upstream.ok) throw new Error(`gateway HTTP ${upstream.status}`);
-      return res.status(200).json({ status: "ready" });
-    } catch (e) {
-      console.error("[readyz]", e instanceof Error ? e.message : e);
-      return res.status(503).json({ status: "not_ready" });
-    }
+  },{warn:e=>console.error("[readyz]",e instanceof Error?e.message:"dependency unavailable")});
+  app.get("/api/readyz", async (_req, res) => {
+    res.set("Cache-Control","no-store");
+    if(draining||releaseLifecycle.isDraining())return res.status(503).json({status:"draining"});
+    const ready=await probeReadiness();
+    if(!(await import("@/lib/workspace/releaseRuntime")).releaseControlHealthy())return res.status(503).json({status:"not_ready"});
+    if(draining||releaseLifecycle.isDraining())return res.status(503).json({status:"draining"});
+    return res.status(ready?200:503).json({status:ready?"ready":"not_ready"});
   });
 
   // oss 静态资源
@@ -133,6 +189,7 @@ export default async function startServe(randomPort: Boolean = false) {
   console.log("文件目录:", ossDir);
   app.use(
     "/oss",
+    privateMedia(db,ossDir,async()=>String((await db('o_setting').where({key:'tokenKey'}).first())?.value||''),loadAuthUser),
     (req, res, next) => req.query.size ? thumbnailLimiter(req, res, next) : next(),
     (req, res, next) => {
       // Uploaded media is never an executable same-origin document (including legacy SVG files).
@@ -221,8 +278,16 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use("/assets", express.static(assetsDir, { acceptRanges: false }));
 
   // data/web 静态网站
+  const announcements = new AnnouncementsStore();
+  await announcements.preserveLegacy();
+  app.get("/announcements.json", async (_req,res)=>{
+    res.set("Cache-Control","no-store");
+    try { res.json(await announcements.read()); }
+    catch { res.status(503).json({message:"公告暂时无法读取，请稍后重试"}); }
+  });
   const webDir = u.getPath("web");
   if (!fs.existsSync(webDir)) {
+    if(process.env.XOI_RELEASE_DIR)throw new Error("发布镜像缺少主站资源，禁止用空目录接收用户流量");
     fs.mkdirSync(webDir, { recursive: true });
   }
   console.log("静态网站目录:", webDir);
@@ -259,6 +324,8 @@ export default async function startServe(randomPort: Boolean = false) {
 
   // 代理商中心（站长后台，搬自造物 /api/reseller/*）。自带 new-api JWT 透传鉴权，
   // 必须挂在下面的全局 XOi JWT 中间件之前 —— 两套身份体系，互不替代。
+  // Cover self-authenticating routers too; a drain cannot bypass admission via reseller/agent paths.
+  app.use("/api",releaseLifecycle.admission);
   const resellerRouter = (await import("@/routes/reseller")).default;
   app.use("/api/reseller", resellerRouter);
 
@@ -280,6 +347,11 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use("/api/media", await mediaRouter());
 
   // 代理体系的两个后台任务：
+  void startupModules.start("site-config",async()=>{
+    await (await import("@/lib/reseller/store")).initializeResellerConfig();
+  },{warn:(name,attempt)=>console.warn(`[startup] ${name} 初始化第 ${attempt} 次未成功`)}).catch(e=>console.error("[site-config] 配置未就绪",e.message));
+
+  // 代理体系的两个后台任务：
   //   ① 启动即建 mc_agents / mc_agent_customers / mc_agent_codes / mc_agent_withdrawals 四张表
   //      （它们是 new-api 库里的表，不归 initDB 管，所以由 agent-store 自己 ensure）；
   //   ② 每 10 分钟重算一次网关的「分组专属倍率」GroupGroupRatio（线路分组会随上游新增）。
@@ -287,9 +359,11 @@ export default async function startServe(randomPort: Boolean = false) {
   // agent-store 内部会把错误记成日志，功能降级为「代理商中心不可用」，其余接口照常。
   void (async () => {
     try {
-      const store = await import("@/lib/agent/store");
-      await store.ensureAgentTables();
-      store.startAgentSweeper();
+      await startupModules.start("agent", async () => {
+        const store = await import("@/lib/agent/store");
+        await store.ensureAgentTables();
+        store.startAgentSweeper();
+      }, { warn: (name,attempt)=>console.warn(`[startup] ${name} 初始化第 ${attempt} 次未成功，将按上限重试`) });
       console.log("[agent] 代理体系已就绪（4 张 mc_* 表 + 倍率定时同步）");
     } catch (e) {
       console.error("[agent] 代理体系初始化失败（代理商中心将不可用）:", (e as Error).message);
@@ -299,9 +373,12 @@ export default async function startServe(randomPort: Boolean = false) {
   // 团队算力池：建表后每分钟按成员周期额度结算。不 await，失败不影响创作主链路启动。
   void (async () => {
     try {
-      const team = await import("@/lib/team/store");
-      await team.ensureTeamTables();
-      team.startTeamSweeper();
+      await startupModules.start("team", async () => {
+        const team = await import("@/lib/team/store");
+        await team.ensureTeamTables();
+        await (await import("@/lib/team/managementRuntime")).teamManagement().ensure();
+        team.startTeamSweeper();
+      }, { warn: (name,attempt)=>console.warn(`[startup] ${name} 初始化第 ${attempt} 次未成功，将按上限重试`) });
       console.log("[team] 团队模式已就绪（成员 + 算力池 + 周期额度）");
     } catch (error) {
       console.error("[team] 团队模式初始化失败：", (error as Error).message);
@@ -330,8 +407,6 @@ export default async function startServe(randomPort: Boolean = false) {
       return next();
     // 公开取码端点 /api/login/captcha 同列入白名单 ── 前端「换一张」刷新钮于未登录态拉取新鲜 SVG 必经此处,
     // 若被拦死则处于需验码态的用户无法自主换码陷入死锁体验崩坏。
-    // 支付异步回调：无 JWT 但渠道内部自行验签防伪造，放行走路由层把关
-    if (/^\/api\/pay\/callback\/.+/.test(req.path)) return next();
     // Static assets are already served above; API authentication must never depend on an extension.
     // 其余接口一律要求认证（含画布 /api/config、/api/workflows、/api/canvas-*、AI 生成等），
     // 画布端由 auth-bridge.js 自动附加 JWT，避免匿名用户消耗 API/积分预算
@@ -345,13 +420,38 @@ export default async function startServe(randomPort: Boolean = false) {
           (await getPlatformPolicy()).maintenance) {
         return res.status(503).json({ message: "平台维护中，请稍后再试" });
       }
-      return runWithGatewayUser(Number(userInfo.id), () => next());
+      const billingId = String(req.headers["x-xoi-billing-id"] || "");
+      return runWithGatewayUser(Number(userInfo.id), () => next(), BILLING_ID_PATTERN.test(billingId) ? billingId : undefined);
     } catch (err) {
       return res.status(401).send({ message: "无效的token" });
     }
   });
 
+  // Header-authenticated bootstrap for <img>/<video>. Cookie is never accepted for API writes.
+  app.get('/api/login/media-session',(req,res)=>{
+    const token=String(req.headers.authorization||'').replace(/^(Bearer\s+)+/i,'');
+    res.setHeader('Cache-Control','no-store');
+    res.cookie(`xoi_media_session_${(req as any).user.id}`,token,{httpOnly:true,sameSite:'lax',secure:req.secure||['prod','production'].includes(process.env.NODE_ENV||''),path:'/oss',maxAge:86400000});
+    res.status(204).end();
+  });
   app.use("/api", resourceScope(createResourceLoader(db)));
+  const budgetLimiter=sharedRateLimiter("budget-user",60000,20,req=>String((req as any).user.id));
+  const billableLimiter=sharedRateLimiter("generation-user",60000,60,req=>String((req as any).user.id));
+  // Read-only job polling must not exhaust a user's generation submission allowance across tabs.
+  app.use('/api/one-stop/generation',(req,res,next)=>req.method==='POST'?billableLimiter(req,res,next):next());
+  app.use("/api/billing/authorize",budgetLimiter);
+  app.use("/api/admin/credits",(req,res,next)=>req.method==="POST"?sharedRateLimiter("credit-admin",60000,10,r=>String((r as any).user.id))(req,res,next):next());
+  app.use((req,res,next)=>billableOperation(req.path,req.method)?billableLimiter(req,res,next):next());
+  app.use(async (req, res, next) => {
+    if (["prod", "production"].includes(process.env.NODE_ENV || "") && billableOperation(req.path, req.method) && !BILLING_ID_PATTERN.test(String(req.headers["x-xoi-billing-id"] || ""))) {
+      return res.status(428).json({ message: "请先确认模型调用费用，再提交请求" });
+    }
+    if (billableOperation(req.path,req.method)) {
+      try { await claimModelBudget(Number((req as any).user.id),String(req.headers["x-xoi-billing-id"]||""),req.path,req.headers["x-xoi-billing-step"]?String(req.headers["x-xoi-billing-step"]):undefined); }
+      catch (error) { return res.status(428).json({message:(error as Error).message,code:"BUDGET_REQUIRED"}); }
+    }
+    return next();
+  });
 
   // Shared prompt/style libraries affect every user and are administrative configuration.
   app.use([
@@ -370,47 +470,32 @@ export default async function startServe(randomPort: Boolean = false) {
     generationLimiter(req, res, next);
   });
 
+  app.use("/api/director-scenes", await createDirectorSceneRouter(db));
+
   // 管理员专属路由保护
-  app.use("/api/setting/vendorConfig", requireAdmin);
   app.use("/api/admin", requireAdmin);
   app.use("/api/setting/agentDeploy", requireAdmin);
-  app.use("/api/setting/userManage", requireAdmin);
-  app.use("/api/setting/dbConfig", requireAdmin);
   app.use("/api/setting/skillManagement", requireAdmin);
   app.use("/api/setting/modelMap", requireAdmin);
   app.use("/api/setting/promptManage", requireAdmin);
   app.use("/api/setting/dev", requireAdmin);
   app.use("/api/setting/memoryConfig", requireAdmin);
   app.use("/api/other/deleteAllData", requireAdmin);
-  app.use(["/api/setting/dbConfig/importData", "/api/setting/dbConfig/clearData", "/api/setting/dbConfig/clearTable", "/api/other/deleteAllData"], (_req, res, next) => {
+  app.use("/api/other/deleteAllData", (_req, res, next) => {
     if (["prod", "production"].includes(process.env.NODE_ENV || "")) {
       return res.status(403).json({ message: "生产环境请通过服务器备份维护流程执行数据库清空或恢复" });
     }
     next();
   });
   app.use(["/api/admin", "/api/setting"], (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
-  app.use("/api/setting/vendorConfig", rateLimiter({ windowMs: 60000, max: 120, keyGenerator: (req) => String((req as any).user.id) }));
-  // node:vm is not a security sandbox. Production adapter changes are deployment operations.
-  app.use(["/api/setting/vendorConfig/addVendor", "/api/setting/vendorConfig/updateCode", "/api/setting/vendorConfig/getCodeByLink"], (_req, res, next) => {
-    if (["prod", "production"].includes(process.env.NODE_ENV || "")) return res.status(403).json({ message: "服务器部署模式禁止在线执行或导入供应商代码" });
-    next();
-  });
-  // 积分管理相关管理员接口统一鉴权（仅保护管理员专属路径）
-  app.use("/api/setting/pointsConfig/adminAllocate", requireAdmin);
-  app.use("/api/setting/pointsConfig/adminUsers", requireAdmin);
-  app.use("/api/setting/pointsConfig/prices/price", requireAdmin);
-  app.use("/api/setting/pointsConfig/prices/log", requireAdmin);
-  app.use("/api/setting/pointsConfig/purchase/adminRecharge", requireAdmin);
-  app.use("/api/setting/pointsConfig/purchase/package", requireAdmin);
-  app.use("/api/setting/pointsConfig/member/adminUpdateMember", requireAdmin);
-  // P2B-8 差异化计费覆写规则：整树仅管理员可读写
-  app.use("/api/setting/pointsConfig/overrides", requireAdmin);
 
   const router = await import("@/router");
+  app.use("/api/model-catalog", (await import("@/routes/model-catalog")).default);
+  app.use("/api/billing", (await import("@/routes/billing-transparency")).default);
+  (await import("@/lib/model-catalog/sync")).startUpstreamPricingSync();
   await router.default(app);
 
   // 管理后台独立查询接口，不与用户侧任务/订单接口混用。
-  app.use("/api/admin/orders", adminOrders);
   app.use("/api/admin/tasks", adminTasks);
   app.use("/api/admin/billing", adminBilling);
   app.use("/api/admin/settings", adminSettings);
@@ -419,6 +504,15 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use("/api/admin/announcements", adminAnnouncements);
   app.use("/api/admin/gateway", adminGateway);
   app.use("/api/admin/credits", adminCredits);
+  app.use("/api/admin/storage", adminStorage);
+  // 平台管理四核心：用户管理（列表/停启用）+ 收益总览（每日消耗/充值/卡密核销，网关同库聚合）
+  app.use("/api/admin/users", adminUsers);
+  app.use("/api/admin/stats", adminStats);
+  app.use("/api/admin/releases",(req,res,next)=>req.method==="POST"?sharedRateLimiter("release-admin",60000,10,r=>String((r as any).user.id))(req,res,next):next(),(await import("@/routes/admin/releases")).default);
+  // 版本与更新（rootOnly 在路由内部二次校验；POST/GET 走发布类限流）
+  app.use("/api/admin/update",(req,res,next)=>req.method==="POST"?sharedRateLimiter("update-admin",60000,5,r=>String((r as any).user.id))(req,res,next):next(),(await import("@/routes/admin/update")).default);
+  // 安全检测（只读聚合，管理员可见）
+  app.use("/api/admin/security",(await import("@/routes/admin/security")).default);
 
   // 无限画布路由（独立于自动生成的路由，因为路径含动态参数 :id）
   const canvasRouter = (await import("@/routes/canvas")).default;
@@ -438,6 +532,18 @@ export default async function startServe(randomPort: Boolean = false) {
 
   const canvasStubsRouter = (await import("@/routes/canvas-stubs")).default;
   app.use("/api", canvasStubsRouter);
+  const canvasAudioRouter = (await import("@/routes/canvas-audio")).default;
+  app.use("/api", canvasAudioRouter);
+
+  // 账号工作区：云端草稿与手机上传配对。
+  app.use("/api/workspace", (await import("@/lib/workspace/router")).default);
+
+  // Handlers are registered above; only committed jobs can now be claimed.
+  await (await import('@/routes/one-stop')).initializeOneStopGeneration();
+  await (await import("@/lib/workspace/mediaQueueRuntime")).startMediaQueue();
+  await (await import("@/lib/workspace/releaseRuntime")).startReleaseRuntime(probeReadiness);
+  // 画布素材孤儿回收（默认 dry-run，只报告不删；见 lib/workspace/storageSweep.ts 的安全阀）
+  (await import("@/lib/workspace/storageSweep")).startStorageSweep();
 
   // 404 处理
   app.use((_, res, next: NextFunction) => {
@@ -453,15 +559,17 @@ export default async function startServe(randomPort: Boolean = false) {
     });
   });
 
-  // 端口：优先读 PORT（.env / 容器编排都会设它），没配才回落到 10588。
-  // 原来写死 10588，本地想和别的服务并存（比如演示用的假后端也占 10588）时必须改代码，
-  // 拿到的是 EADDRINUSE 而不是「换个端口起」。
-  const port = randomPort ? 0 : Number(process.env.PORT || 10588);
+  // Independent XOi default, with an explicit validated deployment override.
+  const port = randomPort ? 0 : servicePort();
   return await new Promise((resolve) => {
     server.listen(port, async () => {
       const address = server.address();
       const realPort = typeof address === "string" ? address : address?.port;
       console.log(`[服务启动成功]: http://localhost:${realPort}`);
+      // 模型引用自愈：启动后兜底跑一次；之后为事件驱动——网关模型清单变化时自动触发（见 model-catalog/catalogBase），无常驻定时器
+      void import("@/lib/model-catalog/repair").then(({ repairStaleModelRefs }) => {
+        setTimeout(() => void repairStaleModelRefs(), 8000).unref?.();
+      });
       resolve(realPort);
     });
   });
@@ -469,6 +577,7 @@ export default async function startServe(randomPort: Boolean = false) {
 
 // 支持await关闭
 export function closeServe(): Promise<void> {
+  void import("@/lib/workspace/mediaQueueRuntime").then(runtime=>runtime.stopMediaQueue());
   return new Promise((resolve, reject) => {
     if (server) {
       server.close((err?: Error) => {
@@ -483,3 +592,26 @@ export function closeServe(): Promise<void> {
 }
 
 startServe();
+
+// Stop accepting connections and renewals. A subsequent worker recovers expired
+// leases; ambiguous submissions are never replayed. Bound container termination.
+let shuttingDown=false;
+async function gracefulShutdown(){
+  if(shuttingDown)return;shuttingDown=true;draining=true;
+  const deadline=setTimeout(()=>process.exit(1),55000);deadline.unref();
+  try{
+    const runtime=await import("@/lib/workspace/releaseRuntime");
+    const media=await import("@/lib/workspace/mediaQueueRuntime");
+    runtime.forceReleaseDrain();
+    const idle=await releaseLifecycle.waitForIdle(()=>{const a=media.mediaQueueActivity();return !a.media&&!a.claiming;},45000);
+    if(!idle)console.warn("[shutdown] 排空超时，在途状态保留待核实，禁止自动重放上游请求");
+    media.stopMediaQueue();
+    socketServer?.disconnectSockets(true);
+    await closeServe();
+    await runtime.stopReleaseRuntime();
+    await db.destroy();
+    clearTimeout(deadline);process.exit(0);
+  }catch(error){console.error("[shutdown]",error);process.exit(1);}
+}
+process.once("SIGTERM",()=>void gracefulShutdown());
+process.once("SIGINT",()=>void gracefulShutdown());
