@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import axios from "axios";
+import {paymentNotifyUrl,paymentExpiry,paymentIdentityMatches} from "./guards";
 import type {
   AckKind,
   ChannelId,
@@ -36,8 +37,7 @@ export class WechatChannel implements PayChannel {
   }
 
   private notifyUrl(): string | undefined {
-    const host = process.env.XOI_PAY_NOTIFY_HOST;
-    return host ? `${host}/api/pay/callback/wechat` : undefined;
+    return paymentNotifyUrl("wechat");
   }
 
   async createOrder(ctx: CreateOrderContext): Promise<CreateOrderResult> {
@@ -53,7 +53,7 @@ export class WechatChannel implements PayChannel {
       mchid: mchId,
       description: ctx.subject.slice(0, 127),
       out_trade_no: ctx.outTradeNo,
-      time_expire: new Date(Date.now() + 15 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, "+08:00"),
+      time_expire: paymentExpiry(),
       amount: { total: Math.round(ctx.amount * 100), currency: "CNY" },
       ...(this.notifyUrl() ? { notify_url: this.notifyUrl()! } : {}),
     });
@@ -110,6 +110,8 @@ export class WechatChannel implements PayChannel {
       const plain = aesGcmDecrypt(res.ciphertext, res.nonce, res.associated_data || "", this.cfg.apiV3Key);
       const inner = safeJson(plain);
       if (!inner) return { ok: true, paid: false, reason: "解密后无法解析明文" };
+      const identity=requireCreds(this.cfg);
+      if(!paymentIdentityMatches(inner.appid,identity.appId)||!paymentIdentityMatches(inner.mchid,identity.mchId)||inner.amount?.currency!=="CNY")return {ok:false,paid:false,reason:"支付应用、商户或币种不匹配"};
       const paid = inner.trade_state === "SUCCESS";
       return {
         ok: true,

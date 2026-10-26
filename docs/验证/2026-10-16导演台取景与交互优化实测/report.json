@@ -1,0 +1,1121 @@
+{
+  "startedAt": "2026-10-16T14:56:36.582Z",
+  "model": "newapi:agnes-2.5-flash",
+  "projectId": "director3d-u1-refine-live-20261016",
+  "realRequests": true,
+  "fixtures": false,
+  "cases": [
+    {
+      "mode": "搭场景",
+      "intent": "请搭建一个简单的桌边对话场景：在现有场景里增加两个人物，分别叫记者和受访者，中间一张桌子，两张椅子。两人相对，坐着交谈。设置一个能同时拍到两人的中景机位。保留原有物体，只用白模，最多8条操作。",
+      "seconds": 15.09,
+      "error": [],
+      "text": "白模桌边对话搭建\n\n新增记者、受访者、桌子与两把椅子。桌子居中，两人坐于两侧相对。设置中景机位覆盖双方。保留平台与台阶。\n\n本镜 15 秒 · 操作清单确认后应用\n\n添加 桌子\n添加 椅子A\n添加 椅子B\n添加 记者\n添加 受访者\n调整 记者 的姿势\n调整 受访者 的姿势\n设置主摄像机 · 35mm\n已自动落地或对齐：记者坐姿、受访者坐姿\n“人物 · 主角”与“椅子A”范围可能重叠，应用后检查；不会移动已有布景\n“人物 · 主角”与“记者”范围可能重叠，应用后检查；不会移动已有布景\n“平台”与“桌子”范围可能重叠，应用后检查；不会移动已有布景\n“平台”与“椅子B”范围可能重叠，应用后检查；不会移动已有布景\n“平台”与“受访者”范围可能重叠，应用后检查；不会移动已有布景\n已按“记者、受访者”的白模范围校准取景，必要时拉远机位；应用后请预演确认\n原场景人物'actor-lead'姿态为行走，未主动移动以保持原有布局；如需移除请另行指示。\n\n应用到新版本镜头；原镜头、素材和动作保留，可撤销。精细材质、服装与表情需后续制作。\n\n应用为新版本镜头",
+      "success": true,
+      "application": {
+        "shotAdded": true,
+        "previewVerified": true,
+        "objects": 8,
+        "durationSeconds": 15
+      },
+      "objects": [
+        {
+          "id": "actor-lead",
+          "name": "人物 · 主角",
+          "type": "person",
+          "pose": "walk",
+          "position": [
+            -1.25,
+            0,
+            0.3
+          ]
+        },
+        {
+          "id": "block-stage",
+          "name": "平台",
+          "type": "box",
+          "position": [
+            1.4,
+            0.45,
+            -0.8
+          ]
+        },
+        {
+          "id": "block-step",
+          "name": "台阶",
+          "type": "box",
+          "position": [
+            2.9,
+            0.18,
+            0.55
+          ]
+        },
+        {
+          "id": "object-assistant-4fd70a4c-d24d-42d1-a00e-f88ad417ae3f",
+          "name": "桌子",
+          "type": "table",
+          "position": [
+            0,
+            0.44,
+            0
+          ]
+        },
+        {
+          "id": "object-assistant-c2933fff-fac8-4bcb-89da-0e85346603aa",
+          "name": "椅子A",
+          "type": "chair",
+          "position": [
+            -1.2,
+            0.51,
+            0
+          ]
+        },
+        {
+          "id": "object-assistant-40e398a7-aa1e-414e-a7f8-94c7822dafa0",
+          "name": "椅子B",
+          "type": "chair",
+          "position": [
+            1.2,
+            0.51,
+            0
+          ]
+        },
+        {
+          "id": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+          "name": "记者",
+          "type": "person",
+          "pose": "sit",
+          "position": [
+            -1.2,
+            -0.0050000000000000044,
+            0
+          ]
+        },
+        {
+          "id": "object-assistant-5a272745-2d14-4e57-939f-58f001348cae",
+          "name": "受访者",
+          "type": "person",
+          "pose": "sit",
+          "position": [
+            1.2,
+            -0.0050000000000000044,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "调整场景",
+      "intent": "让记者在这个镜头里从当前位置走向桌边，沿地面向右移动2米，用整段镜头平滑行走。不要增加人物或删改其他物体。保留受访者和桌椅。",
+      "seconds": 20.05,
+      "error": [
+        "场景方案包含无效物体或操作（人物路线需要起点和终点），未应用到场景。已提交用量可能计费，请查积分明细后再试"
+      ],
+      "text": "",
+      "success": false
+    }
+  ],
+  "traffic": [
+    {
+      "path": "/api/billing/preview",
+      "status": 200,
+      "data": {
+        "data": {
+          "label": "AI 场景搭建与调整",
+          "kind": "text",
+          "agent": "universalAi",
+          "model": "agnes-2.5-flash",
+          "modelId": "agnes-2.5-flash",
+          "free": true,
+          "count": 1,
+          "quote": {
+            "yuan": 0,
+            "points": 0,
+            "pointsPerYuan": 10,
+            "estimated": true,
+            "referenceVideoAdjustment": null,
+            "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+            "pricingVersion": "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+          },
+          "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+          "unknown": false,
+          "budget": {
+            "defaultPoints": 0.001,
+            "maxPoints": 1000,
+            "maxCalls": 1,
+            "maxOutputTokens": 4096,
+            "minutes": 30
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/authorize",
+      "status": 200,
+      "data": {
+        "data": {
+          "id": "c956557c-bc69-44a0-8971-646034ba1676",
+          "limitPoints": 0.001,
+          "maxCalls": 1,
+          "expiresAt": "2026-10-16T15:27:10.641Z",
+          "freeOnly": true
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/c956557c-bc69-44a0-8971-646034ba1676",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "c956557c-bc69-44a0-8971-646034ba1676",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:10.641Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/c956557c-bc69-44a0-8971-646034ba1676",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "c956557c-bc69-44a0-8971-646034ba1676",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:10.641Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/aiAssistant/director/compose",
+      "status": 200,
+      "data": {
+        "code": 200,
+        "data": {
+          "plan": {
+            "name": "白模桌边对话搭建",
+            "summary": "新增记者、受访者、桌子与两把椅子。桌子居中，两人坐于两侧相对。设置中景机位覆盖双方。保留平台与台阶。",
+            "warnings": [
+              "已自动落地或对齐：记者坐姿、受访者坐姿",
+              "“人物 · 主角”与“椅子A”范围可能重叠，应用后检查；不会移动已有布景",
+              "“人物 · 主角”与“记者”范围可能重叠，应用后检查；不会移动已有布景",
+              "“平台”与“桌子”范围可能重叠，应用后检查；不会移动已有布景",
+              "“平台”与“椅子B”范围可能重叠，应用后检查；不会移动已有布景",
+              "“平台”与“受访者”范围可能重叠，应用后检查；不会移动已有布景",
+              "已按“记者、受访者”的白模范围校准取景，必要时拉远机位；应用后请预演确认",
+              "原场景人物'actor-lead'姿态为行走，未主动移动以保持原有布局；如需移除请另行指示。"
+            ],
+            "actions": [
+              {
+                "kind": "add",
+                "ref": "new-table",
+                "name": "桌子",
+                "type": "table",
+                "position": [
+                  0,
+                  0.44,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-chair-a",
+                "name": "椅子A",
+                "type": "chair",
+                "position": [
+                  -1.2,
+                  0.51,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-chair-b",
+                "name": "椅子B",
+                "type": "chair",
+                "position": [
+                  1.2,
+                  0.51,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  3.141592653589793,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-reporter",
+                "name": "记者",
+                "type": "person",
+                "position": [
+                  -1.2,
+                  -0.0050000000000000044,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  3.141592653589793,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-interviewee",
+                "name": "受访者",
+                "type": "person",
+                "position": [
+                  1.2,
+                  -0.0050000000000000044,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  -2.4492935982947064e-16,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "pose",
+                "objectId": "new-reporter",
+                "pose": "sit"
+              },
+              {
+                "kind": "pose",
+                "objectId": "new-interviewee",
+                "pose": "sit"
+              },
+              {
+                "kind": "camera",
+                "position": [
+                  0,
+                  2.5,
+                  5
+                ],
+                "target": [
+                  0,
+                  0.9374999999999999,
+                  0
+                ],
+                "focalLength": 35
+              }
+            ],
+            "durationSeconds": 15
+          },
+          "projectId": "director3d-u1-refine-live-20261016",
+          "activeShotId": "shot-01"
+        },
+        "message": "成功"
+      },
+      "input": {
+        "task": "build",
+        "intent": "请搭建一个简单的桌边对话场景：在现有场景里增加两个人物，分别叫记者和受访者，中间一张桌子，两张椅子。两人相对，坐着交谈。设置一个能同时拍到两人的中景机位。保留原有物体，只用白模，最多8条操作。",
+        "durationSeconds": 15,
+        "groundNewObjects": true,
+        "scene": {
+          "projectId": "director3d-u1-refine-live-20261016",
+          "activeShotId": "shot-01",
+          "name": "Agnes 免费实测 · 桌边对话",
+          "fps": 24,
+          "durationSeconds": 15,
+          "aspectRatio": "16:9",
+          "camera": {
+            "position": [
+              7.4,
+              4.6,
+              8.2
+            ],
+            "rotation": [
+              -0.30203991498414945,
+              0.7205541358442417,
+              0
+            ],
+            "focalLength": 42
+          },
+          "objects": [
+            {
+              "id": "actor-lead",
+              "name": "人物 · 主角",
+              "type": "person",
+              "position": [
+                -1.25,
+                0,
+                0.3
+              ],
+              "rotation": [
+                0,
+                0.25,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "walk",
+              "bodyType": "standard",
+              "locked": false
+            },
+            {
+              "id": "block-stage",
+              "name": "平台",
+              "type": "box",
+              "position": [
+                1.4,
+                0.45,
+                -0.8
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                2.8,
+                0.9,
+                2.1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "locked": false
+            },
+            {
+              "id": "block-step",
+              "name": "台阶",
+              "type": "box",
+              "position": [
+                2.9,
+                0.18,
+                0.55
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                1.7,
+                0.36,
+                1.1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "locked": false
+            }
+          ],
+          "cameraKeyframes": [],
+          "lighting": {
+            "ambientIntensity": 1.35,
+            "keyIntensity": 2.8,
+            "fillIntensity": 1.1,
+            "keyAzimuth": 39,
+            "keyElevation": 51,
+            "exposure": 0.9,
+            "ambientColor": "#f7f1e6",
+            "keyColor": "#fff6e8",
+            "fillColor": "#a9c2c6"
+          },
+          "shotNames": [
+            "镜头 01"
+          ]
+        },
+        "history": [],
+        "model": "newapi:agnes-2.5-flash"
+      }
+    },
+    {
+      "path": "/api/billing/receipt/c956557c-bc69-44a0-8971-646034ba1676",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "c956557c-bc69-44a0-8971-646034ba1676",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "73",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792162638
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:10.641Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/c956557c-bc69-44a0-8971-646034ba1676",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "c956557c-bc69-44a0-8971-646034ba1676",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "73",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792162638
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:10.641Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/preview",
+      "status": 200,
+      "data": {
+        "data": {
+          "label": "AI 场景搭建与调整",
+          "kind": "text",
+          "agent": "universalAi",
+          "model": "agnes-2.5-flash",
+          "modelId": "agnes-2.5-flash",
+          "free": true,
+          "count": 1,
+          "quote": {
+            "yuan": 0,
+            "points": 0,
+            "pointsPerYuan": 10,
+            "estimated": true,
+            "referenceVideoAdjustment": null,
+            "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+            "pricingVersion": ""
+          },
+          "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+          "unknown": false,
+          "budget": {
+            "defaultPoints": 0.001,
+            "maxPoints": 1000,
+            "maxCalls": 1,
+            "maxOutputTokens": 4096,
+            "minutes": 30
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/authorize",
+      "status": 200,
+      "data": {
+        "data": {
+          "id": "12320ee1-1813-4315-9f66-e43c601d9f1d",
+          "limitPoints": 0.001,
+          "maxCalls": 1,
+          "expiresAt": "2026-10-16T15:27:50.856Z",
+          "freeOnly": true
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/12320ee1-1813-4315-9f66-e43c601d9f1d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "12320ee1-1813-4315-9f66-e43c601d9f1d",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:50.856Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/12320ee1-1813-4315-9f66-e43c601d9f1d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "12320ee1-1813-4315-9f66-e43c601d9f1d",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:50.856Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/aiAssistant/director/compose",
+      "status": 502,
+      "data": {
+        "code": 400,
+        "data": null,
+        "message": "场景方案包含无效物体或操作（人物路线需要起点和终点），未应用到场景。已提交用量可能计费，请查积分明细后再试"
+      },
+      "input": {
+        "task": "adjust",
+        "intent": "让记者在这个镜头里从当前位置走向桌边，沿地面向右移动2米，用整段镜头平滑行走。不要增加人物或删改其他物体。保留受访者和桌椅。",
+        "durationSeconds": 15,
+        "groundNewObjects": true,
+        "scene": {
+          "projectId": "director3d-u1-refine-live-20261016",
+          "activeShotId": "shot-scene-1b12900d-79c2-46da-8a50-9e3a86f5f6e8",
+          "name": "Agnes 免费实测 · 桌边对话",
+          "fps": 24,
+          "durationSeconds": 15,
+          "aspectRatio": "16:9",
+          "camera": {
+            "position": [
+              0,
+              2.5,
+              5
+            ],
+            "rotation": [
+              -0.30288486837497136,
+              0,
+              0
+            ],
+            "focalLength": 35
+          },
+          "objects": [
+            {
+              "id": "actor-lead",
+              "name": "人物 · 主角",
+              "type": "person",
+              "position": [
+                -1.25,
+                0,
+                0.3
+              ],
+              "rotation": [
+                0,
+                0.25,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "walk",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "locked": false
+            },
+            {
+              "id": "block-stage",
+              "name": "平台",
+              "type": "box",
+              "position": [
+                1.4,
+                0.45,
+                -0.8
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                2.8,
+                0.9,
+                2.1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "locked": false
+            },
+            {
+              "id": "block-step",
+              "name": "台阶",
+              "type": "box",
+              "position": [
+                2.9,
+                0.18,
+                0.55
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                1.7,
+                0.36,
+                1.1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "locked": false
+            },
+            {
+              "id": "object-assistant-4fd70a4c-d24d-42d1-a00e-f88ad417ae3f",
+              "name": "桌子",
+              "type": "table",
+              "position": [
+                0,
+                0.44,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "locked": false
+            },
+            {
+              "id": "object-assistant-c2933fff-fac8-4bcb-89da-0e85346603aa",
+              "name": "椅子A",
+              "type": "chair",
+              "position": [
+                -1.2,
+                0.51,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "locked": false
+            },
+            {
+              "id": "object-assistant-40e398a7-aa1e-414e-a7f8-94c7822dafa0",
+              "name": "椅子B",
+              "type": "chair",
+              "position": [
+                1.2,
+                0.51,
+                0
+              ],
+              "rotation": [
+                0,
+                3.141592653589793,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "locked": false
+            },
+            {
+              "id": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+              "name": "记者",
+              "type": "person",
+              "position": [
+                -1.2,
+                -0.0050000000000000044,
+                0
+              ],
+              "rotation": [
+                0,
+                3.141592653589793,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "sit",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "locked": false
+            },
+            {
+              "id": "object-assistant-5a272745-2d14-4e57-939f-58f001348cae",
+              "name": "受访者",
+              "type": "person",
+              "position": [
+                1.2,
+                -0.0050000000000000044,
+                0
+              ],
+              "rotation": [
+                0,
+                -2.4492935982947064e-16,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "sit",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "locked": false
+            }
+          ],
+          "cameraKeyframes": [],
+          "lighting": {
+            "ambientIntensity": 1.35,
+            "keyIntensity": 2.8,
+            "fillIntensity": 1.1,
+            "keyAzimuth": 39,
+            "keyElevation": 51,
+            "exposure": 0.9,
+            "ambientColor": "#f7f1e6",
+            "keyColor": "#fff6e8",
+            "fillColor": "#a9c2c6"
+          },
+          "shotNames": [
+            "镜头 01",
+            "白模桌边对话搭建"
+          ]
+        },
+        "history": [
+          {
+            "role": "user",
+            "content": "请搭建一个简单的桌边对话场景：在现有场景里增加两个人物，分别叫记者和受访者，中间一张桌子，两张椅子。两人相对，坐着交谈。设置一个能同时拍到两人的中景机位。保留原有物体，只用白模，最多8条操作。"
+          },
+          {
+            "role": "assistant",
+            "content": "新增记者、受访者、桌子与两把椅子。桌子居中，两人坐于两侧相对。设置中景机位覆盖双方。保留平台与台阶。"
+          }
+        ],
+        "model": "newapi:agnes-2.5-flash"
+      }
+    },
+    {
+      "path": "/api/billing/receipt/12320ee1-1813-4315-9f66-e43c601d9f1d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "12320ee1-1813-4315-9f66-e43c601d9f1d",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "74",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792162681
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:50.856Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/12320ee1-1813-4315-9f66-e43c601d9f1d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "12320ee1-1813-4315-9f66-e43c601d9f1d",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "74",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792162681
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:50.856Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/c956557c-bc69-44a0-8971-646034ba1676",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "c956557c-bc69-44a0-8971-646034ba1676",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "73",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792162638
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:10.641Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/12320ee1-1813-4315-9f66-e43c601d9f1d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "12320ee1-1813-4315-9f66-e43c601d9f1d",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "74",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792162681
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:50.856Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/c956557c-bc69-44a0-8971-646034ba1676",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "c956557c-bc69-44a0-8971-646034ba1676",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "73",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792162638
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T15:27:10.641Z"
+          }
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "preflight": {
+    "data": {
+      "label": "AI 场景搭建与调整",
+      "kind": "text",
+      "agent": "universalAi",
+      "model": "agnes-2.5-flash",
+      "modelId": "agnes-2.5-flash",
+      "free": true,
+      "count": 1,
+      "quote": {
+        "yuan": 0,
+        "points": 0,
+        "pointsPerYuan": 10,
+        "estimated": true,
+        "referenceVideoAdjustment": null,
+        "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+        "pricingVersion": "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+      },
+      "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+      "unknown": false,
+      "budget": {
+        "defaultPoints": 0.001,
+        "maxPoints": 1000,
+        "maxCalls": 1,
+        "maxOutputTokens": 4096,
+        "minutes": 30
+      }
+    }
+  },
+  "quotaBefore": "5103444130",
+  "failure": "locator.click: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: '读取场景并生成方案', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-v-f2a80188=\"\">读取场景并生成方案</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <p>AI 场景搭建与调整：本次导演方案请求已结束；已提交用量按积分明细结算。账单已记录消耗 0 积分。</p> from <aside role=\"status\" id=\"xoi-billing-notice\" class=\"xoi-billing-notice\">…</aside> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <p>AI 场景搭建与调整：本次导演方案请求已结束；已提交用量按积分明细结算。账单已记录消耗 0 积分。</p> from <aside role=\"status\" id=\"xoi-billing-notice\" class=\"xoi-billing-notice\">…</aside> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    8 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <p>AI 场景搭建与调整：本次导演方案请求已结束；已提交用量按积分明细结算。账单已记录消耗 0 积分。</p> from <aside role=\"status\" id=\"xoi-billing-notice\" class=\"xoi-billing-notice\">…</aside> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\n    at generate (/Users/zhaochenyu/Desktop/C_code/XOi_1/backend/scripts/verify-director-agnes-live.mjs:51:113)\n    at async file:///Users/zhaochenyu/Desktop/C_code/XOi_1/backend/scripts/verify-director-agnes-live.mjs:113:16",
+  "budgets": [
+    {
+      "billing_id": "c956557c-bc69-44a0-8971-646034ba1676",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true
+    },
+    {
+      "billing_id": "12320ee1-1813-4315-9f66-e43c601d9f1d",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true
+    }
+  ],
+  "logs": [
+    {
+      "request_id": "202610161457526272371728268d9d6VHYXI9Rn",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    },
+    {
+      "request_id": "202610161457117804536258268d9d6DWARZF3m",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    }
+  ],
+  "quotaAfter": "5103444130",
+  "completedAt": "2026-10-16T15:00:28.849Z"
+}

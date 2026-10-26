@@ -44,6 +44,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
     const [mention, setMention] = useState<MentionState | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [isEditorFocused, setIsEditorFocused] = useState(false);
     const activeReferences = useMemo(() => references.filter((reference) => reference.active), [references]);
     const referenceByLabel = useMemo(() => new Map(activeReferences.map((reference) => [reference.label, reference])), [activeReferences]);
     const activeLabels = useMemo(() => Array.from(new Set(activeReferences.map((reference) => reference.label))).sort((left, right) => right.length - left.length), [activeReferences]);
@@ -155,7 +156,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
         emitChange(serializePromptEditor(editor));
     };
 
-    const showPlaceholder = !value.trim() && !pendingReferences?.length && !skills?.length;
+    const showPlaceholder = !isEditorFocused && !value.trim() && !pendingReferences?.length && !skills?.length;
 
     return (
         <div className="relative w-full">
@@ -176,7 +177,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
                 aria-label={placeholder}
                 className={`${className || ""} overflow-y-auto whitespace-pre-wrap break-words outline-none [&_[data-pending-reference=true]]:opacity-50`}
                 style={{ ...style, cursor: "text" }}
-                onFocus={commitPendingReferences}
+                onFocus={() => { setIsEditorFocused(true); commitPendingReferences(); }}
                 onPointerDown={commitPendingReferences}
                 onInput={(event) => {
                     if (composingRef.current) return;
@@ -273,6 +274,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
                     requestAnimationFrame(syncMention);
                 }}
                 onBlur={() => {
+                    setIsEditorFocused(false);
                     window.setTimeout(closeMention, 120);
                 }}
             />

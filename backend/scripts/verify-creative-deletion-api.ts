@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const base = process.env.XOI_AUDIT_BASE || "http://localhost:10588";
+const base = process.env.XOI_AUDIT_BASE || "http://localhost:12121";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname), "Only the local delivery server is allowed");
 const db = new pg.Client({ connectionString: process.env.NEWAPI_DATABASE_URL || process.env.NEWAPI_PG_URL, connectionTimeoutMillis: 10000, statement_timeout: 15000 });
 const marker = "__删除接口验收__" + randomUUID();

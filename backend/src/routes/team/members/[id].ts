@@ -1,6 +1,9 @@
 import express from "express";
 import { memberAction, teamOfOwner, TeamError, type MemberAction, type Period } from "@/lib/team/store";
 import { QUOTA_PER_UNIT } from "@/utils/quota";
+import {memberActionInput} from "@/lib/team/inputs";
+import {trackedTeamOperation} from "@/lib/team/managementRuntime";
+import {TeamManagementError} from "@/lib/team/management";
 
 const router = express.Router({ mergeParams: true });
 
@@ -8,7 +11,9 @@ router.patch("/", async (req, res) => {
   const userId = Number((req as any).user?.id || 0);
   if (!userId) return res.status(401).json({ success: false, message: "请先登录" });
   const memberId = Number((req.params as Record<string, string | undefined>).id);
-  const body = (req.body ?? {}) as { action?: string; password?: string; nickname?: string; limit?: number; period?: string; canViewAll?: boolean };
+  const parsed=memberActionInput.safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({success:false,message:"成员操作参数无效，额度和权限开关需使用正确类型"});
+  const body=parsed.data;
   try {
     const team = await teamOfOwner(userId);
     if (!team) throw new TeamError("改密、停用和额度设置仅主账号可操作", 403);
@@ -26,11 +31,12 @@ router.patch("/", async (req, res) => {
         break;
       default: throw new TeamError("未知操作");
     }
-    await memberAction(team, memberId, action);
+    const details=action.action==="update"?{nickname:action.nickname,limitQuota:action.limitQuota,period:action.period,canViewAll:action.canViewAll}:{};
+    await trackedTeamOperation(userId,`member.${action.action}`,memberId,details,()=>memberAction(team, memberId, action));
     return res.json({ success: true });
   } catch (error) {
-    if (error instanceof TeamError) return res.status(error.status).json({ success: false, message: error.message });
-    console.error("[team/member]", error);
+    if (error instanceof TeamError||error instanceof TeamManagementError) return res.status(error.status).json({ success: false, message: error.message });
+    console.error("[team/member] 操作失败",error instanceof Error?error.name:"error");
     return res.status(500).json({ success: false, message: "成员操作失败，请稍后重试" });
   }
 });

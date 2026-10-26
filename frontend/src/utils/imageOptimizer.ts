@@ -31,7 +31,7 @@ export const imageOptimizer = {
     const processImage = (img: HTMLImageElement) => {
       if (img.dataset.opt) return;
       if (img.matches(excludeSelector)) return;
-      img.loading = "lazy";
+      if (!img.hasAttribute("loading") && img.getAttribute("fetchpriority") !== "high") img.loading = "lazy";
       img.dataset.opt = "1";
       io.observe(img);
     };

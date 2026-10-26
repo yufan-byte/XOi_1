@@ -1,444 +1,415 @@
 <template>
-  <t-card :title="'#' + (activeTrackIndex + 1) + $t('workbench.generate.videoMenu')" header-bordered style="height: 100%">
-    <template #actions>
-      <t-button size="small" :loading="generating" @click="emit('generate')">{{ $t("workbench.generate.generate") }}</t-button>
-    </template>
-    <div class="history">
-      <div class="titleBox f ac">
-        <i-time />
-        <span class="title">{{ $t("workbench.generate.history") }}（{{ currentTrack?.videoList.length }}）</span>
+  <section class="shotPreview" aria-label="当前镜头预览与版本">
+    <header class="previewHeader">
+      <strong>{{ title || `镜头 ${activeTrackIndex + 1}` }}</strong>
+      <div class="previewTabs">
+        <button type="button" :class="{ active: view === 'image' }" :aria-pressed="view === 'image'" @click="view = 'image'">分镜参考</button>
+        <button type="button" :class="{ active: view === 'video' }" :aria-pressed="view === 'video'" @click="view = 'video'">生成结果</button>
       </div>
-      <div class="historyItemBox">
-        <div v-if="!currentTrack?.videoList?.length" class="historyEmpty">
-          <i-video theme="outline" size="34" />
-          <span>还没有生成版本</span>
-          <small>确认提示词后，点击右上角生成视频</small>
+    </header>
+    <div class="previewScreen">
+      <div class="previewMedia">
+        <img v-if="view === 'image' && storyboardImage" :src="storyboardImage" alt="本镜分镜画面" />
+        <video
+          v-else-if="view === 'video' && preview?.src && preview.state === '已完成'"
+          :key="preview.id + ':' + preview.src"
+          :src="preview.src"
+          controls
+          playsinline
+          preload="auto" />
+        <div v-else class="previewEmpty">
+          <t-loading v-if="preview?.state === '生成中'" />
+          <strong>
+            {{
+              preview?.state === "生成中"
+                ? "这个版本正在生成"
+                : preview?.state === "生成失败"
+                  ? "这个版本未能完成"
+                  : view === "image"
+                    ? "等待本镜分镜画面"
+                    : "为这一镜生成第一个视频版本"
+            }}
+          </strong>
+          <small>{{ preview?.errorReason || "原采用版本会保留，你可以继续检查或调整其他镜头。" }}</small>
         </div>
-        <div
-          class="historyItem"
-          :class="{ active: v.id === selectVideoId, generating: v.state === '生成中', failed: v.state === '生成失败' }"
-          v-for="v in currentTrack?.videoList"
+        <span v-if="view === 'video' && preview?.state === '已完成'" class="previewCaption">视频 V{{ previewNumber }}</span>
+      </div>
+    </div>
+    <div class="versionToolbar">
+      <span>视频版本</span>
+      <div class="versionList">
+        <button
+          v-for="(v, i) in currentTrack?.videoList"
           :key="v.id"
-          @click="previewVideo(v)">
-          <template v-if="videoCoverMap[v.src]">
-            <img :src="videoCoverMap[v.src]" class="videoCover" />
-          </template>
-          <template v-else-if="v.state !== '生成中'">
-            <video
-              :key="v.src"
-              :src="v.src"
-              preload="metadata"
-              muted
-              @loadedmetadata="
-                (e: Event) => {
-                  (e.target as HTMLVideoElement).currentTime = 0.5;
-                }
-              "
-              @seeked="
-                (e: Event) => {
-                  const el = e.target as HTMLVideoElement;
-                  captureVideoCover(v.src);
-                  el.style.display = 'none';
-                }
-              " />
-          </template>
-          <div v-if="v.state === '生成中'" class="loadingOverlay c fc">
-            <t-loading size="24px" />
-            <span class="loadingText">{{ $t("workbench.generate.generating") }}</span>
+          type="button"
+          :class="{ active: preview?.id === v.id }"
+          :aria-pressed="preview?.id === v.id"
+          @click="
+            previewId = v.id;
+            view = 'video';
+          ">
+          V{{ i + 1 }}
+          <small v-if="v.state === '生成中'">生成中</small>
+          <small v-else-if="v.state === '生成失败'">失败</small>
+        </button>
+        <small v-if="!currentTrack?.videoList.length" class="noVersions">暂无版本</small>
+      </div>
+      <div v-if="preview?.state === '已完成' && preview.src" class="versionActions">
+        <span v-if="preview.id === currentTrack?.selectVideoId" class="adoptedFlag">已采用 V{{ previewNumber }}</span>
+        <button v-else type="button" class="adoptButton" :disabled="adopting" @click="adopt">
+          {{ adopting ? "正在采用…" : `采用 V${previewNumber}` }}
+        </button>
+        <details class="versionMore">
+          <summary aria-label="当前视频版本更多操作">···</summary>
+          <div>
+            <button type="button" @click="download">下载这个版本</button>
+            <button type="button" @click="removeVersion">删除这个版本</button>
           </div>
-          <t-tooltip v-if="v.state == '生成失败'" placement="top" :content="v?.errorReason! ?? ''" theme="light">
-            <t-tag class="stateTag" theme="danger" size="small">
-              {{ $t("workbench.generate.generateFailed") }}
-            </t-tag>
-          </t-tooltip>
-          <div v-if="v.state !== '生成中'" class="selectBtn" @click.stop="selectVideo(v)">
-            <i-check size="16" />
-          </div>
-          <div class="delBtn" @click.stop="handleDeleteVideo(v)">
-            <i-delete size="16" />
-          </div>
-          <div v-if="v.state !== '生成中' && v.state !== '生成失败'" class="download" @click.stop="downloadVideo(v)">
-            <i-to-bottom size="16" />
-          </div>
-          <div v-if="v.state !== '生成中' && v.state !== '生成失败'" class="playBtn" @click.stop="openVideoPlayer(v)">
-            <i-play size="16" />
-          </div>
-        </div>
+        </details>
       </div>
     </div>
-  </t-card>
-
-  <!-- 视频播放弹窗 -->
-  <t-dialog
-    v-model:visible="videoPlayerVisible"
-    :header="$t('workbench.generate.previewVideo')"
-    :footer="false"
-    width="800px"
-    destroy-on-close
-    @close="handlePlayerClose">
-    <div class="videoPlayerBox">
-      <video v-if="playingVideoSrc" :src="playingVideoSrc" controls autoplay class="videoPlayer" />
-    </div>
-  </t-dialog>
+  </section>
 </template>
 
 <script setup lang="ts">
-import type { Ref } from "vue";
+import { computed, ref, watch, inject, type Ref } from "vue";
 import axios from "@/utils/axios";
 import projectStore from "@/stores/project";
-
-const props = defineProps<{
-  activeTrackIndex: number;
-  generating?: boolean;
-}>();
-const currentTrack = defineModel<TrackItem>("currentTrack", {
-  default: () => {},
-});
-const emit = defineEmits<{
-  generate: [];
-  refresh: [];
-}>();
-
-const { project } = storeToRefs(projectStore());
-const episodesId = inject<Ref<number>>("episodesId")!;
-
-const selectVideoId = ref();
-const videoCoverMap = ref<Record<string, string>>({});
-const videoPlayerVisible = ref(false);
-const playingVideoSrc = ref<string>();
-
-/** 选中历史视频并同步到后端 */
-async function selectVideo(v: HistoryVideoItem) {
-  if (v.state === "生成中" || v.state === "生成失败") return;
+import "@/views/production/components/workbench/type/type";
+const props = defineProps<{ activeTrackIndex: number; storyboardImage?: string; title?: string }>();
+const currentTrack = defineModel<TrackItem | undefined>("currentTrack");
+const emit = defineEmits<{ refresh: []; inspectContinuity: []; versionChange: [value: VideoItem | undefined] }>();
+const episode = inject<Ref<number>>("episodesId")!;
+const project = projectStore();
+const previewId = ref<number>(),
+  view = ref<"image" | "video">("video"),
+  adopting = ref(false);
+const preview = computed(() => currentTrack.value?.videoList.find((v) => v.id === previewId.value));
+const previewNumber = computed(() => (currentTrack.value?.videoList.findIndex((v) => v.id === preview.value?.id) ?? -1) + 1);
+watch(
+  () => currentTrack.value?.id,
+  () => {
+    const t = currentTrack.value;
+    previewId.value = t?.selectVideoId || t?.videoList.filter((v) => v.state === "已完成").at(-1)?.id || t?.videoList.at(-1)?.id;
+    view.value = "video";
+  },
+  { immediate: true },
+);
+watch(
+  () => currentTrack.value?.videoList.map((v) => v.id).join(","),
+  () => {
+    if (!preview.value) previewId.value = currentTrack.value?.selectVideoId || currentTrack.value?.videoList.at(-1)?.id;
+  },
+);
+watch(preview, (value) => emit("versionChange", value), { immediate: true });
+async function adopt() {
+  const track = currentTrack.value,
+    version = preview.value,
+    scriptId = episode.value;
+  if (!track || !version?.src || version.state !== "已完成" || adopting.value) return;
+  adopting.value = true;
   try {
     await axios.post("/production/workbench/selectVideo", {
-      projectId: project.value?.id,
-      scriptId: episodesId.value ?? 0,
-      videoId: v.id,
-      trackId: currentTrack?.value.id,
+      projectId: Number(project.project?.id),
+      scriptId,
+      trackId: track.id,
+      videoId: version.id,
     });
-    window.$message.success($t("workbench.generate.selectVideoSuccess"));
-    emit("refresh");
-  } catch {
-    window.$message.error($t("workbench.generate.selectVideoFailed"));
+    if (scriptId !== episode.value) return;
+    track.selectVideoId = version.id;
+    window.$message.success("已采用该版本，已有剪辑草稿继续保留");
+  } finally {
+    adopting.value = false;
   }
 }
-
-/** 删除某条历史视频 */
-function handleDeleteVideo(value: HistoryVideoItem) {
+async function download() {
+  const v = preview.value;
+  if (!v?.src) return;
+  try {
+    const response = await fetch(v.src);
+    if (!response.ok) throw Error("下载失败");
+    const url = URL.createObjectURL(await response.blob()),
+      a = document.createElement("a");
+    a.href = url;
+    a.download = `镜头${props.activeTrackIndex + 1}-视频${v.id}.mp4`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    window.$message.error("下载失败，请稍后重试");
+  }
+}
+function removeVersion() {
+  const v = preview.value,
+    track = currentTrack.value;
+  if (!v || !track) return;
+  if (v.id === track.selectVideoId) return window.$message.warning("请先采用另一个版本，再删除当前采用版本");
   const dlg = DialogPlugin.confirm({
-    header: $t("workbench.generate.del"),
-    body: $t("workbench.generate.delVideo"),
-    onConfirm: () => {
-      axios.post("/production/workbench/delVideo", { id: value.id }).then(() => {
-        window.$message.success($t("workbench.generate.delSuccess"));
-        emit("refresh");
-        dlg.destroy();
-        currentTrack.value.videoList.filter((item) => item.id == value.id);
-      });
+    header: "删除这个视频版本？",
+    body: "已有采用版本不会改变。",
+    onConfirm: async () => {
+      await axios.post("/production/workbench/delVideo", { id: v.id });
+      track.videoList = track.videoList.filter((item) => item.id !== v.id);
+      dlg.destroy();
     },
     onCancel: () => dlg.destroy(),
   });
 }
-
-/** 单个视频下载 */
-const downloadingSet = new Set<string>();
-
-async function downloadVideo(value: HistoryVideoItem) {
-  if (!value?.src) return;
-  if (downloadingSet.has(value.src)) {
-    window.$message.info("下载进行中，请稍候");
-    return;
-  }
-  downloadingSet.add(value.src);
-  try {
-    const response = await fetch(value.src);
-    if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    // 使用时间戳保证文件名唯一，避免浏览器提示覆盖
-    link.download = `视频_${Date.now()}.mp4`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    // 延迟撤销，确保浏览器有时间开始下载（避免立即 revoke 导致问题）
-    setTimeout(() => {
-      try {
-        URL.revokeObjectURL(objectUrl);
-      } catch {}
-    }, 60000);
-  } catch (err) {
-    console.error(err);
-    window.$message.error("下载失败");
-  } finally {
-    downloadingSet.delete(value.src);
-  }
-}
-
-/** 捕获视频封面（绘制 0.5s 帧到 canvas） */
-function captureVideoCover(src: string) {
-  if (!src || videoCoverMap.value[src]) return;
-  const video = document.createElement("video");
-  video.crossOrigin = "anonymous";
-  video.preload = "auto";
-  video.muted = true;
-  video.src = src;
-  video.addEventListener(
-    "seeked",
-    () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 160;
-        canvas.height = video.videoHeight || 90;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          videoCoverMap.value[src] = canvas.toDataURL("image/jpeg", 0.7);
-        }
-      } catch {}
-      video.src = "";
-    },
-    { once: true },
-  );
-  video.addEventListener(
-    "loadeddata",
-    () => {
-      video.currentTime = 0.5;
-    },
-    { once: true },
-  );
-  video.addEventListener(
-    "error",
-    () => {
-      video.src = "";
-    },
-    { once: true },
-  );
-  video.load();
-}
-
-/** 打开视频播放弹窗 */
-function openVideoPlayer(v: HistoryVideoItem) {
-  if (!v.src) return;
-  playingVideoSrc.value = v.src;
-  videoPlayerVisible.value = true;
-}
-
-/** 关闭播放弹窗时清空 src，停止播放 */
-function handlePlayerClose() {
-  playingVideoSrc.value = undefined;
-}
-
-/** 点击历史视频条目进行预览 */
-function previewVideo(v: HistoryVideoItem) {
-  if (v.state === "生成中" || v.state === "生成失败") return;
-}
 </script>
 
-<style lang="scss" scoped>
-.history {
-  height: 100%;
-  .titleBox {
-    gap: 6px;
-    margin-bottom: 8px;
-    .title {
-      font-size: 13px;
-      color: var(--td-text-color-secondary);
-    }
-  }
-  .historyItemBox {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    height: 100%;
-    align-content: start;
-    overflow-y: auto;
-    padding: 4px;
-    .historyEmpty {
-      grid-column: 1 / -1;
-      min-height: 180px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 8px;
-      color: var(--td-text-color-placeholder);
-      small { color: var(--td-text-color-secondary); font-size: 12px; }
-    }
-    .historyItem {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 16 / 10;
-      height: auto;
-      border-radius: 10px;
-      overflow: hidden;
-      cursor: pointer;
-      border: 2px solid transparent;
-      background: var(--td-bg-color-secondarycontainer);
-      transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
-      &:hover {
-        transform: translateY(-2px) scale(1.02);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-      }
-      &:active {
-        transform: scale(0.97);
-      }
-      &.active {
-        border-color: var(--td-brand-color);
-        box-shadow: 0 0 0 2px rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.25), 0 4px 12px rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.15);
-      }
-      &.generating {
-        cursor: default;
-        &:hover {
-          transform: none;
-          box-shadow: none;
-        }
-      }
-      &.failed {
-        cursor: default;
-        &:hover {
-          transform: none;
-          box-shadow: none;
-        }
-      }
-      .videoCover {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transition: transform 300ms ease;
-      }
-      &:hover .videoCover {
-        transform: scale(1.05);
-      }
-      video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-      .loadingOverlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(4px);
-        gap: 4px;
-        .loadingText {
-          font-size: 11px;
-          color: #fff;
-        }
-      }
-      .stateTag {
-        position: absolute;
-        bottom: 4px;
-        left: 4px;
-        backdrop-filter: blur(8px);
-      }
-      .selectBtn,
-      .delBtn,
-      .download,
-      .playBtn {
-        position: absolute;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(4px);
-        color: #fff;
-        cursor: pointer;
-        transition: background-color 150ms ease, transform 100ms ease;
-        &:hover {
-          background: rgba(0, 0, 0, 0.8);
-          transform: scale(1.15);
-        }
-        &:active {
-          transform: scale(0.9);
-        }
-      }
-      .selectBtn {
-        bottom: 4px;
-        right: 4px;
-      }
-      .delBtn {
-        top: 4px;
-        right: 4px;
-        &:hover {
-          background: rgba(220, 50, 50, 0.85);
-        }
-      }
-      .download {
-        bottom: 4px;
-        left: 4px;
-      }
-      .playBtn {
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(4px);
-        opacity: 0;
-        transition: opacity 200ms ease, background-color 150ms ease;
-        &:hover {
-          background: rgba(0, 0, 0, 0.8);
-          transform: translate(-50%, -50%) scale(1.15);
-        }
-        &:active {
-          transform: translate(-50%, -50%) scale(0.9);
-        }
-      }
-      &:hover {
-        .selectBtn,
-        .delBtn,
-        .download {
-          display: flex;
-        }
-        .playBtn {
-          display: flex;
-          opacity: 1;
-        }
-      }
-    }
-  }
-}
-
-@media (max-width: 520px) {
-  .history .historyItemBox { grid-template-columns: 1fr; }
-}
-
-.videoPlayerBox {
+<style scoped lang="scss">
+.shotPreview {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  flex: 1;
+  min-height: 150px;
+  color: var(--studio-text);
+}
+.previewHeader {
+  display: flex;
   align-items: center;
-  background: #000;
-  border-radius: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+  flex: none;
+}
+.previewHeader > strong {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.previewTabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px;
+  background: var(--studio-field);
+  border-radius: 10px;
+  flex: none;
+}
+.previewTabs button {
+  border: 0;
+  background: transparent;
+  color: var(--studio-muted);
+  padding: 4px 10px;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.previewTabs button.active {
+  background: var(--studio-white);
+  color: var(--studio-text);
+  box-shadow: 0 1px 3px #1f170c06;
+}
+.previewScreen {
+  flex: 1;
+  height: auto;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 7px;
+  min-width: 0;
+}
+.previewMedia {
+  position: relative;
+  max-width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
   overflow: hidden;
-  .videoPlayer {
-    width: 100%;
-    max-height: 450px;
-    outline: none;
+  border-radius: 10px;
+}
+.previewMedia > video,
+.previewMedia > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #171719;
+}
+.previewEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  background: var(--studio-field);
+  border-radius: 12px;
+  text-align: center;
+}
+.previewEmpty strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+.previewEmpty small {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--studio-muted);
+}
+.previewCaption {
+  position: absolute;
+  top: 11px;
+  left: 12px;
+  background: #161512a8;
+  color: #f5eee7;
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 11px;
+  pointer-events: none;
+}
+.versionToolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: 28px;
+  flex: none;
+  font-size: 12px;
+}
+.versionToolbar > span {
+  color: var(--studio-muted);
+}
+.versionList {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.versionList button {
+  padding: 4px 9px;
+  min-width: 37px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  background: var(--studio-white);
+  color: var(--studio-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.versionList button.active {
+  color: var(--studio-accent);
+  border-color: var(--studio-accent);
+}
+.versionList small {
+  font-size: 10px;
+  margin-left: 4px;
+}
+.versionActions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-left: auto;
+}
+.adoptedFlag,
+.adoptButton {
+  padding: 4px 10px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  background: var(--studio-white);
+  color: var(--studio-text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.adoptButton {
+  cursor: pointer;
+  color: var(--studio-accent);
+  border-color: var(--studio-accent);
+}
+.versionMore {
+  position: relative;
+}
+.versionMore summary {
+  list-style: none;
+  font-size: 18px;
+  line-height: 24px;
+  color: var(--studio-muted);
+  padding: 2px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.versionMore summary::-webkit-details-marker {
+  display: none;
+}
+.versionMore[open] summary {
+  background: var(--studio-field);
+}
+.versionMore > div {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 3;
+  min-width: 145px;
+  padding: 5px;
+  background: var(--studio-white);
+  border: 1px solid var(--studio-line);
+  border-radius: 9px;
+  box-shadow: 0 6px 25px #30261b12;
+}
+.versionMore button {
+  display: block;
+  width: 100%;
+  padding: 8px 11px;
+  text-align: left;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--studio-text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.versionMore button:hover {
+  background: var(--studio-field);
+}
+.noVersions {
+  font-size: 11px;
+  color: var(--studio-muted);
+}
+@media (max-width: 1000px) {
+  .previewScreen {
+    height: clamp(240px, 43vh, 450px);
+  }
+  .previewHeader > strong {
+    font-size: 14px;
   }
 }
-:deep(.t-card__body) {
-  overflow: auto;
-  height: calc(100% - 48px);
-  &::-webkit-scrollbar {
-    width: 6px;
+@media (max-width: 760px) {
+  .previewScreen {
+    height: auto;
+    min-height: 210px;
+    aspect-ratio: 16/10;
   }
-  &::-webkit-scrollbar-track {
-    background: transparent;
+  .previewMedia {
+    width: 100%;
+    height: 100%;
   }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
-    border-radius: 3px;
-    &:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
+  .previewMedia > video,
+  .previewMedia > img {
+    width: 100%;
+    height: 100%;
+  }
+  .previewHeader {
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+  .previewTabs button {
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+  .previewHeader > strong {
+    font-size: 13px;
   }
 }
 </style>

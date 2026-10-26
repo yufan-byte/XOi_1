@@ -2,6 +2,10 @@ import u from "@/utils";
 import { Namespace, Socket } from "socket.io";
 import ResTool from "@/socket/resTool";
 import { getUserGatewayCredentials } from "@/lib/gateway/newapi";
+import { resolveUserCatalogModel } from "@/lib/model-catalog";
+import { trackedGatewayFetch } from "@/lib/gateway/receipts";
+import {releaseLifecycle} from "@/utils/releaseLifecycle";
+import { resolveTextModelKey } from "@/utils/textModel";
 
 export default (nsp: Namespace) => {
   nsp.on("connection", async (socket: Socket) => {
@@ -18,24 +22,20 @@ export default (nsp: Namespace) => {
     const resTool = new ResTool(socket);
     let abortController: AbortController | null = null;
 
-    socket.on("chat", async (data: { content: string }) => {
+    socket.on("chat", releaseLifecycle.socketHandler(async (data: { content: string; model?: string }) => {
       const { content } = data;
       abortController?.abort();
       abortController = new AbortController();
       let activeMessage: ReturnType<ResTool["newMessage"]> | null = null;
 
       try {
-        // 获取通用AI配置
-        const agentConfig = await u.db("o_agentDeploy").where("key", "universalAi").first();
-        const configuredModel = String(agentConfig?.modelName || agentConfig?.model || "").trim();
-        if (!agentConfig || !configuredModel) {
-          resTool.newMessage("assistant", "AI助手").error("未配置AI模型，请在设置中配置");
-          return;
-        }
+        // universalAi 已退役：未显式选择模型时走默认文本模型（系统默认 → 账号可用 DeepSeek）
+        const configuredModel = String(data.model || "").trim() || (await resolveTextModelKey());
         const separator = configuredModel.indexOf(":");
-        const vendorId = separator >= 0 ? configuredModel.slice(0, separator) : String(agentConfig.vendorId || "newapi");
-        if (vendorId !== "newapi") throw new Error("AI 助手必须配置为 NewAPI 模型");
-        const actualModel = separator >= 0 ? configuredModel.slice(separator + 1) : configuredModel;
+        const vendorId = separator >= 0 ? configuredModel.slice(0, separator) : "newapi";
+        if (vendorId !== "newapi") throw new Error("AI 助手必须使用 NewAPI 模型");
+        const requestedModel = separator >= 0 ? configuredModel.slice(separator + 1) : configuredModel;
+        const actualModel = (await resolveUserCatalogModel(identity.id, requestedModel, "text")).model.modelName;
         const credentials = await getUserGatewayCredentials(identity.id);
 
         // 调用AI模型
@@ -46,12 +46,14 @@ export default (nsp: Namespace) => {
           name: "newapi",
           baseURL: credentials.baseUrl,
           apiKey: credentials.apiKey,
+          fetch: trackedGatewayFetch,
         }).chatModel(actualModel);
 
         const result = streamText({
           model,
           messages: [{ role: "user", content }],
           abortSignal: abortController.signal,
+          maxRetries: 0,
         });
 
         const message = resTool.newMessage("assistant", "AI助手");
@@ -74,7 +76,7 @@ export default (nsp: Namespace) => {
         const message = resTool.newMessage("assistant", "AI助手");
         message.error(error.message || "AI请求失败");
       }
-    });
+    },message=>socket.emit("error",{message})));
 
     socket.on("stop", () => {
       abortController?.abort();

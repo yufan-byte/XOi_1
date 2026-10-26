@@ -1,7 +1,7 @@
 <template>
   <div class="propertyPanel">
     <div class="panelHeader">
-      <h3 class="panelTitle">{{ $t("workbench.production.editVideo.propertyPanel") }}</h3>
+      <h3 class="panelTitle">片段设置</h3>
     </div>
 
     <div class="panelContent">

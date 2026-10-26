@@ -1,4 +1,5 @@
 import localforage from "localforage";
+import { ownerDbName } from "@/xoi/owner";
 import { uploadImage } from "./image-storage";
 import { uploadMediaBlob } from "./file-storage";
 import { useCanvasStore } from "@/app/(user)/canvas/stores/use-canvas-store";
@@ -8,8 +9,8 @@ import { fetchUserConfig, syncUserAssetData, syncUserImageHistory } from "./api/
 import { saveVideoGenerationLogs } from "./api/generation-logs";
 
 export async function checkLocalAssetsExist(): Promise<boolean> {
-    const imageStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_files" });
-    const mediaStore = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
+    const imageStore = localforage.createInstance({ name: ownerDbName("files"), storeName: "image_files" });
+    const mediaStore = localforage.createInstance({ name: ownerDbName("files"), storeName: "media_files" });
 
     let found = false;
     try {
@@ -43,8 +44,8 @@ export async function migrateLocalAssetsToCloud(
     const userConfig = await fetchUserConfig(token).catch(() => null);
     const remoteAssets = userConfig?.assetData as { assets?: any[] } | undefined;
 
-    const imageStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_files" });
-    const mediaStore = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
+    const imageStore = localforage.createInstance({ name: ownerDbName("files"), storeName: "image_files" });
+    const mediaStore = localforage.createInstance({ name: ownerDbName("files"), storeName: "media_files" });
 
     // 1. Gather all local keys and their blobs
     const imagesToUpload: { key: string; blob: Blob }[] = [];
@@ -138,18 +139,7 @@ export async function migrateLocalAssetsToCloud(
             const finalCanvas = {
                 projects: nextCanvas.projects || [],
             };
-            await localforage
-                .createInstance({
-                    name: "infinite-canvas",
-                    storeName: "app_state",
-                })
-                .setItem(
-                    "infinite-canvas:canvas_store",
-                    JSON.stringify({
-                        state: finalCanvas,
-                        version: 0,
-                    }),
-                );
+            // Zustand writes to the current account's versioned store; never fill the legacy public bucket.
             useCanvasStore.setState(finalCanvas);
             await useCanvasStore.getState().syncWithRemote(
                 token,
@@ -174,8 +164,6 @@ export async function migrateLocalAssetsToCloud(
             const mergedAssets = mergeAssets(remoteAssets?.assets || [], nextAssets.assets);
             const finalAssets = { assets: mergedAssets };
             // Save locally
-            await localforage.createInstance({ name: "infinite-canvas", storeName: "app_state" })
-                .setItem("infinite-canvas:asset_store", JSON.stringify({ state: finalAssets }));
             // Set in Zustand store
             useAssetStore.setState(finalAssets);
             // Sync to server
@@ -186,8 +174,8 @@ export async function migrateLocalAssetsToCloud(
     }
 
     // 6. Update Image Generation Logs
-    const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
-    const imageCategoryStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_categories" });
+    const imageLogStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "image_generation_logs" });
+    const imageCategoryStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "image_generation_categories" });
     const localLogs: any[] = [];
     await imageLogStore.iterate((value) => {
         localLogs.push(value);
@@ -215,7 +203,7 @@ export async function migrateLocalAssetsToCloud(
     }
 
     // 7. Update Video Generation Logs
-    const videoLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+    const videoLogStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "video_generation_logs" });
     const localVideoLogs: any[] = [];
     await videoLogStore.iterate((value) => {
         localVideoLogs.push(value);

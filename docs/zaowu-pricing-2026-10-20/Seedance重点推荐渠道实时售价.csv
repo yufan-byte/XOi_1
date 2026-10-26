@@ -1,0 +1,4 @@
+"model_name","description","480p_yuan_per_second","720p_yuan_per_second","1080p_yuan_per_second","raw_billing_expr"
+"seedance2.0-line1","长期稳定渠道，推荐使用！2.0模型 支持 480p 720p 9图3视频3音频","0.438900","0.750000","1.416667","(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", u(""seconds"") * 1.416667) : ((u(""billing_resolution"") == ""720p"") ? tier(""720p"", u(""seconds"") * 0.75) : (tier(""default"", u(""seconds"") * 0.4389)))"
+"seedance2.0-line1-fast","长期稳定渠道，推荐使用！fast模型 支持 480p 720p 9图3视频3音频","0.338235","0.500000","","(u(""billing_resolution"") == ""720p"") ? tier(""720p"", u(""seconds"") * 0.5) : (tier(""default"", u(""seconds"") * 0.338235))"
+"seedance2.5-line1","长期稳定渠道，推荐使用！2.5模型 支持 480p 720p 30图10视频10音频","0.617647","1.083333","2.250000","(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", u(""seconds"") * 2.25) : ((u(""billing_resolution"") == ""720p"") ? tier(""720p"", u(""seconds"") * 1.083333) : (tier(""default"", u(""seconds"") * 0.617647)))"

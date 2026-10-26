@@ -1,5 +1,6 @@
 import knex, { type Knex } from "knex";
 import pg from "pg";
+import os from "node:os";
 import initDB from "@/lib/initDB";
 import type { DB } from "@/types/database";
 import { ensureWorkspaceTables } from "@/lib/workspace/schema";
@@ -54,6 +55,13 @@ function poolSetting(name: string, fallback: number, upper: number): number {
   return value;
 }
 
+/* 连接池默认值按 CPU 核定。
+ * 原来固定 8：媒体鉴权、生成队列、业务查询和计费共用这一条池，一个项目页
+ * 几十张图同时加载就能把它占满，表现为「页面图片转圈、接口偶尔 503」。
+ * CPU×2 是通用经验值，上限 32 —— 再高就得同步调大 PG 的 max_connections，
+ * 否则只是把排队从应用层搬到数据库层。 */
+const defaultDbPool = Math.min(32, Math.max(8, os.cpus().length * 2));
+
 const db = knex({
   client: "pg",
   connection: url
@@ -61,7 +69,7 @@ const db = knex({
       { connectionString: url }
     : // 占位：让 knex 能构造出来，首次查询时再抛出清楚的连接错误
       { host: "127.0.0.1", port: 5432, database: "new-api", user: "postgres", password: "" },
-  pool: { min: 0, max: poolSetting("XOI_DB_POOL_MAX", 8, 100) },
+  pool: { min: 0, max: poolSetting("XOI_DB_POOL_MAX", defaultDbPool, 100) },
   acquireConnectionTimeout: poolSetting("XOI_DB_ACQUIRE_TIMEOUT_MS", 10000, 60000),
 });
 
@@ -76,6 +84,10 @@ const db = knex({
  * NO_ID_TABLES，否则那条 insert 会被补丁误伤直接报「column id 不存在」。
  * ------------------------------------------------------------------ */
 const NO_ID_TABLES = new Set([
+  "xoi_canvas_documents",
+  "xoi_release_instances",
+  "xoi_storage_usage",
+  "xoi_model_leases",
   "o_setting",
   "o_assets2Storyboard",
   "o_skillAttribution",
@@ -123,8 +135,13 @@ export const dbReady = Promise.resolve().then(async () => {
   // vendor helpers which in turn reference the shared DB; a static import here
   // creates a db -> fixDB -> vendor -> db cycle during module evaluation.
   const { default: fixDB } = await import("@/lib/fixDB");
-  await initDB(db);
-  await fixDB(db);
+  // Serialize first-install/migrations across rolling-release replicas, not across model calls.
+  await (await import('./securitySchema')).withSecuritySchemaLock(db,async trx=>{
+    await initDB(trx);
+    await fixDB(trx);
+  });
+  await (await import('./storyboardStore')).ensureStoryboardReferenceOrder(db);
+  await (await import('./storyboardStore')).ensureVideoTimestampWidth(db);
   await ensureWorkspaceTables(db);
 });
 

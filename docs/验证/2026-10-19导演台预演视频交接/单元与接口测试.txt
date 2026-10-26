@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: MP4 inspection reads video sample table rather than trusting its filename or caller duration
+ok 1 - MP4 inspection reads video sample table rather than trusting its filename or caller duration
+  ---
+  duration_ms: 14.322417
+  type: 'test'
+  ...
+# Subtest: truncated, empty, fragmented and malformed video metadata are rejected
+ok 2 - truncated, empty, fragmented and malformed video metadata are rejected
+  ---
+  duration_ms: 21.390084
+  type: 'test'
+  ...
+# Subtest: video reference stays bound to the exact scene version and differs from a static reference
+ok 3 - video reference stays bound to the exact scene version and differs from a static reference
+  ---
+  duration_ms: 2.428666
+  type: 'test'
+  ...
+# Subtest: portable reference keeps one confirmed shot, version, frame and original snapshot
+ok 4 - portable reference keeps one confirmed shot, version, frame and original snapshot
+  ---
+  duration_ms: 32.696041
+  type: 'test'
+  ...
+# Subtest: corrupt geometry and ambiguous projects are rejected before native restoration
+ok 5 - corrupt geometry and ambiguous projects are rejected before native restoration
+  ---
+  duration_ms: 0.515209
+  type: 'test'
+  ...
+# Subtest: scene API persists across clients, isolates owners, rejects stale saves and tombstones explicit deletions
+ok 6 - scene API persists across clients, isolates owners, rejects stale saves and tombstones explicit deletions
+  ---
+  duration_ms: 2952.938542
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10797.573167

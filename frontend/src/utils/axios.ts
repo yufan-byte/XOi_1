@@ -4,22 +4,36 @@ import { storeToRefs } from "pinia";
 import { MessagePlugin, NotifyPlugin, type TNode } from "tdesign-vue-next";
 import settingStore from "@/stores/setting";
 import { h } from "vue";
+import { authorizeModelCall, modelCallSubmitted } from "./billingGate";
+import { billableOperation } from "../../../shared/billableOperations";
+import { accountBoundary } from './accountBoundary';
 const instance = axios.create();
 
-instance.interceptors.request.use(function (config) {
+instance.interceptors.request.use(async function (config) {
   const { baseUrl, otherSetting } = storeToRefs(settingStore());
   config.baseURL = baseUrl.value;
-  config.timeout = otherSetting.value.axiosTimeOut;
-  const token = localStorage.getItem("token");
+  config.timeout = config.timeout || otherSetting.value.axiosTimeOut;
+  const owner = accountBoundary.capture();
+  (config as any).accountOwner = owner;
+  const token = owner.token;
   if (token) {
     config.headers.Authorization = token;
   }
-
+  const path = String(config.url || "");
+  if (billableOperation(path, config.method || "GET")) {
+    const ticket = await authorizeModelCall(path, config.data, config.signal as AbortSignal | undefined);
+    (config as any).billingTicket = ticket;
+    if (ticket) config.headers.set("X-Xoi-Billing-Id", ticket.id);
+  }
+  // A confirmation dialog may have stayed open while the account changed.
+  accountBoundary.assert(owner);
   return config;
 });
 
 instance.interceptors.response.use(
   function (response) {
+    accountBoundary.assert((response.config as any).accountOwner);
+    modelCallSubmitted((response.config as any)?.billingTicket);
     // 后台动了真正影响「可选型号与钥匙」的那几类供应商写入动作后,向名为 studio-api 的跨标签通道喊一声,
     // 让每个还打开着的画布标签接住信号即时重拉 /api/config 自我刷新下拉(classic 见 canvas.js / smart 见 smart-canvas.js 都挂着同名接收器);
     // 用白名单而不是按整段 /setting/vendorConfig 子串匹配,是为了把同样走 POST 但其实没改表的 getVendorList / modelTest 排除掉免得误触空转刷新。
@@ -37,6 +51,7 @@ instance.interceptors.response.use(
         "enableVendor",
       ].includes(reqTail)
     ) {
+      window.dispatchEvent(new Event("model-catalog-changed"));
       try {
         const chan = new BroadcastChannel("studio-api");
         chan.postMessage({ type: "providers-changed" });
@@ -48,6 +63,9 @@ instance.interceptors.response.use(
     return response.data;
   },
   function (error) {
+    if (error.config?.accountOwner) accountBoundary.assert(error.config.accountOwner);
+    modelCallSubmitted(error.config?.billingTicket, true);
+    const pricingRequest = /\/(?:model-catalog(?:\/quote)?|modelSelect\/getModelList)$/.test(String(error.config?.url || "").split("?")[0]);
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       // 带 expired 标记去登录页：登录页落地会弹「登录已过期」提示。
@@ -57,47 +75,22 @@ instance.interceptors.response.use(
       }
       MessagePlugin.error(window.$t("common.sessionExpired"));
     }
-    if (error.message?.includes("Network Error") || error.response?.data?.message === "Network Error") {
+    if (!pricingRequest && (error.message?.includes("Network Error") || error.response?.data?.message === "Network Error")) {
       NotifyPlugin.error({
-        title: "Network Error",
+        title: "暂时无法连接服务",
         closeBtn: true,
-        duration: 3000, // 不自动关闭，让用户有时间看
+        duration: 6000,
         className: "customNotifyFull", // 自定义类名
         content: () =>
           h("div", [
-            h("div", { style: { marginBottom: "8px" } }, "网络连接失败，请依次尝试："),
-            h("div", { style: { marginBottom: "4px" } }, "1. 右键程序图标 → 以管理员身份运行"),
-            h("div", { style: { marginBottom: "4px" } }, "2. 检查后端服务是否已正常启动"),
-            h("div", [
-              "3. 安装 Visual C++ 运行库：",
-              h("div", { style: { display: "flex", gap: "8px", marginTop: "4px" } }, [
-                h(
-                  "a",
-                  {
-                    href: "https://aka.ms/vs/17/release/vc_redist.x86.exe",
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                    style: { color: "#0052d9" },
-                  },
-                  "32位下载",
-                ),
-                h(
-                  "a",
-                  {
-                    href: "https://aka.ms/vs/17/release/vc_redist.x64.exe",
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                    style: { color: "#0052d9" },
-                  },
-                  "64位下载",
-                ),
-              ]),
-            ]),
+            h("div", { style: { marginBottom: "8px" } }, "请检查网络连接，稍后重试；如果持续出现，请联系平台管理员。"),
+            h("div", "如果刚提交过生成或付款，请先查看任务记录或积分明细，确认结果后再操作，避免重复提交。"),
           ]),
       });
     }
 
-    return Promise.reject(error?.response?.data ?? error);
+    // Pricing components own their inline feedback/retry and need the HTTP status.
+    return Promise.reject(pricingRequest || error.config?.preserveHttpError ? error : error?.response?.data ?? error);
   },
 );
 

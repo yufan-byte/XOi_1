@@ -27,6 +27,7 @@ interface HistoryItem {
   description: string;
   cover_url: string;
   cover_kind: "image" | "video";
+  poster_url?: string;
   status: "done";
   created_at: number | undefined;
   project_id: number | undefined;
@@ -53,12 +54,18 @@ export default router.get("/", async (req, res) => {
   const type = String(req.query.type || "all");
   const limit = Math.min(Math.max(num(req.query.limit) || 80, 1), 300);
   const keyword = String(req.query.keyword || "").trim().toLowerCase();
+  const scopedId = req.query.projectId === undefined ? null : Number(req.query.projectId);
+  if (scopedId !== null && (!Number.isSafeInteger(scopedId) || scopedId <= 0)) return res.status(400).send({ success: false, message: '项目编号无效' });
 
   try {
-    const projectIds = (await u.db("o_project").where("userId", me).pluck("id")).filter((id): id is number => typeof id === "number");
+    // PostgreSQL returns bigint identifiers as strings; do not discard owned projects.
+    const ownedProjects = u.db("o_project").where("userId", me);
+    if (scopedId !== null) ownedProjects.andWhere('id', scopedId);
+    const projectIds = (await ownedProjects.pluck("id")).map(Number).filter(id => Number.isSafeInteger(id) && id > 0);
     if (!projectIds.length) return res.status(200).send(success({ items: [] }));
 
     const items: HistoryItem[] = [];
+    const posters = type === 'all' || type === 'video' ? await u.db('o_storyboard').whereIn('projectId',projectIds).whereNotNull('filePath').whereNot('filePath','').orderBy('index','asc','last').orderBy('id').select('projectId','trackId','filePath') : [];
 
     if (type === "all" || type === "image") {
       // 1) 资产图：o_image ← o_assets（角色/道具/场景/素材），projectId 在 o_assets 上
@@ -135,7 +142,7 @@ export default router.get("/", async (req, res) => {
         .andWhereNot("v.filePath", "")
         .orderBy("v.id", "desc")
         .limit(limit)
-        .select("v.id as id", "v.filePath as filePath", "v.projectId as projectId", "v.videoTrackId as videoTrackId", "t.prompt as prompt");
+        .select("v.id as id", "v.filePath as filePath", "v.projectId as projectId", "v.videoTrackId as videoTrackId", "v.time as time", "t.prompt as prompt");
       for (const r of vidRows) {
         const cover = await url(r.filePath);
         if (!cover) continue;
@@ -143,12 +150,13 @@ export default router.get("/", async (req, res) => {
           id: `vid_${r.id}`,
           work_type: "video",
           source: "video",
-          title: `分镜视频 #${r.videoTrackId ?? r.id}`,
+          title: `分镜视频 #${r.id}`,
           description: String(r.prompt || ""),
           cover_url: cover,
           cover_kind: "video",
+          poster_url: await url(posters.find(p=>Number(p.trackId)===Number(r.videoTrackId))?.filePath),
           status: "done",
-          created_at: undefined,
+          created_at: num(r.time) || undefined,
           project_id: num(r.projectId) || undefined,
         });
       }
@@ -173,6 +181,7 @@ export default router.get("/", async (req, res) => {
           description: meta,
           cover_url: cover,
           cover_kind: "video",
+          poster_url: await url(posters.find(p=>Number(p.projectId)===Number(r.projectId))?.filePath),
           status: "done",
           created_at: num(r.createTime) || undefined,
           project_id: num(r.projectId) || undefined,

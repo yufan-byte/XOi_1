@@ -12,7 +12,7 @@ const FOV = 28, CAM_Z = 4, TAN = Math.tan((FOV / 2) * Math.PI / 180), TAU = Math
 const PITCH_LIMIT = 0.7; // 俯仰拖拽钳制（弧度），防止把地球翻得底朝天
 const clampf = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const hex = (h: string) => { const n = parseInt(h.slice(1), 16); return new THREE.Vector3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
-const PAL = { bgA: "#07070b", bgB: "#13111b", grid: "#6d6690", cool: "#a99cff", silver: "#f5f2ff", warm: "#e6dbff", ink: "#f1f4f2" };
+const PAL = { bgA: "#050506", bgB: "#111214", grid: "#5f6770", cool: "#b9f0ec", silver: "#f4fcff", warm: "#c4d6eb", ink: "#f1f4f2" };
 const FONT = '"Lexend", "PingFang SC", "Microsoft YaHei", sans-serif';
 const N_NODES = 40;
 
@@ -88,22 +88,22 @@ const overlaps = (a: Box, b: Box, pad: number) => a.l < b.r + pad && b.l < a.r +
 /** 立体玻璃质感的图标砖：暗色圆角底 + 顶部高光 + 发光图标；返回纹理与图标主色（供光晕着色） */
 function tileTexture(src: string, onChange: () => void) {
   const cv = document.createElement("canvas"); cv.width = cv.height = 128; const ctx = cv.getContext("2d")!;
-  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4; const tint = new THREE.Color(0.72, 0.68, 1);
+  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4; const tint = new THREE.Color(0.72, 0.86, 0.94);
   const draw = (img: HTMLImageElement | null) => {
     ctx.clearRect(0, 0, 128, 128);
-    const g = ctx.createLinearGradient(0, 4, 0, 124); g.addColorStop(0, "rgba(64,58,86,0.78)"); g.addColorStop(0.5, "rgba(26,24,36,0.74)"); g.addColorStop(1, "rgba(14,13,20,0.8)");
+    const g = ctx.createLinearGradient(0, 4, 0, 124); g.addColorStop(0, "rgba(58,62,68,0.78)"); g.addColorStop(0.5, "rgba(24,26,29,0.74)"); g.addColorStop(1, "rgba(12,13,15,0.8)");
     ctx.beginPath(); ctx.roundRect(4, 4, 120, 120, 22); ctx.fillStyle = g; ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = "rgba(150,140,190,0.5)"; ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = "rgba(150,160,172,0.5)"; ctx.stroke();
     const hl = ctx.createLinearGradient(0, 5, 0, 40); hl.addColorStop(0, "rgba(255,255,255,0.22)"); hl.addColorStop(1, "rgba(255,255,255,0)");
     ctx.beginPath(); ctx.roundRect(6, 6, 116, 116, 20); ctx.lineWidth = 1.5; ctx.strokeStyle = hl; ctx.stroke();
     if (img) {
       const sm = document.createElement("canvas"); sm.width = sm.height = 24; const sc = sm.getContext("2d", { willReadFrequently: true })!; sc.drawImage(img, 0, 0, 24, 24);
       const px = sc.getImageData(0, 0, 24, 24).data; let lum = 0, cnt = 0, wr = 0, wg = 0, wb = 0, ws = 0;
       for (let i = 0; i < px.length; i += 4) { if (px[i + 3] <= 100) continue; const r = px[i], gg = px[i + 1], b = px[i + 2]; const sat = (Math.max(r, gg, b) - Math.min(r, gg, b)) / 255; cnt++; lum += (r + gg + b) / 3; wr += r * sat; wg += gg * sat; wb += b * sat; ws += sat; }
-      if (ws > 0.06 * cnt) tint.setRGB(wr / ws / 255, wg / ws / 255, wb / ws / 255, THREE.LinearSRGBColorSpace).lerp(new THREE.Color(0.9, 0.88, 1), 0.15);
+      if (ws > 0.06 * cnt) tint.setRGB(wr / ws / 255, wg / ws / 255, wb / ws / 255, THREE.LinearSRGBColorSpace).lerp(new THREE.Color(0.9, 0.95, 1), 0.15);
       const dark = cnt > 0 && lum / cnt < 65;
       ctx.save(); ctx.filter = `${dark ? "invert(1) " : ""}saturate(1.3) contrast(1.1)`;
-      ctx.shadowColor = "rgba(200,190,255,0.9)"; ctx.shadowBlur = 10; ctx.globalAlpha = 0.3; ctx.drawImage(img, 25, 25, 78, 78);
+      ctx.shadowColor = "rgba(200,230,245,0.9)"; ctx.shadowBlur = 10; ctx.globalAlpha = 0.3; ctx.drawImage(img, 25, 25, 78, 78);
       ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.drawImage(img, 25, 25, 78, 78); ctx.restore();
     }
     tex.needsUpdate = true; onChange();
@@ -306,6 +306,7 @@ function Scene({ bus, running, reduced }: { bus: React.RefObject<OrbitBus>; runn
   const worldRef = useRef(world);
   useEffect(() => { worldRef.current = world; return () => world.dispose(); }, [world]);
   useEffect(() => () => work.dispose(), [work]);
+  useEffect(()=>{if(!running)for(const card of work.cards)card.video?.pause();},[running,work]);
   const time = useRef(0); const chosen = useRef([-1, -1]); const workAmt = useRef(0);
   const bkRef = useRef({ idx: -1, a: 0, b: 0 }); // 全屏背景：当前作品纹理 + 旧背景淡出
   const tmp = useRef({ v: new THREE.Vector3(), c: new THREE.Vector3() });
@@ -438,7 +439,7 @@ function Scene({ bus, running, reduced }: { bus: React.RefObject<OrbitBus>; runn
       for (let i = 0; i < N; i++) {
         const vid = work.cards[i].video; if (!vid || !vid.src) continue;
         let rel = (((i - idx) % N) + N) % N; if (rel > N / 2) rel -= N;
-        const want = wa > 0.6 && (rel === 0 || rel === 1);
+        const want = running && wa > 0.6 && (rel === 0 || rel === 1);
         if (want && vid.paused) vid.play().catch(() => {});
         else if (!want && !vid.paused) vid.pause();
       }
@@ -489,9 +490,9 @@ function maxDpr(): number {
 
 /** 渲染器：DPR 按 GPU 分级封顶；标签页隐藏 / 减少动态效果时停帧（按需渲染）。
  *  注意：不再随「舞台切到作品展映」停帧——展映的视频卡也渲染在这块画布里 */
-export default function OrbitScene({ bus, reduced }: { bus: React.RefObject<OrbitBus>; reduced: boolean }) {
+export default function OrbitScene({ bus, reduced, paused = false }: { bus: React.RefObject<OrbitBus>; reduced: boolean; paused?: boolean }) {
   const hidden = useSyncExternalStore(subscribeVisibility, () => document.hidden, () => false);
-  const running = !hidden && !reduced;
+  const running = !hidden && !reduced && !paused;
   return (
     <Canvas dpr={[1, maxDpr()]} flat linear frameloop={running ? "always" : "demand"} style={{ pointerEvents: "none" }}
       gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }} camera={{ fov: FOV, position: [0, 0, CAM_Z], near: 0.1, far: 50 }}>

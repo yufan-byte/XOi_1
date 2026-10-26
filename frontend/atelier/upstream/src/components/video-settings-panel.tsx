@@ -1,16 +1,19 @@
 "use client";
 
-import { type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Input, Switch } from "antd";
 
 import { ImageSettingsTheme } from "@/components/image-settings-panel";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
-import { isAutoDLConfig, normalizeAutoDLDuration } from "@/lib/autodl";
+import { isAutoDLConfig } from "@/lib/autodl";
 import { boolConfig, isSeedanceFastOrMiniModel, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution, seedanceDurationOptions, seedancePixelLabel, seedanceRatioOptions, seedanceResolutionOptions } from "@/lib/seedance-video";
 import { type CanvasTheme } from "@/lib/canvas-theme";
-import { COGVIDEOX3_DURATIONS, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
+import { COGVIDEOX3_DURATIONS, isCogVideoX3Model, isSeedance25Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { grokVideoModeOptions, isAPIMartKlingV26Config, isAPIMartKlingV3Config, isKIEGrokVideoModel, isKIEKlingV3Config, klingV26DurationOptions, klingV26ModeOptions, klingV26RatioLabels, klingV26RatioOptions, klingV3DurationOptions, klingV3ModeOptions, normalizeKlingV26Duration, normalizeKlingV26Ratio, normalizeKlingV3Duration } from "@/services/api/protocols/kling-models";
 import { channelProtocolForConfig, type AiConfig } from "@/stores/use-config-store";
+import { loadModelPricing, plainModelName, type ModelPricingRow } from "@/xoi/model-pricing";
+import { videoAspectRatio } from "@/xoi/quote-params";
+import { isCatalogSeedance } from "@/xoi/video-input";
 
 export { isAPIMartKlingV26Config, isAPIMartKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingV3Config, kieKlingOmniVariant, isKIEKlingMotionControlConfig, isKIEGrokVideoModel } from "@/services/api/protocols/kling-models";
 
@@ -49,6 +52,11 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
     const model = modelName || config.model || config.videoModel;
     const autodl = isAutoDLConfig(config, model);
     const { data: workflow } = useAutoDLWorkflow(config, model);
+    const [catalogModel, setCatalogModel] = useState<ModelPricingRow>();
+    useEffect(() => { let active = true; void loadModelPricing().then(rows => { if (active) setCatalogModel(rows.find(row => row.modelName === plainModelName(model))); }); return () => { active = false; }; }, [model]);
+    if (catalogModel?.modelName === plainModelName(model) && isCatalogSeedance(catalogModel.modelName) && catalogModel.enums?.resolution?.length && catalogModel.enums?.duration?.length) {
+        return <CatalogVideoSettingsPanel {...{ config, onConfigChange, theme, showTitle, className, visualOnly }} row={catalogModel} />;
+    }
     if (isAPIMartKlingV26Config(config, modelName || config.model || config.videoModel) || isAPIMartKlingV3Config(config, modelName || config.model || config.videoModel) || isKIEKlingV3Config(config, modelName || config.model || config.videoModel)) {
         return <KlingV26VideoSettingsPanel config={config} modelName={modelName} onConfigChange={onConfigChange} theme={theme} showTitle={showTitle} className={className} hideNegativePrompt={hideNegativePrompt} visualOnly={visualOnly} />;
     }
@@ -162,7 +170,6 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
                                         {value}s
                                     </OptionPill>
                                 ))}
-                                {cogVideoX3 ? null : <NumberInput value={seconds} min={1} max={30} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} onBlur={autodl ? (value) => onConfigChange("videoSeconds", normalizeAutoDLDuration(value, workflow)) : undefined} />}
                             </div>
                         </SettingGroup>
                         {audioGenerationEnabled ? <AudioGenerationSetting checked={generateAudio} theme={theme} onChange={(checked) => onConfigChange("videoGenerateAudio", String(checked))} /> : null}
@@ -171,6 +178,26 @@ export function VideoSettingsPanel({ config, modelName, onConfigChange, theme, s
             </div>
         </ImageSettingsTheme>
     );
+}
+
+function CatalogVideoSettingsPanel({ config, onConfigChange, theme, showTitle, className, visualOnly, row }: VideoSettingsPanelProps & { row: ModelPricingRow }) {
+    const resolutions = (row.enums?.resolution || []).map(String);
+    const durations = (row.enums?.duration || []).map(Number).filter(v => v > 0);
+    const ratios = (row.enums?.aspect_ratio || []).map(String);
+    const resolution = String(config.vquality || "720p").replace(/^(480|720|1080)$/, "$1p");
+    const ratio = videoAspectRatio(config.size) || "16:9";
+    const seconds = Number(config.videoSeconds || 6);
+    const common = [...new Set([4, 5, 6, 8, 10, 12, 15, 20, 25, 30, seconds])].filter(v => durations.includes(v)).sort((a, b) => a - b);
+    const invalid = !resolutions.includes(resolution) || !durations.includes(seconds);
+    return <ImageSettingsTheme theme={theme}><div className={className} style={{ color: theme.node.text }}>
+        {showTitle ? <div className="text-lg font-semibold">视频设置</div> : null}
+        <SettingGroup title="清晰度" color={theme.node.muted}><div className="grid grid-cols-3 gap-2.5">{resolutions.map(value => <OptionPill key={value} selected={resolution === value} theme={theme} onClick={() => onConfigChange("vquality", value)}>{value.toUpperCase()}</OptionPill>)}</div></SettingGroup>
+        <SettingGroup title="画幅比例" color={theme.node.muted}><div className="grid grid-cols-3 gap-2.5">{ratios.map(value => <OptionPill key={value} selected={ratio === value} theme={theme} onClick={() => onConfigChange("size", value)}>{value}</OptionPill>)}</div></SettingGroup>
+        {!visualOnly ? <SettingGroup title="时长" color={theme.node.muted}><div className="grid grid-cols-4 gap-2">{common.map(value => <OptionPill key={value} selected={seconds === value} theme={theme} onClick={() => onConfigChange("videoSeconds", String(value))}>{value} 秒</OptionPill>)}</div><p className="text-[10px] opacity-60">支持 {Math.min(...durations)}–{Math.max(...durations)} 秒 · {row.billingUnit === "per_second" ? "按实际生成秒数计费" : "按次计费，时长不重复相乘"}</p></SettingGroup> : null}
+        {invalid ? <p role="status" className="text-[11px] text-amber-700 dark:text-amber-400">当前参数不适用于这个型号，请重新选择清晰度或时长。</p> : null}
+        {row.referenceVideoMultiplier ? <p className="rounded-xl bg-amber-500/[0.06] px-3 py-2 text-[11px] leading-5">添加参考视频后，基础消耗 ×{row.referenceVideoMultiplier}。预计积分会在生成区实时更新。</p> : null}
+        <p className="text-[11px] leading-5 opacity-55">参考素材需可公网访问，请先上传至对象存储；无法读取的素材不会提交生成。</p>
+    </div></ImageSettingsTheme>;
 }
 
 function KlingV26VideoSettingsPanel({ config, modelName, onConfigChange, theme, showTitle, className, hideNegativePrompt, visualOnly }: VideoSettingsPanelProps) {
@@ -241,7 +268,7 @@ function KlingV26VideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                                         {value}s
                                     </OptionPill>
                                 ))}
-                                {isV3 ? <NumberInput value={config.videoSeconds} min={3} max={15} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} /> : null}
+
                             </div>
                         </SettingGroup>
                         <AudioGenerationSetting checked={generateAudio} hint={isV3 ? undefined : "仅专业模式，仅一张参考图可用"} theme={theme} onChange={(checked) => onConfigChange("videoGenerateAudio", String(checked))} />
@@ -258,7 +285,7 @@ function SeedanceVideoSettingsPanel({ config, modelName, onConfigChange, theme, 
     const seedance20 = (modelId.includes("seedance-2-0") || modelId === "bytedance-seedance-2") && !isSeedanceFastOrMiniModel(model);
     const resolution = seedance20 ? normalizeVideoResolutionValue(config.vquality) : normalizeSeedanceResolution(config.vquality, model);
     const ratio = normalizeSeedanceRatio(config.size);
-    const maxSeconds = modelId.includes("seedance-2-5") ? 30 : 15;
+    const maxSeconds = isSeedance25Model(model) ? 30 : 15;
     const duration = normalizeSeedanceDuration(config.videoSeconds, maxSeconds);
     const watermark = boolConfig(config.videoWatermark, false);
     const audioGenerationEnabled = supportsVideoAudioGeneration(model, channelProtocolForConfig({ ...config, model, videoModel: model }));
@@ -310,7 +337,7 @@ function SeedanceVideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                                     </OptionPill>
                                 ))}
                             </div>
-                            <NumberInput value={config.videoSeconds} min={-1} max={maxSeconds} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
+
                         </SettingGroup>
                         {audioGenerationEnabled ? <AudioGenerationSetting checked={generateAudio} theme={theme} onChange={(checked) => onConfigChange("videoGenerateAudio", String(checked))} /> : null}
                         <SettingGroup title="输出" color={theme.node.muted}>
@@ -416,10 +443,6 @@ function DimensionInput({ prefix, value, disabled, theme, onChange }: { prefix: 
             <input type="number" min={1} disabled={disabled} className="min-w-0 flex-1 bg-transparent px-2 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" value={value || ""} onChange={(event) => onChange(Number(event.target.value) || null)} onMouseDown={(event) => event.stopPropagation()} />
         </label>
     );
-}
-
-function NumberInput({ value, min, max, theme, onChange, onBlur }: { value: string; min: number; max: number; theme: CanvasTheme; onChange: (value: string) => void; onBlur?: (value: string) => void }) {
-    return <input type="number" min={min} max={max} className="h-9 rounded-full border bg-transparent px-3 text-center text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text }} value={value} onChange={(event) => onChange(event.target.value)} onBlur={(event) => onBlur?.(event.target.value)} onMouseDown={(event) => event.stopPropagation()} />;
 }
 
 function SizePreview({ width, height, color }: { width: number; height: number; color: string }) {

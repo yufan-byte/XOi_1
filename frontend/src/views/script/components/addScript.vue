@@ -72,7 +72,7 @@
 
 <script setup lang="ts">
 import { LoadingPlugin } from "tdesign-vue-next";
-import mammoth from "mammoth";
+
 import type { UploadFile } from "tdesign-vue-next";
 import axios from "@/utils/axios";
 import projectStore from "@/stores/project";
@@ -102,6 +102,7 @@ async function readFile(file: File): Promise<string> {
   if (file.type === "text/plain") {
     return new TextDecoder().decode(buffer);
   }
+  const { default: mammoth } = await import("mammoth");
   const result = await mammoth.extractRawText({ arrayBuffer: buffer });
   return result.value;
 }

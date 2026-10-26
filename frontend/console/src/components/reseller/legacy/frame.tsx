@@ -84,15 +84,14 @@ export function ErrorBanner({ error, suffix, onRetry }: { error: unknown; suffix
  */
 export function Kpi({ label, value, sub, icon, accent, dim, className }: { label: string; value: React.ReactNode; sub?: React.ReactNode; icon?: React.ReactNode; accent?: boolean; dim?: boolean; className?: string }) {
   return (
-    <div className={cn("group relative overflow-hidden rounded-2xl border border-border/60 bg-card p-5 shadow-[var(--shadow-soft)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30", className)}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--primary)_7%,transparent),transparent)]" aria-hidden />
+    <div className={cn("group relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]", className)}>
       <div className="relative flex items-start justify-between gap-3">
         <p className="pt-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
         {icon && (
           <span className={cn(
             "inline-flex size-9 shrink-0 items-center justify-center rounded-xl [&_svg]:size-4",
             accent
-              ? "bg-primary text-primary-foreground shadow-[0_8px_20px_-10px_color-mix(in_srgb,var(--primary)_85%,transparent)]"
+              ? "bg-primary-tint text-accent-foreground"
               : "bg-muted/70 text-muted-foreground ring-1 ring-inset ring-border/60",
           )}>{icon}</span>
         )}

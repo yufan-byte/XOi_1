@@ -7,7 +7,7 @@ import { ArrowLeft, Check, CreditCard, ExternalLink, Loader2, MessageCircle, Tic
 import { AccountDialog, AccountTabs } from "./account-dialog-shell";
 import { toast } from "sonner";
 import { api, getSelf } from "@/lib/api";
-import { cn, QUOTA_PER_UNIT } from "@/lib/utils";
+import { cn, QUOTA_PER_UNIT, fmtPoints } from "@/lib/utils";
 import { openCashier, pickScanUrl, requestPay, type PayOrder } from "@/lib/pay";
 import presets from "@/data/topup_presets.json";
 import { usePublicSettings } from "@/components/signup/use-public-settings";
@@ -20,16 +20,16 @@ const METHODS = [
 ] as const;
 
 /* 参考站 omni-tile / omni-fld / omni-btn-primary 实测值 */
-const tile = (on: boolean) => cn("relative h-[46.4px] rounded-[10px] border px-[6px] py-[11px] text-[14px] font-[620] leading-[22.4px] tabular-nums transition-colors", on ? "border-primary/62 bg-primary/12 text-primary" : "border-border bg-foreground/[0.03] text-foreground hover:border-primary/35");
+const tile = (on: boolean) => cn("relative min-h-[58px] rounded-[10px] border px-[6px] py-[8px] text-[14px] font-[620] leading-[22.4px] tabular-nums transition-colors", on ? "border-primary/62 bg-primary/12 text-primary" : "border-border bg-foreground/[0.03] text-foreground hover:border-primary/35");
 const label = "flex items-center gap-[5px] text-[11.5px] font-[560] leading-[18.4px] text-muted-foreground";
-const submitBtn = "inline-flex items-center gap-[7px] rounded-full border border-primary/55 bg-primary/88 px-[18px] py-[9px] text-[13px] font-semibold leading-[16.25px] text-white transition-[filter] hover:brightness-110 disabled:opacity-50";
+const submitBtn = "inline-flex items-center gap-[7px] rounded-xl border border-primary/55 bg-primary px-[18px] py-[9px] text-[13px] font-semibold leading-[16.25px] text-primary-foreground transition-colors hover:bg-primary-strong disabled:opacity-50";
 
 // PayResp / pickScanUrl / requestPay / openCashier 已抽到 @/lib/pay（招商加盟页共用同一入口）
 interface Order extends PayOrder {}
 const POLL_MS = 3000; const POLL_MAX_MS = 15 * 60_000;
 
 /** 在线充值 / 卡密兑换（对接 new-api 的 /api/user/pay 与 /api/user/topup）；外观对齐参考站 460px 毛玻璃弹窗 */
-export function TopupDialog({ open, onOpenChange, overlayClassName, contentClassName }: { open: boolean; onOpenChange: (v: boolean) => void; overlayClassName?: string; contentClassName?: string }) {
+export function TopupDialog({ open, onOpenChange, overlayClassName, contentClassName, transparentShell = false }: { open: boolean; onOpenChange: (v: boolean) => void; overlayClassName?: string; contentClassName?: string; transparentShell?: boolean }) {
   const qc = useQueryClient();
   const { data: st } = usePublicSettings(); // 站长设置：充值档次 / 是否允许自定义金额 / 最低充值
   const tiers = st?.topupTiers?.filter((n) => Number.isFinite(n) && n > 0).length ? st.topupTiers.filter((n) => Number.isFinite(n) && n > 0) : AMOUNTS;
@@ -71,7 +71,7 @@ export function TopupDialog({ open, onOpenChange, overlayClassName, contentClass
     const startedAt = Date.now(); let stopped = false;
     const tick = async () => {
       if (stopped) return;
-      try { const me = await getSelf(); if (me.quota > order.startQuota) { stopped = true; qc.invalidateQueries({ queryKey: ["self"] }); qc.invalidateQueries({ queryKey: ["logs"] }); toast.success(`支付已确认，¥${((me.quota - order.startQuota) / QUOTA_PER_UNIT).toFixed(2)} 已到账`); setOrder(null); onOpenChange(false); return; } } catch { /* 网络抖动，下一轮再查 */ }
+      try { const me = await getSelf(); if (me.quota > order.startQuota) { stopped = true; qc.invalidateQueries({ queryKey: ["self"] }); qc.invalidateQueries({ queryKey: ["logs"] }); toast.success(`支付已确认，${fmtPoints((me.quota - order.startQuota) / QUOTA_PER_UNIT)}已到账`); setOrder(null); onOpenChange(false); return; } } catch { /* 网络抖动，下一轮再查 */ }
       if (Date.now() - startedAt > POLL_MAX_MS) { stopped = true; setExpired(true); }
     };
     const timer = setInterval(() => void tick(), POLL_MS);
@@ -79,14 +79,14 @@ export function TopupDialog({ open, onOpenChange, overlayClassName, contentClass
   }, [order, open, qc, onOpenChange]);
   const redeem = async () => {
     const key = code.trim(); if (!key) return; setBusy(true);
-    try { const r = await api<number>("/api/user/topup", { method: "POST", body: JSON.stringify({ key }) }); toast.success(`兑换成功，已入账 ${typeof r === "number" ? `¥${(r / QUOTA_PER_UNIT).toFixed(2)}` : ""}`); setCode(""); qc.invalidateQueries({ queryKey: ["self"] }); onOpenChange(false); }
+    try { const r = await api<number>("/api/user/topup", { method: "POST", body: JSON.stringify({ key }) }); toast.success(`兑换成功${typeof r === "number" ? `，已入账 ${fmtPoints(r / QUOTA_PER_UNIT)}` : ""}`); setCode(""); qc.invalidateQueries({ queryKey: ["self"] }); onOpenChange(false); }
     catch (e) { toast.error(`兑换失败：${(e as Error).message}`); } finally { setBusy(false); }
   };
   const methodName = METHODS.find((m) => m.key === method)?.name;
   if (order) {
     const scanHint = order.method === "alipay" ? "请使用支付宝扫一扫" : order.method === "wxpay" ? "请使用微信扫一扫" : "请用手机扫码打开收银台";
     return (
-      <AccountDialog open={open} onOpenChange={onOpenChange} title="扫码支付" description="支付完成后自动到账，可关闭本窗口稍后在账单中查看" className="w-[min(calc(100%-32px),460px)]" overlayClassName={overlayClassName} contentClassName={contentClassName}>
+      <AccountDialog open={open} onOpenChange={onOpenChange} title="扫码支付" description="支付完成后自动到账，可关闭本窗口稍后在账单中查看" className="w-[min(calc(100%-32px),460px)]" overlayClassName={overlayClassName} contentClassName={contentClassName} transparentShell={transparentShell}>
         <div className="flex flex-col items-center pt-[17.6px]">
           <div className={cn("relative rounded-[14px] border border-border bg-white p-[10px]", expired && "opacity-40")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -94,7 +94,8 @@ export function TopupDialog({ open, onOpenChange, overlayClassName, contentClass
           </div>
           {expired && <button type="button" onClick={() => { setOrder(null); setExpired(false); }} className="mt-[-24px] rounded-full border border-border bg-card px-[12px] py-[5px] text-[12px] font-medium shadow-sm">付款码已过期，重新获取</button>}
           <p className="mt-[13px] text-[13px] font-[580] leading-[20.8px] text-foreground">{scanHint}</p>
-          <p className="mt-[3px] font-mono text-[19px] font-[660] leading-[30.4px]">支付金额 ¥{(order.money ?? order.amount).toFixed(2)}</p>
+          <p className="mt-[3px] font-mono text-[19px] font-[660] leading-[30.4px]">到账 {fmtPoints(order.amount)}</p>
+          <p className="text-[11px] leading-[17.6px] text-muted-foreground">支付 ¥{(order.money ?? order.amount).toFixed(2)} · 1 元 = 10 积分</p>
           {order.money != null && Math.abs(order.money - order.amount) > 0.004 && <p className="text-[11px] leading-[17.6px] text-muted-foreground">充值 ¥{order.amount.toFixed(2)}，含渠道手续费</p>}
           <p className="mt-[8px] flex items-center gap-[6px] text-[11.5px] leading-[17.6px] text-muted-foreground">{!expired && <Loader2 className="h-[13px] w-[13px] animate-spin" />}{expired ? "长时间未支付，请重新获取付款码" : "等待支付确认…"}</p>
           <button type="button" onClick={() => openCashier(order)} className="mt-[13px] inline-flex items-center gap-[5px] text-[12px] font-medium text-primary underline-offset-2 hover:underline"><ExternalLink className="h-[13px] w-[13px]" />扫码遇到问题？在新窗口打开支付页面</button>
@@ -107,7 +108,7 @@ export function TopupDialog({ open, onOpenChange, overlayClassName, contentClass
     );
   }
   return (
-    <AccountDialog open={open} onOpenChange={onOpenChange} title={info && !online ? "卡密充值" : "在线充值"} description={info && !online ? "购买卡密后在这里兑换，余额即时到账" : "选择充值金额，享受更多服务"} className="w-[min(calc(100%-32px),460px)]" overlayClassName={overlayClassName} contentClassName={contentClassName}>
+    <AccountDialog open={open} onOpenChange={onOpenChange} title={info && !online ? "卡密兑换积分" : "积分充值"} description={info && !online ? "购买卡密后在这里兑换，积分即时到账" : "1 元 = 10 积分，底层由 NewAPI 统一结算"} className="w-[min(calc(100%-32px),460px)]" overlayClassName={overlayClassName} contentClassName={contentClassName} transparentShell={transparentShell}>
       {st?.topupGuide && st.topupGuideText && (
         <div className="mt-[15px] flex flex-wrap items-center gap-3 rounded-[10px] border border-primary/30 bg-primary/8 px-3 py-2.5 text-[12px]">
           <span className="flex-1">{st.topupGuideText}</span>
@@ -118,9 +119,9 @@ export function TopupDialog({ open, onOpenChange, overlayClassName, contentClass
       {tab === "pay" ? (
         <div className="space-y-[13px] pt-[17.6px]">
           <div className="flex flex-col gap-[6px]">
-            <label className={label}>选择充值档位<span className="text-primary">*</span></label>
+            <label className={label}>选择积分档位<span className="text-primary">*</span></label>
             <div className="grid grid-cols-4 gap-[8px]">
-              {tiers.map((a) => { const on = amount === a && !custom; return <button key={a} type="button" aria-pressed={on} onClick={() => { setAmt(a); setCustom(""); setCustomOpen(false); }} className={tile(on)}>{on && <Check className="absolute right-[5px] top-[5px] h-3 w-3" />}¥{a.toFixed(2)}</button>; })}
+              {tiers.map((a) => { const on = amount === a && !custom; return <button key={a} type="button" aria-pressed={on} onClick={() => { setAmt(a); setCustom(""); setCustomOpen(false); }} className={cn(tile(on), "flex flex-col items-center justify-center leading-tight")}>{on && <Check className="absolute right-[5px] top-[5px] h-3 w-3" />}<strong className="text-[14px]">{fmtPoints(a)}</strong><small className="mt-1 text-[10px] font-normal text-muted-foreground">支付 ¥{a.toFixed(0)}</small></button>; })}
               {allowCustom && !customOpen && <button type="button" onClick={() => setCustomOpen(true)} className={cn(tile(false), "text-[12px] font-[560] leading-[19.2px]")}>自定义金额</button>}
               {allowCustom && customOpen && <label className={cn(tile(!!custom), "flex items-center justify-center px-2")}><input autoFocus value={custom} onChange={(e) => setCustom(e.target.value.replace(/[^\d]/g, ""))} placeholder={`≥${minTopup}`} aria-label="自定义金额" className="w-full bg-transparent text-center text-[13px] outline-none" /></label>}
             </div>
@@ -136,9 +137,9 @@ export function TopupDialog({ open, onOpenChange, overlayClassName, contentClass
                 </button>
               ); })}
             </div>
-            <span className="text-[11px] leading-[17.6px] text-muted-foreground">您将使用 {methodName} 支付 ¥{amount.toFixed(2)}</span>
+            <span className="text-[11px] leading-[17.6px] text-muted-foreground">使用 {methodName} 支付 ¥{amount.toFixed(2)}，到账 {fmtPoints(amount)}</span>
           </div>
-          <div className="flex justify-end gap-[9px] border-t border-foreground/[0.06] pt-[15px]"><button type="button" disabled={busy || amount <= 0} onClick={pay} className={submitBtn}>{busy ? <><Loader2 className="h-[14px] w-[14px] animate-spin" />正在生成付款码…</> : <>立即充值<span className="font-mono">¥{amount.toFixed(2)}</span></>}</button></div>
+          <div className="flex justify-end gap-[9px] border-t border-foreground/[0.06] pt-[15px]"><button type="button" disabled={busy || amount <= 0} onClick={pay} className={submitBtn}>{busy ? <><Loader2 className="h-[14px] w-[14px] animate-spin" />正在生成付款码…</> : <>充值<span className="font-mono">{fmtPoints(amount)}</span></>}</button></div>
         </div>
       ) : (
         <div className="space-y-[13px] pt-[17.6px]">
@@ -150,7 +151,7 @@ export function TopupDialog({ open, onOpenChange, overlayClassName, contentClass
             /* 没有配置XOi自己的卡密商店时，引导联系客服购买（2026-09-19：原链接指向卖 ccdan 卡密的店，用户买了兑不了） */
             <div className="flex items-center gap-3 rounded-[10px] border border-primary/30 bg-primary/[0.06] px-3 py-2.5">
               <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full bg-primary text-[11px] font-bold text-white">1</span>
-              <span className="min-w-0 flex-1 text-[12px] leading-[19px]"><b className="block text-[13px] font-[600]">购买卡密</b><span className="text-muted-foreground">联系客服购买XOi卡密，付款后客服发给你；面值多少就到账多少。</span></span>
+              <span className="min-w-0 flex-1 text-[12px] leading-[19px]"><b className="block text-[13px] font-[600]">购买积分卡密</b><span className="text-muted-foreground">联系客服购买 XOi 卡密，兑换后按 1 元 = 10 积分到账。</span></span>
               <button type="button" onClick={() => { onOpenChange(false); document.dispatchEvent(new CustomEvent("mc:support")); }} className="inline-flex h-[32px] shrink-0 items-center gap-1 rounded-full bg-primary px-3.5 text-[12px] font-semibold text-white transition-[filter] hover:brightness-110">联系客服</button>
             </div>
           ) : (

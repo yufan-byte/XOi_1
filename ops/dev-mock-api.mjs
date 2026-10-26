@@ -12,8 +12,8 @@
  *     POST /api/login/logout     → { code:200 }
  *
  * 拉起方式：
- *     node ops/dev-mock-api.mjs            # 默认 10588（XOI 后端的位置）
- *     PORT=10588 node ops/dev-mock-api.mjs
+ *     node ops/dev-mock-api.mjs            # 默认 12121（XOI 后端的位置）
+ *     PORT=12121 node ops/dev-mock-api.mjs
  *
  * 演示要点：
  *   · 密码用 `demo` 前缀：`demo` / `demo1234` 一定是正确账号，方便快速登录
@@ -23,7 +23,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 
-const PORT = Number(process.env.PORT || 10588);
+const PORT = Number(process.env.PORT || 12121);
 
 /* ---------------- 内存态 ---------------- */
 /** username -> { id, password, displayId } */
@@ -55,7 +55,7 @@ function send(res, status, body) {
         "Content-Type": "application/json; charset=utf-8",
         "Content-Length": Buffer.byteLength(text),
         "Cache-Control": "no-store",
-        // 主站 dev 模式下 axios 直连 10588（见 frontend/src/stores/setting.ts 的 baseUrl），
+        // 主站 dev 模式下 axios 直连 12121（见 frontend/src/stores/setting.ts 的 baseUrl），
         // 不走 vite 代理，所以这里必须自己带 CORS 头，否则浏览器会拦掉所有请求。
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "*",

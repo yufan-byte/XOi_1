@@ -1,6 +1,6 @@
 type ReferenceType = "videoReference" | "imageReference" | "audioReference" | "textReference";
 type Type = "imageReference" | "startImage" | "endImage" | "videoReference" | "audioReference";
-type VideoMode = "singleImage" | "startEndRequired" | "endFrameOptional" | "startFrameOptional" | "text" | ReferenceType[];
+type VideoMode = "singleImage" | "multiReference" | "startEndRequired" | "endFrameOptional" | "startFrameOptional" | "text" | ReferenceType[];
 
 interface UploadItemBase {
   fileType: "image" | "video" | "audio";
@@ -21,6 +21,8 @@ interface VideoModel {
   associationSkills?: string;
   audio: "optional" | false | true;
   durationResolutionMap: { duration: number[]; resolution: string[] }[];
+  paramSchema?: Record<string, any>;
+  referenceLimits?: { images?: number; videos?: number; audios?: number };
 }
 interface UploadItemAssets extends UploadItemBase {
   sources: "assets";

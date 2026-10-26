@@ -6,7 +6,7 @@
  * - 新建 POST /api/canvases {title, icon} → 服务端生成 id（客户端 nanoid 需映射 serverId）
  * - 全量保存 PUT /api/canvases/:id {title, nodes, connections, viewport, settings, base_updated_at}
  *   · chatSessions 等扩展字段放 settings.atelier 载荷（后端透传 settings）
- *   · base_updated_at 乐观锁：409 时取服务端最新基线覆盖一次（单人编辑 last-write-wins）
+ *   · base_updated_at 乐观锁：冲突时保留本机修改，绝不换版本号后强行覆盖
  * - 删除 DELETE /api/canvases/:id（软删进回收站，后端 30 天保留）
  */
 
@@ -146,7 +146,7 @@ async function syncOne(project: CanvasProject): Promise<void> {
     }
 }
 
-async function putProject(serverId: string, project: CanvasProject, baseUpdatedAt: number, allowRetry = true): Promise<any> {
+async function putProject(serverId: string, project: CanvasProject, baseUpdatedAt: number): Promise<any> {
     try {
         const { canvas } = await backendJson<{ canvas: any }>(`/api/canvases/${serverId}`, {
             method: "PUT",
@@ -155,11 +155,7 @@ async function putProject(serverId: string, project: CanvasProject, baseUpdatedA
         return canvas;
     } catch (error) {
         const status = (error as { status?: number }).status;
-        if (status === 409 && allowRetry) {
-            // 服务端版本更新：拉最新基线后覆盖一次（last-write-wins）
-            const { canvas } = await backendJson<{ canvas: any }>(`/api/canvases/${serverId}`);
-            return putProject(serverId, project, Number(canvas.updated_at) || 0, false);
-        }
+        if (status === 409) window.dispatchEvent(new CustomEvent("xoi:canvas-save-conflict",{detail:{id:project.id,message:"画布已在其他页面更新，本机修改仍保留，请重新打开核对"}}));
         throw error;
     }
 }

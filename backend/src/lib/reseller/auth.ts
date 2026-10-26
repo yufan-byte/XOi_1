@@ -59,6 +59,7 @@ export async function requireAdmin(req: Request): Promise<NewApiUser | null> {
 export async function backend<T>(req: Request, p: string, init: { method?: "GET" | "PUT" | "POST" | "DELETE"; body?: string } = {}): Promise<T> {
   assertConfigured();
   const uid = await currentUid(req);
+  if(!uid)throw new Error("未登录，禁止使用平台网关管理凭据");
   const r = await axios.request({
     url: `${baseURL()}${p}`,
     method: init.method ?? "GET",
@@ -80,8 +81,6 @@ export async function backend<T>(req: Request, p: string, init: { method?: "GET"
 
 /** 只信代理层注入的 X-Forwarded-For 链首（与 XOi 的 trust proxy 配置一致） */
 export function clientIp(req: Request): string {
-  const xf = req.headers["x-forwarded-for"];
-  if (typeof xf === "string" && xf.trim()) return xf.split(",")[0].trim();
   return req.ip || "—";
 }
 
@@ -100,6 +99,7 @@ export async function backendRaw(
 ): Promise<{ status: number; body: unknown }> {
   assertConfigured();
   const uid = await currentUid(req);
+  if(!uid)throw new Error("未登录，禁止使用平台网关管理凭据");
   const r = await axios.request({
     url: `${baseURL()}${p}`,
     method: init.method ?? "GET",

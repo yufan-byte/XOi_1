@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="XOi 创作平台 · 账户与管理控制台" />
+        <meta name="referrer" content="same-origin" />
+        <link rel="icon" type="image/png" href="/console/brand/xoi-favicon-97191a3757eb.png" sizes="64x64" />
+        <link rel="apple-touch-icon" href="/console/brand/xoi-touch-97191a3757eb.png" />
+        <title>XOi</title>
+        <script>
+            // Apply the route surface before CSS/modules arrive. Never persist a frame override.
+            (() => {
+                const root = document.documentElement;
+                const base = "/console/".replace(/\/$/, "");
+                const path = location.pathname.replace(/\/+$/, "");
+                const auth = path === base + "/login" || path === base + "/signup";
+                const query = new URLSearchParams(location.search);
+                const embed = (path === base + "/topup" || path === base + "/usage") && query.get("embed") === "1";
+                let theme = auth ? "dark" : "light";
+                try { const saved = localStorage.getItem("theme"); if (["light", "dark", "system"].includes(saved)) theme = saved; } catch {}
+                if (embed && ["light", "dark"].includes(query.get("theme"))) theme = query.get("theme");
+                root.dataset.xoiSurface = auth ? "auth" : "workspace";
+                root.classList.toggle("xoi-management", !auth);
+                root.classList.toggle("xoi-embed", embed);
+                root.classList.toggle("dark", theme === "dark" || theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+                const showError = () => {
+                    const message = document.getElementById("xoi-boot-message");
+                    if (!message) return; // React has already replaced the bootstrap view.
+                    document.getElementById("xoi-boot-status").setAttribute("role", "alert");
+                    message.textContent = "页面资源加载失败，请检查网络后重试。";
+                    document.getElementById("xoi-boot-retry").hidden = false;
+                };
+                addEventListener("error", event => {
+                    if (event.target?.tagName !== "SCRIPT" || event.target.type !== "module") return;
+                    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", showError, { once: true });
+                    else showError();
+                }, true);
+                document.addEventListener("click", event => { if (event.target?.id === "xoi-boot-retry") location.reload(); });
+            })();
+        </script>
+        <style>
+            html, body { margin: 0; min-height: 100%; background: #f7f7f5; color: #262724; }
+            html.dark, html.dark body { background: #181a18; color: #eceee8; }
+            html[data-xoi-surface="auth"], html[data-xoi-surface="auth"] body { background: #06070c; }
+            html.xoi-embed, html.xoi-embed body, html.xoi-embed #root { background: transparent !important; }
+            .xoi-boot { display: grid; min-height: 100dvh; align-content: center; justify-items: center; gap: 16px; padding: 24px; box-sizing: border-box; text-align: center; color: #6c7068; font: 14px/1.6 system-ui, sans-serif; }
+            html.dark .xoi-boot { color: #a8afa3; }
+            html[data-xoi-surface="auth"] .xoi-boot { color: #b9bdc4; }
+            .xoi-boot button { border: 1px solid currentColor; border-radius: 10px; padding: 8px 18px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+            .xoi-boot button:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+        </style>
+      <script type="module" crossorigin src="/console/assets/index-B98hhCc6.js"></script>
+      <link rel="stylesheet" crossorigin href="/console/assets/index-BfuFzVmC.css">
+    </head>
+    <!-- Do not hardcode text-white or a black background: the route owns its palette. -->
+    <body class="antialiased">
+        <div id="root"><div id="xoi-boot-status" role="status" class="xoi-boot"><span id="xoi-boot-message">正在打开 XOi…</span><button id="xoi-boot-retry" type="button" hidden>重新加载</button></div></div>
+        <noscript><style>#root { display: none; }</style><div class="xoi-boot">请启用浏览器 JavaScript 后重新加载页面。</div></noscript>
+    </body>
+</html>

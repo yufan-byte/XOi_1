@@ -85,6 +85,40 @@ export default router.post("/", async (req, res) => {
     });
   }
 
-  const data = projects.map((p: any) => ({ ...p, progress: progressById[p.id] ?? blankProgress() }));
+  // 资产缩略图预览：每个项目取最近 4 张已出图的角色/场景/道具小图，
+  // 供项目列表卡与资产中心首页的项目卡直接展示（一次 whereIn，避免 N+1）。
+  const previewsByProject: Record<number, string[]> = {};
+  if (ids.length) {
+    const previewRows: Array<{ projectId: number; filePath: string }> = await u
+      .db({ a: "o_assets" })
+      .join({ i: "o_image" }, "a.imageId", "i.id")
+      .whereIn("a.projectId", ids)
+      .whereIn("a.type", ["role", "tool", "scene"])
+      .whereNotNull("i.filePath")
+      .orderBy("a.id", "desc")
+      .select("a.projectId", "i.filePath");
+    const uniquePaths = new Set<string>();
+    for (const row of previewRows) {
+      const list = previewsByProject[row.projectId] ?? (previewsByProject[row.projectId] = []);
+      if (list.length >= 4) continue;
+      if (uniquePaths.has(row.filePath)) continue;
+      uniquePaths.add(row.filePath);
+      list.push(row.filePath);
+    }
+    const pathList = Array.from(uniquePaths);
+    const urlEntries = await Promise.all(
+      pathList.map(async (p) => [p, await u.oss.getSmallImageUrl(p)] as const),
+    );
+    const urlMap = new Map(urlEntries);
+    for (const pid of Object.keys(previewsByProject)) {
+      previewsByProject[Number(pid)] = previewsByProject[Number(pid)].map((p) => urlMap.get(p) || p);
+    }
+  }
+
+  const data = projects.map((p: any) => ({
+    ...p,
+    progress: progressById[p.id] ?? blankProgress(),
+    assetPreviews: previewsByProject[p.id] ?? [],
+  }));
   res.status(200).send(success(data));
 });

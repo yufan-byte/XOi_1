@@ -57,7 +57,7 @@ export interface NewApiUser {
 }
 
 export interface NewApiAuth {
-  /** 网关签发的 JWT。parseAuthData 拿不到就直接抛错，所以这里不会是 null/空串。 */
+  /** 握手令牌；newApiLogin 返回前回收其临时网关会话，不得复用作后续 API 凭据。 */
   accessToken: string;
   /** 毫秒时间戳；0 表示未知 */
   expiresAt: number;
@@ -68,6 +68,7 @@ export interface NewApiAuth {
 interface Envelope<T> {
   success?: boolean;
   message?: string;
+  code?: string;
   data?: T;
 }
 
@@ -78,6 +79,7 @@ export class NewApiError extends Error {
     public readonly upstreamMessage: string,
     /** 是否属于「凭据不符」——路由层据此决定要不要计入 failCounter */
     public readonly isCredentialFailure: boolean = false,
+    public readonly upstreamCode?: string,
   ) {
     super(upstreamMessage);
     this.name = "NewApiError";
@@ -116,10 +118,16 @@ async function unwrap<T>(res: { status: number; data: unknown }, what: string): 
   }
   const ok = res.status >= 200 && res.status < 300 && body?.success !== false;
   if (!ok) {
-    const msg = body?.message || `网关请求失败（${what}，HTTP ${res.status}）`;
+    const code=body?.code;
+    const authMessages:Record<string,string>={
+      AUTH_SESSION_LIMIT:"登录会话数量已达上限，请先退出不用的设备；如仍无法登录，请联系管理员清理遗留会话",
+      AUTH_SESSION_ISSUANCE_LIMIT:"短时间登录次数过多，请稍后再试，不要连续点击登录",
+      AUTH_SESSION_MISMATCH:"登录会话已变化，请刷新登录页后重新登录",
+    };
+    const msg = (code&&authMessages[code]) || (body?.message==="Conflict"?"登录会话发生冲突，请刷新后重试；若仍失败请联系管理员":body?.message) || `网关请求失败（${what}，HTTP ${res.status}）`;
     // new-api 的凭据失败文案很固定，用它来区分「密码错」和「服务挂了」
     const isCredential = /incorrect|wrong password|banned|不存在|密码错误|not found/i.test(msg);
-    throw new NewApiError(res.status || 502, msg, isCredential);
+    throw new NewApiError(res.status || 502, msg, isCredential,code);
   }
   return body?.data as T;
 }
@@ -138,6 +146,7 @@ async function unwrap<T>(res: { status: number; data: unknown }, what: string): 
 export function parseAuthData(raw: unknown): NewApiAuth {
   const d = (raw ?? {}) as Record<string, unknown>;
   const token = typeof d.access_token === "string" && d.access_token ? d.access_token : null;
+  if(d.require_verification===true)throw new NewApiError(401,"账号要求二次安全验证，当前登录入口尚不支持此验证方式；请联系管理员，不要关闭账号安全设置",false,"AUTH_VERIFICATION_REQUIRED");
   if (!token) throw new NewApiError(502, "网关登录返回里没有 access_token");
   const userField = d.user as NewApiUser | undefined;
   if (!userField || typeof userField.id !== "number") {
@@ -158,8 +167,23 @@ export function parseAuthData(raw: unknown): NewApiAuth {
 export async function newApiLogin(username: string, password: string): Promise<NewApiAuth> {
   assertConfigured();
   const attempt = async (name: string) => {
-    const res = await client(null).post("/api/user/login", { username: name, password });
-    return parseAuthData(await unwrap<unknown>(res, "user/login"));
+    const bridgeHeaders={"User-Agent":"XOi-Auth-Bridge/1.0"};
+    const res = await client(null,bridgeHeaders).post("/api/user/login", { username: name, password },{timeout:Math.min(timeoutMs(),8000)});
+    const data=await unwrap<unknown>(res,"user/login");
+    const auth=parseAuthData(data);
+    // XOi issues its own JWT. Never leak the discarded NewAPI dashboard session:
+    // revoke exactly the session authenticated by this fresh bearer, not all devices.
+    const sid=(data as any)?.session?.sid;
+    let released=false;
+    for(let retry=0;retry<2&&!released;retry++){
+      try{
+        const result=await client(auth.accessToken,bridgeHeaders).post("/api/user/auth/logout",{},{timeout:2000});
+        const receipt=await unwrap<{revoked_sid?:string}>(result,"auth/logout");
+        released=Boolean(receipt?.revoked_sid)&&(!sid||receipt.revoked_sid===sid);
+      }catch{/* A second idempotent revoke may recover a lost response. Never retry login. */}
+    }
+    if(!released)throw new NewApiError(503,"密码验证已通过，但临时会话回收失败，请稍后再试；不会自动重复登录",false,"AUTH_BRIDGE_CLEANUP_FAILED");
+    return auth;
   };
   try {
     return await attempt(username);
@@ -199,11 +223,23 @@ export async function newApiRegister(
 /* 自助查询                                                            */
 /* ------------------------------------------------------------------ */
 
-/** 反查当前登录者（XOi 服务端拿到的是自己的 JWT，见 §C1：o_user.id == newapi uid） */
+/**
+ * 反查当前登录者（XOi 服务端拿到的是自己的 JWT，见 §C1：o_user.id == newapi uid）。
+ *
+ * ⚠️ 安全修复（2026-10-24 渗透实测）：这里以前用 GET /api/user/self + New-Api-User 头——
+ * 但网关的 /api/user/self **忽略 New-Api-User，永远返回令牌本人**。结果是管理员令牌反查
+ * 任何 uid 都拿到 root（role=100）→ resolveScope 把全部登录用户判成 platform 管理员，
+ * 普通用户可以打开管理界面、读客户财务、写平台配置（生产同样存在，只是入口无引导没被发现）。
+ * 改用管理员查指定用户的 GET /api/user/:id（实测返回目标用户本体）。
+ */
 export async function newApiSelfByAdmin(uid: number): Promise<NewApiUser> {
   assertConfigured();
-  const res = await client(adminToken(), { "New-Api-User": String(uid) }).get("/api/user/self");
-  return await unwrap<NewApiUser>(res, "user/self");
+  if (!Number.isSafeInteger(uid) || uid <= 0) throw new Error("无效的用户标识");
+  const res = await client(adminToken()).get(`/api/user/${uid}`);
+  const detail = await unwrap<NewApiUser>(res, "user/detail");
+  // 纵深防御：端点语义再次核对——返回的必须是目标用户本人，否则视为网关行为异常拒绝。
+  if (Number(detail?.id) !== uid) throw new Error("网关用户资料校验不一致");
+  return detail;
 }
 
 /* ------------------------------------------------------------------ */

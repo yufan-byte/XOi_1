@@ -7,7 +7,7 @@
  *
  * 【为什么整个换掉】
  *   1. 唯一账本换成 new-api 的 `users.quota` 之后，**扣费发生在网关转发那一刻**，
- *      不再需要应用层预扣，退款逻辑也随之消失（没成功就不会扣）。
+ *      不再需要应用层预扣；失败、超时和异步任务的用量／退款须核对网关账单。
  *   2. 更要命的是：旧实现直接读写 `o_user.points`，而 **`o_user` 表根本没有 points 列**
  *      （见 `lib/initDB.ts` 的 o_user 定义与 `lib/fixDB.ts` 的迁移清单）。
  *      线上老库可能因为历史版本的 initDB 恰好吃过这一列而没炸，全新安装的库一定会报 SQL 错。
@@ -18,7 +18,7 @@
  * 【现在是什么】保留**完全相同的对外 API**，内部只做「调用前软校验」：
  *   reservePoints  → 余额 > 0 才放行（管理员直接放行），不做任何本地扣减
  *   capturePoints  → 空操作（真实扣费已由网关完成）
- *   releasePoints  → 空操作（调用没成功，网关压根没扣）
+ *   releasePoints  → 空操作（不代表已经退款，不能保证失败未扣）
  *
  * 调用方（canvas-stubs / admin/billing / production/workbench/*）**一行都不用改**。
  */
@@ -101,7 +101,7 @@ export async function quoteBilling(input: Pick<BillingRequest, "action" | "prici
 export async function reservePoints(input: BillingRequest): Promise<BillingReservation> {
   validateRequestId(input.requestId);
 
-  // 管理员不消耗余额，直接放行（与旧行为一致）
+  // 管理员也使用自己的 NewAPI 令牌；是否扣费由网关决定，不能假定免费。
   // 注意：这里不再查 o_user 表来判断 admin，交给调用链上游的鉴权；本函数保持无副作用。
 
   let quota: number | null = null;

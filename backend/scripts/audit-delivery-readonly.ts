@@ -7,7 +7,7 @@ import { writeFile } from "node:fs/promises";
 import { productionSecurityBlockers } from "../src/utils/productionSecurityPolicy";
 import { productionBillingBlockers, productionPricingBlockers } from "../src/utils/productionBillingPolicy";
 
-const base = process.env.XOI_AUDIT_BASE || "http://localhost:10588";
+const base = process.env.XOI_AUDIT_BASE || "http://localhost:12121";
 if (!["localhost", "127.0.0.1"].includes(new URL(base).hostname)) throw new Error("This audit only operates against the local delivery instance");
 const database = new pg.Client({ connectionString: process.env.NEWAPI_DATABASE_URL || process.env.NEWAPI_PG_URL, connectionTimeoutMillis: 10000, statement_timeout: 15000 });
 const report: { check: string; passed: boolean; detail?: string }[] = [];
@@ -86,11 +86,16 @@ async function main() {
   const agents = (await database.query('SELECT key,"modelName" FROM "o_agentDeploy"')).rows;
   const channels = (await database.query("SELECT id,tag,status,models FROM channels")).rows;
   const billingBlockers = productionBillingBlockers(agents, channels);
-  const upstream = channels.find(channel => Number(channel.status) === 1 && (process.env.XOI_UPSTREAM_CHANNEL_ID
-    ? Number(channel.id) === Number(process.env.XOI_UPSTREAM_CHANNEL_ID) : channel.tag === "zaowu-all"));
+  const upstreams = channels.filter(channel => Number(channel.status) === 1 && (process.env.XOI_UPSTREAM_CHANNEL_ID
+    ? Number(channel.id) === Number(process.env.XOI_UPSTREAM_CHANNEL_ID) : String(channel.tag || "").startsWith("zaowu-")));
   const priceTable = (await database.query("SELECT to_regclass('xoi_upstream_pricing_sync') name")).rows[0]?.name;
-  const priceRecord = upstream && priceTable ? (await database.query("SELECT synced_at,snapshot FROM xoi_upstream_pricing_sync WHERE channel_id=$1", [upstream.id])).rows[0] : undefined;
-  const production = { configuredMode: process.env.NODE_ENV || "unset", securityBlockers, billingBlockers, pricingBlockers: productionPricingBlockers(priceRecord) };
+  const pricingBlockers: string[] = [];
+  if (!upstreams.length) pricingBlockers.push("没有启用的造物上游渠道");
+  for (const upstream of upstreams) {
+    const priceRecord = priceTable ? (await database.query("SELECT synced_at,snapshot FROM xoi_upstream_pricing_sync WHERE channel_id=$1", [upstream.id])).rows[0] : undefined;
+    pricingBlockers.push(...productionPricingBlockers(priceRecord).map(message => `${upstream.name || upstream.tag || upstream.id}：${message}`));
+  }
+  const production = { configuredMode: process.env.NODE_ENV || "unset", securityBlockers, billingBlockers, pricingBlockers };
   await database.query("ROLLBACK");
   const output = {
     passed: report.every(row => row.passed),

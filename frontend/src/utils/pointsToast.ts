@@ -3,6 +3,7 @@
  * 统一的紫色渐变金币样式
  */
 
+import { formatPoints } from "./points";
 let styleInjected = false;
 
 function injectStyle() {
@@ -94,8 +95,8 @@ export function showPointsToast(points: number, balance: number) {
       <div class="points-toast-content">
         <div class="points-toast-icon">🪙</div>
         <div class="points-toast-info">
-          <div class="points-toast-deduct">积分 -${points}</div>
-          <div class="points-toast-balance">余额 ${balance}</div>
+          <div class="points-toast-deduct">消耗 ${formatPoints(points)}</div>
+          <div class="points-toast-balance">余额 ${formatPoints(balance)}</div>
         </div>
       </div>
     </div>

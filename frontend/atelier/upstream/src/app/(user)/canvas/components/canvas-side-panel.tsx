@@ -22,7 +22,7 @@ import type { InsertAssetPayload } from "./asset-picker-modal";
 
 export const CANVAS_ASSET_DRAG_TYPE = "application/x-infinite-canvas-asset";
 
-const PANEL_MOTION_SECONDS = 0.5;
+const PANEL_MOTION_SECONDS = 0.22;
 const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
 const PANEL_MIN_WIDTH = 220;
 const PANEL_MAX_WIDTH = 480;

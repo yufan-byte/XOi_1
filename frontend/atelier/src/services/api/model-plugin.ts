@@ -1,3 +1,10 @@
+/**
+ * ⚠️ 安全边界（2026-10-24 审计标注）：runModelPlugin 用 new Function 执行插件代码 —— 功能上等同 RCE。
+ * 当前仓库内【没有任何调用方】（死代码保留）。将来接入前必须满足：
+ *   1. 插件脚本只能来自管理员配置（requireAdmin 写入口 + 审计），绝不允许普通用户上传/选择脚本；
+ *   2. 接入点必须做独立的角色校验，不得复用普通用户会话。
+ * 不满足这两条就接上 = 给全部用户开 RCE。
+ */
 import axios, { type AxiosRequestConfig } from "axios";
 
 import i18n from "@/i18n";

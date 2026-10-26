@@ -33,7 +33,7 @@ function waitForVideo(video: HTMLVideoElement, event: "loadeddata" | "seeked", s
   });
 }
 
-export async function extractAnalysisFrames(input: { name: string; source: File | string }, signal: AbortSignal, onProgress?: (message: string) => void): Promise<AnalysisVideo> {
+export async function extractAnalysisFrames(input: { name: string; source: File | string; count?: number }, signal: AbortSignal, onProgress?: (message: string) => void): Promise<AnalysisVideo> {
   const video = document.createElement("video");
   const ownedUrl = typeof input.source !== "string" ? URL.createObjectURL(input.source) : undefined;
   video.crossOrigin = "anonymous";
@@ -44,7 +44,7 @@ export async function extractAnalysisFrames(input: { name: string; source: File 
   try {
     await waitForVideo(video, "loadeddata", signal, () => { video.src = ownedUrl || String(input.source); video.load(); });
     if (!video.videoWidth || !video.videoHeight) throw new Error("视频没有可读取的画面");
-    const times = sampleVideoTimes(video.duration);
+    const times = sampleVideoTimes(video.duration, input.count ?? 12);
     const scale = Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight));
     canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));

@@ -1,0 +1,753 @@
+.editor {
+  --ed-paper: light-dark(#fff, #262523);
+  --ed-surface: light-dark(#f7f6f3, #201f1d);
+  --ed-line: light-dark(#e9e5df, #454039);
+  --ed-text: light-dark(#34312d, #eae5df);
+  --ed-muted: light-dark(#948b80, #b0a69b);
+  --ed-accent: light-dark(#bd572d, #e58c60);
+  --ed-gap: 0px;
+  color: var(--ed-text);
+  background: var(--ed-paper);
+  padding: 0;
+  overflow: hidden;
+}
+.edTop {
+  min-height: 60px;
+  padding: 0 22px;
+  border: 0;
+  border-bottom: 1px solid var(--ed-line);
+  border-radius: 0;
+  background: var(--ed-paper);
+  gap: 16px;
+}
+.edTopLeft {
+  gap: 9px;
+}
+.edTopRight {
+  gap: 10px;
+  min-width: 0;
+}
+.editorMark {
+  color: var(--ed-accent);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 34px;
+  margin-right: 3px;
+}
+.edName {
+  font-size: 15px;
+  font-weight: 650;
+  max-width: none;
+}
+.editorProjectName {
+  max-width: 260px;
+  font-size: 12px;
+  color: var(--ed-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.edSub {
+  font-size: 10px;
+  margin-top: 5px;
+  color: var(--ed-muted);
+  gap: 13px;
+}
+.editorProjectHint {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.headerDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--ed-line);
+  margin: 0 8px;
+  flex: none;
+}
+.edSave {
+  font-size: 10px;
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  color: var(--ed-muted);
+  max-width: 290px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.edSave .dot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+}
+.editorClose,
+.edGhost {
+  width: 31px;
+  height: 31px;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: none;
+  color: var(--ed-muted);
+  border-radius: 7px;
+  cursor: pointer;
+  flex: none;
+}
+.editorClose:hover,
+.edGhost:hover:not(:disabled) {
+  color: var(--ed-text);
+  background: var(--ed-surface);
+}
+.editorClose:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.editorExport {
+  border: 0;
+  border-radius: 7px;
+  background: var(--ed-accent);
+  color: light-dark(#fff, #241b16);
+  font: inherit;
+  font-size: 12px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.editorExport:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.editorMore {
+  position: relative;
+}
+.editorMore > summary {
+  list-style: none;
+  padding: 5px 9px;
+  cursor: pointer;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--ed-muted);
+}
+.editorMore > summary::-webkit-details-marker {
+  display: none;
+}
+.editorMoreMenu {
+  position: absolute;
+  right: 0;
+  top: 35px;
+  min-width: 200px;
+  z-index: 40;
+  padding: 6px;
+  border: 1px solid var(--ed-line);
+  border-radius: 10px;
+  background: var(--ed-paper);
+  box-shadow: 0 12px 40px #20181012;
+}
+.editorMoreMenu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 11px 12px;
+  text-align: left;
+  background: none;
+  color: var(--ed-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.editorMoreMenu button:hover {
+  background: var(--ed-surface);
+}
+.edBody {
+  margin: 0;
+}
+.editorWorkspaceBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 18px;
+  min-height: 39px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--ed-line);
+  background: var(--ed-paper);
+  flex: none;
+  gap: 12px;
+}
+.editorWorkspaceBar > div {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.editorWorkspaceBar button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: none;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--ed-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.editorWorkspaceBar button.active {
+  background: var(--ed-surface);
+  color: var(--ed-text);
+}
+.workspaceHint {
+  font-size: 11px;
+  color: var(--ed-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.edSideLeft {
+  width: 250px;
+  border-right: 1px solid var(--ed-line);
+}
+.edSideRight {
+  width: 268px;
+  border-left: 1px solid var(--ed-line);
+}
+.edStage {
+  border: 0;
+  border-radius: 0;
+  background: #232321;
+  padding: 34px 20px 12px;
+  box-sizing: border-box;
+}
+.previewContext {
+  position: absolute;
+  left: 18px;
+  top: 13px;
+  z-index: 3;
+  color: #b6b1a9;
+  font-size: 10px;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+.previewContext i {
+  font-style: normal;
+  color: #696660;
+}
+.previewStageActions {
+  position: absolute;
+  right: 15px;
+  top: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.previewStageActions > button {
+  display: grid;
+  place-items: center;
+  min-width: 29px;
+  height: 27px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: #ffffff08;
+  color: #c9c3b8;
+  font-size: 19px;
+  cursor: pointer;
+}
+.previewStageActions > button:hover:not(:disabled) {
+  background: #ffffff18;
+  color: #fff;
+}
+.previewStageActions > button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.previewStageActions .previewExpand {
+  position: static;
+  min-width: 32px;
+  font-size: 14px;
+}
+.edStage.is-expanded,
+.edStage:fullscreen {
+  padding: 45px 26px 15px;
+}
+.edStage.is-expanded .previewContext {
+  top: 18px;
+}
+.edPreviewEmpty {
+  background: #232321;
+  color: #b8b2a8;
+  gap: 12px;
+  padding: 30px 20px;
+}
+.emptyCutMark {
+  color: #8e8579;
+  margin-bottom: 3px;
+}
+.edPreviewEmpty strong {
+  font-size: 19px;
+  font-weight: 500;
+  color: #eee8de;
+}
+.edPreviewEmpty p {
+  margin: 0;
+  max-width: 430px;
+  font-size: 12px;
+  color: #a29b8f;
+  line-height: 1.8;
+}
+.edPreviewEmpty small {
+  font-size: 10px;
+  color: #756f65;
+  margin-top: 8px;
+}
+.emptyEditorActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.emptyEditorActions button {
+  padding: 9px 14px;
+  border: 1px solid #ffffff28;
+  border-radius: 7px;
+  background: transparent;
+  color: #e0d6c8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.emptyEditorActions button.primary {
+  background: #b9663f;
+  border-color: #b9663f;
+  color: #fff4e9;
+}
+.emptyEditorActions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.edSplit {
+  height: 8px;
+  background: var(--ed-surface);
+  border-top: 1px solid var(--ed-line);
+  border-bottom: 1px solid var(--ed-line);
+  box-sizing: border-box;
+}
+.edSplit span {
+  width: 34px;
+  height: 2px;
+  background: var(--ed-line);
+}
+.edSplit:hover span,
+.edSplit:focus-visible span {
+  background: var(--ed-accent);
+}
+.edTimeline {
+  border: 0;
+  border-radius: 0;
+  background: var(--ed-paper);
+}
+.edRange {
+  height: 32px;
+  background: var(--ed-surface);
+}
+.edMissingShots {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 7px 18px;
+  background: var(--ed-surface);
+  color: var(--ed-accent);
+  font-size: 11px;
+}
+.edMissingShots span {
+  color: var(--ed-muted);
+}
+.edMissingShots button {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: auto;
+  color: var(--ed-accent);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.timelineTextButton {
+  border: 0;
+  padding: 6px 9px;
+  border-radius: 6px;
+  color: var(--ed-muted);
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.timelineTextButton:hover,
+.timelineTextButton.active {
+  background: var(--ed-surface);
+  color: var(--ed-accent);
+}
+.timelineTextButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.timelineTextButton small {
+  font-size: 9px;
+}
+.editorZoomControl {
+  gap: 7px;
+  font-size: 10px;
+  color: var(--ed-muted);
+}
+.editorZoomControl button {
+  border: 0;
+  width: 24px;
+  height: 26px;
+  border-radius: 5px;
+  background: var(--ed-surface);
+  color: var(--ed-text);
+}
+.editorZoomControl input {
+  width: 85px;
+  accent-color: var(--ed-accent);
+}
+.editorZoomControl span {
+  min-width: 30px;
+}
+.edTimelineHint {
+  border: 0;
+  box-shadow: none;
+  color: var(--ed-muted);
+  background: var(--ed-paper);
+  font-size: 11px;
+  bottom: 16px;
+}
+.edTimelineHint button {
+  color: var(--ed-accent);
+}
+.edAutoNotice {
+  border: 1px solid var(--ed-line);
+  background: var(--ed-paper);
+  color: var(--ed-muted);
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 11px;
+}
+.edAutoUndo {
+  color: var(--ed-accent);
+  font-weight: 500;
+}
+.editorShortcuts p {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  font-size: 12px;
+  margin: 0;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--td-border-level-1-color);
+}
+.editorShortcuts kbd {
+  padding: 3px 7px;
+  border: 1px solid var(--td-border-level-1-color);
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--td-text-color-secondary);
+}
+.editorShortcuts small {
+  color: var(--td-text-color-secondary);
+}
+.editor :deep(.mediaLibrary),
+.editor :deep(.propertyPanel) {
+  border: 0;
+  border-radius: 0;
+  background: var(--ed-paper);
+}
+.editor :deep(.mediaLibraryHeader) {
+  padding: 13px 13px 10px;
+  background: var(--ed-paper);
+  border-color: var(--ed-line);
+}
+.editor :deep(.headerTitle) {
+  margin-bottom: 10px;
+}
+.editor :deep(.mediaLibraryTitle) {
+  font-size: 13px;
+  font-weight: 600;
+}
+.editor :deep(.mediaLibraryHint) {
+  font-size: 10px;
+}
+.editor :deep(.mediaImportBtn) {
+  height: 30px;
+  border-color: var(--ed-line);
+  background: var(--ed-paper);
+  color: var(--ed-text);
+  font-weight: 500;
+}
+.editor :deep(.mediaLibraryGroups) {
+  margin-top: 11px;
+  background: var(--ed-surface);
+}
+.editor :deep(.mediaLibraryGroups button) {
+  height: 27px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.editor :deep(.mediaLibraryTabs) {
+  gap: 3px;
+  margin-top: 7px;
+}
+.editor :deep(.mediaLibraryTabs button) {
+  height: 28px;
+  font-size: 10px;
+}
+.editor :deep(.mediaLibraryTabs button.active) {
+  border-color: var(--ed-line);
+  color: var(--ed-accent);
+  background: var(--ed-surface);
+}
+.editor :deep(.mediaLibraryContent) {
+  padding: 10px;
+  background: var(--ed-paper);
+}
+.editor :deep(.mediaItem) {
+  padding: 7px !important;
+  border: 1px solid var(--ed-line) !important;
+  border-radius: 8px !important;
+  gap: 9px !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.editor :deep(.mediaItem:hover) {
+  border-color: var(--ed-accent) !important;
+  background: var(--ed-surface);
+}
+.editor :deep(.mediaItemPreview) {
+  width: 77px !important;
+  height: 45px !important;
+  flex: none;
+  border-radius: 5px !important;
+}
+.editor :deep(.mediaItemPreview img) {
+  border-radius: 5px !important;
+}
+.editor :deep(.mediaItemName) {
+  font-size: 11px !important;
+}
+.editor :deep(.mediaItemInfo .t-tag) {
+  font-size: 9px;
+  height: 18px;
+  margin-top: 4px;
+}
+.editor :deep(.panelHeader) {
+  padding: 15px;
+  background: var(--ed-paper);
+  border-bottom: 1px solid var(--ed-line);
+}
+.editor :deep(.panelTitle) {
+  font-size: 13px;
+  font-weight: 600;
+}
+.editor :deep(.panelContent) {
+  padding: 4px 13px 14px;
+  background: var(--ed-paper);
+}
+.editor :deep(.sectionCard) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid var(--ed-line) !important;
+  box-shadow: none !important;
+}
+.editor :deep(.sectionHeader) {
+  padding: 13px 0 10px !important;
+  border: 0 !important;
+}
+.editor :deep(.sectionIconBadge) {
+  display: none !important;
+}
+.editor :deep(.sectionLabel) {
+  font-size: 11px !important;
+  color: var(--ed-muted) !important;
+}
+.editor :deep(.sectionBody) {
+  padding: 0 0 14px !important;
+  gap: 12px !important;
+}
+.editor :deep(.propLabel) {
+  font-size: 11px;
+}
+.editor :deep(.properties) {
+  gap: 0;
+}
+.editor :deep(.actions) {
+  padding-top: 15px;
+}
+.editor :deep(.tools-bar) {
+  border-bottom: 1px solid var(--ed-line);
+  padding: 6px 14px;
+  min-height: 42px;
+  box-sizing: border-box;
+}
+.editor :deep(.tools-bar__btn) {
+  background: transparent;
+  color: var(--ed-text);
+  border: 0;
+  box-shadow: none;
+  border-radius: 5px;
+}
+.editor :deep(.tools-bar__btn--play) {
+  background: var(--ed-accent);
+  color: #fff;
+}
+.editor :deep(.tools-bar__time) {
+  background: transparent;
+  font-size: 11px;
+  color: var(--ed-muted);
+}
+.editor :deep(.track-control) {
+  border-color: var(--ed-line);
+}
+.editor :deep(.tracks__track--hidden .track-area) {
+  background: var(--ed-surface);
+}
+.editor :deep(.tracks__scrollbar) {
+  background: var(--ed-surface);
+}
+.editor button:focus-visible,
+.editor summary:focus-visible,
+.editor [tabindex]:focus-visible {
+  outline: 2px solid var(--ed-accent);
+  outline-offset: 2px;
+}
+@media (max-width: 1050px) {
+  .edSave {
+    max-width: 170px;
+  }
+  .editorProjectName {
+    max-width: 170px;
+  }
+  .edTop {
+    padding: 0 13px;
+  }
+  .edSideLeft {
+    width: 220px;
+  }
+  .edSideRight {
+    width: 240px;
+  }
+  .headerDivider {
+    margin: 0 3px;
+  }
+  .edTopLeft {
+    gap: 5px;
+  }
+  .workspaceHint {
+    max-width: 400px;
+  }
+}
+@media (max-width: 760px) {
+  .edTop {
+    min-height: 61px;
+    padding: 7px 10px;
+    gap: 7px;
+  }
+  .edSub .editorProjectHint,
+  .edSave,
+  .editorProjectName,
+  .headerDivider,
+  .workspaceHint {
+    display: none;
+  }
+  .editorMark {
+    width: 23px;
+  }
+  .edTopRight {
+    gap: 5px;
+  }
+  .edName {
+    font-size: 13px;
+  }
+  .edTopLeft {
+    gap: 3px;
+  }
+  .editorExport {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  .edSideLeft,
+  .edSideRight {
+    position: absolute;
+    z-index: 8;
+    top: 0;
+    bottom: 0;
+    width: min(280px, 85vw);
+    box-shadow: 0 8px 30px #0002;
+  }
+  .edSideLeft {
+    left: 0;
+  }
+  .edSideRight {
+    right: 0;
+  }
+  .edUpper {
+    position: relative;
+  }
+  .edStage {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .editorWorkspaceBar {
+    padding: 6px 12px;
+  }
+  .edMissingShots span {
+    display: none;
+  }
+  .edTimelineHint {
+    max-width: calc(100% - 30px);
+    right: 10px;
+  }
+  .edTimelineHint span {
+    white-space: normal;
+  }
+  .edRange {
+    gap: 5px;
+    padding: 0 7px;
+  }
+  .edRangeText {
+    min-width: 95px;
+    font-size: 10px;
+  }
+  .editorZoomControl input {
+    width: 55px;
+  }
+  .editor :deep(.tools-bar) {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .editor :deep(.tools-bar__left),
+  .editor :deep(.tools-bar__right) {
+    flex: none;
+  }
+  .editorMoreMenu {
+    right: -80px;
+  }
+  .emptyEditorActions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .edPreviewEmpty strong {
+    font-size: 17px;
+  }
+}

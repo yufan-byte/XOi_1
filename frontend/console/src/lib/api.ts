@@ -55,7 +55,9 @@ interface LoginPayload {
 
 /** 写会话：同时落 localStorage（给主站读）与返回值（给控制台读） */
 export function writeSession(p: LoginPayload): AuthState {
+    if(!p||typeof p.token!=="string"||!p.token.trim()||!Number.isSafeInteger(Number(p.id))||Number(p.id)<1)throw new ApiError(502,"登录响应不完整，未保存登录状态，请稍后重试");
     const token = p.token.startsWith("Bearer ") ? p.token : `Bearer ${p.token}`;
+    document.cookie='xoi_media_owner=; Path=/oss; SameSite=Lax; Max-Age=0';
     try {
         localStorage.setItem(LS.token, token);
         localStorage.setItem(LS.role, p.role || "user");
@@ -63,7 +65,9 @@ export function writeSession(p: LoginPayload): AuthState {
         localStorage.setItem(LS.displayId, p.display_id || "");
         localStorage.setItem(LS.username, p.name || "");
     } catch {
-        /* 隐私模式：忽略，页面仍能继续用 */
+        // The destination app reads these keys: silently succeeding would create a login loop.
+        clearSession();
+        throw new ApiError(503, "浏览器无法保存登录状态，请允许本站存储后重试，或退出隐私模式");
     }
     const roleNum = p.role === "admin" ? 10 : 1;
     return {
@@ -83,6 +87,7 @@ export function writeSession(p: LoginPayload): AuthState {
 }
 
 export function clearSession() {
+    document.cookie='xoi_media_owner=; Path=/oss; SameSite=Lax; Max-Age=0';
     try {
         for (const k of Object.values(LS)) localStorage.removeItem(k);
     } catch {
@@ -92,7 +97,12 @@ export function clearSession() {
 
 export function hasSession(): boolean {
     try {
-        return !!localStorage.getItem(LS.token);
+        const raw = (localStorage.getItem(LS.token) || "").replace(/^(Bearer\s+)+/i, "");
+        const part = raw.split(".")[1];
+        if (!part || raw.split(".").length !== 3) return false;
+        const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+        // UX hint only; every authenticated API still verifies the signature and session version.
+        return Number.isFinite(payload.exp) && payload.exp * 1000 > Date.now() && Number.isSafeInteger(payload.id) && payload.id > 0;
     } catch {
         return false;
     }
@@ -121,6 +131,7 @@ export async function login(username: string, password: string, extra?: { captch
         method: "POST",
         headers: { "Content-Type": "application/json", ...extraHeaders },
         credentials: "include",
+        signal:AbortSignal.timeout(15000),
         body: JSON.stringify({
             username: username.trim(),
             password,
@@ -187,7 +198,7 @@ export async function logout(): Promise<void> {
     } catch {
         /* 网络失败也要清本地 */
     }
-    clearSession();
+    if(localStorage.getItem(LS.token)===token)clearSession();
 }
 
 /* ==================================================================
@@ -309,6 +320,7 @@ export async function refreshAuth(): Promise<AuthState | null> {
     if (!current) return null;
     try {
         const me = await getSelf();
+        if(localStorage.getItem(LS.token)!==current.accessToken)return null;
         const next: AuthState = {
             ...current,
             user: { ...current.user, ...me, id: me.id ?? current.user.id },
@@ -340,6 +352,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
         ...((init.headers as Record<string, string> | undefined) ?? {}),
     };
     const res = await fetch(path, { ...init, headers, credentials: "include" });
+    if(localStorage.getItem(LS.token)!==token)throw new DOMException('账号已切换，已忽略旧请求','AbortError');
     if (res.status === 401) {
         // 会话没了就把本地清干净并广播：否则界面仍显示已登录，
         // 而后续请求会一路 401（与造物 `mc:unauthorized` 的做法一致）。
@@ -351,11 +364,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
         }
         throw new ApiError(401, "登录已过期，请重新登录");
     }
-    return parse<T>(res);
+    const value=await parse<T>(res);
+    if(localStorage.getItem(LS.token)!==token)throw new DOMException('账号已切换，已忽略旧请求','AbortError');
+    return value;
 }
 
 /** 当前登录者 + 实时余额（XOI 形状：`role` 是 "user"/"admin" 字符串，quota 为 new-api 原始单位） */
-export const getSelf = () => api<NewApiUser & { display_id?: string; balance?: number | null; user_group?: string | null; balance_unavailable?: boolean }>("/api/login/self");
+export const getSelf = () => api<NewApiUser & { display_id?: string; balance?: number | null; points?: number | null; user_group?: string | null; balance_unavailable?: boolean }>("/api/login/self");
 
 /**
  * 价格表。

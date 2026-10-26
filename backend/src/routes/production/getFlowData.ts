@@ -3,6 +3,8 @@ import u from "@/utils";
 import { z } from "zod";
 import { success, error } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
+import { directorVideoProgress } from "@/utils/directorVideoProgress";
+import { readStoryboards } from "@/utils/storyboardStore";
 const router = express.Router();
 import { FlowData } from "@/agents/productionAgent/tools";
 
@@ -36,6 +38,24 @@ async function loadOutputs(projectId: number, episodesId: number) {
   );
 }
 
+async function attachProgress(flowData: any, projectId: number, episodesId: number) {
+  const { readDirectorReview } = await import('@/utils/directorStageReview');
+  flowData.reviewState = (await readDirectorReview(u.db, projectId, episodesId)).state;
+  const [outputs, tracks] = await Promise.all([
+    loadOutputs(projectId, episodesId),
+    u.db("o_videoTrack").where({ projectId, scriptId: episodesId }).select("id"),
+  ]);
+  const videos = tracks.length
+    ? await u.db("o_video").whereIn("videoTrackId", tracks.map(track => track.id!)).select("videoTrackId", "state", "filePath")
+    : [];
+  const progress = directorVideoProgress(tracks as { id: number }[], videos);
+  flowData.output = outputs;
+  flowData.videoProgress = progress;
+  for (const frame of flowData.storyboard ?? []) {
+    frame.videoState = progress.trackStates[frame.trackId] ?? "未生成";
+  }
+}
+
 export default router.post(
   "/",
   validateFields({
@@ -47,6 +67,7 @@ export default router.post(
     const sqlData = await u
       .db("o_agentWorkData")
       .where("projectId", String(projectId))
+      .where("key", "productionAgent")
       .andWhere("episodesId", String(episodesId))
       .select("data")
       .first();
@@ -84,6 +105,7 @@ export default router.post(
             prompt: item.prompt ?? "",
             desc: item.describe ?? "",
             src: item.filePath && (await u.oss.getSmallImageUrl(item.filePath!)),
+            state: item.state ?? "未生成",
             derive: await Promise.all(
               childAssetsData
                 .filter((child) => child.assetsId === item.id)
@@ -101,7 +123,7 @@ export default router.post(
           })),
         ),
         storyboardTable: "",
-        storyboard: [],
+        storyboard: await readStoryboards(u.db, projectId, episodesId, file=>u.oss.getSmallImageUrl(file)),
         //todo：矫正workbench数据
         //@ts-ignore
         workbench: {
@@ -112,35 +134,10 @@ export default router.post(
         //   items: [],
         // },
       };
-      (flowData as any).output = await loadOutputs(projectId, episodesId);
+      await attachProgress(flowData, projectId, episodesId);
       return res.status(200).send(success(flowData));
     } else {
       try {
-        const storyboardData = await u.db("o_storyboard").where("scriptId", episodesId);
-
-        await Promise.all(
-          storyboardData.map(async (i) => {
-            if (i.filePath) {
-              try {
-                i.filePath = await u.oss.getSmallImageUrl(i.filePath);
-              } catch {
-                i.filePath = "";
-              }
-            } else {
-              i.filePath = "";
-            }
-          }),
-        );
-        const storyboardIds = storyboardData.map((i) => i.id);
-        const assetsIds = await u.db("o_assets2Storyboard").whereIn("storyboardId", storyboardIds).orderBy("rowid");
-
-        const assets2StoryboardMap: Record<number, number[]> = {};
-        assetsIds.forEach((i) => {
-          if (!assets2StoryboardMap[i.storyboardId!]) {
-            assets2StoryboardMap[i.storyboardId!] = [];
-          }
-          assets2StoryboardMap[i.storyboardId!].push(i.assetId!);
-        });
         const flowData = JSON.parse(sqlData!.data ?? "{}");
         flowData.assets = await Promise.all(
           assetsData.map(async (item) => ({
@@ -150,6 +147,7 @@ export default router.post(
             prompt: item.prompt ?? "",
             desc: item.describe ?? "",
             src: item.filePath && (await u.oss.getSmallImageUrl(item.filePath!)),
+            state: item.state ?? "未生成",
             flowId: item.flowId,
             derive: await Promise.all(
               childAssetsData
@@ -169,23 +167,9 @@ export default router.post(
             ),
           })),
         );
-        flowData.storyboard = storyboardData
-          .map((i) => ({
-            id: i.id,
-            index: i.index,
-            duration: i.duration ? +i.duration : 0,
-            prompt: i.prompt,
-            associateAssetsIds: assets2StoryboardMap[i.id!] ?? [],
-            src: i.filePath,
-            state: i.state,
-            videoDesc: i.videoDesc,
-            shouldGenerateImage: i.shouldGenerateImage,
-            reason: i?.reason ?? "",
-            flowId: i.flowId,
-          }))
-          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+        flowData.storyboard = await readStoryboards(u.db, projectId, episodesId, file=>u.oss.getSmallImageUrl(file));
         flowData.script = scriptData?.content ?? "";
-        (flowData as any).output = await loadOutputs(projectId, episodesId);
+        await attachProgress(flowData, projectId, episodesId);
         res.status(200).send(success(flowData));
       } catch (err) {
         res.status(400).send(error());

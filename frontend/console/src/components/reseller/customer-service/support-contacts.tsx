@@ -19,7 +19,7 @@ export function SupportContacts({ fallback }: { fallback: React.ReactNode }) {
   return (
     <div className="max-h-[62vh] overflow-y-auto pr-[2px] font-medium">
       <div className="flex flex-col items-center">
-        <div className="grid h-[70px] w-[70px] place-items-center rounded-full bg-[linear-gradient(135deg,var(--primary),#6a3fd9)] text-[22px] font-bold leading-[30.8px] text-white shadow-[0_14px_32px_rgba(124,57,237,0.18)]">{brandName.slice(0, 1)}</div>
+        <div className="grid h-[70px] w-[70px] place-items-center rounded-2xl bg-primary-tint text-[22px] font-semibold leading-[30.8px] text-accent-foreground">{brandName.slice(0, 1)}</div>
         <div className="mt-[13.2px] text-[15.4px] font-semibold leading-[22px]">{brandName}</div>
         <span className="mt-[6.6px] rounded-full bg-success/15 px-[9px] py-[3px] text-[10.5px] font-[620] leading-[16.8px] text-success">在线</span>
       </div>

@@ -34,9 +34,10 @@
 /**
  * XOi 控制台样式
  *
- * 调色板照搬造物 src/app/globals.css 的两段：亮色 :root + 暗色 .dark（293° 品牌紫）。
- * 主题切换由 src/shims/next-themes.tsx 的 useTheme 驱动（toggle html.dark + localStorage("theme")），
- * shim 初始默认 dark —— 登录页（纯暗色舞台设计）与后台首屏维持造物观感，顶栏太阳/月亮按钮可切浅色。
+ * 登录/注册舞台用 data-xoi-surface="auth" 覆盖为苹果蓝（对齐造物最新版）；
+ * 其余控制台页面使用 xoi-management 的中性配色 + 暖橙。全局不再保留紫色。
+ * 默认认证页深色、其他页面浅色，并保留用户选择。嵌入页的宿主主题仅在当前文档生效。
+ * 首帧由 index.html 初始化，后续导航由共享外观边界与 next-themes shim 同步。
  */
 
 :root {
@@ -49,13 +50,13 @@
     --muted-foreground: oklch(40% 0 0);
     --border: oklch(89% 0 0);
     --input: oklch(94% 0 0);
-    --primary: oklch(45% 0.22 293);
-    --primary-strong: oklch(38% 0.2 293);
+    --primary: #0071e3;
+    --primary-strong: #005bb8;
     --primary-foreground: #ffffff;
-    --primary-tint: color-mix(in oklch, oklch(45% 0.22 293) 12%, white);
+    --primary-tint: color-mix(in oklch, #0071e3 12%, white);
     --accent: oklch(95% 0 0);
-    --accent-foreground: oklch(38% 0.2 293);
-    --ring: oklch(45% 0.22 293);
+    --accent-foreground: #005bb8;
+    --ring: #0071e3;
     --success: oklch(55% 0.17 145);
     --warning: #d97706;
     --danger: oklch(60% 0.22 25);
@@ -64,10 +65,10 @@
     --tile-radius: 18px;
     --control-radius: 999px;
     --shadow-soft: 0 1px 2px rgba(20, 20, 31, 0.04), 0 8px 24px -12px rgba(20, 20, 31, 0.12);
-    --shadow-pop: 0 12px 40px -12px rgba(76, 47, 214, 0.25);
+    --shadow-pop: 0 12px 40px -12px rgba(0, 113, 227, 0.25);
 }
 
-/* 暗色：取自参考站 html.dark 的 --color-* 计算值（中性灰阶 + 293° 品牌紫） */
+/* 暗色：中性灰阶 + 苹果蓝（与造物最新版一致，不再使用 293° 紫） */
 .dark {
     color-scheme: dark;
     --background: oklch(18% 0 0);
@@ -78,19 +79,112 @@
     --muted-foreground: oklch(85% 0 0);
     --border: oklch(28% 0 0);
     --input: oklch(24% 0 0);
-    --primary: oklch(54% 0.247 293);
-    --primary-strong: oklch(50% 0.18 293);
-    --primary-foreground: oklch(93% 0.03 293);
-    --primary-tint: color-mix(in oklch, oklch(54% 0.247 293) 18%, oklch(18% 0 0));
+    --primary: #0a84ff;
+    --primary-strong: #0071e3;
+    --primary-foreground: #ffffff;
+    --primary-tint: color-mix(in oklab, #0a84ff 20%, #101114);
     --accent: oklch(28% 0 0);
-    /* 参考站暗色下紫色强调文字用 primary-light */
-    --accent-foreground: oklch(82% 0.08 293);
-    --ring: oklch(54% 0.247 293);
+    --accent-foreground: #9cc0ff;
+    --ring: #0a84ff;
     --success: oklch(70% 0.17 145);
     --warning: oklch(75% 0.17 70);
     --danger: oklch(52% 0.22 25);
     --shadow-soft: 0 1px 3px rgba(18, 18, 18, 0.22), 0 20px 46px -20px rgba(18, 18, 18, 0.55);
-    --shadow-pop: 0 0 20px color-mix(in srgb, oklch(54% 0.247 293) 30%, transparent);
+    --shadow-pop: 0 0 20px color-mix(in srgb, #0a84ff 30%, transparent);
+}
+
+/* 登录/注册舞台：与造物最新版对齐（纯黑底 + 苹果蓝强调 + 青蓝点缀）。
+   作用域用 index.html 已在设的 data-xoi-surface="auth"，管理端与其它页面零影响。
+   注意这里**不是** --primary 的全局覆盖：认证页之外仍走 html.xoi-management 的暖橙。 */
+html[data-xoi-surface="auth"] {
+    --primary: #0a84ff;
+    --primary-strong: #0071e3;
+    --primary-foreground: #ffffff;
+    --primary-tint: color-mix(in oklab, #0a84ff 20%, #101114);
+    --accent-foreground: #b9f0ec;
+    --ring: #0a84ff;
+    --shadow-pop: 0 0 20px color-mix(in srgb, #0a84ff 30%, transparent);
+}
+
+/* 管理端独立配色。挂在 html 上，确保 body 下的弹窗/菜单也继承；不改登录舞台。 */
+html.xoi-management {
+    --background: #f7f7f5;
+    --foreground: #262724;
+    --card: #ffffff;
+    --card-foreground: #262724;
+    --muted: #f2f3f0;
+    --muted-foreground: #6c7068;
+    --border: #e4e6df;
+    --input: #f2f3f0;
+    --primary: #b94b18;
+    --primary-strong: #9f3d11;
+    --primary-foreground: #ffffff;
+    --primary-tint: #fff1e7;
+    --accent: #f4eee8;
+    --accent-foreground: #a34318;
+    --ring: #bc572b;
+    --success: #237a52;
+    --warning: #9a6700;
+    --danger: #c03935;
+    --control-radius: 10px;
+    --shell-radius: 20px;
+    --shadow-soft: 0 1px 3px rgb(30 35 25 / 0.035);
+    --shadow-pop: 0 16px 48px -16px rgb(30 35 25 / 0.2), 0 2px 8px rgb(30 35 25 / 0.04);
+}
+html.xoi-management.dark {
+    --background: #181a18;
+    --foreground: #eceee8;
+    --card: #202320;
+    --card-foreground: #eceee8;
+    --muted: #292d29;
+    --muted-foreground: #a8afa3;
+    --border: #353b34;
+    --input: #292d29;
+    --primary: #f0a071;
+    --primary-strong: #f6b48d;
+    --primary-foreground: #28180e;
+    --primary-tint: #382b22;
+    --accent: #342c24;
+    --accent-foreground: #f0b58f;
+    --ring: #f0a071;
+    --success: #7acb9f;
+    --warning: #e2b75e;
+    --danger: #f18d84;
+    --shadow-soft: 0 1px 3px rgb(0 0 0 / 0.12);
+    --shadow-pop: 0 16px 48px -16px rgb(0 0 0 / 0.5);
+}
+@layer base {
+    /* Tailwind v4 的裸 border 默认 currentColor。补中性底色，语义边框仍由 utilities 覆盖。 */
+    .xoi-management *, .xoi-management ::before, .xoi-management ::after { border-color: var(--border); }
+}
+.xoi-management body { background: var(--background); }
+.xoi-management .bg-primary { color: var(--primary-foreground); }
+.xoi-management .xoi-admin-nav-item { color: var(--muted-foreground); }
+.xoi-management .xoi-admin-nav-item:hover { color: var(--foreground); }
+.xoi-management .xoi-admin-nav-item[data-active="true"] {
+    border-color: transparent;
+    background: var(--primary-tint);
+    color: var(--accent-foreground);
+    box-shadow: inset 3px 0 var(--primary);
+}
+.xoi-management .xoi-admin-navigation,
+.xoi-management .xoi-admin-content { scrollbar-width: thin; scrollbar-color: var(--border) transparent; scrollbar-gutter: stable; }
+.xoi-management .xoi-admin-shell :is(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+}
+.xoi-management .pane { border: 1px solid var(--border); border-radius: 16px; background: var(--card); box-shadow: var(--shadow-soft); }
+.xoi-management table { font-size: 13px; }
+.xoi-management th { font-weight: 500; color: var(--muted-foreground); background: var(--muted); }
+.xoi-management td { border-color: var(--border); }
+.xoi-management tbody tr { transition: background-color 120ms ease; }
+.xoi-management tbody tr:hover { background-color: color-mix(in srgb, var(--muted) 65%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+    .xoi-management *, .xoi-management *::before, .xoi-management *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 @theme inline {
@@ -142,6 +236,9 @@ body {
 body {
     color: var(--foreground) !important;
 }
+.xoi-console-loading { background: var(--background); color: var(--muted-foreground); }
+html[data-xoi-surface="auth"] .xoi-console-loading { background: #06070c; color: #b9bdc4; }
+html.xoi-embed .xoi-console-loading { background: transparent; }
 
 /* Vue 主站的充值/消费弹窗通过同源 iframe 嵌入。嵌入页本身必须完全透明，
    否则 iframe 会变成一块额外的灰黑矩形，宿主的唯一遮罩就会看起来像双层阴影。 */

@@ -1,8 +1,15 @@
 <template>
   <div class="assets" :class="{ projectOverviewPage: isProjectOverview }">
+    <div v-if="selectedProjectId && !selectorMode" class="projectLibraryNav">
+      <div><button type="button" :class="{ on: libTab === 'project' }" @click="libTab = 'project'">角色与素材</button><button type="button" :class="{ on: libTab === 'works' }" @click="libTab = 'works'">视频与成片</button></div>
+      <span>仅显示当前项目</span>
+    </div>
     <!-- 三库融合顶层切换：项目素材（生产要素）/ 我的作品（生成产物）/ 画布素材（创作素材）。方案见 docs/项目资产库-三库融合方案.md -->
-    <div class="libTabs" v-if="!selectorMode">
-      <div class="libTabsBrand"><span>WORKSPACE LIBRARY</span><strong>资产中心</strong></div>
+    <div class="libTabs" v-if="!selectorMode && !selectedProjectId">
+      <div class="libTabsBrand">
+        <span class="libTabsMark" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="m3 8.5 9-4.5 9 4.5-9 4.5-9-4.5Z" /><path d="m3 13 9 4.5 9-4.5" /><path d="m3 17.5 9 4.5 9-4.5" /></svg></span>
+        <span class="libTabsText"><i>WORKSPACE LIBRARY</i><strong>资产中心</strong></span>
+      </div>
       <div class="libTabsItems">
         <button type="button" :class="{ on: libTab === 'project' }" @click="libTab = 'project'"><t-icon name="folder-open" /><span>项目素材</span><small>按项目管理</small></button>
         <button type="button" :class="{ on: libTab === 'works' }" @click="libTab = 'works'"><t-icon name="user-circle" /><span>我的作品</span><small>全局作品</small></button>
@@ -10,12 +17,6 @@
       </div>
     </div>
     <library-projects v-if="libTab === 'project' && isProjectOverview" />
-    <div class="assetProjectNav" v-if="!selectorMode && !isProjectOverview">
-      <button type="button" @click="backToProjectLibrary"><t-icon name="chevron-left" />全部项目</button>
-      <span>/</span>
-      <strong>{{ project?.name || "当前项目" }}</strong>
-    </div>
-    <section class="assetHero" v-if="libTab === 'project' && !isProjectOverview"><div><span>XOi STORY WORKSPACE · ASSETS</span><h1>{{ project?.name || "项目" }} · 资产中心</h1><p>这里只管理当前项目的角色、道具、场景、素材与声音。</p></div><div class="assetHeroArt" aria-hidden="true"><i>ROLE</i><i>SCENE</i><b>+</b></div></section>
     <div class="assetScopeBar" v-if="libTab === 'project' && !isProjectOverview">
       <div class="scopeIntro">
         <strong>资产归属</strong>
@@ -52,7 +53,7 @@
                   {{ $t("workbench.assets.addPrefix") }}{{ item.name }}
                 </t-button>
                 <t-popup placement="bottom">
-                  <t-button theme="primary" class="assetPrimaryBtn" v-if="assetOptions != 'clip' && assetOptions != 'audio'">
+                  <t-button theme="primary" class="assetPrimaryBtn workspaceSecondary" v-if="assetOptions != 'clip' && assetOptions != 'audio'">
                     <template #icon>
                       <t-icon name="indent-left" />
                     </template>
@@ -84,7 +85,7 @@
               </t-space>
               <div class="f ac">
                 <t-input v-model="searchText" :placeholder="$t('workbench.assets.searchPlaceholder')" clearable style="width: 260px" />
-                <t-button class="assetSearchBtn" style="margin-left: 5px" @click="handleSearch">
+                <t-button class="assetSearchBtn workspaceSecondary" style="margin-left: 5px" @click="handleSearch">
                   <template #icon>
                     <t-icon name="search" />
                   </template>
@@ -92,336 +93,129 @@
                 </t-button>
               </div>
             </div>
-            <div class="assetsList f w">
-              <t-table
-                v-if="['role', 'tool', 'scene'].includes(assetOptions)"
-                :columns="columns"
-                :data="tableData"
-                :selected-row-keys="selectedRowKeys"
-                :expanded-row-keys="expandedRowKeys"
-                row-key="id"
-                hover
-                height="calc(100vh - 300px)"
-                stripe
-                size="small"
-                :pagination="pagination"
-                :loading="loading"
-                lazy-load
-                table-layout="fixed"
-                :select-on-row-click="false"
-                @select-change="handleSelectChange"
-                @expand-change="handleExpandChange"
-                @page-change="handlePageChange">
-                <template #expandedRow="{ row }">
-                  <div class="expandedContent">
-                    <t-table
-                      :columns="subColumns"
-                      :data="row.sonAssets || []"
-                      :selected-row-keys="selectedSubRowKeys"
-                      row-key="id"
-                      hover
-                      size="small"
-                      table-layout="fixed"
-                      :select-on-row-click="false"
-                      @select-change="handleSubSelectChange">
-                      <template #previewWithLoading="{ row: subRow }">
-                        <div class="previewCell">
-                          <div v-if="subRow.state === '生成中'" class="imageTrigger generatingImage">
-                            <t-loading size="small" />
-                            <span class="generatingLabel">{{ $t("workbench.assets.generating") }}</span>
-                          </div>
-                          <t-image-viewer v-else :images="[subRow.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
-                            <template #trigger="{ open }">
-                              <div class="imageTrigger" @click="subRow.src && getBigImageUrl(subRow, open())">
-                                <img v-if="subRow.src" :src="subRow.src" :alt="subRow.name" class="previewImage" />
-                                <div v-else class="noImage">
-                                  <t-icon name="image" size="24px" />
-                                </div>
-                                <div v-if="subRow.src" class="imageHoverOverlay">
-                                  <t-icon name="browse" size="20px" />
-                                  <span class="hoverText">{{ $t("workbench.assets.preview") }}</span>
-                                </div>
-                              </div>
-                            </template>
-                          </t-image-viewer>
-                        </div>
-                      </template>
-                      <template #prompt="{ row: subRow }">
-                        <div class="promptCell">
-                          <t-loading v-if="subRow.promptState === '生成中'" size="small" style="margin-right: 4px" />
-                          <span :class="{ 'generating-text': subRow.promptState === '生成中' }">{{ subRow.prompt }}</span>
-                        </div>
-                      </template>
-                      <template #operation="{ row: subRow }">
-                        <t-space :size="0">
-                          <t-tooltip content="生成">
-                            <t-button theme="primary" variant="text" :disabled="isGenerating(subRow.id)" @click="generate(subRow)">
-                              <template #icon><i-magic :size="18" /></template>
-                            </t-button>
-                          </t-tooltip>
-                          <t-tooltip content="编辑">
-                            <t-button theme="primary" variant="text" @click="handleEdit(subRow)">
-                              <template #icon><t-icon name="edit" /></template>
-                            </t-button>
-                          </t-tooltip>
-                          <t-tooltip content="发送到画布">
-                            <t-button theme="primary" variant="text" @click="sendSingleToCanvas(subRow)">
-                              <template #icon><t-icon name="send" /></template>
-                            </t-button>
-                          </t-tooltip>
-                          <t-tooltip content="删除">
-                            <t-button theme="danger" variant="text" :disabled="isGenerating(subRow.id)" @click="handleDelete(subRow)">
-                              <template #icon><t-icon name="delete" /></template>
-                            </t-button>
-                          </t-tooltip>
-                        </t-space>
-                      </template>
-                    </t-table>
-                  </div>
-                </template>
-                <template #preview="{ row }">
-                  <div class="previewCell">
-                    <t-image-viewer :images="[row.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
+            <div class="assetsList">
+              <!-- 角色/道具/场景：即梦式卡片网格（子资产作为缩略图组收进卡片，不再用展开表格） -->
+              <div v-if="['role', 'tool', 'scene'].includes(assetOptions)" class="assetGrid">
+                <div v-for="row in tableData" :key="row.id" class="assetCard" :class="{ selected: selectedRowKeys.includes(row.id), generating: isGenerating(row.id) }">
+                  <div class="cardMedia" @click="handleCardClick(row)">
+                    <t-checkbox class="cardCheck" :checked="selectedRowKeys.includes(row.id)" :disabled="isGenerating(row.id)" @click.stop @change="toggleCardSelect(row.id)" />
+                    <div v-if="row.state === '生成中'" class="mediaState generating">
+                      <t-loading size="small" /><span>生成中</span>
+                    </div>
+                    <t-image-viewer v-else-if="row.src" :images="[row.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
                       <template #trigger="{ open }">
-                        <div class="imageTrigger" @click="row.src && getBigImageUrl(row, open())">
-                          <img v-if="row.src" :src="row.src" :alt="row.name" class="previewImage" />
-                          <div v-else class="noImage">
-                            <t-icon name="image" size="24px" />
-                          </div>
-                          <div v-if="row.src" class="imageHoverOverlay">
-                            <t-icon name="browse" size="20px" />
-                            <span class="hoverText">{{ $t("workbench.assets.preview") }}</span>
-                          </div>
-                        </div>
+                        <img :src="row.src" :alt="row.name" class="mediaImg" loading="lazy" @click="row.src && getBigImageUrl(row, open())" />
                       </template>
                     </t-image-viewer>
-                  </div>
-                </template>
-                <template #prompt="{ row }">
-                  <div class="promptCell">
-                    <t-loading v-if="row.promptState === '生成中'" size="small" style="margin-right: 4px" />
-                    <span :class="{ 'generating-text': row.promptState === '生成中' }">{{ row.prompt }}</span>
-                  </div>
-                </template>
-                <template #scriptNames="{ row }">
-                  <t-tag v-if="row.scriptNames?.length" size="small" variant="light" theme="primary">
-                    {{ row.scriptNames.join("、") }}
-                  </t-tag>
-                  <span v-else class="sharedAssetLabel">项目公共库</span>
-                </template>
-                <template #previewWithLoading="{ row }">
-                  <div class="previewCell">
-                    <div v-if="row.state === '生成中'" class="imageTrigger generatingImage">
-                      <t-loading size="small" />
-                      <span class="generatingLabel">{{ $t("workbench.assets.generating") }}</span>
+                    <div v-else class="mediaState empty"><t-icon name="image" size="26px" /><span>暂无图片</span></div>
+                    <div class="mediaOverlay">
+                      <t-tooltip content="生成"><t-button shape="circle" variant="dashed" :disabled="isGenerating(row.id)" @click.stop="generate(row)"><i-magic :size="15" /></t-button></t-tooltip>
+                      <t-tooltip content="编辑"><t-button shape="circle" variant="dashed" @click.stop="handleEdit(row)"><t-icon name="edit" /></t-button></t-tooltip>
+                      <t-tooltip content="发送到画布"><t-button shape="circle" variant="dashed" @click.stop="sendSingleToCanvas(row)"><t-icon name="send" /></t-button></t-tooltip>
+                      <t-tooltip content="删除"><t-button shape="circle" variant="dashed" theme="danger" :disabled="isGenerating(row.id)" @click.stop="handleDelete(row)"><t-icon name="delete" /></t-button></t-tooltip>
                     </div>
-                    <t-image-viewer v-else :images="[row.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
+                  </div>
+                  <div class="cardBody">
+                    <div class="cardTitle">
+                      <strong :title="row.name">{{ row.name }}</strong>
+                      <t-tag v-if="row.sonAssets?.length" size="small" variant="outline">{{ row.sonAssets.length }} 个衍生</t-tag>
+                    </div>
+                    <div class="cardScriptRow">
+                      <t-tag v-if="row.scriptNames?.length" size="small" variant="light" theme="primary">{{ row.scriptNames.join("、") }}</t-tag>
+                      <span v-else class="sharedAssetLabel">项目公共库</span>
+                      <span class="cardTime">{{ dayjs((row as any).startTime).format("MM-DD HH:mm") }}</span>
+                    </div>
+                    <p class="cardPrompt" :class="{ generating: row.promptState === '生成中' }" :title="row.prompt">
+                      <t-loading v-if="row.promptState === '生成中'" size="small" />
+                      {{ row.prompt || (row.promptState === '生成中' ? '提示词生成中…' : '暂无提示词') }}
+                    </p>
+                    <div v-if="row.sonAssets?.length" class="sonRow">
+                      <button
+                        v-for="sub in row.sonAssets.slice(0, 5)"
+                        :key="sub.id"
+                        type="button"
+                        class="sonThumb"
+                        :class="{ selected: selectedSubRowKeys.includes(sub.id) }"
+                        :title="sub.name + (sub.prompt ? ' · ' + sub.prompt.slice(0, 40) : '')"
+                        @click.stop="toggleSubSelect(sub.id)">
+                        <img v-if="sub.src" :src="sub.src" alt="" loading="lazy" />
+                        <t-icon v-else name="image" />
+                      </button>
+                      <span v-if="row.sonAssets.length > 5" class="sonMore">+{{ row.sonAssets.length - 5 }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="!loading && !tableData.length" class="gridEmpty"><t-icon name="folder-open" size="38px" /><p>这里还没有{{ tabNameMap[assetOptions] }}，点上方「添加」开始</p></div>
+              </div>
+
+              <!-- 素材 clip：媒体卡片网格（图/视频/音频自适应） -->
+              <div v-if="assetOptions == 'clip'" class="assetGrid">
+                <div v-for="row in tableData" :key="row.id" class="assetCard" :class="{ selected: selectedRowKeys.includes(row.id) }">
+                  <div class="cardMedia">
+                    <t-checkbox class="cardCheck" :checked="selectedRowKeys.includes(row.id)" @click.stop @change="toggleCardSelect(row.id)" />
+                    <t-image-viewer v-if="getMediaType(row.src) === 'image' && row.src" :images="[row.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
                       <template #trigger="{ open }">
-                        <div class="imageTrigger" @click="row.src && getBigImageUrl(row, open())">
-                          <img v-if="row.src" :src="row.src" :alt="row.name" class="previewImage" />
-                          <div v-else class="noImage">
-                            <t-icon name="image" size="24px" />
-                          </div>
-                          <div v-if="row.src" class="imageHoverOverlay">
-                            <t-icon name="browse" size="20px" />
-                            <span class="hoverText">{{ $t("workbench.assets.preview") }}</span>
-                          </div>
-                        </div>
+                        <img :src="row.src" :alt="row.name" class="mediaImg" loading="lazy" @click="open()" />
                       </template>
                     </t-image-viewer>
-                  </div>
-                </template>
-                <template #startTime="{ row }">
-                  <span>{{ dayjs(row.startTime).format("YYYY-MM-DD HH:mm:ss") }}</span>
-                </template>
-                <template #operation="{ row }">
-                  <t-space :size="0">
-                    <t-tooltip content="生成">
-                      <t-button theme="primary" variant="text" :disabled="isGenerating(row.id)" @click="generate(row)">
-                        <template #icon><i-magic :size="18" /></template>
-                      </t-button>
-                    </t-tooltip>
-                    <t-tooltip content="编辑">
-                      <t-button theme="primary" variant="text" @click="handleEdit(row)">
-                        <template #icon><t-icon name="edit" /></template>
-                      </t-button>
-                    </t-tooltip>
-                    <t-tooltip content="发送到画布">
-                      <t-button theme="primary" variant="text" @click="sendSingleToCanvas(row)">
-                        <template #icon><t-icon name="send" /></template>
-                      </t-button>
-                    </t-tooltip>
-                    <t-tooltip content="删除">
-                      <t-button theme="danger" variant="text" :disabled="isGenerating(row.id)" @click="handleDelete(row)">
-                        <template #icon><t-icon name="delete" /></template>
-                      </t-button>
-                    </t-tooltip>
-                  </t-space>
-                </template>
-              </t-table>
-              <t-table
-                v-if="assetOptions == 'clip'"
-                :columns="clipColumns"
-                :data="tableData"
-                :selected-row-keys="selectedRowKeys"
-                :expanded-row-keys="expandedRowKeys"
-                row-key="id"
-                hover
-                stripe
-                size="small"
-                :pagination="pagination"
-                :loading="loading"
-                lazy-load
-                table-layout="fixed"
-                @select-change="handleSelectChange"
-                @expand-change="handleExpandChange"
-                @page-change="handlePageChange">
-                <template #preview="{ row }">
-                  <div class="previewCell">
-                    <t-image-viewer v-if="getMediaType(row.src) === 'image'" :images="[row.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
-                      <template #trigger="{ open }">
-                        <div class="mediaTrigger" @click="row.src && open()">
-                          <img :src="row.src" :alt="row.name" />
-                          <div class="mediaHoverOverlay">
-                            <t-icon name="browse" size="20px" />
-                            <span class="hoverText">{{ $t("workbench.assets.preview") }}</span>
-                          </div>
-                        </div>
-                      </template>
-                    </t-image-viewer>
-                    <div v-else-if="getMediaType(row.src) === 'video'" class="mediaTrigger videoThumb" @click="openMediaPreview(row.src, row.name)">
-                      <video :src="row.src" class="thumbVideo" />
-                      <div class="mediaHoverOverlay">
-                        <t-icon name="play-circle" size="24px" />
-                        <span class="hoverText">{{ $t("workbench.assets.play") }}</span>
-                      </div>
+                    <div v-else-if="getMediaType(row.src) === 'video'" class="mediaState video" @click="openMediaPreview(row.src, row.name)">
+                      <video v-if="row.src" :src="row.src" class="thumbVideo" muted preload="metadata" />
+                      <t-icon name="play-circle" size="30" class="playBadge" />
                     </div>
-                    <div v-else-if="getMediaType(row.src) === 'audio'" class="mediaTrigger audioThumb" @click="openMediaPreview(row.src, row.name)">
-                      <t-icon name="music" size="28px" />
-                      <div class="mediaHoverOverlay">
-                        <t-icon name="play-circle" size="24px" />
-                        <span class="hoverText">{{ $t("workbench.assets.play") }}</span>
-                      </div>
+                    <div v-else-if="getMediaType(row.src) === 'audio'" class="mediaState audio" @click="openMediaPreview(row.src, row.name)">
+                      <t-icon name="music" size="26px" />
+                      <t-icon name="play-circle" size="20" class="playBadge" />
                     </div>
-                    <div v-else class="mediaTrigger noMedia">
-                      <t-icon name="image" size="24px" />
+                    <div v-else class="mediaState empty"><t-icon name="image" size="26px" /><span>未知媒体</span></div>
+                    <div class="mediaOverlay">
+                      <t-tooltip content="编辑"><t-button shape="circle" variant="dashed" @click.stop="handleEdit(row)"><t-icon name="edit" /></t-button></t-tooltip>
+                      <t-tooltip v-if="row.src && getMediaType(row.src) === 'image'" content="发送到画布"><t-button shape="circle" variant="dashed" @click.stop="sendSingleToCanvas(row)"><t-icon name="send" /></t-button></t-tooltip>
+                      <t-tooltip content="删除"><t-button shape="circle" variant="dashed" theme="danger" @click.stop="handleDelete(row)"><t-icon name="delete" /></t-button></t-tooltip>
                     </div>
                   </div>
-                </template>
-                <template #startTime="{ row }">
-                  <span>{{ dayjs(row.startTime).format("YYYY-MM-DD HH:mm:ss") }}</span>
-                </template>
-                <template #scriptNames="{ row }">
-                  <t-tag v-if="row.scriptNames?.length" size="small" variant="light" theme="primary">{{ row.scriptNames.join("、") }}</t-tag>
-                  <span v-else class="sharedAssetLabel">项目公共库</span>
-                </template>
-                <template #operation="{ row }">
-                  <t-space :size="0">
-                    <t-tooltip content="编辑">
-                      <t-button theme="primary" variant="text" @click="handleEdit(row)">
-                        <template #icon><t-icon name="edit" /></template>
-                      </t-button>
-                    </t-tooltip>
-                    <t-tooltip content="发送到画布" v-if="row.src && getMediaType(row.src) === 'image'">
-                      <t-button theme="primary" variant="text" @click="sendSingleToCanvas(row)">
-                        <template #icon><t-icon name="send" /></template>
-                      </t-button>
-                    </t-tooltip>
-                    <t-tooltip content="删除">
-                      <t-button theme="danger" variant="text" @click="handleDelete(row)">
-                        <template #icon><t-icon name="delete" /></template>
-                      </t-button>
-                    </t-tooltip>
-                  </t-space>
-                </template>
-              </t-table>
-              <t-table
-                v-if="assetOptions == 'audio'"
-                :columns="audioColumns"
-                :data="tableData"
-                :selected-row-keys="selectedRowKeys"
-                :expanded-row-keys="expandedRowKeys"
-                row-key="id"
-                hover
-                stripe
-                size="small"
-                :pagination="pagination"
-                :loading="loading"
-                lazy-load
-                table-layout="fixed"
-                @select-change="handleSelectChange"
-                @expand-change="handleExpandChange"
-                @page-change="handlePageChange">
-                <template #expandedRow="{ row }" v-if="!selectorMode">
-                  <div class="expandedContent">
-                    <t-table
-                      :columns="subAudioColumns"
-                      :data="row.sonAssets || []"
-                      :selected-row-keys="selectedSubRowKeys"
-                      row-key="id"
-                      hover
-                      size="small"
-                      table-layout="fixed"
-                      stripe
-                      :select-on-row-click="false"
-                      @select-change="handleSubSelectChange">
-                      <template #previewWithLoading="{ row: subRow }">
-                        <div class="previewCell">
-                          <div class="mediaTrigger audioThumb" @click="openMediaPreview(subRow.src, subRow.name)">
-                            <t-icon name="music" size="28px" />
-                            <div class="mediaHoverOverlay">
-                              <t-icon name="play-circle" size="24px" />
-                              <span class="hoverText">{{ $t("workbench.assets.play") }}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </template>
-                      <template #prompt="{ row: subRow }">
-                        <div class="promptCell">
-                          <span>{{ subRow.prompt }}</span>
-                        </div>
-                      </template>
-                      <template #operation="{ row: subRow }">
-                        <t-space :size="0">
-                          <t-tooltip content="删除">
-                            <t-button theme="danger" variant="text" :disabled="isGenerating(subRow.id)" @click="handleDelete(subRow)">
-                              <template #icon><t-icon name="delete" /></template>
-                            </t-button>
-                          </t-tooltip>
-                        </t-space>
-                      </template>
-                    </t-table>
-                  </div>
-                </template>
-                <template #preview="{ row }">
-                  <div class="previewCell">
-                    <div class="mediaTrigger audioThumb" @click="openMediaPreview(row.src, row.name)">
-                      <t-icon name="music" size="28px" />
-                      <div class="mediaHoverOverlay">
-                        <t-icon name="play-circle" size="24px" />
-                        <span class="hoverText">{{ $t("workbench.assets.play") }}</span>
-                      </div>
+                  <div class="cardBody">
+                    <div class="cardTitle"><strong :title="row.name">{{ row.name }}</strong></div>
+                    <div class="cardScriptRow">
+                      <t-tag v-if="row.scriptNames?.length" size="small" variant="light" theme="primary">{{ row.scriptNames.join("、") }}</t-tag>
+                      <span v-else class="sharedAssetLabel">项目公共库</span>
+                      <span class="cardTime">{{ dayjs((row as any).startTime).format("MM-DD HH:mm") }}</span>
                     </div>
                   </div>
-                </template>
-                <template #startTime="{ row }">
-                  <span>{{ dayjs(row.startTime).format("YYYY-MM-DD HH:mm:ss") }}</span>
-                </template>
-                <template #operation="{ row }">
-                  <t-space :size="0">
-                    <t-tooltip content="编辑">
-                      <t-button theme="primary" variant="text" @click="handleEdit(row)">
-                        <template #icon><t-icon name="edit" /></template>
-                      </t-button>
-                    </t-tooltip>
-                    <t-tooltip content="删除">
-                      <t-button theme="danger" variant="text" @click="handleDelete(row)">
-                        <template #icon><t-icon name="delete" /></template>
-                      </t-button>
-                    </t-tooltip>
-                  </t-space>
-                </template>
-              </t-table>
+                </div>
+                <div v-if="!loading && !tableData.length" class="gridEmpty"><t-icon name="folder-open" size="38px" /><p>还没有素材，点上方「添加素材」上传图片/视频/音频</p></div>
+              </div>
+
+              <!-- 音频：卡片网格（大音符面 + 播放） -->
+              <div v-if="assetOptions == 'audio'" class="assetGrid">
+                <div v-for="row in tableData" :key="row.id" class="assetCard" :class="{ selected: selectedRowKeys.includes(row.id) }">
+                  <div class="cardMedia audioFace" @click="openMediaPreview(row.src, row.name)">
+                    <t-checkbox class="cardCheck" :checked="selectedRowKeys.includes(row.id)" @click.stop @change="toggleCardSelect(row.id)" />
+                    <div class="audioFaceInner">
+                      <t-icon name="music" size="34px" />
+                      <strong class="audioWave" aria-hidden="true"><i></i><i></i><i></i><i></i></strong>
+                    </div>
+                    <div class="mediaOverlay">
+                      <t-tooltip content="播放"><t-button shape="circle" variant="dashed" @click.stop="openMediaPreview(row.src, row.name)"><t-icon name="play-circle" /></t-button></t-tooltip>
+                      <t-tooltip content="编辑"><t-button shape="circle" variant="dashed" @click.stop="handleEdit(row)"><t-icon name="edit" /></t-button></t-tooltip>
+                      <t-tooltip content="删除"><t-button shape="circle" variant="dashed" theme="danger" @click.stop="handleDelete(row)"><t-icon name="delete" /></t-button></t-tooltip>
+                    </div>
+                  </div>
+                  <div class="cardBody">
+                    <div class="cardTitle"><strong :title="row.name">{{ row.name }}</strong><span v-if="row.sex" class="sexTag">{{ row.sex }}</span></div>
+                    <div class="cardScriptRow">
+                      <t-tag v-if="row.scriptNames?.length" size="small" variant="light" theme="primary">{{ row.scriptNames.join("、") }}</t-tag>
+                      <span v-else class="sharedAssetLabel">项目公共库</span>
+                      <span class="cardTime">{{ dayjs((row as any).startTime).format("MM-DD HH:mm") }}</span>
+                    </div>
+                    <p v-if="row.sonAssets?.length" class="cardPrompt">含 {{ row.sonAssets.length }} 条衍生音频</p>
+                  </div>
+                </div>
+                <div v-if="!loading && !tableData.length" class="gridEmpty"><t-icon name="folder-open" size="38px" /><p>还没有音频，点上方「添加音频」收录配音/音效</p></div>
+              </div>
+
+              <div v-if="pagination.total > pagination.pageSize" class="gridPagination">
+                <t-pagination v-model="currentPage" :total="pagination.total" :page-size="pagination.pageSize" :show-page-size="false" @current-change="handleGridPage" />
+              </div>
             </div>
           </div>
         </t-tab-panel>
@@ -481,7 +275,8 @@
         </t-form>
       </div>
       </t-dialog>
-      <library-works v-if="libTab === 'works'" />
+      <library-works v-if="libTab === 'works'" :project-id="selectedProjectId || undefined" />
+      <div v-if="libTab === 'canvas'" class="collectionScopeHint">这里只显示画布收藏。项目生成的视频和导出成片，请到 <button type="button" @click="libTab = 'works'">我的作品 →</button> 查看。</div>
       <library-canvas v-if="libTab === 'canvas'" />
   </div>
 </template>
@@ -491,7 +286,7 @@ import dayjs from "dayjs";
 import modelSelect from "@/components/modelSelect.vue";
 import { useFileDialog } from "@vueuse/core";
 import axios from "@/utils/axios";
-import type { TabValue, TableProps } from "tdesign-vue-next";
+import type { TabValue } from "tdesign-vue-next";
 import addAssets from "./components/addAssets.vue";
 import addAudioAssets from "./components/addAudioAssets.vue";
 import generateImage from "./components/generateImage.vue";
@@ -598,7 +393,7 @@ async function ensureAssetProjectContext() {
   if (!projectId) return !!project.value?.id;
   if (Number(project.value?.id) === projectId) return true;
   try {
-    const { data } = await axios.post("/project/getSingleProject", { id: projectId });
+    const { data } = await axios.post("/general/getSingleProject", { id: projectId });
     const item = Array.isArray(data) ? data[0] : null;
     if (!item) throw new Error("项目不存在或无权访问");
     project.value = item;
@@ -713,13 +508,15 @@ interface Asset {
   describe: string;
   remark: string;
   src: string;
-  type: "role" | "tool" | "scene" | "clip"; // "角色" | "道具" | "场景" | "素材"
+  type: "role" | "tool" | "scene" | "clip" | "audio"; // "角色" | "道具" | "场景" | "素材" | "音频"
   state: string;
   sonAssets?: Asset[]; // 子资产列表
   imageId: number;
   promptState: string;
   filePath: string;
   scriptNames?: string[];
+  startTime?: number | string;
+  sex?: string;
 }
 const tableData = ref<Asset[]>([]);
 // 分页配置
@@ -1009,243 +806,7 @@ function handleBatchDelete() {
 }
 // 父资产表格列配置
 const selectType = props.multiple ? "multiple" : "single";
-const columns: TableProps["columns"] = [
-  {
-    colKey: "row-select",
-    type: selectType,
-    width: 50,
-    align: "center",
-    fixed: "left",
-    disabled: (row: any) => isGenerating(row.row?.id ?? row.id),
-  },
-  {
-    colKey: "src",
-    title: $t("workbench.assets.colPreview"),
-    width: 100,
-    align: "center",
-    cell: "previewWithLoading",
-  },
-  {
-    colKey: "name",
-    title: $t("workbench.assets.colName"),
-    width: 100,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "scriptNames",
-    title: "归属剧本",
-    width: 180,
-    align: "left",
-    ellipsis: true,
-    cell: "scriptNames",
-  },
-  {
-    colKey: "prompt",
-    title: $t("workbench.assets.colPrompt"),
-    width: 200,
-    align: "left",
-    ellipsis: true,
-    cell: "prompt",
-  },
-  {
-    colKey: "describe",
-    title: $t("workbench.assets.colDescribe"),
-    width: 200,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "remark",
-    title: $t("workbench.assets.colRemark"),
-    minWidth: 200,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "startTime",
-    title: $t("workbench.assets.colCreateTime"),
-    width: 200,
-    align: "center",
-    cell: "startTime",
-  },
-  {
-    colKey: "operation",
-    title: $t("workbench.assets.colOperation"),
-    width: 200,
-    align: "center",
-    fixed: "right",
-    cell: "operation",
-  },
-];
-
-// 子资产表格列配置
-const subColumns: TableProps["columns"] = [
-  {
-    colKey: "row-select",
-    type: selectType,
-    width: 50,
-    align: "center",
-    fixed: "left",
-  },
-  {
-    colKey: "src",
-    title: $t("workbench.assets.colPreview"),
-    width: 100,
-    align: "center",
-    cell: "previewWithLoading",
-  },
-  {
-    colKey: "name",
-    title: $t("workbench.assets.colName"),
-    width: 100,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "prompt",
-    title: $t("workbench.assets.colPrompt"),
-    width: 200,
-    align: "left",
-    ellipsis: true,
-    cell: "prompt",
-  },
-  {
-    colKey: "describe",
-    title: $t("workbench.assets.colDescribe"),
-    width: 100,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "remark",
-    title: $t("workbench.assets.colRemark"),
-    minWidth: 150,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "operation",
-    title: $t("workbench.assets.colOperation"),
-    width: 200,
-    align: "center",
-    fixed: "right",
-    cell: "operation",
-  },
-];
-
-//剪辑表格列配置
-const clipColumns: TableProps["columns"] = [
-  { colKey: "row-select", type: "multiple", width: 50, align: "center", fixed: "left" },
-  {
-    colKey: "name",
-    title: $t("workbench.assets.colName"),
-    width: 200,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "describe",
-    title: $t("workbench.assets.colDescribe"),
-    width: 200,
-    align: "left",
-    ellipsis: true,
-  },
-  { colKey: "scriptNames", title: "归属剧本", width: 180, align: "left", ellipsis: true, cell: "scriptNames" },
-  {
-    colKey: "remark",
-    title: $t("workbench.assets.colRemark"),
-    minWidth: 200,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "startTime",
-    title: $t("workbench.assets.colCreateTime"),
-    width: 200,
-    align: "center",
-    cell: "startTime",
-  },
-  {
-    colKey: "operation",
-    title: $t("workbench.assets.colOperation"),
-    width: 180,
-    align: "center",
-    fixed: "right",
-    cell: "operation",
-  },
-];
-const audioColumns: TableProps["columns"] = [
-  { colKey: "row-select", type: selectType, width: 50, align: "center", fixed: "left" },
-  {
-    colKey: "name",
-    title: $t("workbench.assets.audioName"),
-    width: 200,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "sex",
-    title: $t("workbench.assets.sex"),
-    width: 200,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "describe",
-    title: $t("workbench.assets.colDescribe"),
-    width: 200,
-    align: "left",
-    ellipsis: true,
-  },
-  { colKey: "scriptNames", title: "归属剧本", width: 180, align: "left", ellipsis: true, cell: "scriptNames" },
-  {
-    colKey: "startTime",
-    title: $t("workbench.assets.colCreateTime"),
-    width: 200,
-    align: "center",
-    cell: "startTime",
-  },
-  {
-    colKey: "operation",
-    title: $t("workbench.assets.colOperation"),
-    width: 180,
-    align: "center",
-    fixed: "right",
-    cell: "operation",
-  },
-];
-const subAudioColumns: TableProps["columns"] = [
-  {
-    colKey: "row-select",
-    type: selectType,
-    width: 50,
-    align: "center",
-    fixed: "left",
-  },
-  {
-    colKey: "src",
-    title: $t("workbench.assets.colPreview"),
-    width: 100,
-    align: "center",
-    cell: "previewWithLoading",
-  },
-  {
-    colKey: "prompt",
-    title: $t("workbench.assets.audioText"),
-    width: 100,
-    align: "left",
-    ellipsis: true,
-  },
-  {
-    colKey: "operation",
-    title: $t("workbench.assets.colOperation"),
-    width: 200,
-    align: "center",
-    fixed: "right",
-    cell: "operation",
-  },
-];
+// 旧的 t-table 列配置已随表格视图移除（卡片网格不需要列定义）
 // 选择行（正在生成中的行不允许勾选）
 function handleSelectChange(value: Array<string | number>) {
   const filtered = value.filter((key) => !isGenerating(key as number));
@@ -1254,6 +815,38 @@ function handleSelectChange(value: Array<string | number>) {
   } else {
     selectedRowKeys.value = filtered;
   }
+}
+
+// ---- 卡片网格的选择与翻页 ----
+const currentPage = ref(1);
+function toggleCardSelect(id: number) {
+  if (isGenerating(id)) return;
+  if (!props.multiple) {
+    selectedRowKeys.value = selectedRowKeys.value.includes(id) ? [] : [id];
+    return;
+  }
+  handleSelectChange(
+    selectedRowKeys.value.includes(id)
+      ? selectedRowKeys.value.filter((k) => k !== id)
+      : [...selectedRowKeys.value, id],
+  );
+}
+function toggleSubSelect(id: number) {
+  if (!props.multiple) {
+    selectedSubRowKeys.value = selectedSubRowKeys.value.includes(id) ? [] : [id];
+    return;
+  }
+  selectedSubRowKeys.value = selectedSubRowKeys.value.includes(id)
+    ? selectedSubRowKeys.value.filter((k) => k !== id)
+    : [...selectedSubRowKeys.value, id];
+}
+/** 点卡片主体（非按钮区）：多选=切换勾选（选择器语义），预览走图片点击 */
+function handleCardClick(row: Asset) {
+  if (props.selectorMode) toggleCardSelect(row.id);
+}
+function handleGridPage(page: number) {
+  pagination.value.page = page;
+  loadCurrentTabData();
 }
 
 // 批量发送选中资产到画布
@@ -1282,27 +875,6 @@ function sendSingleToCanvas(row: any) {
     return
   }
   sendToCanvas([{ src: row.src, name: row.name, id: row.id }], { from: 'assets' })
-}
-// 子资产选择行
-function handleSubSelectChange(value: Array<string | number>) {
-  if (!props.multiple) {
-    selectedSubRowKeys.value = value.length > 0 ? [value[value.length - 1]] : [];
-  } else {
-    selectedSubRowKeys.value = value;
-  }
-}
-function handleExpandChange(value: Array<string | number>) {
-  if (value.length > 3) {
-    value = value.slice(-3);
-  }
-  expandedRowKeys.value = value;
-}
-
-// 处理分页变化
-function handlePageChange(pageInfo: { current: number; pageSize: number }) {
-  pagination.value.page = pageInfo.current;
-  pagination.value.pageSize = pageInfo.pageSize;
-  loadCurrentTabData();
 }
 // 生成
 const generateImageShow = ref(false);
@@ -1541,383 +1113,224 @@ async function getBigImageUrl(row: Asset, fn: Function) {
 </script>
 
 <style lang="scss" scoped>
+/* 资产中心（项目内视图）：暖橙卡片网格（原 t-table 已移除） */
+.projectLibraryNav { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:16px; }
+.projectLibraryNav > div { display:flex; gap:4px; padding:4px; border:1px solid #eee7df; border-radius:12px; background:#f3f0ec; }
+.projectLibraryNav button { background:transparent; border:0; padding:10px 18px; border-radius:9px; color:#8b8175; cursor:pointer; }
+.projectLibraryNav button.on { background:#fff; color:#be5c31; box-shadow:0 2px 5px #35261908; }
+.projectLibraryNav > span { color:#9c9185; font-size:12px; }
+
 .assets {
-  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  color: #302b28;
 
-  .data {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  .data { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
-    :deep(.t-tabs) {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-
-      .t-tabs__header {
-        background: var(--material-thin);
-        backdrop-filter: var(--blur-heavy);
-        -webkit-backdrop-filter: var(--blur-heavy);
-        border: 1px solid var(--material-border-light);
-        border-radius: 14px;
-        padding: 6px 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      }
-
-      .t-tabs__nav-item {
-        font-size: 13px;
-        font-weight: 500;
-        border-radius: 10px;
-        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        &:hover {
-          background: rgba(0, 212, 255, 0.06);
-        }
-        &.t-is-active {
-          color: #00d4ff;
-          background: rgba(0, 212, 255, 0.08);
-        }
-      }
-
-      .t-tabs__bar {
-        background: linear-gradient(90deg, #00d4ff, #7b61ff);
-        height: 2.5px;
-        border-radius: 2px;
-      }
-
-      .t-tabs__content {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      }
-
-      .t-tab-panel {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      }
+  :deep(.t-tabs) {
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
+    .t-tabs__header {
+      flex: none;
+      border: 1px solid var(--xoi-workspace-border, #eee7e2);
+      border-radius: 14px;
+      padding: 6px 10px;
+      background: #fff;
     }
-
-    .tabLabel {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .t-tabs__nav-item {
+      font-size: 13px; font-weight: 550; border-radius: 10px;
+      transition: color .18s ease, background .18s ease;
+      &:hover { color: #c25c22; background: #fff6ef; }
+      &.t-is-active { color: #dc5f2d; background: #fff0e8; font-weight: 650; }
     }
+    .t-tabs__bar { background: #f26b35; height: 2.5px; border-radius: 2px; }
+    .t-tabs__content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .t-tab-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  }
 
-    .panelContent {
-      margin-top: 16px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+  .tabLabel { display: flex; align-items: center; gap: 8px; }
 
-      .toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 16px;
-        padding: 14px 18px;
-        background: var(--material-thin);
-        backdrop-filter: var(--blur-heavy);
-        -webkit-backdrop-filter: var(--blur-heavy);
-        border: 1px solid var(--material-border-light);
-        border-radius: 14px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  .panelContent {
+    margin-top: 14px;
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
 
-        :deep(.t-button) {
-          border-radius: 10px;
-          font-weight: 500;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          &:hover {
-            transform: translateY(-1px);
-          }
-          &.t-button--theme-primary {
-            background: linear-gradient(135deg, #00d4ff, #7b61ff);
-            border: none;
-            color: #fff;
-            box-shadow: 0 2px 8px rgba(123, 97, 255, 0.25);
-            &:hover {
-              box-shadow: 0 4px 16px rgba(123, 97, 255, 0.35);
-            }
-          }
-        }
+    .toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 12px; flex-wrap: wrap;
+      margin-bottom: 14px; padding: 10px 14px;
+      border: 1px solid var(--xoi-workspace-border, #eee7e2);
+      border-radius: 14px; background: #fff;
 
-        :deep(.t-input) {
-          border-radius: 10px;
-          background: var(--material-regular);
-          backdrop-filter: var(--blur-light);
-          -webkit-backdrop-filter: var(--blur-light);
-          border: 1px solid var(--material-border-light);
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          &:focus-within {
-            border-color: #7b61ff;
-            box-shadow: 0 0 0 3px rgba(123, 97, 255, 0.12);
-          }
-        }
+      :deep(.t-button) { border-radius: 10px; }
+      :deep(.t-button--theme-primary) {
+        border: 0; background: linear-gradient(135deg, #f2803f, #e0641f); color: #fff;
+        box-shadow: 0 6px 14px rgba(224, 100, 31, .18);
+        &:hover { background: linear-gradient(135deg, #f88746, #e96a26); }
       }
-
-      .data {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+      :deep(.t-button--theme-primary.t-button--variant-outline) {
+        border: 1px solid #f0c4a8; background: #fff6ef; color: #d06a33; box-shadow: none;
+        &:hover { border-color: #e8a377; background: #ffefe3; }
       }
-
-      .assetsList {
-        flex: 1;
-        overflow-y: auto;
-        min-height: 0;
-
-        :deep(.t-table) {
-          background: var(--material-thin);
-          backdrop-filter: var(--blur-heavy);
-          -webkit-backdrop-filter: var(--blur-heavy);
-          border: 1px solid var(--material-border-light);
-          border-radius: 14px;
-          overflow: hidden;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1);
-
-          .t-table__header {
-            background: rgba(0, 0, 0, 0.02);
-            th {
-              font-size: 13px;
-              font-weight: 600;
-              border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            }
-          }
-
-          .t-table__body {
-            tr {
-              transition: background 0.2s ease;
-              &:hover {
-                background: rgba(123, 97, 255, 0.04) !important;
-              }
-              td {
-                border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-              }
-            }
-            /* 去掉斑马纹 */
-            tr:nth-child(even) {
-              background: transparent;
-            }
-          }
-
-          /* 滚动条 */
-          .t-table__content {
-            &::-webkit-scrollbar {
-              width: 6px;
-              height: 6px;
-            }
-            &::-webkit-scrollbar-track {
-              background: transparent;
-            }
-            &::-webkit-scrollbar-thumb {
-              background: rgba(0, 0, 0, 0.12);
-              border-radius: 3px;
-              &:hover {
-                background: rgba(0, 0, 0, 0.2);
-              }
-            }
-          }
-        }
-
-        .expandedContent {
-          padding: 16px 24px;
-          border-radius: 10px;
-          margin: 8px 0;
-          background: rgba(0, 0, 0, 0.015);
-        }
-
-        .promptCell {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-
-          .generating-text {
-            font-style: italic;
-            color: #00d4ff;
-          }
-        }
-
-        .generatingImage {
-          flex-direction: column;
-          gap: 6px;
-          cursor: default;
-
-          &:hover {
-            transform: none !important;
-          }
-
-          .generatingLabel {
-            font-size: 11px;
-            color: #00d4ff;
-          }
-        }
-      }
-
-      .previewCell {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 4px 0;
-
-        .imageTrigger {
-          position: relative;
-          width: 72px;
-          height: 72px;
-          border-radius: 10px;
-          overflow: hidden;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-          &:hover {
-            transform: scale(1.08);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-
-            .imageHoverOverlay {
-              opacity: 1;
-            }
-          }
-
-          img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-          }
-
-          .previewImage {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-          }
-
-          .noImage {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.04);
-            color: rgba(0, 0, 0, 0.25);
-          }
-
-          .imageHoverOverlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            color: white;
-
-            .hoverText {
-              font-size: 11px;
-              font-weight: 500;
-            }
-          }
-        }
-
-        .mediaTrigger {
-          position: relative;
-          width: 72px;
-          height: 72px;
-          border-radius: 10px;
-          overflow: hidden;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-          &:hover {
-            transform: scale(1.08);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-
-            .mediaHoverOverlay {
-              opacity: 1;
-            }
-          }
-
-          img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-          }
-
-          &.videoThumb {
-            background: #1a1a2e;
-
-            .thumbVideo {
-              width: 100%;
-              height: 100%;
-              object-fit: cover;
-              pointer-events: none;
-            }
-          }
-
-          &.audioThumb {
-            background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(123, 97, 255, 0.12));
-            color: #6366f1;
-          }
-
-          &.noMedia {
-            cursor: default;
-            background: rgba(0, 0, 0, 0.03);
-
-            &:hover {
-              transform: none;
-            }
-          }
-
-          .mediaHoverOverlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            color: white;
-
-            .hoverText {
-              font-size: 11px;
-              font-weight: 500;
-            }
-          }
-        }
+      :deep(.t-input) {
+        border-radius: 10px; background: #fffdfb; border-color: #eee0d5;
+        &:focus-within { border-color: #eba575; box-shadow: 0 0 0 3px rgba(240, 138, 90, .1); }
       }
     }
   }
+
+  /* ---------- 即梦式资产卡片网格 ---------- */
+  .assetsList { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 2px 10px; }
+
+  .assetGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  .assetCard {
+    display: flex; flex-direction: column;
+    border: 1px solid var(--xoi-workspace-border, #eee7e2);
+    border-radius: 14px; background: #fff;
+    box-shadow: 0 3px 12px #302b2806;
+    overflow: hidden;
+    transition: transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s, border-color .22s;
+
+    &:hover {
+      transform: translateY(-2px);
+      border-color: #e6c3ab;
+      box-shadow: 0 10px 24px #302b2812;
+      .mediaOverlay { opacity: 1; pointer-events: auto; }
+    }
+    &.selected {
+      border-color: #ef9f70;
+      box-shadow: 0 0 0 2px rgba(240, 130, 70, .16), 0 8px 20px #302b2810;
+      .cardBody { background: #fffaf5; }
+    }
+    &.generating .cardMedia { background: linear-gradient(135deg, #fff6ef, #ffefe3); }
+  }
+
+  .cardMedia {
+    position: relative;
+    /* 4:3 + contain：角色三视图/四视图等宽幅定妆照完整可见，不再被裁掉头脚 */
+    aspect-ratio: 4 / 3;
+    background: #f6f0e9;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    cursor: default;
+
+    .cardCheck { position: absolute; top: 9px; left: 9px; z-index: 5; }
+
+    .mediaImg {
+      width: 100%; height: 100%;
+      object-fit: contain; display: block;
+      cursor: zoom-in;
+      transition: transform .25s ease;
+    }
+    &:hover .mediaImg { transform: scale(1.03); }
+
+    .thumbVideo { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+
+    .mediaState {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; width: 100%; height: 100%;
+      color: #b3a294; font-size: 12px;
+      &.generating { color: #d4601f; }
+      &.video, &.audio { color: #b5714c; cursor: pointer; }
+      .playBadge { color: rgba(255,255,255,.94); filter: drop-shadow(0 2px 8px rgba(40,25,15,.4)); }
+    }
+
+    /* 音频卡面：暖色渐变 + 声波条 */
+    &.audioFace {
+      background: linear-gradient(135deg, #f78a4e, #e0641f);
+      cursor: pointer;
+      .audioFaceInner {
+        display: flex; flex-direction: column; align-items: center; gap: 12px;
+        color: rgba(255,255,255,.92);
+        .audioWave { display: flex; align-items: flex-end; gap: 4px; height: 26px;
+          i { width: 4px; border-radius: 2px; background: rgba(255,255,255,.75); animation: audioBar 1.1s ease-in-out infinite; }
+          i:nth-child(1){height:10px} i:nth-child(2){height:22px;animation-delay:.15s} i:nth-child(3){height:14px;animation-delay:.3s} i:nth-child(4){height:24px;animation-delay:.45s}
+        }
+      }
+    }
+
+    .mediaOverlay {
+      position: absolute; inset: auto 0 0 0; z-index: 4;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px;
+      background: linear-gradient(180deg, transparent, rgba(28, 19, 12, .5));
+      opacity: 0; pointer-events: none;
+      transition: opacity .2s ease;
+      :deep(.t-button) { border-color: rgba(255,255,255,.6); color: #fff; background: rgba(255,255,255,.14); backdrop-filter: blur(4px); }
+      :deep(.t-button:hover) { background: rgba(255,255,255,.3); }
+      :deep(.t-button--theme-danger) { border-color: rgba(255,150,140,.7); color: #ffd9d4; }
+    }
+  }
+
+  .cardBody {
+    flex: 1; display: flex; flex-direction: column; gap: 7px;
+    padding: 11px 13px 12px;
+
+    .cardTitle {
+      display: flex; align-items: center; gap: 8px;
+      strong {
+        flex: 1; min-width: 0;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        color: #302b28; font-size: 13.5px; font-weight: 650;
+      }
+      .sexTag { flex: none; padding: 1px 7px; border-radius: 5px; background: #fff1e6; color: #c08a65; font-size: 11px; }
+    }
+
+    .cardScriptRow {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      min-height: 22px;
+      .sharedAssetLabel { color: #b3a294; font-size: 11.5px; }
+      .cardTime { flex: none; color: #b3a294; font-size: 11px; font-variant-numeric: tabular-nums; }
+      :deep(.t-tag) { max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 6px; }
+    }
+
+    .cardPrompt {
+      flex: 1;
+      margin: 0;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; text-overflow: ellipsis;
+      color: #8d8177; font-size: 11.5px; line-height: 1.55;
+      &.generating { color: #d4601f; font-style: italic; }
+    }
+
+    .sonRow {
+      display: flex; align-items: center; gap: 6px;
+      padding-top: 7px; border-top: 1px dashed #f0e4d8;
+      .sonThumb {
+        display: grid; place-items: center;
+        width: 34px; height: 34px; flex: none;
+        border: 2px solid transparent; border-radius: 8px;
+        background: #faf6f1; color: #b3a294;
+        overflow: hidden; cursor: pointer; padding: 0;
+        transition: border-color .18s ease, transform .18s ease;
+        img { width: 100%; height: 100%; object-fit: cover; }
+        &:hover { border-color: #e8b795; transform: translateY(-1px); }
+        &.selected { border-color: #ef9f70; box-shadow: 0 0 0 2px rgba(240,130,70,.14); }
+      }
+      .sonMore { color: #b3a294; font-size: 11px; }
+    }
+  }
+
+  .gridEmpty {
+    grid-column: 1 / -1;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 70px 20px;
+    border: 1px dashed #ecdfd4; border-radius: 16px; background: #fffdfb;
+    color: #b3a294;
+    p { margin: 0; font-size: 13px; }
+  }
+
+  .gridPagination { display: flex; justify-content: center; padding: 14px 0 4px; }
+}
+
+@keyframes audioBar {
+  0%, 100% { transform: scaleY(.55); }
+  50% { transform: scaleY(1); }
 }
 </style>
 
@@ -1929,25 +1342,15 @@ async function getBigImageUrl(row: Asset, fn: Function) {
 </style>
 
 <style lang="scss">
-.assets {
-  box-sizing:border-box; padding:22px 32px 24px; background:radial-gradient(circle at 92% 0,rgba(255,174,119,.15),transparent 22%),linear-gradient(180deg,#faf9fb,#f5f5f7);
-  &.projectOverviewPage { display: block; padding: 0; overflow: auto; }
-  .assetHero { position:relative; min-height:132px; flex:none; margin-bottom:14px; padding:25px 31px; overflow:hidden; border:1px solid rgba(89,76,148,.11); border-radius:23px; background:radial-gradient(circle at 86% 10%,rgba(255,151,91,.27),transparent 25%),linear-gradient(132deg,#fff,#f6f2ff 58%,#fff3ea); box-shadow:0 15px 38px rgba(58,49,99,.07); }
-  .assetHero>div:first-child{position:relative;z-index:2}.assetHero span{color:#e76c2d;font-size:10px;font-weight:750;letter-spacing:.17em}.assetHero h1{margin:8px 0 5px;color:#292733;font-size:32px;line-height:1.05;letter-spacing:-.04em}.assetHero p{margin:0;color:#777482;font-size:13px}
-  .assetHeroArt{position:absolute;top:17px;right:5%;display:flex;align-items:center;gap:7px;transform:rotate(-5deg)}.assetHeroArt i{display:grid;place-items:center;width:82px;height:88px;border-radius:17px;color:#fff;font-size:10px;font-style:normal;font-weight:700;letter-spacing:.1em;box-shadow:0 14px 28px rgba(66,53,108,.15)}.assetHeroArt i:first-child{background:linear-gradient(145deg,#8d7ce8,#5c50b7)}.assetHeroArt i:nth-child(2){margin-top:17px;background:linear-gradient(145deg,#ff9b61,#e75f42)}.assetHeroArt b{position:absolute;left:72px;top:36px;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#fff;color:#544d70;box-shadow:0 7px 15px rgba(60,53,89,.16)}
-  .t-tabs__header{border:1px solid #e8e7ec !important;border-radius:16px !important;background:rgba(255,255,255,.88) !important;box-shadow:0 8px 22px rgba(42,39,58,.045) !important}.t-tabs__nav-item.t-is-active{color:#e9632b !important;background:#fff2ea !important}.t-tabs__bar{background:#f26b35 !important}
-  .panelContent .toolbar{border:1px solid #e8e7ec !important;border-radius:16px !important;background:rgba(255,255,255,.9) !important;box-shadow:0 8px 22px rgba(42,39,58,.045) !important}
-  .assetPrimaryBtn,.assetSearchBtn{border-color:transparent !important;background:linear-gradient(135deg,#ff8847,#f26432) !important;color:#fff !important;box-shadow:0 7px 16px rgba(239,100,48,.18) !important}.assetPrimaryBtn .t-button__text,.assetPrimaryBtn .t-icon,.assetSearchBtn .t-button__text,.assetSearchBtn .t-icon{color:#fff !important}
-  .t-button--theme-primary.t-button--variant-outline:not(:disabled){border-color:#f1a27e !important;background:#fff7f2 !important;color:#df5f29 !important}.t-button--theme-primary.t-button--variant-outline:not(:disabled) .t-button__text,.t-button--theme-primary.t-button--variant-outline:not(:disabled) .t-icon{color:#df5f29 !important}
-  .t-button--theme-primary.t-button--variant-text:not(:disabled){background:transparent !important;color:#e9632b !important;box-shadow:none !important}.t-button--theme-primary.t-button--variant-text:not(:disabled) .t-button__text,.t-button--theme-primary.t-button--variant-text:not(:disabled) .t-icon{color:#e9632b !important}
-  .t-button:disabled{border-color:#e5e4e8 !important;background:#efeff1 !important;color:#9c9aa2 !important}.t-button:disabled .t-button__text,.t-button:disabled .t-icon{color:#9c9aa2 !important}
-  .assetsList .t-table{border:1px solid #e8e7ec !important;border-radius:18px !important;background:#fff !important;box-shadow:0 10px 28px rgba(40,37,54,.055) !important}.assetsList .t-table__header th{background:#f8f8fa !important;color:#55525f !important}.t-pagination__number.t-is-current{border:0 !important;background:#f26b35 !important;color:#fff !important}
-}
-@media(max-width:850px){.assets{padding:16px}.assets .assetHeroArt{right:-55px;opacity:.4}.assets .assetHero>div:first-child{max-width:70%}}
+/* 全局：分页器与主按钮暖橙（卡片网格视图） */
+.t-pagination { margin-top: 12px; }
+.assets .t-pagination__number.t-is-current { border:0 !important; background:#f26b35 !important; color:#fff !important; }
 </style>
 
 <style lang="scss" scoped>
 /* 三库融合顶层切换（项目素材 / 我的作品 / 画布素材） */
+.collectionScopeHint { margin:0 0 12px; padding:10px 14px; background:#fff8f2; border:1px solid #f0e2d5; border-radius:10px; font-size:12px; color:#9c7d65; }
+.collectionScopeHint button { border:0; background:none; color:#bf5a2e; cursor:pointer; }
 .libTabs {
   display: flex;
   align-items: center;
@@ -1961,9 +1364,12 @@ async function getBigImageUrl(row: Asset, fn: Function) {
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 8px 24px rgba(42, 39, 58, 0.04);
 
-  .libTabsBrand { display: flex; flex-direction: column; gap: 3px; min-width: 132px; }
-  .libTabsBrand span { color: #a39ea9; font-size: 9px; font-weight: 750; letter-spacing: .16em; }
-  .libTabsBrand strong { color: #2c2935; font-size: 17px; letter-spacing: -.03em; }
+  .libTabsBrand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  /* 品牌徽标：暖橙渐变方块 + 图层图标，配上下两行文字，拉开与标签按钮的呼吸感 */
+  .libTabsMark { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 11px; background: linear-gradient(135deg, #ff8847, #f26432); color: #fff; box-shadow: 0 5px 12px rgba(224, 100, 31, .28), inset 0 1px 0 rgba(255, 255, 255, .28); }
+  .libTabsText { display: flex; flex-direction: column; gap: 3px; }
+  .libTabsText i { font-style: normal; color: #a89d92; font-size: 9px; font-weight: 750; letter-spacing: .22em; }
+  .libTabsText strong { color: #33291f; font-size: 19px; font-weight: 750; letter-spacing: -.02em; }
   .libTabsItems { display: flex; align-items: center; gap: 4px; }
 
   button {
@@ -2074,4 +1480,16 @@ async function getBigImageUrl(row: Asset, fn: Function) {
     flex-basis: 100%;
   }
 }
+</style>
+
+<style lang="scss" scoped>
+.assets:not(.projectOverviewPage) { padding:20px 24px; background:var(--xoi-workspace-bg,#faf8f6); overflow-y:auto; }
+.assets .libTabs { min-height:58px; margin-bottom:12px; padding:9px 14px 9px 18px; border-color:var(--xoi-workspace-border,#eee7e2); border-radius:14px; background:#fff; box-shadow:none; }
+.assets .libTabs button { padding:8px 12px; border-radius:10px; }
+.assets .assetProjectNav { margin:0 0 12px; padding:0 4px; }
+.assets .assetScopeBar { border-color:var(--xoi-workspace-border,#eee7e2); border-radius:14px; background:#fff; box-shadow:none; }
+.assets :deep(.t-tabs__header),.assets .toolbar { border-color:var(--xoi-workspace-border,#eee7e2) !important; border-radius:14px !important; background:#fff !important; box-shadow:none !important; }
+.assets .toolbar { gap:12px; flex-wrap:wrap; }
+.assets .toolbar :deep(.t-space) { flex-wrap:wrap; }
+@media(max-width:700px) { .assets:not(.projectOverviewPage) { padding:14px; } .assets .libTabsItems { max-width:100%; overflow:auto; } .assets .toolbar > .f { max-width:100%; } .assets .toolbar :deep(.t-input__wrap) { min-width:0; flex:1; } }
 </style>

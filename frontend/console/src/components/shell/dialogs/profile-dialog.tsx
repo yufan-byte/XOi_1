@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useSelf } from "@/lib/queries";
 import { useApp } from "@/store/app";
-import { cn, fmtCny, quotaToUsd } from "@/lib/utils";
+import { cn, quotaToUsd, fmtPoints } from "@/lib/utils";
 import { useBot } from "@/components/agents/super/bot-store";
 import { BotAvatar } from "@/components/agents/super/bot-avatar";
 import { BotDialog } from "@/components/agents/super/bot-dialog";
@@ -74,8 +74,8 @@ function ProfileTab() {
       <section>
         <SectionHead title="个人资料" sub="账号、安全与绑定状态" />
         <div className="my-[22px] flex items-center justify-between rounded-[10px] border border-border/60 bg-card/40 px-[17.6px] py-[13.2px]">
-          <span className="text-[13.2px] font-medium leading-[17.6px] text-muted-foreground">算力余额</span>
-          <span className="font-mono text-[15.4px] font-semibold leading-[22px] text-[oklch(0.769_0.188_70.08)]">{balance == null ? "…" : fmtCny(balance)}</span>
+          <span className="text-[13.2px] font-medium leading-[17.6px] text-muted-foreground">积分余额</span>
+          <span className="font-mono text-[15.4px] font-semibold leading-[22px] text-[oklch(0.769_0.188_70.08)]">{balance == null ? "…" : fmtPoints(balance)}</span>
         </div>
         <form onSubmit={save}>
           <div className="mb-[17.6px] flex items-center gap-[17.6px]">
@@ -142,7 +142,7 @@ function SecurityTab() {
         <form className="mt-[22px]" onSubmit={changePw}>
           <div className="mb-[17.6px] flex flex-col gap-[8.8px]">
             <div role="tablist" className="flex h-[56px] rounded-[6px] border border-black/[0.06] bg-[linear-gradient(rgba(255,255,255,0.45),rgba(255,255,255,0.48))] p-[3px] text-muted-foreground shadow-[0_1px_0_rgba(17,17,17,0.05)] dark:border-white/[0.06] dark:bg-none">
-              {([["password", "原密码修改"], ["sms", "短信验证修改"]] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={mode === k} onClick={() => setMode(k)} className={cn("flex h-[48px] flex-1 items-center justify-center gap-[6.6px] rounded-[4px] border px-[8.8px] py-[4.4px] text-[15.4px] font-semibold leading-[22px] transition-colors", mode === k ? "border-primary/30 bg-[linear-gradient(rgba(124,57,237,0.14),rgba(124,57,237,0.08))] text-foreground" : "border-transparent text-foreground/60 hover:text-foreground")}>{l}</button>)}
+              {([["password", "原密码修改"], ["sms", "短信验证修改"]] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={mode === k} onClick={() => setMode(k)} className={cn("flex h-[48px] flex-1 items-center justify-center gap-[6.6px] rounded-[4px] border px-[8.8px] py-[4.4px] text-[15.4px] font-semibold leading-[22px] transition-colors", mode === k ? "border-primary/30 bg-primary-tint text-foreground" : "border-transparent text-foreground/60 hover:text-foreground")}>{l}</button>)}
             </div>
             {!phone && <p className="text-[13.2px] font-medium leading-[17.6px] text-muted-foreground">当前账号未绑定手机号</p>}
             {mode === "password" && <div role="tabpanel"><PwField id="pw-cur" label="当前密码" value={pw.cur} onChange={(v) => setPw({ ...pw, cur: v })} placeholder="••••••••" auto="current-password" /></div>}
@@ -165,7 +165,7 @@ function PrefsTab() {
     <div>
       <div>
         <AccountSectionTitle>主题</AccountSectionTitle>
-        <div className="grid gap-[8.8px]">{opts.map(([k, l, I]) => <button key={k} type="button" onClick={() => setTheme(k)} className={cn("flex h-[50px] items-center gap-[8.8px] rounded-[10px] border px-[17.6px] py-[13.2px] text-[15.4px] font-medium leading-[22px] transition-colors", (theme ?? "system") === k ? "border-primary/40 bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(124,57,237,0.06)]" : "border-border bg-muted text-muted-foreground hover:text-foreground")}><I className="h-[18px] w-[18px]" />{l}</button>)}</div>
+        <div className="grid gap-[8.8px]">{opts.map(([k, l, I]) => <button key={k} type="button" onClick={() => setTheme(k)} className={cn("flex h-[50px] items-center gap-[8.8px] rounded-[10px] border px-[17.6px] py-[13.2px] text-[15.4px] font-medium leading-[22px] transition-colors", (theme ?? "system") === k ? "border-primary/40 bg-primary-tint text-primary" : "border-border bg-muted text-muted-foreground hover:text-foreground")}><I className="h-[18px] w-[18px]" />{l}</button>)}</div>
       </div>
       <div className="mt-[17.6px] border-t border-border pt-[17.6px]">
         <AccountSectionTitle>Bot 形象</AccountSectionTitle>

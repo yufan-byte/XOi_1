@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { localForageStorage } from "@/lib/localforage-storage";
 
 import { directAIProviderForProtocol, type DirectAIProvider, type ModelChannelProtocol } from "@/lib/model-channel";
 import { apiGet } from "@/services/api/request";
@@ -180,7 +181,9 @@ type ConfigStore = {
 };
 
 function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSettings["modelChannel"] | null, canUseRemoteChannel: boolean) {
-    const channelMode = canUseRemoteChannel ? (modelChannel?.allowCustomChannel ? config.channelMode : "remote") : "local";
+    // XOi 的模型由宿主网关下发到 server 渠道，画布的公开设置不能覆盖这份选择。
+    const hasServerChannel = config.localChannels.some((channel) => channel.id === "server");
+    const channelMode = hasServerChannel ? "local" : canUseRemoteChannel ? (modelChannel?.allowCustomChannel ? config.channelMode : "remote") : "local";
     if (channelMode === "local" || !modelChannel) {
         const localChannels = normalizeLocalChannels(config);
         return {
@@ -402,6 +405,7 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
+            storage: createJSONStorage(() => localForageStorage),
             partialize: (state) => ({ config: state.config }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;

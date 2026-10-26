@@ -1,6 +1,7 @@
 "use client";
 
 import localforage from "localforage";
+import { ownerDbName } from "@/xoi/owner";
 import { nanoid } from "nanoid";
 
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
@@ -10,7 +11,7 @@ import { useUserStore } from "@/stores/use-user-store";
 
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number };
 
-const store = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
+const store = localforage.createInstance({ name: ownerDbName("files"), storeName: "media_files" });
 const objectUrls = new Map<string, string>();
 let storageConfigPromise: Promise<StorageConfig> | null = null;
 

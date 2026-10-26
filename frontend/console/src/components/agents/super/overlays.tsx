@@ -12,7 +12,7 @@ export function OmniDialog({ open, onOpenChange, title, description, className, 
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-50 bg-white/60 bg-[radial-gradient(48%_42%_at_50%_0,rgba(124,57,237,0.12),transparent_72%)] backdrop-blur-[18px] backdrop-saturate-[1.08] animate-in fade-in-0" />
+        <D.Overlay className="fixed inset-0 z-50 bg-white/60 backdrop-blur-sm animate-in fade-in-0 dark:bg-black/50" />
         <D.Content className={cn("fixed left-1/2 top-1/2 z-50 grid max-h-[calc(100vh-35.2px)] w-[min(460px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[14px] bg-black/[0.09] p-[1.4px] font-medium shadow-[0_1px_3px_rgba(255,255,255,0.22),0_20px_46px_-20px_rgba(255,255,255,0.55)] outline-none animate-in fade-in-0 zoom-in-95", className)}>
           <div className={cn("min-h-0 overflow-y-auto rounded-[12.6px] bg-card p-[22px]", panelClassName)}>
             <D.Title className={headless ? "sr-only" : "text-[14px] font-[650] leading-none tracking-[-0.01em]"}>{title}</D.Title>
@@ -62,7 +62,7 @@ export const PK = {
   input: "min-w-0 flex-1 bg-transparent text-[12px] leading-[19.2px] text-foreground outline-none placeholder:text-muted-foreground",
   vendor: "flex h-[32px] shrink-0 items-center gap-[5px] rounded-[2px] border border-black/[0.055] bg-white px-[10px] text-[11.5px] leading-[18.4px] text-muted-foreground",
   scroll: "min-h-0 flex-1 overflow-y-auto px-[12px] pb-[14px]",
-  row: (sel: boolean) => cn("flex w-full items-center gap-[12px] rounded-[10px] border px-[12px] py-[10px] text-left transition-colors", sel ? "border-[rgba(144,96,251,0.35)] bg-[rgba(97,35,192,0.14)]" : "border-transparent hover:bg-foreground/[0.04]"),
+  row: (sel: boolean) => cn("flex w-full items-center gap-[12px] rounded-[10px] border px-[12px] py-[10px] text-left transition-colors", sel ? "border-primary/35 bg-primary-tint" : "border-transparent hover:bg-foreground/[0.04]"),
   ic: "grid h-[32px] w-[32px] shrink-0 place-items-center rounded-[2px] border border-black/[0.055] bg-white text-primary",
   name: "block truncate text-[12.5px] font-bold leading-[20px] tracking-[0.05em]",
   desc: "mt-[2px] block truncate text-[11.5px] leading-[18.4px] text-muted-foreground",

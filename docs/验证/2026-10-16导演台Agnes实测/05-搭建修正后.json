@@ -1,0 +1,545 @@
+{
+  "startedAt": "2026-10-16T10:52:21.152Z",
+  "model": "newapi:agnes-2.5-flash",
+  "projectId": "director3d-u1-agnes-live-20261016",
+  "realRequests": true,
+  "fixtures": false,
+  "cases": [
+    {
+      "mode": "搭场景",
+      "intent": "请搭建一个简单的桌边对话场景：在现有场景里增加两个人物，分别叫记者和受访者，中间一张桌子，两张椅子。两人相对，坐着交谈。设置一个能同时拍到两人的中景机位。保留原有物体，只用白模，最多8条操作。",
+      "seconds": 12.84,
+      "error": [],
+      "text": "桌边对话白模场景搭建\n\n新增桌子、两把椅子、记者和受访者人物，设置坐着姿势并相对摆放，调整相机为中景机位涵盖两人及桌面。\n\n添加 桌子\n添加 椅子1\n添加 椅子2\n添加 记者\n添加 受访者\n调整 记者 的姿势\n调整 受访者 的姿势\n设置主摄像机 · 50mm\n使用默认人物主角作为占位，请确认是否需要单独创建记者与受访者角色\n现有主角在走动中，可能影响构图，如不需可后续调整或删除\n\n应用到新版本镜头；原镜头、素材和动作保留，可撤销。精细材质、服装与表情需后续制作。\n\n应用为新版本镜头",
+      "success": true,
+      "application": {
+        "shotAdded": true,
+        "previewVerified": true,
+        "objects": 8
+      },
+      "objects": [
+        {
+          "id": "actor-lead",
+          "name": "人物 · 主角",
+          "type": "person",
+          "pose": "walk",
+          "position": [
+            -1.25,
+            0,
+            0.3
+          ]
+        },
+        {
+          "id": "block-stage",
+          "name": "平台",
+          "type": "box",
+          "position": [
+            1.4,
+            0.45,
+            -0.8
+          ]
+        },
+        {
+          "id": "block-step",
+          "name": "台阶",
+          "type": "box",
+          "position": [
+            2.9,
+            0.18,
+            0.55
+          ]
+        },
+        {
+          "id": "object-assistant-72e763dd-c525-4f6a-bd40-95c69b83167b",
+          "name": "桌子",
+          "type": "table",
+          "position": [
+            0,
+            0.44,
+            0
+          ]
+        },
+        {
+          "id": "object-assistant-83618ddb-e2f9-44fa-a447-bf4eda1a7dfc",
+          "name": "椅子1",
+          "type": "chair",
+          "position": [
+            -1,
+            0.51,
+            0
+          ]
+        },
+        {
+          "id": "object-assistant-54633a24-9e4d-4129-a5a9-ed167c5e92ed",
+          "name": "椅子2",
+          "type": "chair",
+          "position": [
+            1,
+            0.51,
+            0
+          ]
+        },
+        {
+          "id": "object-assistant-008db9c2-c7a7-4f2e-b5a6-809058b49095",
+          "name": "记者",
+          "type": "person",
+          "pose": "sit",
+          "position": [
+            -1,
+            0,
+            0
+          ]
+        },
+        {
+          "id": "object-assistant-acc58d5e-747c-441b-afeb-cdb354458ab5",
+          "name": "受访者",
+          "type": "person",
+          "pose": "sit",
+          "position": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "traffic": [
+    {
+      "path": "/api/billing/preview",
+      "status": 200,
+      "data": {
+        "data": {
+          "label": "AI 场景搭建与调整",
+          "kind": "text",
+          "agent": "universalAi",
+          "model": "agnes-2.5-flash",
+          "modelId": "agnes-2.5-flash",
+          "free": true,
+          "count": 1,
+          "quote": {
+            "yuan": 0,
+            "points": 0,
+            "pointsPerYuan": 10,
+            "estimated": true,
+            "referenceVideoAdjustment": null,
+            "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+            "pricingVersion": ""
+          },
+          "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+          "unknown": false,
+          "budget": {
+            "defaultPoints": 0.001,
+            "maxPoints": 1000,
+            "maxCalls": 1,
+            "maxOutputTokens": 4096,
+            "minutes": 30
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/authorize",
+      "status": 200,
+      "data": {
+        "data": {
+          "id": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+          "limitPoints": 0.001,
+          "maxCalls": 1,
+          "expiresAt": "2026-10-16T11:22:33.022Z",
+          "freeOnly": true
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T11:22:33.022Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T11:22:33.022Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/aiAssistant/director/compose",
+      "status": 200,
+      "data": {
+        "code": 200,
+        "data": {
+          "plan": {
+            "name": "桌边对话白模场景搭建",
+            "summary": "新增桌子、两把椅子、记者和受访者人物，设置坐着姿势并相对摆放，调整相机为中景机位涵盖两人及桌面。",
+            "warnings": [
+              "使用默认人物主角作为占位，请确认是否需要单独创建记者与受访者角色",
+              "现有主角在走动中，可能影响构图，如不需可后续调整或删除"
+            ],
+            "actions": [
+              {
+                "kind": "add",
+                "ref": "new-table",
+                "name": "桌子",
+                "type": "table",
+                "position": [
+                  0,
+                  0.44,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-chair-1",
+                "name": "椅子1",
+                "type": "chair",
+                "position": [
+                  -1,
+                  0.51,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0.3,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-chair-2",
+                "name": "椅子2",
+                "type": "chair",
+                "position": [
+                  1,
+                  0.51,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  -2.84,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-reporter",
+                "name": "记者",
+                "type": "person",
+                "position": [
+                  -1,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0.3,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-interviewee",
+                "name": "受访者",
+                "type": "person",
+                "position": [
+                  1,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  -2.84,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "pose",
+                "objectId": "new-reporter",
+                "pose": "sit"
+              },
+              {
+                "kind": "pose",
+                "objectId": "new-interviewee",
+                "pose": "sit"
+              },
+              {
+                "kind": "camera",
+                "position": [
+                  0,
+                  2.5,
+                  4.5
+                ],
+                "target": [
+                  0,
+                  1,
+                  0
+                ],
+                "focalLength": 50
+              }
+            ]
+          },
+          "projectId": "director3d-u1-agnes-live-20261016",
+          "activeShotId": "shot-01"
+        },
+        "message": "成功"
+      },
+      "input": {
+        "task": "build",
+        "intent": "请搭建一个简单的桌边对话场景：在现有场景里增加两个人物，分别叫记者和受访者，中间一张桌子，两张椅子。两人相对，坐着交谈。设置一个能同时拍到两人的中景机位。保留原有物体，只用白模，最多8条操作。",
+        "scene": {
+          "projectId": "director3d-u1-agnes-live-20261016",
+          "activeShotId": "shot-01",
+          "name": "Agnes 免费实测 · 桌边对话",
+          "fps": 24,
+          "durationSeconds": 15,
+          "aspectRatio": "16:9",
+          "camera": {
+            "position": [
+              7.4,
+              4.6,
+              8.2
+            ],
+            "rotation": [
+              -0.30203991498414945,
+              0.7205541358442417,
+              0
+            ],
+            "focalLength": 42
+          },
+          "objects": [
+            {
+              "id": "actor-lead",
+              "name": "人物 · 主角",
+              "type": "person",
+              "position": [
+                -1.25,
+                0,
+                0.3
+              ],
+              "rotation": [
+                0,
+                0.25,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "walk",
+              "locked": false
+            },
+            {
+              "id": "block-stage",
+              "name": "平台",
+              "type": "box",
+              "position": [
+                1.4,
+                0.45,
+                -0.8
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                2.8,
+                0.9,
+                2.1
+              ],
+              "pose": "",
+              "locked": false
+            },
+            {
+              "id": "block-step",
+              "name": "台阶",
+              "type": "box",
+              "position": [
+                2.9,
+                0.18,
+                0.55
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                1.7,
+                0.36,
+                1.1
+              ],
+              "pose": "",
+              "locked": false
+            }
+          ],
+          "cameraKeyframes": [],
+          "lighting": {
+            "ambientIntensity": 1.35,
+            "keyIntensity": 2.8,
+            "fillIntensity": 1.1,
+            "keyAzimuth": 39,
+            "keyElevation": 51,
+            "exposure": 0.9,
+            "ambientColor": "#f7f1e6",
+            "keyColor": "#fff6e8",
+            "fillColor": "#a9c2c6"
+          },
+          "shotNames": [
+            "镜头 01"
+          ]
+        },
+        "history": [],
+        "model": "newapi:agnes-2.5-flash"
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "72",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792147965
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T11:22:33.022Z"
+          }
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "preflight": {
+    "data": {
+      "label": "AI 场景搭建与调整",
+      "kind": "text",
+      "agent": "universalAi",
+      "model": "agnes-2.5-flash",
+      "modelId": "agnes-2.5-flash",
+      "free": true,
+      "count": 1,
+      "quote": {
+        "yuan": 0,
+        "points": 0,
+        "pointsPerYuan": 10,
+        "estimated": true,
+        "referenceVideoAdjustment": null,
+        "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+        "pricingVersion": ""
+      },
+      "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+      "unknown": false,
+      "budget": {
+        "defaultPoints": 0.001,
+        "maxPoints": 1000,
+        "maxCalls": 1,
+        "maxOutputTokens": 4096,
+        "minutes": 30
+      }
+    }
+  },
+  "quotaBefore": "5103444130",
+  "budgets": [
+    {
+      "billing_id": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true
+    }
+  ],
+  "logs": [
+    {
+      "request_id": "202610161052345386472138268d9d6DRPjr1x8",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    }
+  ],
+  "quotaAfter": "5103444130",
+  "completedAt": "2026-10-16T10:52:47.990Z"
+}

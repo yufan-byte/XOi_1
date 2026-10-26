@@ -69,6 +69,19 @@ const appBuildConfig: esbuild.BuildOptions = {
     console.log("🧭 路由表已生成: src/router.ts");
 
     await esbuild.build(appBuildConfig);
+    // Ship the operator-run migration CLI in the same immutable release as the app.
+    // Runtime images deliberately do not contain TypeScript sources or tsx.
+    await esbuild.build({
+      ...appBuildConfig,
+      entryPoints: ["scripts/migrate-canvas-postgres.ts"],
+      outfile: "data/serve/migrate-canvas-postgres.js",
+      external: [...external, "knex"],
+    });
+    await esbuild.build({
+      ...appBuildConfig,
+      entryPoints:["scripts/migrate-site-config.ts"],
+      outfile:"data/serve/migrate-site-config.js",
+    });
 
     // svg-captcha resolves its bundled font relative to the compiled app.
     // Docker copies this asset in its image stage; keep local/VM production

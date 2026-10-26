@@ -64,6 +64,8 @@ token / role / userId / displayId / username
 
 ## 开发
 
+本地 `dev` / `preview` 均复用仓库根目录启动器，只使用 `http://localhost:10588`。控制台从 `/console/` 访问，不另开网页预览端口。修改源码后构建并同步产物到后端。
+
 ```bash
 cd frontend/console
 npm install

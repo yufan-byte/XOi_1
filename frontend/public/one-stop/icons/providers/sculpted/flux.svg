@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <title>FLUX - Offset Peaks</title>
+  <defs>
+    <linearGradient id="fx-front" x1="95" y1="31" x2="123" y2="222" gradientUnits="userSpaceOnUse">
+      <stop stop-color="hsl(30 15% 99%)"/><stop offset=".37" stop-color="hsl(210 5% 87%)"/><stop offset=".76" stop-color="hsl(210 5% 65%)"/><stop offset="1" stop-color="hsl(210 5% 83%)"/>
+    </linearGradient>
+    <linearGradient id="fx-back" x1="96" y1="92" x2="181" y2="221" gradientUnits="userSpaceOnUse">
+      <stop stop-color="hsl(210 6% 51%)"/><stop offset=".36" stop-color="hsl(210 5% 20%)"/><stop offset=".76" stop-color="hsl(210 6% 42%)"/><stop offset="1" stop-color="hsl(210 5% 61%)"/>
+    </linearGradient>
+    <linearGradient id="fx-ridge" x1="139" y1="58" x2="209" y2="176" gradientUnits="userSpaceOnUse">
+      <stop stop-color="hsl(30 12% 98%)"/><stop offset=".4" stop-color="hsl(210 6% 68%)"/><stop offset=".46" stop-color="hsl(210 6% 42%)"/><stop offset="1" stop-color="hsl(210 5% 88%)"/>
+    </linearGradient>
+  </defs>
+  <g stroke="hsl(210 5% 55%)" stroke-width="1.1" stroke-linejoin="round">
+    <path d="m23 204 87-175 27 24-66 126 54-10 20 35-91 27Z" fill="url(#fx-front)"/>
+    <path d="m110 29 6 40-62 162-31-27 48-25 66-126Z" fill="url(#fx-back)" opacity=".4"/>
+    <path d="m108 113 27-29 64 136-33 12-58-119Z" fill="url(#fx-front)"/>
+    <path d="m108 113 26 9 65 98-33 12Z" fill="url(#fx-back)"/>
+    <path d="m158 75 29-24 47 96-25 27Z" fill="url(#fx-ridge)"/>
+    <path d="m158 75 31 11 45 61-25 27Z" fill="url(#fx-back)" opacity=".45"/>
+    <path d="m200 24 21 11-10 20-21-12Z" fill="url(#fx-front)"/>
+  </g>
+  <path d="m25 202 85-171m-37 149 51-9 18 31m-30-89 22-26 61 129m-34-141 25-21 44 90" stroke="hsl(30 15% 99%)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="m72 179-18 52m80-109 32 110m23-146 20 88" stroke="hsl(210 6% 71%)" stroke-width="1.2"/>
+</svg>

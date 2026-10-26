@@ -6,6 +6,7 @@ import { error, success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
 import { assertScriptInProject, linkAssetToScript } from "@/utils/assetScope";
+import { isUsablePrompt } from "@/utils/promptQuality";
 
 const router = express.Router();
 
@@ -78,6 +79,9 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
   const { projectId, model, resolution, id, type, name, prompt, base64, scriptId } = req.body;
   await assertScriptInProject(projectId, scriptId);
   await linkAssetToScript(id, scriptId);
+  // 出图前置闸门：没有提示词 / 提示词其实是模型拒答，都直接拦下，别浪费图片额度。
+  if (!String(prompt ?? "").trim()) return res.status(400).send(error("该资产还没有提示词，请先生成提示词再出图"));
+  if (!isUsablePrompt(prompt)) return res.status(400).send(error("该资产的提示词不是可出图的画面描述（疑似模型拒答或内容过短），请重新生成提示词"));
   const userId = (req as any).user?.id;
 
   // 检查积分是否足够（不扣分，只检查）

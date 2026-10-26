@@ -56,10 +56,10 @@ export interface ProgressCounter {
   total: number;
 }
 
-/** 按项目类型过滤出该项目真正会经过的站点 */
+/** 主进度只统计必经环节；AI 改编是小说项目的可选支线，不制造“未完成一步”的压力。 */
 export function visibleSteps(projectType?: string | null): PipelineStep[] {
   const isScript = projectType === "script";
-  return PIPELINE_STEPS.filter((step) => !(isScript && step.novelOnly));
+  return PIPELINE_STEPS.filter((step) => step.id !== "scriptAgent" && !(isScript && step.novelOnly));
 }
 
 export function getStep(id: PipelineStepId): PipelineStep | undefined {
@@ -68,6 +68,7 @@ export function getStep(id: PipelineStepId): PipelineStep | undefined {
 
 /** 该项目里 current 的下一站；已是终站返回 undefined */
 export function getNextStep(id: PipelineStepId, projectType?: string | null): PipelineStep | undefined {
+  if (id === "scriptAgent") return getStep("script");
   const list = visibleSteps(projectType);
   const idx = list.findIndex((step) => step.id === id);
   if (idx < 0 || idx >= list.length - 1) return undefined;

@@ -1,0 +1,1 @@
+import{c}from"./createLucideIcon-YWeSVmM3.js";const o=[["path",{d:"M20 6 9 17l-5-5",key:"1gmf2c"}]],a=c("check",o);const e=[["path",{d:"M5 12h14",key:"1ays0h"}],["path",{d:"M12 5v14",key:"s699le"}]],d=c("plus",e);const t=[["path",{d:"M18 6 6 18",key:"1bl5f8"}],["path",{d:"m6 6 12 12",key:"d8bk6v"}]],n=c("x",t);export{a as C,d as P,n as X};

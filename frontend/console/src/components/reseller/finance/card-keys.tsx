@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Copy, CopyCheck, Search, Ticket, Wallet, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, CopyCheck, Download, Search, Ticket, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,25 @@ async function copyKeys(keys: string[], what: string) {
   try { await navigator.clipboard.writeText(keys.join("\n")); toast.success(`已复制${what} ${keys.length} 张卡密`); } catch { toast.error("复制失败，请检查浏览器剪贴板权限"); }
 }
 
+/** 导出卡密 CSV（含批次备注/状态/面值），发给培训客户对账用；带 BOM，Excel 打开不乱码 */
+function exportKeysCsv(rows: CardKey[]) {
+  if (!rows.length) { toast.error("没有可导出的卡密"); return; }
+  const STATUS_CN: Record<number, string> = { 1: "未使用", 2: "已禁用", 3: "已使用" };
+  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const lines = [["卡密", "批次备注", "面值(元)", "状态", "创建时间", "过期时间"].join(","), ...rows.map((r) => [esc(r.key), esc(r.name || ""), r.amount, esc(r.expired ? "已过期" : STATUS_CN[r.status] ?? "未知"), esc(new Date(r.createdAt).toLocaleString("zh-CN")), esc(r.expiredAt ? new Date(r.expiredAt).toLocaleString("zh-CN") : "永不过期")].join(","))];
+  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `卡密-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast.success(`已导出 ${rows.length} 张卡密`);
+}
+
 /** 卡密：new-api 兑换码批量生成 + 列表；variant="legacy" 为旧版菜单「卡密管理」布局
  *  生成后可一键复制整批；列表可勾选（跨页保留勾选）后复制所选 */
 export function CardKeysTab({ wallet, variant }: { wallet: number; variant?: "legacy" }) {
-  const qc = useQueryClient(); const list = useQuery({ queryKey: ["reseller", "card-keys"], queryFn: () => api<CardKey[]>("/api/reseller/redemption") });
+  const qc = useQueryClient();
   /** 平台（站长/管理员）发码 = 发行凭证，不从任何钱包扣款，因此不校验、也不显示钱包余额。
    *  代理发码才是「从自己钱包按面值买下再转卖」，那才需要余额校验。 */
   const me = useResellerMe(); const isPlatform = me.data?.scope === "platform";
@@ -32,6 +47,16 @@ export function CardKeysTab({ wallet, variant }: { wallet: number; variant?: "le
   const [lastBatch, setLastBatch] = useState<string[]>([]);
   /** 勾选的卡密（按 key 记，翻页 / 搜索不清空） */
   const [sel, setSel] = useState<string[]>([]); const [page, setPage] = useState(1);
+  /** 分页策略：无搜索词 → 服务端真分页（卡密多了列表不卡）；有搜索词 → 全量拉回在前端过滤 */
+  const [serverPage, setServerPage] = useState(1);
+  const searching = kw.trim().length > 0;
+  const list = useQuery<{ items?: CardKey[]; total?: number } | CardKey[]>({
+    queryKey: ["reseller", "card-keys", serverPage, kw],
+    queryFn: async () => (searching
+      ? await api<CardKey[]>("/api/reseller/redemption")
+      : await api<{ items: CardKey[]; total: number }>(`/api/reseller/redemption?page=${serverPage}&page_size=${PAGE}`)),
+  });
+  const serverTotal = !searching && list.data && !Array.isArray(list.data) ? Number((list.data as { total?: number }).total ?? 0) : 0;
   const total = (Number(count) || 0) * (Number(amount) || 0);
   const submit = async () => {
     const c = Math.floor(Number(count)), a = Number(amount), dd = Math.floor(Number(days));
@@ -45,12 +70,20 @@ export function CardKeysTab({ wallet, variant }: { wallet: number; variant?: "le
       const r = await api<{ keys: string[] }>("/api/reseller/redemption", { method: "POST", body: JSON.stringify({ count: c, amount: a, days: dd, name }) });
       setLastBatch(r.keys); setPage(1);
       toast.success(`已生成 ${r.keys.length} 张卡密`, { action: { label: "一键复制整批", onClick: () => void copyKeys(r.keys, "本批") } });
-      setCount(""); setAmount(""); setName(""); qc.invalidateQueries({ queryKey: ["reseller", "card-keys"] }); qc.invalidateQueries({ queryKey: ["self"] });
+      setCount(""); setAmount(""); setName(""); setServerPage(1); setPage(1); qc.invalidateQueries({ queryKey: ["reseller", "card-keys"] }); qc.invalidateQueries({ queryKey: ["self"] });
     }
     catch (e) { toast.error(`生成失败：${(e as Error).message}`); } finally { setBusy(false); }
   };
-  const rows = useMemo(() => { const k = kw.trim().toLowerCase(); return (list.data ?? []).filter((r) => !k || r.key.toLowerCase().includes(k) || r.name.toLowerCase().includes(k)); }, [list.data, kw]);
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE)); const cur = Math.min(page, pages); const pageRows = rows.slice((cur - 1) * PAGE, cur * PAGE);
+  const allRows = useMemo(() => {
+    const d = list.data as unknown;
+    const arr = Array.isArray(d) ? d : ((d as { items?: CardKey[] })?.items ?? []);
+    const k = kw.trim().toLowerCase();
+    return arr.filter((r) => !k || r.key.toLowerCase().includes(k) || r.name.toLowerCase().includes(k));
+  }, [list.data, kw]);
+  const pages = Math.max(1, Math.ceil((searching ? allRows.length : serverTotal || allRows.length) / PAGE));
+  const cur = Math.min(searching ? page : serverPage, pages);
+  const pageRows = searching ? allRows.slice((cur - 1) * PAGE, cur * PAGE) : allRows;
+  const rows = pageRows;
   const pageAll = pageRows.length > 0 && pageRows.every((r) => sel.includes(r.key));
   const togglePage = () => setSel(pageAll ? sel.filter((k) => !pageRows.some((r) => r.key === k)) : [...sel, ...pageRows.filter((r) => !sel.includes(r.key)).map((r) => r.key)]);
   const toggle = (k: string) => setSel(sel.includes(k) ? sel.filter((x) => x !== k) : [...sel, k]);
@@ -74,15 +107,15 @@ export function CardKeysTab({ wallet, variant }: { wallet: number; variant?: "le
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-4 py-2 text-xs">
       <span className="text-muted-foreground">已选 <b className="text-foreground">{sel.length}</b> 张{sel.length > 0 && pages > 1 ? "（含其它页）" : ""} · 勾选后可跨页复制</span>
       <span className="flex items-center gap-1.5">
-        <button type="button" disabled={!sel.length} onClick={() => void copyKeys(rows.filter((r) => sel.includes(r.key)).map((r) => r.key).concat(sel.filter((k) => !rows.some((r) => r.key === k))), "所选")} className="chip h-8 px-3 text-xs text-primary hover:bg-muted disabled:opacity-50"><Copy size={13} />复制所选</button>
+        <button type="button" disabled={!sel.length} onClick={() => void copyKeys(sel, "所选")} className="chip h-8 px-3 text-xs text-primary hover:bg-muted disabled:opacity-50"><Copy size={13} />复制所选</button>
         <button type="button" disabled={!sel.length} onClick={() => setSel([])} className="chip h-8 px-3 text-xs hover:bg-muted disabled:opacity-50">清除选择</button>
       </span>
     </div>
   );
   const pager = pages > 1 && (
     <div className="flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
-      <span>第 {cur} / {pages} 页 · 共 {rows.length} 条</span>
-      <span className="flex items-center gap-1"><button type="button" disabled={cur <= 1} onClick={() => setPage(cur - 1)} className="icon-btn h-8 w-8 hover:bg-muted disabled:opacity-40" aria-label="上一页"><ChevronLeft size={14} /></button><button type="button" disabled={cur >= pages} onClick={() => setPage(cur + 1)} className="icon-btn h-8 w-8 hover:bg-muted disabled:opacity-40" aria-label="下一页"><ChevronRight size={14} /></button></span>
+      <span>第 {cur} / {pages} 页 · 共 {(searching ? allRows.length : serverTotal || allRows.length)} 条</span>
+      <span className="flex items-center gap-1"><button type="button" disabled={cur <= 1} onClick={() => (searching ? setPage(cur - 1) : setServerPage(cur - 1))} className="icon-btn h-8 w-8 hover:bg-muted disabled:opacity-40" aria-label="上一页"><ChevronLeft size={14} /></button><button type="button" disabled={cur >= pages} onClick={() => (searching ? setPage(cur + 1) : setServerPage(cur + 1))} className="icon-btn h-8 w-8 hover:bg-muted disabled:opacity-40" aria-label="下一页"><ChevronRight size={14} /></button></span>
     </div>
   );
   const table = (
@@ -120,7 +153,7 @@ export function CardKeysTab({ wallet, variant }: { wallet: number; variant?: "le
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-foreground">卡密列表</h2>
-          <div className="flex items-center gap-2"><div className="relative w-full max-w-xs"><Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={kw} onChange={(e) => search(e.target.value)} placeholder="搜索卡密" aria-label="搜索卡密" className={cn(field, "pl-8")} /></div><span className="whitespace-nowrap text-[11px] text-muted-foreground">{rows.length} 条</span></div>
+          <div className="flex items-center gap-2"><div className="relative w-full max-w-xs"><Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={kw} onChange={(e) => search(e.target.value)} placeholder="搜索卡密" aria-label="搜索卡密" className={cn(field, "pl-8")} /></div><button type="button" className="chip h-8 whitespace-nowrap px-3 text-xs hover:bg-muted" onClick={() => exportKeysCsv(pageRows)}><Download size={13} />导出CSV</button><span className="whitespace-nowrap text-[11px] text-muted-foreground">{(searching ? allRows.length : serverTotal || allRows.length)} 条</span></div>
         </div>
         {list.isError && <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">加载失败：{(list.error as Error).message}</div>}
         <div className="overflow-hidden rounded-2xl border border-border bg-card">{listBox}</div>
@@ -144,7 +177,7 @@ export function CardKeysTab({ wallet, variant }: { wallet: number; variant?: "le
         {batchPanel && <div className="mt-4">{batchPanel}</div>}
       </section>
       <section className="pane p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><div className="text-xs text-muted-foreground">{rows.length} 条</div><div className="text-base font-semibold">卡密列表</div></div><label className="flex h-10 w-full max-w-xs items-center gap-2 rounded-xl border bg-card px-3"><Search size={15} className="text-muted-foreground" /><input value={kw} onChange={(e) => search(e.target.value)} placeholder="搜索卡密" className="w-full bg-transparent text-sm outline-none" /></label></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><div className="text-xs text-muted-foreground">{searching ? allRows.length : serverTotal || allRows.length} 条</div><div className="text-base font-semibold">卡密列表</div></div><div className="flex items-center gap-2"><button type="button" className="chip h-8 whitespace-nowrap px-3 text-xs hover:bg-muted" onClick={() => exportKeysCsv(pageRows)}><Download size={13} />导出CSV</button><label className="flex h-10 w-full max-w-xs items-center gap-2 rounded-xl border bg-card px-3"><Search size={15} className="text-muted-foreground" /><input value={kw} onChange={(e) => search(e.target.value)} placeholder="搜索卡密" className="w-full bg-transparent text-sm outline-none" /></label></div></div>
         {list.isError ? <div className="mt-4 text-sm text-danger">加载失败：{(list.error as Error).message}</div> : <div className="mt-4 overflow-hidden rounded-2xl border">{listBox}</div>}
       </section>
     </div>

@@ -1,14 +1,8 @@
 <template>
   <div class="novel" ref="novelRef">
-    <section class="novelHero">
-      <div class="novelHeroCopy">
-        <span class="novelEyebrow">XOi STORY WORKSPACE · 01</span>
-        <h1>原始素材</h1>
-        <p>这里可以导入小说原文，也可以导入已有剧本。先判断是否需要 AI 改编，再把内容整理成可制作的分集剧本。</p>
-        <div class="novelMeta"><span><strong>{{ pagination.total || 0 }}</strong> 个章节</span><span>{{ project?.name || '当前漫剧项目' }}</span></div>
-      </div>
-      <div class="novelHeroArt" aria-hidden="true"><span class="page pageBack">STORY</span><span class="page pageFront"><i>CHAPTER</i><strong>01</strong></span></div>
-    </section>
+    <StoryWorkspaceHeader current="novel" :project-type="project?.projectType" title="原始素材" description="导入小说原文或已有剧本，再按需要选择 AI 改编或直接整理为分集剧本。">
+      <template #meta><span>{{ pagination.total || 0 }} 个章节</span><span>{{ project?.name || '当前漫剧项目' }}</span></template>
+    </StoryWorkspaceHeader>
 
     <section class="workflowGuide" aria-labelledby="workflowGuideTitle">
       <div class="workflowGuideIntro">
@@ -54,9 +48,9 @@
           {{ $t("workbench.novel.eventAnalysis") }} {{ selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : "" }}
         </t-button>
       </t-space>
-      <div class="f">
-        <t-input v-model="searchText" :placeholder="$t('workbench.novel.searchPlaceholder')" clearable style="width: 260px" />
-        <t-button class="searchBtn" @click="onChange" style="margin-left: 10px">
+      <div class="f novelSearch">
+        <t-input v-model="searchText" :placeholder="$t('workbench.novel.searchPlaceholder')" clearable @enter="onChange" />
+        <t-button class="workspaceSecondary searchBtn" @click="onChange">
           <template #icon><t-icon name="search" /></template>
           {{ $t("workbench.novel.search") }}
         </t-button>
@@ -136,16 +130,17 @@
     <t-dialog v-model:visible="previewVisible" :header="previewTitle" width="900px" placement="top" top="10vh" destroy-on-close :footer="false">
       <div class="previewDialogContent">{{ previewContent || $t("workbench.novel.none") }}</div>
     </t-dialog>
-    <importNovel v-model="importNovelShow" @select="getNovel" />
-    <editNodel v-model="editNodelShow" :formData="formData" @select="getNovel" />
+    <importNovel v-if="importNovelShow" v-model="importNovelShow" @select="getNovel" />
+    <editNodel v-if="editNodelShow" v-model="editNodelShow" :formData="formData" @select="getNovel" />
   </div>
 </template>
 
 <script setup lang="ts">
+import StoryWorkspaceHeader from "@/components/pipeline/StoryWorkspaceHeader.vue";
 import dayjs from "dayjs";
 import axios from "@/utils/axios";
-import importNovel from "./components/importNovel.vue";
-import editNodel from "./components/editNodel.vue";
+const importNovel = defineAsyncComponent(() => import("./components/importNovel.vue"));
+const editNodel = defineAsyncComponent(() => import("./components/editNodel.vue"));
 import projectStore from "@/stores/project";
 import settingStore from "@/stores/setting";
 import { showPointsToast } from "@/utils/pointsToast";
@@ -262,11 +257,11 @@ function importNovelFn() {
 }
 
 function goToScriptAgent() {
-  router.push("/scriptAgent");
+  router.push({ path: "/scriptAgent", query: { projectId: String(project.value?.id || "") } });
 }
 
 function goToScript() {
-  router.push({ path: "/script", query: { entry: "organize" } });
+  router.push({ path: "/script", query: { projectId: String(project.value?.id || ""), entry: "organize" } });
 }
 // 处理选择变化
 function handleSelectChange(value: Array<string | number>, context: { selectedRowData: any[] }) {
@@ -967,7 +962,7 @@ onUnmounted(() => {
   :deep(.t-input:focus-within) { border-color: rgba(235,107,48,.48); box-shadow: 0 0 0 3px rgba(242,112,54,.09); }
 
   :deep(.t-table) { min-height: 0; max-height: none; border: 1px solid #e8e7ec; border-radius: 19px; background: #fff; box-shadow: 0 12px 30px rgba(40,37,54,.055); }
-  :deep(.t-table__header th) { padding: 13px 16px; border-bottom: 1px solid #ecebf0; background: #f8f8fa; color: #55525f; font-size: 12px; font-weight: 650; }
+  :deep(.t-table__header th) { white-space: nowrap; padding: 13px 12px; border-bottom: 1px solid #ecebf0; background: #f8f8fa; color: #55525f; font-size: 12px; font-weight: 650; }
   :deep(.t-table__body td) { padding: 14px 16px; color: #393741; }
   :deep(.t-table__body tr:hover) { background: #faf8ff; }
   :deep(.t-table__pagination-wrap) { padding: 11px 16px; background: #fff; }
@@ -986,4 +981,54 @@ onUnmounted(() => {
     .headBtn > .f :deep(.t-input__wrap) { flex: 1; }
   }
 }
+</style>
+
+<style lang="scss" scoped>
+.novel {
+  padding: 18px 24px;
+  .novelHero { min-height: 0; padding: 20px 24px; border-radius: 20px; }
+  .novelHeroCopy { max-width: calc(100% - 250px); }
+  .novelHero h1 { margin: 7px 0; font-size: 28px; }
+  .novelMeta { margin-top: 10px; }
+  .novelHeroArt { transform: scale(.78); transform-origin: right center; }
+  .workflowGuide { display: flex; align-items: center; gap: 16px; margin: 12px 0 0; padding: 12px 16px; border-radius: 16px; }
+  .workflowGuideIntro { flex: 1; min-width: 0; margin: 0; }
+  .workflowGuide h2 { font-size: 15px; }
+  .workflowGuideHint { display: none; }
+  .workflowChoices { flex: 1.4; }
+  .workflowChoice { padding: 10px; }
+  .headBtn { margin: 12px 0; padding: 10px 12px; gap: 12px; }
+  .headBtn > :deep(.t-space) { flex-wrap: wrap; }
+  .novelSearch { display: flex; flex: 0 1 310px; min-width: 220px; gap: 8px; }
+  .novelSearch :deep(.t-input__wrap) { min-width: 0; flex: 1; width: auto; }
+  :deep(.t-table) { margin: 0 !important; }
+}
+@media (max-width: 1100px) {
+  .novel .workflowGuide { align-items: stretch; flex-direction: column; gap: 10px; }
+  .novel .novelHeroArt { display: none; }
+  .novel .novelHeroCopy { max-width: 100%; }
+}
+@media (max-width: 700px) {
+  .novel { padding: 14px; overflow: auto; }
+  .novel .novelHero { padding: 18px; }
+  .novel .workflowChoices { grid-template-columns: 1fr; }
+  .novel .headBtn { align-items: stretch; }
+  .novel .novelSearch { flex-basis: auto; width: 100%; }
+  .novel :deep(.t-table) { flex: none; min-height: 340px; }
+  .novel :deep(.t-table__content) { overflow-x: auto !important; }
+  .novel :deep(.t-table table) { min-width: 760px; }
+  .novel :deep(.t-table__pagination-wrap) { overflow: auto; }
+}
+</style>
+
+<style lang="scss" scoped>
+.novel { box-sizing:border-box; padding:20px 24px; background:var(--xoi-workspace-bg,#faf8f6); }
+.novel .workflowGuide { margin:0; border:1px solid var(--xoi-workspace-border,#eee7e2); border-radius:14px; background:#fffdf9; box-shadow:none; }
+.novel .headBtn { border-color:var(--xoi-workspace-border,#eee7e2); border-radius:14px; background:#fff; box-shadow:none; }
+.novel :deep(.t-table) { border-color:var(--xoi-workspace-border,#eee7e2); border-radius:14px; box-shadow:none; }
+@media(max-width:700px) { .novel { padding:14px; } }
+</style>
+
+<style>
+.novel { padding-bottom:var(--pipeline-hint-space,64px); }
 </style>

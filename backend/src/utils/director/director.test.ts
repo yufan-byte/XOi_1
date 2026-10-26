@@ -1,3 +1,4 @@
+import {BUDGET_OUTPUT_TOKENS} from "../billingBudgetPolicy";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import fs from "node:fs/promises";
@@ -69,7 +70,7 @@ test("complete reference loading, gateway errors and forbidden tool calls", asyn
     const fetcher = (async (_url: any, init: any) => { sent = JSON.parse(init.body); return new Response(JSON.stringify({ choices: [outcome] }), { status: 200 }); }) as typeof fetch;
     const result = await planDirector({ ...options, fetcher });
     assert.equal(result.plan.shots.length, 1);
-    assert.equal(sent.tools, undefined);
+    assert.equal(sent.tools, undefined);assert.equal(sent.max_tokens,BUDGET_OUTPUT_TOKENS);
     assert.match(sent.messages[1].content, /director3d-u1-test/);
     assert.doesNotMatch(sent.messages[1].content, /private-image/);
     assert.equal(sent.messages[0].role, "system");

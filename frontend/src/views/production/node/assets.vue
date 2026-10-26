@@ -1,10 +1,10 @@
 <template>
-  <t-card class="assets">
-    <Handle :id="props.handleIds.target" type="target" :position="Position.Top" />
+  <t-card class="assets" :class="{ fluid: standalone }">
+    <Handle v-if="!standalone" :id="props.handleIds!.target" type="target" :position="Position.Top" />
     <div class="titleBar dragHandle">
-      <div class="title">{{ $t("workbench.production.node.assets.title") }}</div>
+      <DirectorNodeHeading node-id="assets" step="02" label="ART DEPARTMENT" :title="$t('workbench.production.node.assets.title')" description="角色、场景与道具保持一致" />
     </div>
-    <div class="content">
+    <div class="content nowheel nodrag">
       <div class="cardGrid">
         <div v-for="asset in assets" :key="asset.id" class="assetItemBox">
           <t-card class="assetCard">
@@ -76,6 +76,7 @@
 </template>
 
 <script setup lang="ts">
+import DirectorNodeHeading from "./DirectorNodeHeading.vue";
 import { Handle, Position, type Edge } from "@vue-flow/core";
 import editImage from "../components/editImage/index.vue";
 import { type AssetItem, type DeriveAsset } from "../utils/flowBuilder";
@@ -83,10 +84,11 @@ import axios from "@/utils/axios";
 import useProjectStore from "@/stores/project";
 const { project } = storeToRefs(useProjectStore());
 const props = defineProps<{
-  id: string;
-  handleIds: {
+  id?: string;
+  handleIds?: {
     target: string;
   };
+  standalone?: boolean;
 }>();
 
 const assets = defineModel<AssetItem[]>({ required: true });
@@ -165,6 +167,10 @@ async function removeFn(id: number) {
   width: fit-content;
   user-select: text;
   cursor: default;
+
+  &.fluid {
+    width: 100%;
+  }
 
   .titleBar {
     cursor: grab;

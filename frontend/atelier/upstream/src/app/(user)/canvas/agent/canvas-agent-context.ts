@@ -150,9 +150,15 @@ export function buildCanvasAgentContext(input: BuildCanvasAgentContextInput): Ca
     };
 }
 
-export function serializeCanvasAgentContext(context: CanvasAgentContext) {
-    return JSON.stringify(context);
-}
+/**
+ * 分级快照（记忆设计 2026-10-20）：
+ *   L0 索引层 —— 全部节点只带 id/类型/标题/状态（一行一个，画布再大也只有几 KB）；
+ *   L1 详情层 —— 只有「选中 / 本轮引用 / 已批准」的节点才带完整 prompt/正文（截断）；
+ *   其余节点模型需要时用 get_node / query_canvas_nodes 按需读取（工具已存在）。
+ * 这样“参考前面生成的东西”不靠把全部历史塞进 prompt，而是靠结构化状态 + 按需取回，
+ * 请求体稳定在几 KB，长会话也不会撞网关的请求体上限。
+ */
+export { serializeCanvasAgentContext } from "./canvas-agent-context-budget";
 
 function summarizeNode(node: CanvasNodeData): CanvasAgentContextNode {
     const content = node.metadata?.content || "";

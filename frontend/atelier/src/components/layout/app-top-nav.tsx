@@ -41,15 +41,7 @@ export function AppTopNav() {
         }
         setMobileNavOpen(true);
     };
-    const openConversation = () => {
-        if (window.parent !== window) {
-            window.parent.location.hash = "#/aiAssistant";
-        } else {
-            window.location.hash = "#/aiAssistant";
-        }
-    };
-
-    return (
+        return (
         <>
             {!hideHeader ? (
                 <header className="sticky top-0 z-20 h-14 shrink-0 border-b border-stone-200 bg-background/90 backdrop-blur-xl dark:border-stone-800">
@@ -67,7 +59,7 @@ export function AppTopNav() {
                             </button>
 
                             <nav className="hide-scrollbar ml-8 hidden h-14 min-w-0 items-center gap-7 overflow-x-auto md:flex">
-                                {navigationTools.map((tool) => {
+                                {navigationTools.filter((tool) => tool.slug === "canvas").map((tool) => {
                                     const Icon = tool.icon;
                                     const active = tool.slug === activeToolSlug;
                                     const className = cn(
@@ -77,11 +69,7 @@ export function AppTopNav() {
                                             : "text-stone-500 after:bg-transparent hover:text-stone-950 dark:text-stone-400 dark:hover:text-stone-100",
                                     );
                                     const content = <><Icon className="size-4" /><span className="truncate">{t(`navigation.${tool.slug}`)}</span></>;
-                                    return tool.external ? (
-                                        <button key={tool.slug} type="button" className={className} onClick={openConversation}>
-                                            {content}
-                                        </button>
-                                    ) : (
+                                    return (
                                         <Link key={tool.slug} to={`/${tool.slug}`} className={className}>
                                             {content}
                                         </Link>

@@ -34,5 +34,12 @@ export async function register(payload: AuthPayload) {
 }
 
 export async function fetchCurrentUser(token?: string) {
-    return apiGet<AuthUser>("/api/auth/me", undefined, token);
+    // XOi 身份端点返回扁平 AuthUser（同时兼容宿主 owner 字段），不是通用 code/data 外壳。
+    // 把它交给 apiGet 会把每次成功的额度刷新当失败，并清掉有效登录态。
+    const response = await fetch("/api/auth/me", { headers: token ? { Authorization: `Bearer ${token}` } : undefined, cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok) throw Object.assign(new Error(payload.message || payload.msg || "身份读取失败"), { status: response.status });
+    const user = payload.code === 0 ? payload.data : payload;
+    if (!user?.id || !["user", "admin", "guest"].includes(user.role)) throw new Error("身份接口返回格式异常");
+    return user as AuthUser;
 }

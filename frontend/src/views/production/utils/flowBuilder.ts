@@ -42,6 +42,7 @@ export interface AssetItem {
 }
 
 export interface Storyboard {
+  continuity?: import('../../../../../shared/shotContinuity').ShotContinuity | null;
   id?: number;
   duration?: number;
   prompt: string;
@@ -53,6 +54,7 @@ export interface Storyboard {
   reason?: string;
   videoDesc: string;
   shouldGenerateImage: number;
+  videoState?: "未生成" | "生成中" | "已完成" | "生成成功" | "生成失败";
 }
 
 interface VideoList {
@@ -75,6 +77,7 @@ export interface OutputItem {
 }
 
 export interface FlowData {
+  reviewState?: { planReady: boolean; tableReady: boolean; planApproved: boolean; tableApproved: boolean };
   script: string;
   scriptPlan: string;
   assets: AssetItem[];
@@ -84,14 +87,15 @@ export interface FlowData {
     videoList: VideoList[];
   };
   output?: OutputItem[];
+  videoProgress?: { total: number; done: number; failed: number; generating: number; pending: number };
 }
 
 export type NodePositions = Record<string, { x: number; y: number }>;
 
 // 边样式
 const edgeStyle = {
-  stroke: "#00000",
-  strokeWidth: 4,
+  stroke: "#aaa194",
+  strokeWidth: 2,
 };
 
 // ==================== 构建函数 ====================

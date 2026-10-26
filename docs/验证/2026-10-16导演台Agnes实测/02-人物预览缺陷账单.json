@@ -1,0 +1,308 @@
+{
+  "startedAt": "2026-10-16T09:30:48.279Z",
+  "model": "newapi:agnes-2.5-flash",
+  "projectId": "director3d-u1-agnes-live-20261016",
+  "realRequests": true,
+  "fixtures": false,
+  "cases": [
+    {
+      "mode": "调整场景",
+      "intent": "让记者在这个镜头里从当前位置走向桌边，沿地面向右移动2米，用整段镜头平滑行走。不要增加人物或删改其他物体。保留受访者和桌椅。",
+      "seconds": 12.7,
+      "error": [],
+      "text": "记者走向桌边\n\n为演员 actor-lead 设置从当前位置平滑走向桌子右侧2米的步行动画，持续整段镜头。使用 animate 动作，从 t=0 到 t=1 完成移动。\n\n为 人物 · 主角 记录 3 个移动点，配合行走动作\n未增加或删除物体，仅移动现有 actor-lead\n受访者与桌椅保持原状，无额外操作\n\n应用到新版本镜头；原镜头、素材和动作保留，可撤销。精细材质、服装与表情需后续制作。\n\n应用为新版本镜头",
+      "success": true
+    }
+  ],
+  "traffic": [
+    {
+      "path": "/api/billing/preview",
+      "status": 200,
+      "data": {
+        "data": {
+          "label": "AI 场景搭建与调整",
+          "kind": "text",
+          "agent": "universalAi",
+          "model": "agnes-2.5-flash",
+          "modelId": "agnes-2.5-flash",
+          "free": true,
+          "count": 1,
+          "quote": {
+            "yuan": 0,
+            "points": 0,
+            "pointsPerYuan": 10,
+            "estimated": true,
+            "referenceVideoAdjustment": null,
+            "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+            "pricingVersion": "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+          },
+          "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+          "unknown": false,
+          "budget": {
+            "defaultPoints": 0.001,
+            "maxPoints": 1000,
+            "maxCalls": 1,
+            "maxOutputTokens": 4096,
+            "minutes": 30
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/authorize",
+      "status": 200,
+      "data": {
+        "data": {
+          "id": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+          "limitPoints": 0.001,
+          "maxCalls": 1,
+          "expiresAt": "2026-10-16T10:00:59.286Z",
+          "freeOnly": true
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:00:59.286Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:00:59.286Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/aiAssistant/director/compose",
+      "status": 200,
+      "data": {
+        "code": 200,
+        "data": {
+          "plan": {
+            "name": "记者走向桌边",
+            "summary": "为演员 actor-lead 设置从当前位置平滑走向桌子右侧2米的步行动画，持续整段镜头。使用 animate 动作，从 t=0 到 t=1 完成移动。",
+            "warnings": [
+              "未增加或删除物体，仅移动现有 actor-lead",
+              "受访者与桌椅保持原状，无额外操作"
+            ],
+            "actions": [
+              {
+                "kind": "animate",
+                "objectId": "actor-lead",
+                "points": [
+                  {
+                    "t": 0,
+                    "position": [
+                      -1.25,
+                      0,
+                      0.3
+                    ]
+                  },
+                  {
+                    "t": 0.5,
+                    "position": [
+                      -0.25,
+                      0,
+                      0.7
+                    ]
+                  },
+                  {
+                    "t": 1,
+                    "position": [
+                      0.75,
+                      0,
+                      1.2
+                    ]
+                  }
+                ],
+                "pose": "walk"
+              }
+            ]
+          },
+          "projectId": "director3d-u1-agnes-live-20261016",
+          "activeShotId": "shot-scene-987d2bc5-9ed5-4456-9e2a-4bce218db651"
+        },
+        "message": "成功"
+      }
+    },
+    {
+      "path": "/api/billing/receipt/319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "68",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792143070
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:00:59.286Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "68",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792143070
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:00:59.286Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "68",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792143070
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:00:59.286Z"
+          }
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "preflight": {
+    "data": {
+      "label": "AI 场景搭建与调整",
+      "kind": "text",
+      "agent": "universalAi",
+      "model": "agnes-2.5-flash",
+      "modelId": "agnes-2.5-flash",
+      "free": true,
+      "count": 1,
+      "quote": {
+        "yuan": 0,
+        "points": 0,
+        "pointsPerYuan": 10,
+        "estimated": true,
+        "referenceVideoAdjustment": null,
+        "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+        "pricingVersion": "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+      },
+      "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+      "unknown": false,
+      "budget": {
+        "defaultPoints": 0.001,
+        "maxPoints": 1000,
+        "maxCalls": 1,
+        "maxOutputTokens": 4096,
+        "minutes": 30
+      }
+    }
+  },
+  "quotaBefore": "5103444130",
+  "failure": "locator.waitFor: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.director3d-iframe').contentFrame().locator('.play-button.is-playing') to be visible\u001b[22m\n\n    at applyAndVerify (/Users/zhaochenyu/Desktop/C_code/XOi_1/backend/scripts/verify-director-agnes-live.mjs:59:207)\n    at async file:///Users/zhaochenyu/Desktop/C_code/XOi_1/backend/scripts/verify-director-agnes-live.mjs:77:50",
+  "budgets": [
+    {
+      "billing_id": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true
+    }
+  ],
+  "logs": [
+    {
+      "request_id": "202610160931013260025938268d9d6IVGGBS8l",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    }
+  ],
+  "quotaAfter": "5103444130",
+  "completedAt": "2026-10-16T09:31:58.418Z"
+}

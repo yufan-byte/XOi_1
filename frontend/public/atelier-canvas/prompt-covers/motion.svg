@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" font-family="-apple-system,'PingFang SC','Helvetica Neue',sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff9b45"/>
+      <stop offset="1" stop-color="#f26432"/>
+    </linearGradient>
+    <linearGradient id="disc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffe3c4" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <g fill="#ffffff" opacity="0.08">
+    <circle cx="90" cy="80" r="3"/><circle cx="190" cy="80" r="3"/><circle cx="290" cy="80" r="3"/><circle cx="390" cy="80" r="3"/><circle cx="490" cy="80" r="3"/><circle cx="590" cy="80" r="3"/><circle cx="690" cy="80" r="3"/>
+    <circle cx="90" cy="180" r="3"/><circle cx="190" cy="180" r="3"/><circle cx="290" cy="180" r="3"/><circle cx="390" cy="180" r="3"/><circle cx="490" cy="180" r="3"/><circle cx="590" cy="180" r="3"/><circle cx="690" cy="180" r="3"/>
+    <circle cx="90" cy="280" r="3"/><circle cx="190" cy="280" r="3"/><circle cx="290" cy="280" r="3"/><circle cx="390" cy="280" r="3"/><circle cx="490" cy="280" r="3"/><circle cx="590" cy="280" r="3"/><circle cx="690" cy="280" r="3"/>
+    <circle cx="90" cy="380" r="3"/><circle cx="190" cy="380" r="3"/><circle cx="290" cy="380" r="3"/><circle cx="390" cy="380" r="3"/><circle cx="490" cy="380" r="3"/><circle cx="590" cy="380" r="3"/><circle cx="690" cy="380" r="3"/>
+  </g>
+  <!-- 视频创作：播放键 + 运动轨迹弧线 -->
+  <path d="M205 320a195 195 0 0 1 330-140" stroke="#ffffff" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.5" stroke-dasharray="4 26"/>
+  <path d="M600 290a195 195 0 0 1-330 140" stroke="#ffffff" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.5" stroke-dasharray="4 26"/>
+  <circle cx="400" cy="290" r="150" fill="url(#disc)"/>
+  <path d="M355 218l120 72-120 72z" fill="#f26432"/>
+  <g stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity="0.9">
+    <path d="M150 130h56"/><path d="M150 154h34"/>
+    <path d="M594 446h56"/><path d="M616 470h34"/>
+  </g>
+  <text x="52" y="540" font-size="44" font-weight="700" fill="#ffffff">视频创作</text>
+  <text x="620" y="540" font-size="22" font-weight="600" fill="#ffffff" opacity="0.8" letter-spacing="3">XOI STUDIO</text>
+</svg>

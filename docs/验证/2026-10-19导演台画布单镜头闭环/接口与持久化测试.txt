@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: portable reference keeps one confirmed shot, version, frame and original snapshot
+ok 1 - portable reference keeps one confirmed shot, version, frame and original snapshot
+  ---
+  duration_ms: 564.110375
+  type: 'test'
+  ...
+# Subtest: corrupt geometry and ambiguous projects are rejected before native restoration
+ok 2 - corrupt geometry and ambiguous projects are rejected before native restoration
+  ---
+  duration_ms: 1.900917
+  type: 'test'
+  ...
+# Subtest: scene API persists across clients, isolates owners, rejects stale saves and tombstones explicit deletions
+ok 3 - scene API persists across clients, isolates owners, rejects stale saves and tombstones explicit deletions
+  ---
+  duration_ms: 18116.927083
+  type: 'test'
+  ...
+# Subtest: cloud drafts survive a reopened database, isolate owners and reject stale revisions
+ok 4 - cloud drafts survive a reopened database, isolate owners and reject stale revisions
+  ---
+  duration_ms: 3231.30925
+  type: 'test'
+  ...
+# Subtest: portable drafts reject temporary local URLs and oversized payloads
+ok 5 - portable drafts reject temporary local URLs and oversized payloads
+  ---
+  duration_ms: 4132.563542
+  type: 'test'
+  ...
+# Subtest: task records survive restart, keep remote identity, isolate owners and freeze terminal results
+ok 6 - task records survive restart, keep remote identity, isolate owners and freeze terminal results
+  ---
+  duration_ms: 7338.634959
+  type: 'test'
+  ...
+# Subtest: restart recovery only GETs the original video, coalesces polling, and never resubmits
+ok 7 - restart recovery only GETs the original video, coalesces polling, and never resubmits
+  ---
+  duration_ms: 2336.00175
+  type: 'test'
+  ...
+# Subtest: phone upload sessions enforce owner, expiry, file cap and idempotent receipts
+ok 8 - phone upload sessions enforce owner, expiry, file cap and idempotent receipts
+  ---
+  duration_ms: 5889.886208
+  type: 'test'
+  ...
+# Subtest: NewAPI adapter commits upstream task ID before any polling
+ok 9 - NewAPI adapter commits upstream task ID before any polling
+  ---
+  duration_ms: 959.137291
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 38690.327583

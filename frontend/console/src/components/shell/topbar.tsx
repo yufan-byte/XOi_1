@@ -52,9 +52,9 @@ const cellCls = "h-[38px] gap-[8px] rounded-[10px] px-[10px] py-[9px] !text-[12.
 /** 参考站 :root[data-font-scale]：sm 110%（默认紧凑）/ md 118% / lg 124% / xl 132% 根字号 */
 const FONT_ATTR = { compact: "sm", normal: "md", large: "lg", xlarge: "xl" } as const;
 
-export function TopBar() {
+export function TopBar({ management = false }: { management?: boolean } = {}) {
   const path = usePathname(); const router = useRouter(); const brand = useBrand();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme: theme, setTheme } = useTheme();
   const user = useApp((s) => s.user); const setUser = useApp((s) => s.setUser);
   const layout = useApp((s) => s.layout); const setLayout = useApp((s) => s.setLayout); const fontScale = useApp((s) => s.fontScale); const setFontScale = useApp((s) => s.setFontScale);
   useEffect(() => { document.documentElement.dataset.fontScale = FONT_ATTR[fontScale]; document.body.style.removeProperty("zoom"); }, [fontScale]);
@@ -64,8 +64,9 @@ export function TopBar() {
   // 代理商中心只对站长批准过的账号可见：普通用户不显示任何入口（顶栏图标、用户菜单都没有），也进不去 /reseller/*
   const isReseller = useIsReseller(); const resellerLabel = "代理商中心";
   const { data: pubSettings } = usePublicSettings();
-  // 普通登录用户：站长打开了「成为代理入口」时显示申请入口
-  const showApply = !!user && !isReseller && user.role < 10 && (pubSettings?.showBecomeReseller ?? true); const [promo, setPromo] = useState(false);
+  // 普通登录用户：代理体系已下线（2026-10-24），申请入口默认隐藏；站长在站点设置打开
+  // 「成为代理入口」可恢复显隐开关（扩展点），但默认不再向普通用户露出。
+  const showApply = !!user && !isReseller && user.role < 10 && (pubSettings?.showBecomeReseller ?? false); const [promo, setPromo] = useState(false);
   const [profile, setProfile] = useState(false); const [invoice, setInvoice] = useState(false);
   useEffect(() => { const h = () => setTopup(true); const u = () => setUsage(true); document.addEventListener("mc:topup", h); document.addEventListener("mc:usage", u); return () => { document.removeEventListener("mc:topup", h); document.removeEventListener("mc:usage", u); }; }, []);
   const balance = self ? quotaToUsd(self.quota) : null;
@@ -84,14 +85,14 @@ export function TopBar() {
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         {/* 参考站 md 以下：品牌前的汉堡按钮，打开导航抽屉 */}
         <button type="button" onClick={() => document.dispatchEvent(new CustomEvent("mc:nav"))} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground md:hidden" aria-label="打开导航"><Menu className="h-5 w-5" /></button>
-        <a href="/#/project" className={cn("flex min-w-0 shrink items-center gap-2.5 rounded-2xl", slim && "md:hidden")} aria-label={brand.name}>
+        <a href="/#/aiAssistant" className={cn("flex min-w-0 shrink items-center gap-2.5 rounded-2xl", slim && "md:hidden")} aria-label={brand.name}>
           <BrandMark size={40} />
           <span className="min-w-0"><span className="block truncate text-[15px] font-black tracking-tight text-foreground">{brand.name}</span><span className="block truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{brand.subtitle || "AI-大模型聚合平台"}</span></span>
         </a>
         {!slim && <Tip label={layout === "new" ? "切换回经典布局" : "切换到新版布局（更紧凑的侧栏）"}><button className={cn("inline-flex h-[35px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors", layout === "new" ? "border-primary/40 bg-primary/10 text-primary" : "border-border/70 text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground")} onClick={() => { setLayout(layout === "new" ? "classic" : "new"); toast.success(layout === "new" ? "已切回经典布局" : "已切换到新版布局"); }}><LayoutGrid className="h-3.5 w-3.5 shrink-0" /><span className="hidden whitespace-nowrap sm:inline">{layout === "new" ? "经典布局" : "新版布局"}</span></button></Tip>}
       </div>
       <div className={cn("ml-auto flex min-w-0 shrink-0 items-center gap-0.5", slim ? "sm:gap-2" : "sm:gap-1")}>
-        <nav className="flex shrink-0 items-center gap-1 whitespace-nowrap max-sm:hidden">
+        {!management && <nav className="flex shrink-0 items-center gap-1 whitespace-nowrap max-sm:hidden">
           {NAV.map(({ href, icon: Icon, label: navLabel, match, tour, external }) => {
             const applyLink = href === "/reseller/overview" && !isReseller && showApply;
             const label = href === "/reseller/overview" && !applyLink ? resellerLabel : navLabel;
@@ -106,17 +107,17 @@ export function TopBar() {
               </Tip>
             );
           })}
-        </nav>
+        </nav>}
         {slim && <span aria-hidden className="mx-1 h-6 w-px bg-border/60 max-sm:hidden" />}
         <Tip label="搜索模型、智能体、页面和操作 (⌘K)"><button className="relative inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground max-sm:hidden" onClick={() => setSearch(true)} aria-label="搜索模型、智能体、页面和操作..."><Search className="h-[18px] w-[18px]" /></button></Tip>
         {slim && <><Tip label="模型价格"><button className="relative inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground max-sm:hidden" onClick={() => setPrice(true)} aria-label="模型价格"><Tag className="h-[18px] w-[18px]" /></button></Tip></>}
-        <Dropdown>
+        {!management && <Dropdown>
           <Tip label="切换语言"><DropdownTrigger asChild><button className="relative inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-border bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:hidden" aria-label="切换语言"><Globe className="h-[18px] w-[18px]" /></button></DropdownTrigger></Tip>
           <DropdownContent className="w-[194px] rounded-md border-black/[0.07] bg-[linear-gradient(rgba(232,232,232,0.94),rgba(255,255,255,0.94))] p-1 shadow-[inset_0_1px_0_rgba(17,17,17,0.06),0_16px_40px_-16px_rgba(20,20,31,0.3)] backdrop-blur-[22px] backdrop-saturate-[1.08] dark:bg-[linear-gradient(rgba(38,40,55,0.94),rgba(23,24,33,0.94))]">{LANGS.map(([k, l]) => <DropdownItem key={k} onSelect={() => { setLang(k); if (k !== "zh-CN") toast.info(`${l} 界面翻译即将上线，当前先以中文显示`); }} className={cn("h-[35px] gap-2 rounded-sm px-2 text-[15px] font-medium transition-[background,color,transform] duration-150 data-[highlighted]:translate-x-0.5", lang === k && "text-primary")}>{l}{lang === k && <Check className="ml-auto h-3.5 w-3.5" />}</DropdownItem>)}</DropdownContent>
-        </Dropdown>
+        </Dropdown>}
         <Tip label="切换主题"><button className="relative inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-border bg-muted/40 text-primary transition-colors hover:bg-muted" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="切换主题">{mounted && theme === "dark" ? <Moon className="h-[18px] w-[18px]" /> : <Sun className="h-[18px] w-[18px]" />}</button></Tip>
         <Tip label="系统公告"><button className="relative inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground max-sm:hidden" onClick={() => setAnn(true)} aria-label="系统公告"><Bell className="h-[18px] w-[18px]" /></button></Tip>
-        <button className="inline-flex h-11 items-center gap-1.5 rounded-[14px] border border-transparent bg-[linear-gradient(135deg,var(--primary),#6a3fd9)] px-2.5 sm:px-3 text-[12px] font-semibold text-white shadow-[0_8px_20px_-12px_color-mix(in_srgb,var(--primary)_80%,transparent)] transition-[filter,transform] hover:brightness-110 active:scale-[0.98]" onClick={() => setTopup(true)}><CreditCard className="h-3.5 w-3.5" /><span className="hidden @5xl/topbar:inline">充值</span></button>
+        <button className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-transparent bg-primary px-2.5 sm:px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-strong" onClick={() => setTopup(true)} aria-label="充值"><CreditCard className="h-3.5 w-3.5" /><span className="hidden @5xl/topbar:inline">充值</span></button>
         {user ? (
           <Dropdown>
             <DropdownTrigger asChild>

@@ -15,23 +15,24 @@ import jsonwebtoken from "jsonwebtoken";
 import u from "@/utils";
 import crypto from "node:crypto";
 import { fetchBinaryWithLimit } from "./safeUrl";
+import { trackedGatewayAxios, trackedGatewayFetch } from "@/lib/gateway/receipts";
 
 /**
  * 使用 Node.js 内置 vm 模块运行供应商代码
  * 注意：Node.js vm 模块不是安全沙箱，仅用于模块隔离
  * 供应商代码由管理员配置，不应运行不受信任的代码
  */
-export default function runCode(code: string, vendor?: Record<string, any>) {
+export default function runCode(code: string, vendor?: Record<string, any>, trackGateway = false) {
   code = code.replace(/export\s*\{\s*\};?/g, ""); // 去掉 export {} 以免沙盒环境报错
   // 创建隔离上下文
   const exports = {};
   const sandbox: Record<string, any> = {
-    createOpenAI,
+    createOpenAI: trackGateway ? (options: Parameters<typeof createOpenAI>[0]) => createOpenAI({ ...options, fetch: trackedGatewayFetch }) : createOpenAI,
     createDeepSeek,
     createZhipu,
     createQwen,
     createAnthropic,
-    createOpenAICompatible,
+    createOpenAICompatible: trackGateway ? (options: Parameters<typeof createOpenAICompatible>[0]) => createOpenAICompatible({ ...options, fetch: trackedGatewayFetch }) : createOpenAICompatible,
     createXai,
     createMinimax,
     createGoogleGenerativeAI,
@@ -40,9 +41,9 @@ export default function runCode(code: string, vendor?: Record<string, any>) {
     urlToBase64,
     mergeImages,
     pollTask,
-    fetch: fetch,
+    fetch: trackGateway ? trackedGatewayFetch : fetch,
     exports,
-    axios,
+    axios: trackGateway ? trackedGatewayAxios() : axios,
     FormData,
     logger,
     jsonwebtoken,

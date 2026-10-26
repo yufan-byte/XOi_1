@@ -17,6 +17,7 @@ export function newApiV1BaseUrl(): string {
 
 /** 生产环境默认强制 NewAPI；开发环境可用 XOI_NEWAPI_ONLY=1 提前验证。 */
 export function isNewApiOnly(): boolean {
+  if (["prod", "production"].includes((process.env.NODE_ENV || "").trim().toLowerCase())) return true;
   const configured = (process.env.XOI_NEWAPI_ONLY || "").trim().toLowerCase();
   if (["1", "true", "yes", "on"].includes(configured)) return true;
   if (["0", "false", "no", "off"].includes(configured)) return false;
@@ -27,6 +28,11 @@ export function assertAllowedVendor(vendorId: string): void {
   if (isNewApiOnly() && vendorId !== "newapi") {
     throw new Error(`生产环境只允许通过 NewAPI 调用模型，已拒绝供应商 ${vendorId}`);
   }
+}
+export function assertProductionModel(model: string): void {
+  // Kept for adapter compatibility. Model visibility is role-based and enforced
+  // by assertUserModelAccess immediately before every gateway POST.
+  if (!String(model || "").trim()) throw new Error("模型不能为空");
 }
 
 function tokenName(group: string): string {

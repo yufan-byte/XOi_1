@@ -17,7 +17,7 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "cross-env NODE_ENV=dev nodemon --inspect --exec tsx src/app.ts",
+    "dev": "cross-env NODE_ENV=dev nodemon --exec tsx src/app.ts",
     "start": "cross-env NODE_ENV=prod node data/serve/app.js",
     "lint": "tsc --noEmit",
     "db:check": "tsx scripts/check-db.ts",

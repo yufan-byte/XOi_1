@@ -1,39 +1,25 @@
 import express from "express";
-import u from "@/utils";
 import { z } from "zod";
 import { success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
+import { getUserCatalog, publicModel } from "@/lib/model-catalog";
 const router = express.Router();
 
 export default router.post(
   "/",
   validateFields({
-    type: z.enum(["text", "image", "video", "all"]),
+    type: z.enum(["text", "image", "video", "audio", "all"]),
   }),
   async (req, res) => {
     const { type } = req.body;
-    const dataList = await u.db("o_vendorConfig").select("id").where("enable", 1);
-    if (!dataList || dataList.length === 0) {
-      return res.status(404).send({ error: "模型未找到" });
+    try {
+      const catalog = await getUserCatalog(Number((req as any).user.id));
+      return res.json(success(catalog.models.filter(m => m.selectable && (type === "all" || m.type === type)).map(m => ({
+        ...publicModel(m, catalog.factor), id: "newapi", vendorId: "newapi", label: m.name, value: m.modelName,
+      }))));
+    } catch (e) {
+      console.error("[model-list]", (e as Error).message);
+      return res.status(502).json({ message: "模型目录暂时不可用，请稍后重试" });
     }
-    const modelList = await Promise.all(dataList.map((i) => u.vendor.getModelList(i.id!)));
-    const result = await Promise.all(
-      dataList.map(async (data, index) => {
-        const vendorData = await u.vendor.getVendor(data.id!);
-        const models = modelList[index];
-        const filtered =
-          type === "all"
-            ? models.filter((item: { type: string }) => item.type !== "video")
-            : models.filter((item: { type: string }) => item.type === type);
-        return filtered.map((item: { name: string; modelName: string; type: string }) => ({
-          id: data.id,
-          label: item.name,
-          value: item.modelName,
-          type: item.type,
-          name: vendorData.name,
-        }));
-      }),
-    );
-    res.status(200).send(success(result.flat()));
   },
 );

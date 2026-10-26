@@ -25,7 +25,7 @@ import {
     X,
 } from "lucide-react";
 import { App, AutoComplete, Button, Dropdown, Modal, Segmented, Switch, Tooltip } from "antd";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { nanoid } from "nanoid";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -34,13 +34,18 @@ import { ImageGenerationPending } from "@/components/image-generation-pending";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
-import { fetchSystemAgentSkillFile } from "@/services/api/agent-skills";
+import { fetchSystemAgentSkillFile, resolveAgentSkillContent } from "@/services/api/agent-skills";
 import { imageToDataUrl } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { beginCanvasTextBudget } from "../../../../../../../src/utils/billingGate";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { createCanvasAgentState, runCanvasAgent } from "../agent/canvas-agent-runtime";
+import { ARCHIVE_AGENT_INPUT_AFTER, archivedCanvasAgentInput } from "../agent/canvas-agent-input";
+
+/** Agent 输入框字符上限：超出在发送口拦截并提示（用户拍板 5000 字，长稿改走文本节点+分段读取）。 */
+const CANVAS_AGENT_INPUT_CHAR_LIMIT = 5_000;
 import { useCodexAgent } from "../agent/use-codex-agent";
 import type { CanvasAgentContext } from "../agent/canvas-agent-context";
 import type { CanvasAgentAction, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
@@ -92,6 +97,7 @@ type CanvasAssistantPanelProps = {
     onFocusNode: (nodeId: string) => void;
     onSessionsChange: (sessions: CanvasAssistantSession[], activeSessionId: string | null) => void;
     onAgentConfigChange: (patch: Partial<CanvasAgentConfig>) => void;
+    onOpenModels: () => void;
     onPasteImage: (file: File) => void;
     onOpenUpload: () => void;
     onOpenAssets: () => void;
@@ -99,7 +105,7 @@ type CanvasAssistantPanelProps = {
     onExecuteAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[]) => Promise<CanvasAgentToolResult>;
     onCollapseStart: () => void;
     onCollapse: () => void;
-    initialRequest?: { prompt: string; references: CanvasAssistantReference[]; skills: CanvasAgentSkillSelection[] } | null;
+    initialRequest?: { prompt: string; references: CanvasAssistantReference[]; skills: CanvasAgentSkillSelection[];draftOnly?:boolean } | null;
     onInitialRequestConsumed?: () => void;
 };
 
@@ -124,6 +130,7 @@ export function CanvasAssistantPanel({
     onFocusNode,
     onSessionsChange,
     onAgentConfigChange,
+    onOpenModels,
     onPasteImage,
     onOpenUpload,
     onOpenAssets,
@@ -414,6 +421,14 @@ export function CanvasAssistantPanel({
         if (abortRef.current) return;
         if (mode === "codex" && codex.status !== "ready") { setView("connect"); appMessage.info("请先连接本地 Codex 服务"); return; }
         const session = activeSession || createSession(mode);
+
+        // 运行前先量体：单条太大 / 会话太大直接拦下，别等把请求发出去才卡死后端
+        const MAX_MESSAGE_CHARS = 120_000;
+        if (text.length > MAX_MESSAGE_CHARS) {
+            appMessage.error(`单条内容 ${text.length} 字，超过 ${MAX_MESSAGE_CHARS} 字上限，请拆分后再发`);
+            return;
+        }
+        // Persisted history can be long. Runtime windows/compacts it before measuring the actual request.
         const activeSkills = skillOverride !== undefined ? skillOverride || [] : selectedSkills;
         let activeSkillContents: Array<{ id: string; source: CanvasAgentSkillSelection["source"]; name: string; content: string; hasFiles?: boolean }> = [];
 
@@ -434,7 +449,13 @@ export function CanvasAssistantPanel({
                 appMessage.error(`Skill「${unavailableSkill.name}」已不可用，请重新选择`);
                 return;
             }
-            activeSkillContents = latestSkills.map((skill) => ({ id: skill!.id, source: skill!.source, name: skill!.name, content: skill!.content, hasFiles: skill!.hasFiles }));
+            try {
+                const resolved = await Promise.all(latestSkills.map(skill => resolveAgentSkillContent(skill!)));
+                activeSkillContents = resolved.map(skill => ({ id: skill.id, source: skill.source, name: skill.name, content: skill.content, hasFiles: skill.hasFiles }));
+            } catch (error) {
+                appMessage.error(error instanceof Error ? error.message : "所选技能读取失败");
+                return;
+            }
         }
 
         if (!activeSession) commitSessions([session, ...sessionsRef.current], session.id);
@@ -456,11 +477,12 @@ export function CanvasAssistantPanel({
 
         const requestConfig = {
             ...effectiveConfig,
-            model: effectiveConfig.textModel || effectiveConfig.model,
+            model: agentConfig.textModel || effectiveConfig.textModel || effectiveConfig.model,
+            textModel: agentConfig.textModel || effectiveConfig.textModel || effectiveConfig.model,
             apiMode: agentConfig.textApiMode,
             textReasoningEnabled: agentConfig.textReasoningEnabled === true,
-            activeChannelId: effectiveConfig.textChannelId || effectiveConfig.activeChannelId,
-            textChannelId: effectiveConfig.textChannelId,
+            activeChannelId: agentConfig.textChannelId || effectiveConfig.textChannelId || effectiveConfig.activeChannelId,
+            textChannelId: agentConfig.textChannelId || effectiveConfig.textChannelId,
         };
         const jsonToolFallbackKey = [requestConfig.apiMode || "chat", requestConfig.textChannelId || requestConfig.activeChannelId || requestConfig.baseUrl, requestConfig.model].join("|");
         if (mode === "api" && !isAiConfigReady(requestConfig, requestConfig.model)) {
@@ -473,9 +495,19 @@ export function CanvasAssistantPanel({
         }
 
         const controller = new AbortController();
+        const finishTextBudget=beginCanvasTextBudget(controller.signal,()=>controller.abort());
         abortRef.current = controller;
         setIsRunning(true);
         try {
+            let modelUserText = text;
+            let archivedReference: CanvasAssistantReference | undefined;
+            if (mode === "api" && text.length > ARCHIVE_AGENT_INPUT_AFTER) {
+                const source = await executeCanvasTool({ id: nanoid(), name: "create_text_node", arguments: { title: "原始需求 · 全文", content: text, sourceNodeIds: [] } }, [], activeSkills, mode, controller.signal);
+                if (!source.ok || typeof source.nodeId !== "string") throw new Error("长稿保存未完成，本次尚未调用模型，请重试保存");
+                modelUserText = archivedCanvasAgentInput(text, source.nodeId);
+                messageReferenceNodeIds.push(source.nodeId);
+                archivedReference = { id: source.nodeId, type: CanvasNodeType.Text, title: "原始需求 · 全文" };
+            }
             const modelReferences = await Promise.all(
                 references.map(async (reference) => {
                     if (!reference.dataUrl) return reference;
@@ -486,6 +518,7 @@ export function CanvasAssistantPanel({
                     }
                 }),
             );
+            if (archivedReference) modelReferences.push(archivedReference);
             const run = mode === "codex" ? (input: Parameters<typeof runCanvasAgent>[0]) => codex.run({
                 ...input, threadId: session.codexThreadId, serviceId: session.codexServiceId, model: codexModel?.model, effort: codexEffort,
                 onThread: (codexThreadId, codexServiceId) => updateSession(session.id, (current) => ({ ...current, codexThreadId, codexServiceId })),
@@ -495,7 +528,7 @@ export function CanvasAssistantPanel({
                 config: requestConfig,
                 initialState: session.agentState,
                 protocolMessages: session.protocolMessages,
-                userText: text,
+                userText: modelUserText,
                 references: modelReferences,
                 activeSkillContents,
                 contextCheckpoint: session.contextCheckpoint,
@@ -535,6 +568,7 @@ export function CanvasAssistantPanel({
                 activity: undefined,
             });
         } finally {
+            finishTextBudget();
             if (abortRef.current === controller) abortRef.current = null;
             setIsRunning(false);
         }
@@ -545,12 +579,19 @@ export function CanvasAssistantPanel({
         consumedInitialRequestRef.current = initialRequest;
         setSelectedSkills(initialRequest.skills);
         onInitialRequestConsumed?.();
+        if(initialRequest.draftOnly){setPrompt(initialRequest.prompt);setComposerReferenceIds(initialRequest.references.map(r=>r.id));return;}
         void sendMessage(initialRequest.prompt, initialRequest.references, initialRequest.skills, initialRequest.skills.length > 0);
     }, [initialRequest, onInitialRequestConsumed]);
 
     const submit = async (nextPrompt = prompt, referenceIds = composerReferenceIds) => {
         const text = nextPrompt.trim();
         if (!text || isRunning) return;
+        // 长稿是兼容线路工具指令崩坏的头号诱因（上下文挤爆 → 模型吐 XML/缺参）。
+        // 入口直接拦：超 5000 字提示精简或分批；想用全稿就先存成文本节点再让 Agent 按节点读取。
+        if (Array.from(text).length > CANVAS_AGENT_INPUT_CHAR_LIMIT) {
+            appMessage.warning(`内容 ${Array.from(text).length} 字，超过 ${CANVAS_AGENT_INPUT_CHAR_LIMIT} 字上限。请精简后重发，或分批发送；完整长稿建议先建成文本节点，再让 Agent 分段读取。`);
+            return;
+        }
         await sendMessage(text, resolveReferences(referenceIds));
     };
 
@@ -583,20 +624,14 @@ export function CanvasAssistantPanel({
     };
 
     return (
-        <motion.div
-            className="flex shrink-0"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: closing ? 0 : width + 1, opacity: closing ? 0 : 1 }}
-            transition={{ duration: resizing ? 0 : panelMotionMs / 1000, ease: [0.22, 1, 0.36, 1] }}
-            style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
+        <div
+            className="flex shrink-0 py-3 pr-3"
+            style={{ width: closing ? 0 : `min(${width + 13}px, calc(100vw - 100px))`, overflow: "hidden", opacity: closing ? 0 : 1, pointerEvents: closing ? "none" : undefined, transition: resizing || reducedMotion ? "none" : `width ${panelMotionMs}ms ease, opacity ${panelMotionMs}ms ease` }}
         >
-            <motion.aside
+            <aside
                 data-canvas-agent-panel
-                className="relative flex shrink-0 flex-col border-l"
-                initial={{ x: reducedMotion ? 0 : 24 }}
-                animate={{ x: closing && !reducedMotion ? 16 : 0 }}
-                transition={{ duration: resizing ? 0 : panelMotionMs / 1000, ease: [0.22, 1, 0.36, 1] }}
-                style={{ width, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+                className="relative flex shrink-0 flex-col rounded-2xl border"
+                style={{ width: `min(${width}px, calc(100vw - 113px))`, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             >
                 <button type="button" className="absolute inset-y-0 left-0 z-40 w-4 -translate-x-1/2 cursor-col-resize" onMouseDown={(event) => { event.preventDefault(); startResize(); }} aria-label="调整右侧面板宽度" />
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3" style={{ borderColor: theme.node.stroke }}>
@@ -620,7 +655,7 @@ export function CanvasAssistantPanel({
                             </>
                         ) : null}
                         <Tooltip title={view === "history" ? "返回对话" : "历史记录"}>
-                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<History className="size-4" />} onClick={() => setView(view === "history" ? "chat" : "history")} />
+                            <Button aria-label="对话记录" type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<History className="size-4" />} onClick={() => setView(view === "history" ? "chat" : "history")} />
                         </Tooltip>
                         <Tooltip title="新对话">
                             <Button
@@ -637,10 +672,10 @@ export function CanvasAssistantPanel({
                             />
                         </Tooltip>
                         <Tooltip title="Agent 设置">
-                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<Settings2 className="size-4" />} onClick={() => setSettingsOpen(true)} />
+                            <Button aria-label="Agent 设置" type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<Settings2 className="size-4" />} onClick={() => setSettingsOpen(true)} />
                         </Tooltip>
                         <Tooltip title="收起对话">
-                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<PanelRightClose className="size-4" />} onClick={collapse} />
+                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<PanelRightClose className="size-4" />} aria-label="收起对话" onClick={collapse} />
                         </Tooltip>
                     </div>
                 </div>
@@ -692,7 +727,7 @@ export function CanvasAssistantPanel({
                         pendingReferences={pendingReferences}
                         selectedSkills={selectedSkills}
                         agentConfig={agentConfig}
-                        onAgentConfigChange={onAgentConfigChange}
+                        onOpenModels={onOpenModels}
                         onPromptChange={setPrompt}
                         onSkillSelect={selectComposerSkill}
                         onSkillRemove={removeComposerSkill}
@@ -763,8 +798,8 @@ export function CanvasAssistantPanel({
                 >
                     <p className="text-sm opacity-60">将删除 {deleteChatIds.length} 条对话记录，此操作不可撤销</p>
                 </Modal>
-            </motion.aside>
-        </motion.div>
+            </aside>
+        </div>
     );
 }
 

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
-const base = process.env.XOI_BASE_URL || "http://localhost:10588";
+const base = process.env.XOI_BASE_URL || "http://localhost:12121";
 const artifacts = process.env.XOI_QA_DIR || "/tmp/xoi-delivery-ui";
 await mkdir(artifacts, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome", headless: true });

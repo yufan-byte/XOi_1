@@ -1,0 +1,22 @@
+{
+  "report": [
+    {
+      "name": "stationary subject cannot create a misleading static follow shot"
+    },
+    {
+      "name": "free demo adds exactly one shot; actual rendered actor and camera both move",
+      "actorTravel": 0.48739495798319327,
+      "cameraTravel": 0.48739495798319304
+    },
+    {
+      "name": "return and undo restore original shots; no billing authorization or model call"
+    }
+  ],
+  "traffic": {
+    "authorize": 0,
+    "model": 0,
+    "receipt": 0,
+    "stop": 0
+  },
+  "errors": []
+}

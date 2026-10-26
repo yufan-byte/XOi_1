@@ -2,6 +2,11 @@ export function modelKey(modelName: string) {
     return modelName.trim().toLowerCase().replace(/[._/]+/g, "-");
 }
 
+/** Catalog, Ark and legacy channels spell the same 2.5 family differently. */
+export function isSeedance25Model(modelName: string) {
+    return /(?:seedance-?2-5|sd2-5)(?:$|[-\s])/.test(modelKey(modelName));
+}
+
 export function isCogVideoX3Model(modelName: string) {
     return modelKey(modelName) === "cogvideox-3";
 }
@@ -49,7 +54,8 @@ export function supportsVideoFrameReferences(modelName: string, protocol = "") {
         model === "kling-v2-5-turbo-image-to-video-pro" ||
         model === "minimax-h3-image-to-video" ||
         model === "minimax-h3" ||
-        model.includes("seedance-2-5") ||
+        isSeedance25Model(model) ||
+        model.includes("seedance2-0") ||
         model.includes("seedance-2-0") ||
         model.includes("seedance-1-5") ||
         model.includes("seedance-1-0") ||
@@ -81,7 +87,8 @@ export function supportsVideoAudioGeneration(modelName: string, protocol = "") {
         model === "wan-2-6-flash-image-to-video" ||
         model === "wan-2-6-flash-video-to-video" ||
         model.includes("bytedance-seedance-1-5") ||
-        model.includes("seedance-2-5") ||
+        isSeedance25Model(model) ||
+        model.includes("seedance2-0") ||
         model.includes("seedance-2-0") ||
         model.includes("seedance-1-5") ||
         (model.includes("veo") && model.includes("official")) ||

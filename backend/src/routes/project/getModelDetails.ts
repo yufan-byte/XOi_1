@@ -3,6 +3,7 @@ import { success, error } from "@/lib/responseFormat";
 import u from "@/utils";
 import { z } from "zod";
 import { validateFields } from "@/middleware/middleware";
+import { resolveUserCatalogModel, publicModel } from "@/lib/model-catalog";
 const router = express.Router();
 
 export default router.post(
@@ -16,6 +17,10 @@ export default router.post(
     if (!data?.modelName) return res.status(400).send(error(`${key} 尚未配置模型`));
     const [id, modelName] = data.modelName.split(/:(.+)/);
     if (!id || !modelName) return res.status(400).send(error(`${key} 模型配置格式无效`));
+    if (id === "newapi") {
+      const { model, catalog } = await resolveUserCatalogModel(Number((req as any).user.id), modelName, "text");
+      return res.json(success(publicModel(model, catalog.factor)));
+    }
     const models = await u.vendor.getModelList(id);
     const model = models.find((m) => m.modelName === modelName);
     if (!model) return res.status(400).send(error(`未找到模型：${data.modelName}`));

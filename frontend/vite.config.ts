@@ -86,12 +86,13 @@ export default defineConfig({
   server: {
     port: 50188,
     proxy: {
+      "/socket.io": { target: process.env.XOI_API_TARGET || "http://localhost:12121", ws: true },
       "/api": {
-        target: "http://localhost:10588",
+        target: process.env.XOI_API_TARGET || "http://localhost:12121",
         changeOrigin: true,
       },
       "/oss": {
-        target: "http://localhost:10588",
+        target: process.env.XOI_API_TARGET || "http://localhost:12121",
         changeOrigin: true,
       },
     },

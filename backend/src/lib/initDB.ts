@@ -114,6 +114,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.string("imageModel");
         table.string("imageQuality");
         table.string("videoModel");
+        table.string("textModel");
         table.text("name");
         table.text("intro");
         table.text("type");
@@ -174,15 +175,6 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
             key: "productionAgent",
             name: "生产Agent",
             desc: "对工作流进行调度和管理，建议使用具备较强的逻辑推理和任务管理能力的模型",
-            disabled: false,
-          },
-          {
-            model: "",
-            modelName: "",
-            vendorId: null,
-            key: "universalAi",
-            name: "通用AI",
-            desc: "用于小说事件提取、资产提示词生成、台词提取等边缘功能，建议使用具备较强文本处理能力的模型",
             disabled: false,
           },
           {
@@ -564,6 +556,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.text("reason");
         table.text("track");
         table.text("videoDesc");
+        table.text("continuity");
         table.integer("shouldGenerateImage"); // 0 否  1 是
         table.bigInteger("projectId");
         table.bigInteger("flowId"); //工作流id
@@ -580,7 +573,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.bigInteger("projectId");
         table.bigInteger("episodesId");
         table.string("key"); //用户其他方式索引
-        table.string("data");
+        table.text("data");
         table.bigInteger("createTime");
         table.bigInteger("updateTime");
         table.unique(["id"]);
@@ -593,7 +586,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.increments("id");
         table.text("filePath");
         table.text("errorReason");
-        table.integer("time");
+        table.bigInteger("time");
         table.text("state");
         table.bigInteger("scriptId");
         table.bigInteger("projectId");
@@ -605,7 +598,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
     {
       name: "o_videoTrack",
       builder: (table) => {
-        table.increments("id");
+        table.bigIncrements("id");
         table.bigInteger("videoId");
         table.bigInteger("projectId");
         table.bigInteger("scriptId");
@@ -726,6 +719,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
       builder: (table) => {
         table.bigInteger("storyboardId").notNullable();
         table.bigInteger("assetId").notNullable();
+        table.integer("sortOrder");
         table.primary(["storyboardId", "assetId"]);
         table.unique(["storyboardId", "assetId"]);
       },
@@ -1025,7 +1019,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         ];
         await Promise.all(
           list.map(async (item) => {
-            const embedding = await getEmbedding(item.description);
+            const embedding = await getEmbedding(item.description,knex);
             item.embedding = JSON.stringify(embedding);
           }),
         );
@@ -1369,14 +1363,16 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.text("display_id");
       });
     }
-    // 管理员使用固定的公开 XOi ID；内部 id 仍然保持为 1。
-    await knex("o_user").where("role", "admin").update({ display_id: "923800" });
+    // Existing public IDs belong to users. Never overwrite every administrator on startup.
     const usersWithoutDisplayId = await knex("o_user").select("id", "display_id");
     const usedDisplayIds = new Set(usersWithoutDisplayId.map((user) => String(user.display_id || "")));
     for (const user of usersWithoutDisplayId) {
       if (user.display_id) continue;
       let displayId = "";
-      do displayId = String(100000 + Math.floor(Math.random() * 900000)); while (usedDisplayIds.has(displayId));
+      let attempts=0;
+      do {attempts++;displayId=String(attempts<8?100000+Math.floor(Math.random()*900000):1000000+Math.floor(Math.random()*999000000));}
+      while(usedDisplayIds.has(displayId)&&attempts<64);
+      if(usedDisplayIds.has(displayId))throw Error('展示编号分配繁忙，未修改已有用户编号');
       usedDisplayIds.add(displayId);
       await knex("o_user").where("id", user.id).update({ display_id: displayId });
     }

@@ -8,6 +8,20 @@ import useTools from "@/agents/productionAgent/tools";
 import ResTool from "@/socket/resTool";
 import * as fs from "fs";
 import path from "path";
+import { readCreativePreference, creativePreferencePrompt } from '../../../../shared/creativePreference';
+import { saveDirectorDraft, type DraftSource } from '@/utils/directorStageDraft';
+
+const CONTINUITY_INSTRUCTIONS = `\n创作约束：项目未指定风格时不得擅自套用预设；用户自述风格优先于预设建议。
+先在对话中澄清并起草导演计划，等待用户审核，再起草分镜表，等待审核，之后才创建镜头或生成媒体。
+导演计划必须给出每个场景的固定布局（门窗/床桌的位置、光源方向、时间）、人物服装/道具和空间轴线。
+分镜表逐镜标注场景资产ID、出入画方向、起始状态、结束状态、以及与上一镜的关系（cut同场景切镜、continue连续动作接镜、new_scene换场景）。
+同一场景必须复用同一个场景资产ID，人物必须复用角色资产。不要将不同房间重新描述成新布景。连续动作必须描述上一镜末态如何成为下一镜初态。
+把连续性字段写入 add_flowData_storyboard 的 continuity 参数。已有镜头用 update_storyboard_continuity 修正，不重复创建。独立生成的视频镜头使用不同的 track；只有打算在同一段视频内完成的镜头才共用 track。只输出 XML storyboardItem 不会创建镜头。不要在未审核计划/分镜表时调用后续工具。`;
+
+const OUTPUT_STYLE_INSTRUCTIONS = `\n输出纪律：面向用户的正文只写结论与行动——计划要点、紧凑表格、修改说明、下一步建议或需要用户决策的问题。
+不要把推理过程、犹豫或自我纠错（如"也许""换个思路""再核对一下"之类）写进正文；需要推敲就在内部完成。
+不在聊天里整段复述工作区内容；生成或修改完成后用一两句话说明改了什么，让用户到对应阶段查看。
+长回复先给一句话结论，再分点展开；默认最多三个问题，表格保持紧凑，不重复列出未变化的行。子任务已展示的报告不再复述。只复核修改范围，不增设用户未要求的光影词禁令或审美门槛；没有看图时不得声称完成画面检查。`;
 
 export interface AgentContext {
   socket: Socket;
@@ -18,6 +32,8 @@ export interface AgentContext {
   resTool: ResTool;
   msg: ReturnType<ResTool["newMessage"]>;
   messages?: { role: "user" | "assistant" | "system"; content: string }[];
+  textModel?: `${string}:${string}`;
+  draftSource?: DraftSource;
   thinkConfig: {
     think: boolean;
     thinlLevel: 0 | 1 | 2 | 3;
@@ -50,6 +66,11 @@ export async function runDecisionAI(ctx: AgentContext) {
 
   const projectInfo = await u.db("o_project").where("id", ctx.resTool.data.projectId).first();
   if (!projectInfo) throw new Error(`项目不存在，ID: ${ctx.resTool.data.projectId}`);
+  const currentScript=await u.db('o_script').where({id:ctx.resTool.data.scriptId,projectId:ctx.resTool.data.projectId}).first();
+  if(!currentScript)throw Error('剧集不属于当前项目');
+  ctx.draftSource={script:currentScript.content||'',artStyle:projectInfo.artStyle||'',directorManual:projectInfo.directorManual||'',videoRatio:projectInfo.videoRatio||''};
+  // Respect the visible project/session selection for the decision AND its subagents.
+  ctx.textModel = ctx.textModel || projectInfo.textModel as `${string}:${string}` | undefined;
   const [_, imageModelName] = projectInfo.imageModel!.split(/:(.+)/);
   const [id, videoModelName] = projectInfo.videoModel!.split(/:(.+)/);
   const models = await u.vendor.getModelList(id);
@@ -64,13 +85,13 @@ export async function runDecisionAI(ctx: AgentContext) {
   // const findData = models.find((i: any) => i.modelName == videoModelName);
   // const isRef = findData.mode.every((i: any) => Array.isArray(i));
 
-  const modelInfo = `项目使用的模型如下：\n图像模型：${imageModelName}\n视频模型：${videoModelName}\n多参：${isRef ? "是" : "否"}`;
+  const modelInfo = `项目使用的模型如下：\n图像模型：${imageModelName}\n视频模型：${videoModelName}\n多参：${isRef ? "是" : "否"}\n${creativePreferencePrompt(projectInfo.artStyle, '视觉风格')}\n${creativePreferencePrompt(projectInfo.directorManual, '叙事方式')}`;
 
   const mem = buildMemPrompt(await memory.get(text));
 
-  const { fullStream } = await u.Ai.Text("productionAgent:decisionAgent", ctx.thinkConfig.think, ctx.thinkConfig.thinlLevel).stream({
+  const { fullStream } = await u.Ai.Text(ctx.textModel || "productionAgent:decisionAgent", ctx.thinkConfig.think, ctx.thinkConfig.thinlLevel).stream({
     messages: [
-      { role: "system", content: prompt },
+      { role: "system", content: prompt + CONTINUITY_INSTRUCTIONS + OUTPUT_STYLE_INSTRUCTIONS },
       { role: "assistant", content: mem + "\n" + modelInfo },
       { role: "user", content: text },
     ],
@@ -86,12 +107,13 @@ export async function runDecisionAI(ctx: AgentContext) {
   });
 
   let currentMsg = ctx.msg;
-  await consumeFullStream(fullStream, currentMsg, () => {
+  const response = await consumeFullStream(fullStream, currentMsg, () => {
     if (ctx.msg === currentMsg) return currentMsg;
     currentMsg.complete();
     currentMsg = ctx.msg;
     return currentMsg;
   });
+  if (await saveDirectorDraft(u.db, Number(ctx.resTool.data.projectId), Number(ctx.resTool.data.scriptId), response, ctx.textModel || 'productionAgent:decisionAgent',ctx.draftSource)) ctx.socket.emit('directorStageSaved');
 }
 
 async function createSubAgent(parentCtx: AgentContext) {
@@ -117,14 +139,15 @@ async function createSubAgent(parentCtx: AgentContext) {
     parentCtx.msg.complete();
     const subMsg = resTool.newMessage("assistant", name);
 
-    const { fullStream } = await u.Ai.Text(key, parentCtx.thinkConfig.think, parentCtx.thinkConfig.thinlLevel).stream({
-      system,
+    const { fullStream } = await u.Ai.Text(parentCtx.textModel || key, parentCtx.thinkConfig.think, parentCtx.thinkConfig.thinlLevel).stream({
+      system: system + CONTINUITY_INSTRUCTIONS + OUTPUT_STYLE_INSTRUCTIONS,
       messages: messages ?? [{ role: "user", content: prompt }],
       abortSignal,
       tools: { ...extraTools, ...useTools({ resTool, msg: subMsg }) },
     });
 
     const fullResponse = await consumeFullStream(fullStream, subMsg);
+    if (await saveDirectorDraft(u.db, Number(resTool.data.projectId), Number(resTool.data.scriptId), fullResponse, parentCtx.textModel || key,parentCtx.draftSource)) resTool.socket.emit('directorStageSaved');
 
     if (fullResponse.trim()) {
       await memory.add(memoryKey, removeAllXmlTags(fullResponse), {
@@ -133,7 +156,8 @@ async function createSubAgent(parentCtx: AgentContext) {
       });
     }
 
-    parentCtx.msg = resTool.newMessage("assistant", "视频策划");
+    // 子任务结束后回到主对话位，用户看到的始终是同一个「导演助理」在说话
+    parentCtx.msg = resTool.newMessage("assistant", "导演助理");
     return fullResponse;
   }
 
@@ -161,7 +185,7 @@ async function createSubAgent(parentCtx: AgentContext) {
   }
   const isRef = Array.isArray(videoMode) ? true : false;
 
-  const modelInfo = `项目使用的模型如下：\n图像模型：${imageModelName}\n视频模型：${videoModelName}\n多参：${isRef ? "是" : "否"}`;
+  const modelInfo = `项目使用的模型如下：\n图像模型：${imageModelName}\n视频模型：${videoModelName}\n多参：${isRef ? "是" : "否"}\n${creativePreferencePrompt(projectInfo.artStyle, '视觉风格')}\n${creativePreferencePrompt(projectInfo.directorManual, '叙事方式')}`;
 
   // const run_sub_agent_execution = tool({
   //   description: "执行层子Agent，负责衍生资产、",
@@ -204,7 +228,7 @@ async function createSubAgent(parentCtx: AgentContext) {
         key: "productionAgent:deriveAssetsAgent",
         prompt,
         system: systemPrompt,
-        name: "执行导演",
+        name: "导演助理 · 资产",
         memoryKey: "assistant:execution",
         messages: [
           { role: "assistant", content: artSkills.prompt + `\n${modelInfo}` },
@@ -226,7 +250,7 @@ async function createSubAgent(parentCtx: AgentContext) {
         key: "productionAgent:generateAssetsAgent",
         prompt,
         system: systemPrompt,
-        name: "执行导演",
+        name: "导演助理 · 出图",
         memoryKey: "assistant:execution",
         messages: [
           { role: "assistant", content: artSkills.prompt + `\n${modelInfo}` },
@@ -251,7 +275,7 @@ async function createSubAgent(parentCtx: AgentContext) {
         key: "productionAgent:directorPlanAgent",
         prompt,
         system: systemPrompt + addPrompt,
-        name: "执行导演",
+        name: "导演助理 · 计划",
         memoryKey: "assistant:execution",
         messages: [
           { role: "assistant", content: artSkills.prompt + `\n${modelInfo}` },
@@ -273,7 +297,7 @@ async function createSubAgent(parentCtx: AgentContext) {
         key: "productionAgent:storyboardGenAgent",
         prompt,
         system: systemPrompt,
-        name: "执行导演",
+        name: "导演助理 · 分镜图",
         memoryKey: "assistant:execution",
         messages: [
           { role: "assistant", content: artSkills.prompt + `\n${modelInfo}` },
@@ -311,7 +335,7 @@ async function createSubAgent(parentCtx: AgentContext) {
         key: "productionAgent:storyboardPanelAgent",
         prompt,
         system: systemPrompt + addPrompt,
-        name: "执行导演",
+        name: "导演助理 · 镜头",
         memoryKey: "assistant:execution",
         messages: [
           { role: "assistant", content: productionSkills.prompt + `\n${modelInfo}` },
@@ -336,7 +360,7 @@ async function createSubAgent(parentCtx: AgentContext) {
         key: "productionAgent:storyboardTableAgent",
         prompt,
         system: systemPrompt + addPrompt,
-        name: "执行导演",
+        name: "导演助理 · 分镜表",
         memoryKey: "assistant:execution",
         messages: [
           { role: "assistant", content: productionSkills.prompt + `\n${modelInfo}` },
@@ -357,7 +381,7 @@ async function createSubAgent(parentCtx: AgentContext) {
         key: "productionAgent:supervisionAgent",
         prompt,
         system: systemPrompt,
-        name: "监制",
+        name: "导演助理 · 监制",
         memoryKey: "assistant:supervision",
       });
     },
@@ -377,7 +401,7 @@ async function createSubAgent(parentCtx: AgentContext) {
 async function createArtSkills(artName: string, storyName: string) {
   const artWorkerPath = u.getPath(["skills", "art_skills", artName, "driector_skills"]);
   const storyWorkerPath = u.getPath(["skills", "story_skills", storyName, "driector_skills"]);
-  const skillList = [...(await scanSkills(artWorkerPath + "/*.md")), ...(await scanSkills(storyWorkerPath + "/*.md"))];
+  const skillList = [...(readCreativePreference(artName).mode === 'preset' ? await scanSkills(artWorkerPath + "/*.md") : []), ...(readCreativePreference(storyName).mode === 'preset' ? await scanSkills(storyWorkerPath + "/*.md") : [])];
   const mainSkills: { path: string; name: string; description: string }[] = [];
   for (const skillPath of skillList) {
     if (!fs.existsSync(skillPath)) throw new Error(`主技能文件不存在: ${skillPath}`);
@@ -468,8 +492,8 @@ async function useProductionSkills(artName: string, storyName: string) {
   const storyWorkerPath = u.getPath(["skills", "story_skills", storyName, "driector_skills"]);
   const productionPath = u.getPath(["skills", "production_skills"]);
   const skillList = [
-    ...(await scanSkills(artWorkerPath + "/*.md")),
-    ...(await scanSkills(storyWorkerPath + "/*.md")),
+    ...(readCreativePreference(artName).mode === 'preset' ? await scanSkills(artWorkerPath + "/*.md") : []),
+    ...(readCreativePreference(storyName).mode === 'preset' ? await scanSkills(storyWorkerPath + "/*.md") : []),
     ...(await scanSkills(productionPath + "/*.md")),
   ];
   const mainSkills: { path: string; name: string; description: string }[] = [];

@@ -1,6 +1,6 @@
 <template>
   <main v-if="identityState !== 'ready'" class="director-identity-gate">
-    <h1>{{ identityState === 'checking' ? '正在验证账号' : '暂时无法打开导演工作台' }}</h1>
+    <h1>{{ identityState === 'checking' ? '正在验证账号' : '暂时无法打开白模预演工作台' }}</h1>
     <p>{{ identityState === 'checking' ? '确认登录身份后载入你的场景。' : identityError }}</p>
     <button v-if="identityState === 'error'" type="button" @click="loadDirectorIdentity">重新验证</button>
   </main>
@@ -8,12 +8,15 @@
     <section class="director-library-hero">
       <div class="director-library-grid" aria-hidden="true"></div>
       <div class="director-library-copy">
-        <span class="director-library-eyebrow">XOi / 3D PREVIS</span>
-        <h1>3D 导演台</h1>
-        <p>搭建场景、安排人物走位、设计镜头与关键帧，把导演想法变成可预演的分镜。</p>
+        <span class="director-library-eyebrow">白模预演工作台 · 3D 预演</span>
+        <h1>先调度，再开拍</h1>
+        <p>在场景里安排演员、机位与时间线，预演镜头节奏，再导出分镜画面或视频。</p>
         <div class="director-library-actions">
-          <button class="director-library-primary" type="button" @click="createProject">＋ 新建导演台</button>
-          <button class="director-library-secondary" type="button" @click="openLatestProject">打开导演台 <span>→</span></button>
+          <button class="director-library-primary" type="button" @click="createProject">＋ 新建场景</button>
+          <button class="director-library-secondary" type="button" @click="openLatestProject">继续上次创作 <span>→</span></button>
+        </div>
+        <div class="director-library-flow" aria-label="导演台工作流程">
+          <span>01 搭建场景</span><i>›</i><span>02 演员调度</span><i>›</i><span>03 镜头预演</span>
         </div>
       </div>
       <div class="director-library-visual" aria-hidden="true">
@@ -24,14 +27,17 @@
     <section class="director-library-workspace">
       <div class="director-library-heading">
         <div>
-          <span>导演台库</span>
-          <h2>继续创作</h2>
+          <span>我的场景</span>
+          <h2>继续创作 <small>{{ projects.length }} 个场景</small></h2>
         </div>
-        <button class="director-library-text-action" type="button" @click="createProject">新建导演台 ＋</button>
+        <button class="director-library-text-action" type="button" @click="createProject">＋ 新建场景</button>
       </div>
       <div class="director-project-library-grid">
         <article v-for="project in sortedProjects" :key="project.id" class="director-project-library-card" role="button" tabindex="0" @click="openProject(project.id)" @keydown.enter="openProject(project.id)">
-          <button class="director-project-card-delete" type="button" :disabled="projects.length === 1" @click.stop="openDeleteProject(project.id)">删除</button>
+          <div class="director-project-card-actions">
+            <button type="button" @click.stop="openRenameProject(project.id)">重命名</button>
+            <button class="director-project-card-delete" type="button" :disabled="projects.length === 1" @click.stop="openDeleteProject(project.id)">删除</button>
+          </div>
           <span class="director-project-card-scene">3D</span>
           <span class="director-project-card-preview">
             <img :src="directorProjectPreview" alt="" loading="lazy" decoding="async" />
@@ -41,13 +47,20 @@
           <time>{{ formatProjectDate(project.updatedAt || project.createdAt) }}</time>
           <span class="director-project-card-open">打开 →</span>
         </article>
-        <button class="director-project-library-card director-project-library-new" type="button" @click="createProject">
-          <span>＋</span>
-          <strong>新建导演台</strong>
-          <small>从一个空白场景开始</small>
-        </button>
       </div>
     </section>
+
+    <div v-if="projectAction === 'rename'" class="director-library-delete-mask">
+      <form class="director-library-delete-dialog" role="dialog" aria-modal="true" @submit.prevent="confirmRenameProject">
+        <span>场景命名</span>
+        <h2>重命名场景</h2>
+        <input v-model="projectNameDraft" class="project-name-input" maxlength="40" autofocus aria-label="场景名称" />
+        <div>
+          <button type="button" @click="projectAction = null">取消</button>
+          <button class="director-library-save" type="submit">保存名称</button>
+        </div>
+      </form>
+    </div>
 
     <div v-if="projectAction === 'delete'" class="director-library-delete-mask">
       <section class="director-library-delete-dialog" role="alertdialog" aria-modal="true">
@@ -64,15 +77,29 @@
 
   <div v-else class="director3d-container">
     <div class="project-bar" :style="projectBarMetrics">
+      <button class="director-exit" type="button" title="关闭导演台，返回主站（Esc）" aria-label="关闭导演台" @click="exitDirector">
+        <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+      </button>
       <button class="project-trigger" type="button" @click="projectPanelVisible = true">
-        <span class="project-eyebrow">导演台</span>
         <strong>{{ currentProject?.name || "未命名场景" }}</strong>
       </button>
       <button class="project-create" type="button" title="新建场景" @click="createProject">
         <span>＋</span>
       </button>
     </div>
-    <DirectorSkillsPanel :key="`skills-${activeProjectId}`" :project-id="activeProjectId" :owner-id="ownerId" :project-name="currentProject?.name || '未命名场景'" :get-iframe="() => iframeRef" />
+    <!-- 宿主工具条：XOi 自己的动作都放这里，靠 iframe 让位（而不是浮在 monoform 面板上）。
+         之前把按钮绝对定位在 right:16px，会压住右侧属性面板的标题行和眼睛/锁定/复制/删除图标。 -->
+    <div class="director-rail" role="toolbar" aria-label="XOi 工具条">
+      <button class="rail-btn" type="button" title="AI 导演助理：搭场景 / 人物走位 / 镜头运镜" @click="skillsPanelRef?.toggle()">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 3.9 3.9 1.6-3.9 1.6L8 12.5 6.4 8.6 2.5 7l3.9-1.6z" fill="currentColor" /></svg>
+        <span>导演助理</span>
+      </button>
+      <button class="rail-btn" type="button" title="把当前镜头带到画布继续制作" @click="sendCurrentShot('image')">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h8M2 8h8M2 12h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none" /><path d="M11 9.4l3.2 2.6L11 14.6z" fill="currentColor" /></svg>
+        <span>带到画布</span>
+      </button>
+    </div>
+    <DirectorSkillsPanel ref="skillsPanelRef" hide-trigger :key="`skills-${activeProjectId}`" :project-id="activeProjectId" :owner-id="ownerId" :project-name="currentProject?.name || '未命名场景'" :get-iframe="() => iframeRef" />
     <iframe
       ref="iframeRef"
       :key="activeProjectId"
@@ -194,8 +221,12 @@
 import { computed, ref, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import DirectorSkillsPanel from "@/components/director/DirectorSkillsPanel.vue";
-import directorLibraryHero from "@/assets/director3d/director-library-hero.png";
-import directorProjectPreview from "@/assets/director3d/director-project-preview.png";
+import {MessagePlugin} from "tdesign-vue-next";
+import {directorShotPackage} from "@/utils/directorHandoff";
+import {importDirectorProject} from "@/utils/directorScene";
+import {repairLegacyWalkingEndRotations} from "../../../../shared/directorMotion";
+import directorLibraryHero from "@/assets/director3d/director-library-hero-v2.png";
+import directorProjectPreview from "@/assets/director3d/director-project-preview-v2.png";
 
 interface MonoformExport {
   kind: "image" | "video";
@@ -208,6 +239,8 @@ interface MonoformExport {
 }
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
+/** AI 导演助理面板：触发器在宿主工具条上，面板本身由组件渲染 */
+const skillsPanelRef = ref<{ toggle: () => void } | null>(null);
 const loading = ref(true);
 const exportCard = ref<MonoformExport | null>(null);
 
@@ -220,6 +253,30 @@ type DirectorProject = {
 
 const route = useRoute();
 const router = useRouter();
+
+/**
+ * 全屏导演台的出口。
+ *
+ * 它是顶层路由（不在 /workbench 布局里），所以必须自带退出方式：
+ * 左上角 X 与 Esc 都走这里。有浮层时先关浮层，避免"按 Esc 直接把整个工作台关了"。
+ */
+function exitDirector() {
+  if (projectAction.value) {
+    projectAction.value = null;
+    return;
+  }
+  if (projectPanelVisible.value) {
+    projectPanelVisible.value = false;
+    return;
+  }
+  void router.replace("/aiAssistant");
+}
+
+function handleDirectorKeydown(event: KeyboardEvent) {
+  if (event.key !== "Escape" || isLibrary.value) return;
+  // iframe 内部有自己的焦点，Esc 只会落在宿主文档上；iframe 里的 Esc 由 monoform 自己处理。
+  exitDirector();
+}
 const identityState = ref<"checking" | "ready" | "error">("checking");
 const identityError = ref("");
 const ownerId = ref("");
@@ -248,7 +305,7 @@ const emptyOnFirstLoad = new Set<string>();
 const projectAction = ref<"rename" | "delete" | null>(null);
 const projectActionTargetId = ref<string | null>(null);
 const projectNameDraft = ref("");
-const projectBarMetrics = ref({ width: "192px", height: "56px" });
+const projectBarMetrics = ref({ width: "228px", height: "56px" });
 const isLibrary = computed(() => !route.query.scene);
 const sortedProjects = computed(() => [...projects.value].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)));
 
@@ -256,7 +313,7 @@ async function loadDirectorIdentity() {
   identityState.value = "checking";
   try {
     const token = localStorage.getItem("token") || "";
-    if (!token) throw new Error("请先登录后使用导演工作台");
+    if (!token) throw new Error("请先登录后使用白模预演工作台");
     const response = await fetch("/api/auth/me", { headers: { Authorization: token }, cache: "no-store" });
     if (!response.ok) throw new Error("登录身份验证失败，请重新登录");
     const data = await response.json();
@@ -265,12 +322,20 @@ async function loadDirectorIdentity() {
     if (localStorage.getItem("token") !== token) throw new Error("账号已切换，请重新验证");
     ownerId.value = String(userId);
     verifiedToken.value = token;
+    const hadLocal=!!localStorage.getItem(projectsStorageKey());
     projects.value = getInitialProjects();
+    try {
+      const remote:DirectorProject[]=[];
+      for(let offset=0;offset<200;offset+=50){const response=await fetch(`/api/director-scenes?offset=${offset}`,{headers:{Authorization:token},signal:AbortSignal.timeout(5000)});if(!response.ok)break;const {data:rows}=await response.json();if(!Array.isArray(rows))break;remote.push(...rows.filter((r:any)=>isOwnedProjectId(r.id)).map((r:any)=>({id:r.id,name:r.title||'导演场景',createdAt:Number(r.updatedAt),updatedAt:Number(r.updatedAt)})));if(rows.length<50)break;}
+      if(localStorage.getItem('token')!==token)throw new Error('账号已切换');
+      if(remote.length)projects.value=[...remote,...(hadLocal?projects.value.filter(p=>!remote.some(r=>r.id===p.id)):[])];
+    }catch{/* Keep offline local drafts. Native editor reports sync status separately. */}
     const savedId = localStorage.getItem(activeProjectStorageKey());
     activeProjectId.value = projects.value.some((project) => project.id === savedId) ? savedId! : projects.value[0].id;
     const scene = Array.isArray(route.query.scene) ? route.query.scene[0] : route.query.scene;
     if (scene && !projects.value.some((project) => project.id === scene)) {
-      await router.replace({ path: "/director3d" });
+      if(isOwnedProjectId(scene)&&localStorage.getItem(`monoform-project-${scene}`)){projects.value.push({id:scene,name:'导演场景',createdAt:Date.now()});activeProjectId.value=scene;}
+      else await router.replace({ path: "/director3d" });
     } else if (scene) {
       activeProjectId.value = scene;
     }
@@ -389,10 +454,12 @@ function openRenameProject(id = currentProject.value?.id) {
   projectAction.value = "rename";
 }
 
-function confirmRenameProject() {
+async function confirmRenameProject() {
   const project = projects.value.find((item) => item.id === projectActionTargetId.value);
   const name = projectNameDraft.value.trim();
   if (!project || !name) return;
+  try{const response=await fetch(`/api/director-scenes/${project.id}`,{headers:{Authorization:verifiedToken.value}});if(response.ok){const {data}=await response.json();const saved=await fetch(`/api/director-scenes/${project.id}`,{method:'PUT',headers:{Authorization:verifiedToken.value,'Content-Type':'application/json'},body:JSON.stringify({revision:data.revision,title:name,payload:data.payload})});if(!saved.ok)throw new Error('场景已更新，请刷新后重试');}else if(response.status!==404)throw new Error('云端场景尚未确认，请重试');}
+  catch(e:any){MessagePlugin.warning(e.message);return;}
   project.name = name;
   projectActionTargetId.value = null;
   projectAction.value = null;
@@ -405,9 +472,10 @@ function openDeleteProject(id = currentProject.value?.id) {
   projectAction.value = "delete";
 }
 
-function confirmDeleteProject() {
+async function confirmDeleteProject() {
   const project = deleteProjectTarget.value;
   if (!project || projects.value.length <= 1) return;
+  try{const response=await fetch(`/api/director-scenes/${project.id}`,{headers:{Authorization:verifiedToken.value}});if(response.ok){const {data}=await response.json();const removed=await fetch(`/api/director-scenes/${project.id}`,{method:'DELETE',headers:{Authorization:verifiedToken.value,'Content-Type':'application/json'},body:JSON.stringify({revision:data.revision})});if(!removed.ok)throw new Error('云端删除未确认，请重新核对');}else if(![404,410].includes(response.status))throw new Error('云端场景尚未确认，本机工程保留');}catch(e:any){MessagePlugin.warning(e.message);return;}
   localStorage.removeItem(`monoform-project-${project.id}`);
   localStorage.removeItem(`monoform-custom-poses-${project.id}`);
   const currentIndex = projects.value.findIndex((item) => item.id === project.id);
@@ -444,7 +512,7 @@ function hideMonoformBrand() {
   const topbarRect = topbar.getBoundingClientRect();
   if (brandRect.width && topbarRect.height) {
     projectBarMetrics.value = {
-      width: `${Math.ceil(brandRect.width)}px`,
+      width: `${Math.ceil(brandRect.width) + 36}px`,
       height: `${Math.ceil(topbarRect.height)}px`,
     };
   }
@@ -458,6 +526,20 @@ function onIframeLoad() {
   hideMonoformBrand();
   window.setTimeout(hideMonoformBrand, 50);
   const projectId = activeProjectId.value;
+  // One released walking-track writer reversed the actor only on its arrival key.
+  // Repair that narrow signature once the native editor is ready, then import it
+  // through the normal editor path so local and cloud state stay in sync.
+  let repairAttempts=0;
+  const repairLegacyWalk=async()=>{
+    if(projectId!==activeProjectId.value)return;
+    const raw=localStorage.getItem(`monoform-project-${projectId}`);
+    if(!raw&&repairAttempts++<40){window.setTimeout(repairLegacyWalk,100);return;}
+    try{
+      const project=JSON.parse(raw||'');
+      if(repairLegacyWalkingEndRotations(project))await importDirectorProject(iframeRef.value,projectId,ownerId.value,project);
+    }catch{if(repairAttempts++<40)window.setTimeout(repairLegacyWalk,100);}
+  };
+  window.setTimeout(repairLegacyWalk,100);
   if (!emptyOnFirstLoad.has(projectId)) {
     loading.value = false;
     return;
@@ -490,10 +572,12 @@ function formatBytes(bytes: number): string {
 async function handleMessage(event: MessageEvent) {
   if (identityState.value !== "ready" || event.origin !== window.location.origin || event.source !== iframeRef.value?.contentWindow) return;
   const data = event.data;
+  if(data?.source==='monoform'&&data.type==='send-shot'&&data.key===activeProjectId.value){await sendCurrentShot(data.mode==='video'?'video':'image');return;}
   if (!data || data.source !== "monoform" || data.type !== "export" || !data.blob) {
     return;
   }
-  if (data.kind !== "image" && data.kind !== "video") return;
+  // Video handoff only uses the versioned send-shot flow; native MP4 export already downloads locally.
+  if (data.kind !== "image") return;
 
   const blob = data.blob as Blob;
   const ext = data.kind === "image" ? "png" : "mp4";
@@ -536,7 +620,14 @@ function downloadExport() {
   a.click();
 }
 
-const sendBlockedHint = "视频请下载后从画布节点上传导入";
+let handingOff=false;
+async function sendCurrentShot(mode:"image"|"video"="image"){
+ if(handingOff)return;handingOff=true;const close=mode==='image'?MessagePlugin.loading({content:'正在保存当前镜头并准备画布…',duration:0}):undefined;
+ try{const {graph}=await directorShotPackage(iframeRef.value,activeProjectId.value,ownerId.value,currentProject.value?.name||'导演场景',undefined,{mode});localStorage.setItem('xoi_canvas_graph_v1',JSON.stringify(graph));sessionStorage.setItem('xoi_director_return_scene_v1',activeProjectId.value);await router.push({path:'/canvas',query:{source:'xoi',graph:'1',from:'director3d'}});}
+ catch(e:any){if(e.name==='AbortError')MessagePlugin.info(e.message||'已取消，原场景保留');else MessagePlugin.error(e.message||'带入失败，原场景保留');}
+ finally{handingOff=false;if(close)(await close).close();}
+}
+const sendBlockedHint = "若需绑定当前镜头版本，请使用顶部更多交接方式中的“预演视频带到画布”";
 
 // 走与 sendToCanvas.ts 相同的 import 协议：?import=<encodedJSON>&source=xoi&from=<page>
 // dataURL 由画布侧统一经上传接口转成后端 URL
@@ -563,6 +654,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener("keydown", handleDirectorKeydown);
   window.removeEventListener("message", handleMessage);
   window.removeEventListener("storage", guardAccountChange);
   window.removeEventListener("focus", guardAccountChange);
@@ -587,7 +679,6 @@ onUnmounted(() => {
   button { margin-top: 8px; padding: 10px 18px; border: 1px solid #ddd; border-radius: 9px; background: #fff; cursor: pointer; }
 }
 
-
 .director3d-library {
   --director-accent: #f57442;
   --director-accent-bright: #ff8a57;
@@ -597,23 +688,27 @@ onUnmounted(() => {
   overflow-x: hidden;
   overflow-y: auto;
   color: #1d2028;
-  background: linear-gradient(135deg, #fbfbfd 0%, #f4f0ff 58%, #fff1e9 100%);
+  padding: 24px clamp(20px, 3vw, 44px) 48px;
+  background: #f7f7f8;
 }
 
 .director-library-hero {
   position: relative;
-  min-height: 500px;
+  max-width: 1400px;
+  min-height: 322px;
+  margin: 0 auto;
   overflow: hidden;
-  color: #f7f8ff;
-  background: linear-gradient(112deg, #ffffff 0%, #f5f1ff 56%, #ffece3 100%);
-  color: #272b3b;
+  color: #f7f7f7;
+  background: linear-gradient(110deg, #252629 0%, #303137 58%, #3b3431 100%);
+  border: 1px solid #3f3e3d;
+  border-radius: 20px;
 }
 
 .director-library-grid {
   position: absolute;
   inset: 0;
-  opacity: 0.2;
-  background-image: linear-gradient(rgba(119, 104, 198, 0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(119, 104, 198, 0.09) 1px, transparent 1px);
+  opacity: 0.22;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
   background-size: 44px 44px;
   mask-image: linear-gradient(90deg, black, transparent 92%);
 }
@@ -621,39 +716,39 @@ onUnmounted(() => {
 .director-library-copy {
   position: relative;
   z-index: 1;
-  width: min(720px, calc(100% - 48px));
-  padding: 108px 0 86px max(8vw, 48px);
+  width: min(660px, calc(100% - 48px));
+  padding: 42px 0 34px clamp(28px, 4vw, 56px);
 }
 
 .director-library-eyebrow,
 .director-library-heading > div > span {
-  color: #ffb36b;
+  color: #ffae86;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
 }
 
 .director-library-copy h1 {
-  margin: 15px 0 20px;
-  font-size: clamp(52px, 7vw, 94px);
-  letter-spacing: -0.08em;
-  line-height: 0.95;
-  color: #292d3d;
+  margin: 12px 0 12px;
+  font-size: clamp(34px, 3.8vw, 48px);
+  letter-spacing: -0.045em;
+  line-height: 1.16;
+  color: #fff;
 }
 
 .director-library-copy p {
   max-width: 570px;
   margin: 0;
-  color: #73788b;
-  font-size: 16px;
-  line-height: 1.8;
+  color: #c8c8c9;
+  font-size: 14px;
+  line-height: 1.75;
 }
 
 .director-library-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 30px;
+  margin-top: 22px;
 }
 
 .director-library-primary,
@@ -671,14 +766,14 @@ onUnmounted(() => {
   background: linear-gradient(135deg, var(--director-accent-bright), var(--director-accent));
   border: 0;
   border-radius: 9px;
-  box-shadow: 0 8px 22px rgba(var(--director-accent-rgb), 0.28);
+  box-shadow: none;
 }
 
 .director-library-secondary {
   padding: 12px 17px;
-  color: #5f58a2;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid rgba(112, 101, 196, 0.2);
+  color: #f3f3f4;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 9px;
 }
 
@@ -687,30 +782,40 @@ onUnmounted(() => {
   font-size: 18px;
 }
 
+.director-library-flow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  color: #c3c1c0;
+  font-size: 11px;
+  letter-spacing: .02em;
+}
+.director-library-flow i { color: #f5a17d; font-size: 16px; font-style: normal; }
+
 .director-library-visual {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: min(64vw, 1120px);
+  inset: 0;
+  width: 100%;
   height: 100%;
   border-radius: 0;
   overflow: hidden;
-  opacity: .98;
-  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .18) 30%, rgba(0, 0, 0, .72) 52%, #000 72%, #000 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .18) 30%, rgba(0, 0, 0, .72) 52%, #000 72%, #000 100%);
+  opacity: .74;
+  pointer-events: none;
 }
 
 .director-library-visual img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: right center;
+  object-fit: cover;
+  object-position: center 56%;
+  filter: saturate(.86);
 }
 
 .director-library-workspace {
-  max-width: 1320px;
-  padding: 58px max(6vw, 32px) 72px;
+  max-width: 1400px;
+  padding: 30px 0 72px;
   margin: 0 auto;
 }
 
@@ -724,9 +829,10 @@ onUnmounted(() => {
 
 .director-library-heading h2 {
   margin: 6px 0 0;
-  font-size: 30px;
+  font-size: 24px;
   letter-spacing: -0.05em;
 }
+.director-library-heading h2 small { margin-left: 8px; color: #898a8e; font-size: 12px; font-weight: 400; letter-spacing: 0; }
 
 .director-library-text-action {
   padding: 8px 0;
@@ -738,7 +844,7 @@ onUnmounted(() => {
 .director-project-library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .director-project-library-card {
@@ -754,8 +860,8 @@ onUnmounted(() => {
   justify-content: flex-end;
   background: #fff;
   border: 1px solid #e0e3ec;
-  border-radius: 14px;
-  box-shadow: 0 7px 20px rgba(27, 31, 43, 0.04);
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgba(27, 31, 43, 0.04);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
@@ -776,25 +882,29 @@ onUnmounted(() => {
   letter-spacing: 0.1em;
 }
 
-.director-project-card-delete {
+.director-project-card-actions {
   position: absolute;
   z-index: 2;
   top: 12px;
   right: 12px;
+  display: flex;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.director-project-card-actions button {
   padding: 4px 7px;
-  color: #bd6570;
+  color: #55565a;
   font: inherit;
   font-size: 11px;
-  background: rgba(225, 97, 110, 0.08);
-  border: 1px solid rgba(225, 97, 110, 0.18);
+  background: #fff;
+  border: 1px solid #e8e8e7;
   border-radius: 6px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.18s ease, background 0.18s ease;
 }
-
-.director-project-library-card:hover .director-project-card-delete,
-.director-project-card-delete:focus-visible {
+.director-project-card-actions .director-project-card-delete { color: #bd6570; }
+.director-project-library-card:hover .director-project-card-actions,
+.director-project-card-actions:focus-within {
   opacity: 1;
 }
 
@@ -813,7 +923,7 @@ onUnmounted(() => {
   inset: 45px 18px auto;
   height: 74px;
   overflow: hidden;
-  background: #eeeaff;
+  background: #33332f;
   border-radius: 8px;
 }
 
@@ -862,12 +972,17 @@ onUnmounted(() => {
 .director-library-delete-dialog > div { display: flex; justify-content: flex-end; gap: 10px; margin-top: 23px; }
 .director-library-delete-dialog button { padding: 9px 12px; color: #fff; font: inherit; font-size: 12px; background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; cursor: pointer; }
 .director-library-delete-dialog button.danger { background: linear-gradient(135deg, #e5707a, #bc4d58); border-color: transparent; }
+.director-library-delete-dialog input { margin-top: 8px; }
+.director-library-delete-dialog button.director-library-save { color: #fff; background: #f57442; border-color: #f57442; }
 
 @media (max-width: 720px) {
-  .director-library-copy { padding: 92px 24px 210px; }
-  .director-library-visual { right: 0; bottom: 0; width: 100%; height: 250px; opacity: .78; mask-image:linear-gradient(180deg,transparent,#000 30%); -webkit-mask-image:linear-gradient(180deg,transparent,#000 30%); }
+  .director3d-library { padding: 14px; }
+  .director-library-copy { width: 100%; padding: 32px 24px 146px; }
+  .director-library-visual { opacity: .35; }
   .director-library-visual img { object-position:right bottom; }
-  .director-library-workspace { padding: 42px 24px 56px; }
+  .director-library-workspace { padding: 28px 0 56px; }
+  .director-library-flow { gap: 6px; font-size: 10px; }
+  .director-project-card-actions { opacity: 1; }
 }
 
 .director3d-container {
@@ -876,7 +991,11 @@ onUnmounted(() => {
   --director-accent-rgb: 245, 116, 0;
   width: 100%;
   height: 100%;
-  position: relative;
+  /* 进入场景后脱离文档流铺满视口，盖住 workbench 的侧栏与头部。
+     场景库页（无 ?scene=）走的是 .director3d-library，不受这条影响，仍然带侧栏。 */
+  position: fixed;
+  inset: 0;
+  z-index: 900;
   background: #181817;
 }
 
@@ -897,6 +1016,83 @@ onUnmounted(() => {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 0 0 12px 0;
   box-shadow: 8px 7px 24px rgba(0, 0, 0, 0.2);
+}
+
+.director-rail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 64px;
+  padding-top: 58px;
+  background: #151413;
+  border-left: 1px solid #2c2825;
+}
+
+.rail-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 52px;
+  padding: 9px 0 7px;
+  color: #cfc6bb;
+  font: 600 10px/1.2 "PingFang SC", sans-serif;
+  background: #232120;
+  border: 1px solid #3b3531;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.rail-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.rail-btn:hover {
+  color: #231a12;
+  background: var(--director-accent, #f57400);
+  border-color: var(--director-accent, #f57400);
+}
+
+.rail-btn:focus-visible {
+  outline: 2px solid var(--director-accent-bright, #ff8a1f);
+  outline-offset: 1px;
+}
+
+.director-exit {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 3px;
+  padding: 0;
+  color: #e8e0d6;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.director-exit:hover {
+  color: #231a12;
+  background: var(--director-accent, #f57400);
+  border-color: var(--director-accent, #f57400);
+}
+
+.director-exit:focus-visible {
+  outline: 2px solid var(--director-accent-bright, #ff8a1f);
+  outline-offset: 1px;
 }
 
 .project-trigger {
@@ -1237,7 +1433,8 @@ onUnmounted(() => {
 }
 
 .director3d-iframe {
-  width: 100%;
+  /* 右侧让出 64px 给 XOi 工具条：工具条占位而不是盖在 3D 面板上 */
+  width: calc(100% - 64px);
   height: 100%;
   border: none;
   display: block;

@@ -1,0 +1,345 @@
+{
+  "startedAt": "2026-10-16T10:14:56.658Z",
+  "model": "newapi:agnes-2.5-flash",
+  "projectId": "director3d-u1-agnes-live-20261016",
+  "realRequests": true,
+  "fixtures": false,
+  "cases": [
+    {
+      "mode": "搭场景",
+      "intent": "请搭建一个简单的桌边对话场景：在现有场景里增加两个人物，分别叫记者和受访者，中间一张桌子，两张椅子。两人相对，坐着交谈。设置一个能同时拍到两人的中景机位。保留原有物体，只用白模，最多8条操作。",
+      "seconds": 6,
+      "error": [
+        "场景方案包含无效物体或操作，未应用到场景。已提交用量可能计费，请查积分明细后再试"
+      ],
+      "text": "",
+      "success": false
+    }
+  ],
+  "traffic": [
+    {
+      "path": "/api/billing/preview",
+      "status": 200,
+      "data": {
+        "data": {
+          "label": "AI 场景搭建与调整",
+          "kind": "text",
+          "agent": "universalAi",
+          "model": "agnes-2.5-flash",
+          "modelId": "agnes-2.5-flash",
+          "free": true,
+          "count": 1,
+          "quote": {
+            "yuan": 0,
+            "points": 0,
+            "pointsPerYuan": 10,
+            "estimated": true,
+            "referenceVideoAdjustment": null,
+            "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+            "pricingVersion": ""
+          },
+          "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+          "unknown": false,
+          "budget": {
+            "defaultPoints": 0.001,
+            "maxPoints": 1000,
+            "maxCalls": 1,
+            "maxOutputTokens": 4096,
+            "minutes": 30
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/authorize",
+      "status": 200,
+      "data": {
+        "data": {
+          "id": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+          "limitPoints": 0.001,
+          "maxCalls": 1,
+          "expiresAt": "2026-10-16T10:45:10.742Z",
+          "freeOnly": true
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:45:10.742Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:45:10.742Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/aiAssistant/director/compose",
+      "status": 502,
+      "data": {
+        "code": 400,
+        "data": null,
+        "message": "场景方案包含无效物体或操作，未应用到场景。已提交用量可能计费，请查积分明细后再试"
+      },
+      "input": {
+        "task": "build",
+        "intent": "请搭建一个简单的桌边对话场景：在现有场景里增加两个人物，分别叫记者和受访者，中间一张桌子，两张椅子。两人相对，坐着交谈。设置一个能同时拍到两人的中景机位。保留原有物体，只用白模，最多8条操作。",
+        "scene": {
+          "projectId": "director3d-u1-agnes-live-20261016",
+          "activeShotId": "shot-01",
+          "name": "Agnes 免费实测 · 桌边对话",
+          "fps": 24,
+          "durationSeconds": 15,
+          "aspectRatio": "16:9",
+          "camera": {
+            "position": [
+              7.4,
+              4.6,
+              8.2
+            ],
+            "rotation": [
+              -0.30203991498414945,
+              0.7205541358442417,
+              0
+            ],
+            "focalLength": 42
+          },
+          "objects": [
+            {
+              "id": "actor-lead",
+              "name": "人物 · 主角",
+              "type": "person",
+              "position": [
+                -1.25,
+                0,
+                0.3
+              ],
+              "rotation": [
+                0,
+                0.25,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "walk",
+              "locked": false
+            },
+            {
+              "id": "block-stage",
+              "name": "平台",
+              "type": "box",
+              "position": [
+                1.4,
+                0.45,
+                -0.8
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                2.8,
+                0.9,
+                2.1
+              ],
+              "pose": "",
+              "locked": false
+            },
+            {
+              "id": "block-step",
+              "name": "台阶",
+              "type": "box",
+              "position": [
+                2.9,
+                0.18,
+                0.55
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                1.7,
+                0.36,
+                1.1
+              ],
+              "pose": "",
+              "locked": false
+            }
+          ],
+          "cameraKeyframes": [],
+          "lighting": {
+            "ambientIntensity": 1.35,
+            "keyIntensity": 2.8,
+            "fillIntensity": 1.1,
+            "keyAzimuth": 39,
+            "keyElevation": 51,
+            "exposure": 0.9,
+            "ambientColor": "#f7f1e6",
+            "keyColor": "#fff6e8",
+            "fillColor": "#a9c2c6"
+          },
+          "shotNames": [
+            "镜头 01"
+          ]
+        },
+        "history": [],
+        "model": "newapi:agnes-2.5-flash"
+      }
+    },
+    {
+      "path": "/api/billing/receipt/76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "69",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792145716
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:45:10.742Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "69",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792145716
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T10:45:10.742Z"
+          }
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "preflight": {
+    "data": {
+      "label": "AI 场景搭建与调整",
+      "kind": "text",
+      "agent": "universalAi",
+      "model": "agnes-2.5-flash",
+      "modelId": "agnes-2.5-flash",
+      "free": true,
+      "count": 1,
+      "quote": {
+        "yuan": 0,
+        "points": 0,
+        "pointsPerYuan": 10,
+        "estimated": true,
+        "referenceVideoAdjustment": null,
+        "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+        "pricingVersion": ""
+      },
+      "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+      "unknown": false,
+      "budget": {
+        "defaultPoints": 0.001,
+        "maxPoints": 1000,
+        "maxCalls": 1,
+        "maxOutputTokens": 4096,
+        "minutes": 30
+      }
+    }
+  },
+  "quotaBefore": "5103444130",
+  "budgets": [
+    {
+      "billing_id": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true
+    }
+  ],
+  "logs": [
+    {
+      "request_id": "202610161015112168272198268d9d6idC9DWWe",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    }
+  ],
+  "quotaAfter": "5103444130",
+  "completedAt": "2026-10-16T10:16:03.127Z"
+}

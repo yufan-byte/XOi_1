@@ -1,0 +1,41 @@
+# 4核4G 标准部署变体（叠加在 compose.prod.yml 之上）
+# 用法：docker compose -f compose.prod.yml -f compose.4c4g.override.yml up -d
+#
+# 4核4G 是舒适区：连接池与媒体队列放开一档，可支撑数百人在线、约 2000 注册量级
+# （最终以《服务器部署操作手册》的 2000 人混合压测为准）。
+services:
+  postgres:
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - max_connections=80
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+    mem_limit: 1536m
+    memswap_limit: 1792m
+
+  new-api:
+    environment:
+      SQL_MAX_OPEN_CONNS: "30"
+      SQL_MAX_IDLE_CONNS: "8"
+    mem_limit: 640m
+    memswap_limit: 768m
+
+  xoi:
+    environment:
+      NODE_OPTIONS: --max-old-space-size=1024
+      XOI_DB_POOL_MAX: "14"
+      XOI_AGENT_DB_POOL_MAX: "14"
+      XOI_MODEL_GLOBAL_CONCURRENCY: "48"
+      XOI_MODEL_USER_CONCURRENCY: "4"
+      XOI_MEDIA_WORKERS: "6"
+      XOI_MEDIA_QUEUE_GLOBAL_LIMIT: "128"
+      XOI_MEDIA_QUEUE_USER_LIMIT: "8"
+    mem_limit: 1280m
+    memswap_limit: 1536m

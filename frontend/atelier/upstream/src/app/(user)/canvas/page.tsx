@@ -26,11 +26,19 @@ export default function CanvasPage() {
     const importProject = useCanvasStore((state) => state.importProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
+    // 稳定编号：按创建时间先后（最早的画布 = #1），新建/改名都不会漂移
+    const seqById = useMemo(() => {
+        const ordered = [...projects].sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+        return new Map(ordered.map((project, index) => [project.id, index + 1]));
+    }, [projects]);
     const visibleProjects = useMemo(() => {
         const keyword = search.trim().toLowerCase();
         if (!keyword) return projects;
-        return projects.filter((project) => project.name.toLowerCase().includes(keyword));
-    }, [projects, search]);
+        // 历史导入数据 title 可能缺失；支持按名称与编号搜索
+        return projects.filter((project) =>
+            String(project.title ?? "").toLowerCase().includes(keyword) || String(seqById.get(project.id) ?? "") === keyword.replace(/^#/, ""),
+        );
+    }, [projects, search, seqById]);
 
     const enterProject = (id: string) => {
         router.push(`/canvas/${id}`);
@@ -114,7 +122,7 @@ export default function CanvasPage() {
                 ) : visibleProjects.length ? (
                     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                         {visibleProjects.map((project) => (
-                            <CanvasProjectCard key={project.id} project={project} />
+                            <CanvasProjectCard key={project.id} project={project} seq={seqById.get(project.id)} />
                         ))}
                     </div>
                 ) : projects.length ? (

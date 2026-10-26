@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-19",
+  "port": 12121,
+  "checks": [
+    {
+      "url": "/",
+      "status": 200,
+      "sha256": "162df9ec0f3571527c3e5b81c014112ca64e3f57d5ee4f92866b87d6337fedc2"
+    },
+    {
+      "url": "/assets/index-BMHtnQ9A.js",
+      "status": 200
+    },
+    {
+      "url": "/assets/index-A9m-sWRJ.css",
+      "status": 200
+    },
+    {
+      "url": "/atelier-canvas/index.html",
+      "status": 200,
+      "sha256": "67ee2711020c4b44b8b5cfbdbb83abc1366b6c01d076566afc701d733cc26d8c"
+    },
+    {
+      "url": "/atelier-canvas/assets/index-DrLqMdLp.js",
+      "status": 200
+    },
+    {
+      "url": "/atelier-canvas/assets/index-qr5S7LBy.css",
+      "status": 200
+    },
+    {
+      "url": "/monoform/index.html",
+      "status": 200,
+      "sha256": "9b56d3d8d80eadab06b8f118b9578bbd9e302c4ee26e5bd35dd7f0f81cab7d90"
+    },
+    {
+      "url": "/monoform/xoi-video-runtime.js",
+      "status": 200,
+      "sha256": "5a96cd7ba9f5e55799ae672501f32922efaa5661f4c4433e00de8d51bdeb960e"
+    },
+    {
+      "url": "/monoform/xoi-scene-sync.js",
+      "status": 200,
+      "sha256": "9b83dac801330cedcfd9d1a1a6e1003432eaac3434142fbcb0193b30f7c72d97"
+    },
+    {
+      "url": "/monoform/xoi-workspace.js",
+      "status": 200,
+      "sha256": "70eed13524858fe16026f18aecc917f1f631693d1c5fd88ee6de8e840117d467"
+    },
+    {
+      "url": "/monoform/xoi-workspace.css",
+      "status": 200,
+      "sha256": "c657e61a99896169b78febf54212e109d32ae65140f72c7bdf548544e3ec0e04"
+    },
+    {
+      "url": "/monoform/xoi-identity-bootstrap.js",
+      "status": 200,
+      "sha256": "2b70035c51962a1822688cf029449090126d4548b9c4304ad193122f5b83942f"
+    },
+    {
+      "url": "/api/healthz",
+      "status": 200
+    },
+    {
+      "url": "/api/readyz",
+      "status": 200
+    },
+    {
+      "url": "/api/director-scenes",
+      "status": 401
+    }
+  ]
+}

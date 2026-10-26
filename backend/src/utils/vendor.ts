@@ -5,6 +5,19 @@ import getPath from "./getPath";
 import vm from "./vm";
 import db from "./db";
 import { vendorCodePath } from "./vendorSecurity";
+import { isNewApiOnly } from "@/lib/gateway/newapi";
+
+/**
+ * ⚠️ RCE 闸门（纵深防御）：vm 执行的是 o_vendorConfig 里存的供应商代码——node:vm 不是安全沙箱，
+ * 等同于在服务器进程内执行任意代码。写入路径（vendorConfig 路由）已随旧积分体系删除，
+ * 此闸门保证「生产（NEWAPI_ONLY）只允许执行 NewAPI 官方适配器」——即使未来有人恢复写入路径
+ * 或表被写入恶意代码，非 newapi 供应商也无法进入执行。
+ */
+function assertVmAllowed(id: string | number): void {
+  if (isNewApiOnly() && String(id) !== "newapi") {
+    throw new Error(`生产环境只允许 NewAPI 供应商，已拒绝执行供应商 ${id} 的代码`);
+  }
+}
 
 export function writeCode(id: string | number, tsCode: string) {
   const rootDir = getPath("vendor")
@@ -13,6 +26,7 @@ export function writeCode(id: string | number, tsCode: string) {
 }
 
 export function getCode(id: string): string {
+  assertVmAllowed(id);
   const rootDir = getPath("vendor");
   const targetFile = vendorCodePath(rootDir, id);
   if (!fs.existsSync(targetFile)) return "";
@@ -63,6 +77,7 @@ export async function getModelList(id: string): Promise<Array<any>> {
 export async function fetchVendorModels(id: string): Promise<{ text: string[]; image: string[]; video: string[] }> {
   try {
     const code = getCode(id);
+  assertVmAllowed(id);
     if (!code) return { text: [], image: [], video: [] };
 
     const jsCode = transform(code, { transforms: ["typescript"] }).code;
@@ -86,6 +101,7 @@ export async function fetchVendorModels(id: string): Promise<{ text: string[]; i
 
 export function getVendor(id: string) {
   const code = getCode(id);
+  assertVmAllowed(id);
   const jsCode = transform(code, { transforms: ["typescript"] }).code;
   const vendorData = vm(jsCode);
   return vendorData.vendor;

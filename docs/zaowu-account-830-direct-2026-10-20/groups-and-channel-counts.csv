@@ -1,0 +1,7 @@
+group,label,relative_ratio,ratio,channel_count,model_count,is_account_default,is_auto_group
+claude-kiro,Claude · kiro 渠道,1,0.35,1,7,false,false
+claude-official,Claude · 官方渠道,5.14285714,1.8,1,9,false,false
+default,默认分组,1,1,85,183,true,true
+gpt-pro,GPT · Pro 号池,1,0.25,1,6,false,false
+gpt-pro-enterprise,GPT · Pro 企业号池,2,0.5,1,4,false,false
+vip,vip分组,1,,0,0,false,false

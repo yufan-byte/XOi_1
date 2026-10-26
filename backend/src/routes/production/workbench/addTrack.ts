@@ -3,6 +3,7 @@ import u from "@/utils";
 import { z } from "zod";
 import { success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
+import {creativeIds} from '@/utils/creativeIds';
 const router = express.Router();
 export default router.post(
   "/",
@@ -13,10 +14,7 @@ export default router.post(
   }),
   async (req, res) => {
     const { projectId, scriptId, duration } = req.body;
-    const data = await u.db("o_project").where("id", projectId).first();
-    const video = data?.videoModel?.split(":");
-    const vemdor = await u.vendor.getModelList(video?.[0]!);
-    const trackId = Date.now()
+    const trackId=await creativeIds(u.db).next();
     await u.db("o_videoTrack").insert({
       id: trackId,
       projectId,

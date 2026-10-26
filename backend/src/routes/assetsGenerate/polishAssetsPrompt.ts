@@ -1,4 +1,6 @@
 import express from "express";
+import { resolveTextModelKey } from "@/utils/textModel";
+import { promptRejectionReason } from "@/utils/promptQuality";
 import u from "@/utils";
 import * as zod from "zod";
 import { error, success } from "@/lib/responseFormat";
@@ -72,9 +74,11 @@ export default router.post(
     //获取到视觉手册
     const visualManual = await u.getArtPrompt(project.artStyle as string, "art_skills", config.visualManual);
     if (!visualManual) return res.status(500).send(error("视觉手册未定义"));
-    const systemPrompt = visualManual;
+    const systemPrompt =
+      visualManual +
+      "\n\n【硬性要求】即使素材设定与全局风格约束存在冲突，也必须按项目既定的画风/年代/质感改写后直接输出可出图的画面提示词；禁止用\"无法生成\"、\"违反规则\"之类的话拒答，禁止输出解释说明或免责声明。只输出提示词正文。";
     try {
-      const { _output } = (await u.Ai.Text("universalAi").invoke({
+      const { _output } = (await u.Ai.Text(await resolveTextModelKey({ projectId })).invoke({
         system: systemPrompt,
         messages: [
           {
@@ -87,7 +91,11 @@ export default router.post(
         ],
       })) as any;
 
-      if (!_output) return res.status(500).send("失败");
+      const rejected = promptRejectionReason(_output);
+      if (rejected) {
+        await u.db("o_assets").where("id", assetsId).update({ promptState: "失败", promptErrorReason: rejected }).catch(() => {});
+        return res.status(400).send(error(rejected));
+      }
       await u.db("o_assets").where("id", assetsId).update({ prompt: _output, promptState: "已完成" });
 
       // 生成成功，扣除积分

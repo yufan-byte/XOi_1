@@ -1,0 +1,9 @@
+BROWSER error Failed to load resource: net::ERR_FAILED
+BROWSER error Failed to load resource: the server responded with a status of 404 (Not Found)
+PASS three ordered stages; table preset updates the current scene {}
+PASS changing A to B updates the framing draft and the actual camera; no duplicate shots or actor changes {}
+PASS undo restores the previous camera framing {}
+BROWSER error Failed to load resource: the server responded with a status of 404 (Not Found)
+PASS stationary follow applies actor and camera travel together, rendered camera frames visibly change {}
+PASS blocking edits the selected actor only and preserves the camera and the other actor route {}
+PASS AI camera planning and scene editing live under the correct step, without triggering a model {}

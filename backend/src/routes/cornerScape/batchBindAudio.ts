@@ -1,4 +1,5 @@
 import express from "express";
+import { resolveTextModelKey } from "@/utils/textModel";
 import u from "@/utils";
 import { z } from "zod";
 import { error, success } from "@/lib/responseFormat";
@@ -56,7 +57,7 @@ export default router.post(
         } else {
           audioBindPrompt = promptData?.data ?? undefined;
         }
-        const { text } = await u.Ai.Text("universalAi").invoke({
+        const { text } = await u.Ai.Text(await resolveTextModelKey({ projectId })).invoke({
           messages: [
             {
               role: "system",

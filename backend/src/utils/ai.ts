@@ -5,7 +5,14 @@ import { transform } from "sucrase";
 import u from "@/utils";
 import { checkAndDeductPoints, refundPoints } from "./points";
 import { requireGatewayUserId } from "@/lib/gateway/context";
-import { assertAllowedVendor, getUserGatewayCredentials } from "@/lib/gateway/newapi";
+import { assertAllowedVendor, assertProductionModel, getUserGatewayCredentials } from "@/lib/gateway/newapi";
+import { getGatewayRequestContext } from "@/lib/gateway/context";
+import { assertCurrentBudgetOpen } from "@/lib/gateway/budgets";
+import { BillingBudgetError } from "./billingBudgetPolicy";
+import { resolveUserCatalogModel, type ModelKind } from "@/lib/model-catalog";
+
+/** 文本输出默认上限：DeepSeek 思考模型的思维链计入输出，4K 默认值会把正文挤空。 */
+const DEFAULT_TEXT_MAX_OUTPUT_TOKENS = 8192;
 
 /**
  * 修复工具调用参数格式的中间件
@@ -38,7 +45,6 @@ const fixToolCallArgumentsMiddleware = {
 type AiType =
   | "scriptAgent"
   | "productionAgent"
-  | "universalAi"
   | "scriptAgent:decisionAgent"
   | "scriptAgent:supervisionAgent"
   | "scriptAgent:storySkeletonAgent"
@@ -58,7 +64,6 @@ type FnName = "textRequest" | "imageRequest" | "videoRequest" | "ttsRequest";
 const AiTypeValues: AiType[] = [
   "scriptAgent",
   "productionAgent",
-  "universalAi",
   "scriptAgent:decisionAgent",
   "scriptAgent:supervisionAgent",
   "scriptAgent:storySkeletonAgent",
@@ -72,7 +77,6 @@ const AiTypeValues: AiType[] = [
   "productionAgent:storyboardGenAgent",
   "productionAgent:storyboardPanelAgent",
   "productionAgent:storyboardTableAgent",
-  "universalAi",
 ];
 async function resolveModelName(value: AiType | `${string}:${string}`): Promise<`${string}:${string}`> {
   if (AiTypeValues.includes(value as AiType)) {
@@ -147,8 +151,17 @@ async function getVendorTemplateFn(
 ): Promise<(think?: boolean, thinkLevel?: 0 | 1 | 2 | 3) => any>;
 async function getVendorTemplateFn(fnName: Exclude<FnName, "textRequest">, modelName: `${string}:${string}`): Promise<(input: any) => any>;
 async function getVendorTemplateFn(fnName: FnName, modelName: `${string}:${string}`): Promise<any> {
-  const [id, name] = modelName.split(/:(.+)/);
+  const [id, requestedName] = modelName.split(/:(.+)/);
+  if(getGatewayRequestContext()?.billingId && id!=="newapi")throw new BillingBudgetError("本轮预算只支持 NewAPI 渠道，不会转用其他供应商凭据");
   assertAllowedVendor(id);
+  let name = requestedName;
+  if (id === "newapi") {
+    const kind: ModelKind = fnName === "textRequest" ? "text" : fnName === "imageRequest" ? "image" : fnName === "videoRequest" ? "video" : "audio";
+    name = (await resolveUserCatalogModel(requireGatewayUserId(), requestedName, kind)).model.modelName;
+  }
+  assertProductionModel(name);
+  if(id==="newapi")await assertCurrentBudgetOpen();
+  if (["prod", "production"].includes(process.env.NODE_ENV || "") && !getGatewayRequestContext()?.billingId) throw new Error("模型调用缺少费用确认，请刷新页面后确认费用再试");
   const vendorConfigData = await u.db("o_vendorConfig").where("id", id).first();
   if (!vendorConfigData) throw new Error(`未找到供应商配置 id=${id}`);
   const modelList = await u.vendor.getModelList(id);
@@ -156,7 +169,7 @@ async function getVendorTemplateFn(fnName: FnName, modelName: `${string}:${strin
   if (!selectedModel) throw new Error(`未找到模型 ${name} id=${id}`);
   const code = u.vendor.getCode(id);
   const jsCode = transform(code, { transforms: ["typescript"] }).code;
-  const running = u.vm(jsCode);
+  const running = u.vm(jsCode, undefined, id === "newapi");
   if (running.vendor) {
     const configuredInputs = JSON.parse(vendorConfigData.inputValues ?? "{}");
     if (id === "newapi") {
@@ -240,8 +253,11 @@ class AiText {
       ...(input.tools && { stopWhen: stepCountIs(Object.keys(input.tools).length * 50) }),
       ...input,
       model: await this.resolveModel(),
+      maxRetries: 0,
       ...(config?.temperature && { temperature: config.temperature }),
-      ...(config?.maxOutputTokens && { maxOutputTokens: config.maxOutputTokens }),
+      // 调用方和渠道都没给上限时兜底 8K：DeepSeek 思考模型默认 4K 会被思维链吃光，
+      // 正文截空后上层只会看到"没有可用内容"。
+      ...(config?.maxOutputTokens ? { maxOutputTokens: config.maxOutputTokens } : input.maxOutputTokens === undefined ? { maxOutputTokens: DEFAULT_TEXT_MAX_OUTPUT_TOKENS } : {}),
     } as Parameters<typeof generateText>[0]);
   }
   async stream(input: Omit<Parameters<typeof streamText>[0], "model">) {
@@ -251,8 +267,9 @@ class AiText {
       ...(input.tools && { stopWhen: stepCountIs(Object.keys(input.tools).length * 50) }),
       ...input,
       model: await this.resolveModel(extractReasoningMiddleware({ tagName: "reasoning_content", separator: "\n" })),
+      maxRetries: 0,
       ...(config?.temperature && { temperature: config.temperature }),
-      ...(config?.maxOutputTokens && { maxOutputTokens: config.maxOutputTokens }),
+      ...(config?.maxOutputTokens ? { maxOutputTokens: config.maxOutputTokens } : input.maxOutputTokens === undefined ? { maxOutputTokens: DEFAULT_TEXT_MAX_OUTPUT_TOKENS } : {}),
     } as Parameters<typeof streamText>[0]);
   }
 }

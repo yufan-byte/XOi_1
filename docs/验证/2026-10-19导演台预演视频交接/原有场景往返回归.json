@@ -1,0 +1,32 @@
+{
+  "report": [
+    {
+      "name": "native shot saves to cloud, exports a real camera image and enters one editable reference group without model calls"
+    },
+    {
+      "name": "canvas opens the original scene and shot; saving edits preserves the old exported reference version"
+    },
+    {
+      "name": "stale reference requires an explicit choice; fork restores the original snapshot and new reference does not overwrite old results"
+    },
+    {
+      "name": "fresh browser with no local project recovers scene directory and exact saved geometry from cloud"
+    },
+    {
+      "name": "failed save keeps the editor and local draft open; explicit retry saves successfully"
+    },
+    {
+      "name": "simultaneous edits are rejected; original cloud version and local draft remain, and user can still return"
+    },
+    {
+      "name": "embedded motion entry saves and continues the same scene in the full director without a dead button"
+    }
+  ],
+  "traffic": {
+    "model": 0,
+    "authorize": 0,
+    "save": 7,
+    "upload": 2
+  },
+  "errors": []
+}

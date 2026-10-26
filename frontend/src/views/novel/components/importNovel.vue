@@ -1,9 +1,9 @@
 <template>
   <div class="purgeNovel">
-    <t-dialog :footer="false" v-model:visible="purgeNovelShow" :header="$t('workbench.novel.import.title')" width="50%" placement="center">
+    <t-dialog :footer="false" v-model:visible="purgeNovelShow" :header="$t('workbench.novel.import.title')" width="min(880px, calc(100vw - 32px))" placement="center">
       <div class="data">
         <t-tabs :value="activeKey" disabled>
-          <t-tab-panel value="To1" :label="$t('workbench.novel.import.step1')" style="height: 680px; overflow-y: auto">
+          <t-tab-panel value="To1" :label="$t('workbench.novel.import.step1')" style="height: min(600px, calc(100dvh - 230px)); min-height: 260px; overflow-y: auto">
             <div class="uploadArea" @click="triggerUpload" @dragover.prevent @drop.prevent="handleDrop">
               <t-upload
                 ref="uploadRef"
@@ -41,7 +41,7 @@
               </t-button>
             </div>
           </t-tab-panel>
-          <t-tab-panel value="To2" :label="$t('workbench.novel.import.step2')" style="height: 680px; overflow-y: auto">
+          <t-tab-panel value="To2" :label="$t('workbench.novel.import.step2')" style="height: min(600px, calc(100dvh - 230px)); min-height: 260px; overflow-y: auto">
             <div class="fc to2Box">
               <t-table
                 ref="tableRef"
@@ -77,7 +77,7 @@
 import { LoadingPlugin } from "tdesign-vue-next";
 import axios from "@/utils/axios";
 import parseNovel from "@/utils/parseNovel";
-import mammoth from "mammoth";
+
 import type { UploadFile, PrimaryTableCol, TableRowData } from "tdesign-vue-next";
 import projectStore from "@/stores/project";
 const { project } = storeToRefs(projectStore());
@@ -149,6 +149,7 @@ async function readFile(file: File): Promise<string> {
   if (file.type === "text/plain") {
     return new TextDecoder().decode(buffer);
   }
+  const { default: mammoth } = await import("mammoth");
   const result = await mammoth.extractRawText({ arrayBuffer: buffer });
   return result.value;
 }

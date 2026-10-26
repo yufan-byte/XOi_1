@@ -88,6 +88,7 @@ export type CanvasNodeMetadata = {
     durationMs?: number;
     startedAt?: number;
     progress?: number;
+    taskStage?: string;
     imageTaskId?: string;
     imageTaskResultId?: string;
     audioTaskId?: string;
@@ -106,6 +107,11 @@ export type CanvasNodeMetadata = {
     panoramaFinalPrompt?: string;
     panoramaProjection?: "equirectangular";
     directorProject?: unknown;
+    referenceRole?:"composition"|"motion";
+    previz?:{requestId:string;fps:number;frameCount:number;codec:string};
+    directorSource?: {sceneId:string;shotId:string;revision:number;frame:number};
+    directorCover?: string;
+    directorReferenceId?: string;
 };
 
 export type CanvasDirectorPanorama = {
@@ -170,6 +176,8 @@ export type PendingAgentAsset = {
 };
 
 export type CanvasPendingAgentRequest = {
+    requestedModel?: string;
+    awaitServerModels?: boolean;
     prompt: string;
     assets: PendingAgentAsset[];
     skills: CanvasAgentSkillSelection[];
@@ -205,6 +213,18 @@ export type CanvasAgentPhase =
 
 export type CanvasAgentConfig = {
     mode?: "api" | "codex";
+    /** Task-owned selection: never replaced by a late global config hydration. */
+    textModel?: string;
+    textChannelId?: string;
+    imageModel?: string;
+    imageChannelId?: string;
+    videoModel?: string;
+    videoChannelId?: string;
+    audioModel?: string;
+    audioChannelId?: string;
+    videoSeconds?: string;
+    videoGenerateAudio?: string;
+    videoWatermark?: string;
     codexModel?: string;
     codexEffort?: string;
     textApiMode: "chat" | "responses";

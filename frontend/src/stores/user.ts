@@ -1,4 +1,6 @@
 import axios from "@/utils/axios";
+import {accountBoundary} from '@/utils/accountBoundary';
+import {prepareMediaSession} from '../../shared/mediaSession';
 
 export default defineStore(
   "user",
@@ -9,8 +11,8 @@ export default defineStore(
     const displayId = ref(localStorage.getItem("displayId") || "");
     const username = ref(localStorage.getItem("username") || "");
 
-    /* 余额：统一来自 new-api quota（经 /api/login/self 折算成元）。
-       旧的 XOi 本地积分体系已删除，这里只保留单一余额源，供侧栏角标与个人中心展示。 */
+    /* 余额真源：new-api quota（经 /api/login/self 折算成人民币）。
+       产品层再按 1 元 = 10 积分展示；这里不另建积分账本，避免双扣与对账漂移。 */
     const balance = ref<number>(0);
 
     const isAdmin = computed(() => role.value === "admin");
@@ -26,6 +28,8 @@ export default defineStore(
       localStorage.setItem("userId", data.id);
       localStorage.setItem("displayId", displayId.value);
       localStorage.setItem("username", data.name);
+      accountBoundary.capture();
+      void prepareMediaSession().catch(()=>{});
       // 切换账号立刻抹除旧余额离散态，随后由所在页 onMounted 调 refreshProfile 重拉
       balance.value = 0;
     }
@@ -41,6 +45,8 @@ export default defineStore(
       localStorage.removeItem("userId");
       localStorage.removeItem("displayId");
       localStorage.removeItem("username");
+      accountBoundary.capture();
+      void prepareMediaSession().catch(()=>{});
       balance.value = 0;
     }
 
@@ -48,13 +54,23 @@ export default defineStore(
      * 拉取镜像资料 + 实时余额（new-api quota 折算元）并写入 store。
      * 支付到账、生成扣费之后均可主动调用以即时刷新所有依赖角标。
      */
+    let profileRequest: Promise<any> | undefined;
+    let profileToken = "";
     async function refreshProfile<T = any>(): Promise<T | undefined> {
       if (!token.value) return;
+      const requestedToken = token.value;
       try {
-        const res: any = await axios.get("/login/self", {
+        if (!profileRequest || profileToken !== requestedToken) {
+          profileToken = requestedToken;
+          const request = axios.get("/login/self", {
           params: { _t: Date.now() },
           headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-        });
+          });
+          const tracked = request.finally(() => { if (profileRequest === tracked) profileRequest = undefined; });
+          profileRequest = tracked;
+        }
+        const res: any = await profileRequest;
+        if (token.value !== requestedToken) return;
         const data: any = res?.data;
         if (!data) return;
         if (data.display_id) {
@@ -64,7 +80,7 @@ export default defineStore(
         if (data.name) {
           username.value = String(data.name);
         }
-        balance.value = Number(data.balance) || 0;
+        if (data.balance !== null && data.balance !== undefined) balance.value = Number(data.balance) || 0;
         return data as unknown as T;
       } catch (e) {
         console.error("[user/store] refreshProfile 失败:", e);
@@ -84,5 +100,4 @@ export default defineStore(
       refreshProfile,
     };
   },
-  { persist: true },
 );

@@ -2,6 +2,7 @@ import { db } from "@/utils/db";
 import { rechargePoints, applyMembership } from "@/utils/points";
 
 export interface FulfillExtra {
+  expectedChannel?: string;
   /** 三方交易号(流水号)审计列 */
   channelTradeNo?: string;
   /** 已清洗的回调业务载荷(将写入 o_order.callback_payload 留存) */
@@ -19,8 +20,9 @@ function safePayload(p: any): string {
 /**
  * 回调/触发到达后的幂等发放漏斗 —— 整条付费链路唯一的「钱→权益」转换点：
  *
- * 单一事务内完成「CAS pending→paid」+「积分入账(rechargePoints)」+「会员等级与有效期升级
- * (applyMembership)」，任一步异常整体回滚、订单维持 pending 待三方重投递补偿；
+ * 本地事务内完成订单 CAS；网关额度变更是独立外部操作，不属于这个数据库事务。
+ * rechargePoints 先持久化幂等操作再尝试一次网关入账；不明结果必须人工对账，不能自动重发。
+ * 订单回滚不代表网关额度回滚；再次回调只能复用同一操作编号。
  * 并发重复通知靠 `WHERE status='pending'` 的受影响行数天然去重——affected=0 即视为已被处理过，
  * 直接跳过发放但仍 ACK 成功以让三方停止重试。
  *
@@ -35,6 +37,12 @@ export async function fulfillPaidOrder(outTradeNo: string, extra: FulfillExtra =
     if (!order) {
       console.warn(`[pay] 未找到订单 ${outTradeNo}`);
       return false;
+    }
+    if(extra.expectedChannel && order.channel!==extra.expectedChannel)throw new Error("支付订单渠道不匹配");
+    if(extra.channelTradeNo){
+      await trx.raw("select pg_advisory_xact_lock(hashtext(?))",[`xoi:payment-trade:${order.channel}:${extra.channelTradeNo}`]);
+      const reused=await trx("o_order").where({channel:order.channel,channel_trade_no:extra.channelTradeNo,status:"paid"}).whereNot("out_trade_no",outTradeNo).first();
+      if(reused)throw new Error("渠道交易号已用于其他订单，禁止重复入账");
     }
     if (order.status !== "pending") {
       console.log(`[pay] 订单 ${outTradeNo} 当前状态 ${order.status},忽略重复通知`);
@@ -58,7 +66,7 @@ export async function fulfillPaidOrder(outTradeNo: string, extra: FulfillExtra =
       return false;
     }
 
-    // ── 入账与会员升级共用本事务保证原子性；related_id 绑定 outTradeNo 作为第二道审计去重键 ──
+    // related_id 固定 outTradeNo，外部入账防重独立于当前订单事务。
     const pts = (Number(order.points_snapshot) || 0) + (Number(order.bonus_snapshot) || 0);
     if (pts > 0) {
       await rechargePoints(

@@ -17,7 +17,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LABEL="com.xoi.console.demo"
-PORT_API="${PORT_API:-10588}"
+PORT_API="${PORT_API:-12121}"
 PORT_WEB="${PORT_WEB:-4173}"
 
 stop_daemon() {

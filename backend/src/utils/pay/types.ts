@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import database from "@/utils";
+import {simulationPaymentEnabled,paymentNotifyUrl} from "./guards";
 
 /**
  * 支付闭环统一渠道抽象。
@@ -82,7 +83,8 @@ const CHANNEL_META: Array<{
 
 async function isEnabledByConfig(id: ChannelId): Promise<boolean> {
   const meta = CHANNEL_META.find((c) => c.id === id)!;
-  if (!meta.vid) return process.env.NODE_ENV !== "prod"; // 模拟仅开发环境可用
+  if (!meta.vid) return simulationPaymentEnabled();
+  try { paymentNotifyUrl(id); } catch { return false; }
   const row = await database.db("o_vendorConfig").where({ id: meta.vid }).first();
   if (!row || !row.enable || Number(row.enable) === 0) return false;
   let iv: any = {};

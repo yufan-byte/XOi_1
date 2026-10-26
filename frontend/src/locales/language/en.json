@@ -603,6 +603,8 @@
         "visualManualPrompt": "Visual manual prompt",
         "modelData": "Select image model",
         "videoModelData": "Select video model",
+        "textModelData": "Text model (chat / asset extraction)",
+        "textModelPh": "Optional; uses platform default if empty",
         "prompt": {
           "placeholder": "Enter prompt word",
           "saveSuccess": "Update successful",
@@ -655,6 +657,8 @@
         "enterVideoRatio": "Please select video ratio",
         "enterImageModel": "Please select a picture model",
         "enterVideoModel": "Please select a video model",
+        "enterTextModel": "Please select a text model (used for chat and asset extraction)",
+        "completeConfigBeforeOpen": "This project has no text model yet. Complete the project settings before entering the workspace.",
         "visualManualDeleted": "Delete successfully",
         "selectMode": "Please select mode",
         "deleteDirectorManualHeader": "Delete Director's Manual",
@@ -932,7 +936,11 @@
       "stateDone": "Done",
       "textPromptInput": "Prompt extra instructions",
       "textPromptPh": "Enter additional prompt instructions (optional)",
-      "batchBingAudio": "Bind Audio for All"
+      "batchBingAudio": "Bind Audio for All",
+      "textModel": "Text model (prompt generation)",
+      "textModelPh": "Follows the project by default",
+      "promptFailed": "Prompt generation failed",
+      "promptFailedHint": "Regenerate, or switch the text model and retry"
     },
     "script": {
       "searchPlaceholder": "Search script names...",
@@ -958,7 +966,12 @@
         "batchDeleteSuccess": "Batch deletion successful",
         "extractingInProgress": "Extracting",
         "projectNotFound": "Item not found",
-        "selectsExport": "Please choose to export the script"
+        "selectsExport": "Please choose to export the script",
+        "pollFailed": "Failed to sync script status; polling stopped. Please refresh.",
+        "reExtractTitle": "Re-extract confirmation",
+        "reExtractConfirm": "{count} selected script(s) already have extracted assets. Extracting again will call the model and spend credits, and may create duplicate assets. Continue?",
+        "reExtractOk": "Extract anyway",
+        "reExtractCancel": "Cancel"
       },
       "add": {
         "title": "Add Script",

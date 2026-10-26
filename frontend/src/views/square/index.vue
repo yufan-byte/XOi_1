@@ -57,95 +57,38 @@
     <div v-if="!loading && visible.length === 0" class="sq-empty">该分类暂无内容</div>
     <button v-if="!loading && filtered.length > visible.length" class="sq-more" @click="visibleCount += 30">加载更多</button>
 
-    <!-- 详情弹窗 -->
-    <Teleport to="body">
-      <Transition name="sq-fade">
-        <div v-if="detail" class="sq-mask" @click.self="detail = null">
-          <section class="sq-dialog">
-            <button class="sq-close" @click="detail = null">✕</button>
-            <div class="sq-detail-media">
-              <video v-if="detail.k === 'video' || detail.mk === 'video'" :src="detail.u" controls autoplay muted loop playsinline @error="onCoverError" />
-              <img v-else :src="detail.u" :alt="detail.t" @error="onCoverError" />
-            </div>
-            <div class="sq-detail-body">
-              <h2>{{ detail.t || "未命名" }}</h2>
-              <div class="sq-detail-meta">
-                <span>作者 {{ detail.n }}</span>
-                <span v-if="detail.src === 'canvas'">{{ detail.nc }} 个节点</span>
-                <span>{{ detail.r }} 推荐 · {{ detail.v }} 浏览</span>
-              </div>
-              <p v-if="detail.d" class="sq-detail-desc">{{ detail.d }}</p>
-              <!-- 直通动作按「作品种类」（src=来源页签）分流，不能用 k（那是封面素材类型）：
-                   画布作品 → 还原完整 nodes+edges 工作流，直接进画布可改可替换；
-                   图片/视频作品 → 提示词交给对话页 / 画布 Agent，并把封面作为参考图带过去。 -->
-              <div class="sq-detail-actions">
-                <button v-if="detail.src === 'canvas'" class="sq-primary" :disabled="replicating" @click="replicate()">
-                  {{ replicating ? "正在复刻…" : "◈ 在画布中打开（" + detail.nc + " 节点）" }}
-                </button>
-                <button v-else class="sq-primary" @click="chatWithPrompt">✦ 用提示词对话</button>
-                <button v-if="detail.src !== 'canvas'" class="sq-ghost" @click="canvasWithPrompt">◈ 带到画布生成</button>
-                <button class="sq-ghost" @click="copyDesc">{{ copied ? "已复制 ✓" : "复制提示词" }}</button>
-                <a class="sq-ghost" :href="detail.u" :download="`${detail.id}`" target="_blank" rel="noopener">下载封面</a>
-              </div>
-            </div>
-          </section>
-        </div>
-      </Transition>
-    </Teleport>
+    <SquareWorkDialog v-if="detail" :work="detail" :items="visible" origin="square" @close="closeDetail" @navigate="open" @use-prompt="chatWithPrompt" />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import { loadSquareSnapshot, isSquareType, type SquareItem as SqItem, type SquareSnapshot, type SquareType as SqType } from "@/utils/square";
 import { MessagePlugin } from "tdesign-vue-next";
-
-/** 广场静态快照条目（square-data/*.json 的 items，字段是造物压缩过的单字母）
- *  k / mk = 素材真实媒体类型（由 external-media-map 的上游后缀 / content-type 判定后写回数据文件），
- *  **它描述的是封面素材、不是作品种类**：canvas.json 里同样是 image/video（27 图 + 10 视频）。
- *  所以「是不是画布作品」只能看它来自哪个页签（src），用 k 判会把画布作品误判成图片/视频。
- *  src = 装载来源页签，load() 时逐条打上 */
-interface SqItem {
-  id: string; t: string; d: string; u: string; k: "image" | "video";
-  mk?: "image" | "video";
-  /** pr = 造物的完整提示词（视频作品基本都有；图片作品大多是描述 d） */
-  pr?: string;
-  c: string; n: string; pk: "official" | "user"; a?: string; pid?: string;
-  r: number; l: number; v: number; at: string; ref: string[]; nc: number;
-  /** 作品种类 = 来源页签（canvas / image / video） */
-  src: "canvas" | "image" | "video";
-}
-// categories 是造物原版的元组格式 [slug, 中文名][]（不是对象数组），与 xx.json 对齐
-interface SquareSnapshot { categories: [string, string][]; hot: string[]; new: string[]; items: Record<string, SqItem> }
+import SquareWorkDialog from "@/components/square/SquareWorkDialog.vue";
+import { useSquareActions } from "@/utils/squareActions";
 
 const TYPES = [
   { key: "canvas", label: "画布" },
   { key: "image", label: "图片" },
   { key: "video", label: "视频" },
 ] as const;
-type SqType = (typeof TYPES)[number]["key"];
 
 const router = useRouter();
-const type = ref<SqType>("canvas");
+const route = useRoute();
+const type = ref<SqType>(isSquareType(route.query.type) ? route.query.type : "canvas");
 const sort = ref<"hot" | "new">("hot");
 const category = ref("");
 const loading = ref(false);
 const snapshot = ref<SquareSnapshot | null>(null);
 const visibleCount = ref(30);
 const detail = ref<SqItem | null>(null);
-const copied = ref(false);
-const replicating = ref(false);
+const { replicating, replicate } = useSquareActions("square");
 
 const LIKES_KEY = "xoi_square_likes_v1";
 const likedSet = ref(new Set<string>(JSON.parse(localStorage.getItem(LIKES_KEY) || "[]")));
 const persistLikes = () => localStorage.setItem(LIKES_KEY, JSON.stringify([...likedSet.value]));
-
-/** 宿主 ↔ 画布的既有约定键：handoff=提示词交接（画布建项目后交给 Agent 面板）；graph=整图复刻载荷 */
-const CANVAS_HANDOFF_KEY = "xoi_canvas_handoff_v1";
-const CANVAS_GRAPH_KEY = "xoi_canvas_graph_v1";
-
-/** 作品提示词口径与造物一致：优先完整提示词 pr，退回描述 d，最后退标题 t */
-const promptOf = (w: SqItem) => (w.pr || w.d || w.t || "").trim();
 
 const categories = computed(() => snapshot.value?.categories ?? []);
 const filtered = computed(() => {
@@ -157,29 +100,41 @@ const filtered = computed(() => {
 const visible = computed(() => filtered.value.slice(0, visibleCount.value));
 const countOf = (key: string) => (key === type.value ? filtered.value.length : "");
 
+let loadVersion = 0;
+let openedWorkQuery = "";
 async function load() {
+  const version = ++loadVersion;
+  const kind = type.value;
   visibleCount.value = 30;
   loading.value = true;
   try {
-    // 静态快照必须走站点根直取（与 /announcements.json 同口径）：
-    // axios 实例的 baseURL 是 /api，用它拼会变成 /api/square-data/xxx.json → 404；
-    // 且其响应拦截器已 return response.data，再解一层 data 会拿到 undefined。
-    const res = await fetch(`/square-data/${type.value}.json`, { cache: "no-store" });
-    if (!res.ok) throw new Error(String(res.status));
-    const snap = (await res.json()) as SquareSnapshot;
-    // 作品种类只能由「来自哪个页签」决定：快照里的 k 是封面素材类型（canvas.json 同样是 image/video），
-    // 拿它判种类会把 37 个画布作品全部误判成图片/视频 → 只带提示词、复刻不出工作流。
-    const kind = type.value;
-    for (const item of Object.values(snap.items || {})) item.src = kind;
+    const snap = await loadSquareSnapshot(kind);
+    if (version !== loadVersion) return;
     snapshot.value = snap;
+    if (route.query.work && (!route.query.type || route.query.type === kind) && openedWorkQuery !== `${kind}:${route.query.work}`) {
+      const work = snap.items[String(route.query.work)];
+      if (work) { open(work); openedWorkQuery = `${kind}:${route.query.work}`; }
+    }
   } catch {
+    if (version !== loadVersion) return;
     snapshot.value = null;
     MessagePlugin.error("广场数据加载失败");
   } finally {
-    loading.value = false;
+    if (version === loadVersion) loading.value = false;
   }
 }
-load();
+watch(() => [route.query.type, route.query.work], ([kind, work], [previousKind, previousWork]) => {
+  if (kind !== previousKind && isSquareType(kind)) {
+    type.value = kind;
+    detail.value = null;
+    openedWorkQuery = "";
+    void load();
+  } else if (work !== previousWork) {
+    detail.value = snapshot.value?.items[String(work)] || null;
+    openedWorkQuery = work ? `${type.value}:${work}` : "";
+  }
+});
+void load();
 
 function toggleLike(w: SqItem) {
   const s = new Set(likedSet.value);
@@ -188,7 +143,14 @@ function toggleLike(w: SqItem) {
   persistLikes();
 }
 
-function open(w: SqItem) { detail.value = w; copied.value = false; }
+function open(w: SqItem) { detail.value = w; }
+function closeDetail() {
+  detail.value = null;
+  if (route.query.work) {
+    const { work: _work, ...query } = route.query;
+    void router.replace({ path: route.path, query });
+  }
+}
 
 /**
  * 封面加载失败处理，分两级：
@@ -211,76 +173,9 @@ function onCoverError(e: Event) {
   (el.closest(".sq-cover, .sq-detail-media") as HTMLElement | null)?.classList.add("is-cover-failed");
 }
 
-async function copyDesc() {
-  const text = detail.value?.d || detail.value?.t || "";
-  if (!text) { MessagePlugin.warning("该作品没有描述"); return; }
-  try { await navigator.clipboard.writeText(text); copied.value = true; setTimeout(() => (copied.value = false), 2000); }
-  catch { MessagePlugin.error("复制失败"); }
-}
-
-/** 「用提示词对话」：走宿主对话页已内置的 ?draft= 预填通道，输入框直接带上该作品的提示词 */
-function chatWithPrompt() {
-  const w = detail.value;
-  if (!w) return;
-  const p = promptOf(w);
-  if (!p) { MessagePlugin.warning("该作品没有可用的提示词"); return; }
+function chatWithPrompt(prompt: string) {
   detail.value = null;
-  router.push({ path: "/aiAssistant", query: { draft: p } });
-}
-
-/** 「带到画布生成」：把提示词交给画布 Agent 面板，并把封面/源视频一起带成画布上的媒体节点，
- *  否则画布落地是个空项目、看起来像「没带过去」。t= nonce 保证已停在画布页也能重挂载外壳。 */
-function canvasWithPrompt() {
-  const w = detail.value;
-  if (!w) return;
-  const p = promptOf(w);
-  if (!p) { MessagePlugin.warning("该作品没有可用的提示词"); return; }
-  // 媒体节点只挂站内媒体地址，不做 base64（会撞 localStorage 5MB 上限）
-  const isVideo = w.mk === "video";
-  const media = w.u ? [w.u] : [];
-  try {
-    localStorage.setItem(CANVAS_HANDOFF_KEY, JSON.stringify({
-      prompt: p,
-      assetUrls: isVideo ? [] : media,
-      videoUrls: isVideo ? media : [],
-      source: "square",
-      createdAt: Date.now(),
-    }));
-  } catch {
-    MessagePlugin.error("画布入口数据暂时无法保存，请重试");
-    return;
-  }
-  detail.value = null;
-  router.push({ path: "/canvas", query: { source: "xoi", handoff: "1", from: "square", t: String(Date.now()) } });
-}
-
-/** 画布作品复刻（整图）：把 canvas-previews 里该作品的完整 nodes+edges 交给画布侧还原工作流骨架，
- *  打开就是一张可编辑、可替换的完整画布。卡片上的「一键复刻」直接传 w，详情弹窗内不传则取 detail。
- *  载荷走 localStorage（单条预览仅十几 KB，避免 700KB 全量文件被二次拉取），提示词一并带上。 */
-async function replicate(target?: SqItem) {
-  const w = target || detail.value;
-  if (!w) return;
-  replicating.value = true;
-  try {
-    const res = await fetch("/square-data/canvas-previews.json", { cache: "no-store" });
-    if (!res.ok) throw new Error(String(res.status));
-    const data = (await res.json()) as Record<string, { name?: string; nodes?: unknown[]; edges?: unknown[] }>;
-    const preview = data[w.id];
-    if (!preview?.nodes?.length) { MessagePlugin.warning("该作品暂无可复刻的工作流"); return; }
-    localStorage.setItem(CANVAS_GRAPH_KEY, JSON.stringify({
-      workId: w.id,
-      title: w.t || preview.name || "复刻画布",
-      prompt: promptOf(w),
-      nodes: preview.nodes,
-      edges: preview.edges || [],
-    }));
-    detail.value = null;
-    router.push({ path: "/canvas", query: { source: "xoi", graph: "1", from: "square", t: String(Date.now()) } });
-  } catch {
-    MessagePlugin.error("复刻失败，请稍后再试");
-  } finally {
-    replicating.value = false;
-  }
+  void router.push({ path: "/aiAssistant", query: { draft: prompt } });
 }
 
 watch(category, () => (visibleCount.value = 30));
@@ -327,27 +222,4 @@ watch(category, () => (visibleCount.value = 30));
 .sq-loading, .sq-empty { padding: 90px 0; text-align: center; color: #999; font-size: 14px; }
 .sq-more { display: block; margin: 18px auto 0; padding: 10px 34px; border: 1px solid #e0e0e4; border-radius: 12px; background: #fff; color: #444; font-size: 13px; cursor: pointer; }
 .sq-more:hover { border-color: #1d1d1f; }
-.sq-mask { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 24px; background: rgba(12,12,14,.55); backdrop-filter: blur(10px); }
-.sq-dialog { position: relative; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 0; width: min(1040px, 100%); max-height: min(86vh, 720px); overflow: hidden; border-radius: 20px; background: #fff; }
-.sq-detail-media { position: relative; display: grid; place-items: center; min-height: 300px; background: #101013; }
-.sq-detail-media.is-cover-failed::after {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  color: #5d5d66; font-size: 13px;
-  content: "封面不可用";
-}
-.sq-detail-media img, .sq-detail-media video { max-width: 100%; max-height: min(86vh, 720px); object-fit: contain; }
-.sq-detail-body { display: flex; flex-direction: column; gap: 12px; padding: 26px 26px 24px; overflow-y: auto; }
-.sq-detail-body h2 { margin: 0; font-size: 19px; font-weight: 720; color: #1c1c1e; }
-.sq-detail-meta { display: flex; flex-wrap: wrap; gap: 12px; color: #8b8b90; font-size: 12.5px; }
-.sq-detail-desc { margin: 0; color: #4c4c50; font-size: 13.5px; line-height: 1.75; white-space: pre-wrap; }
-.sq-detail-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; padding-top: 14px; }
-.sq-primary { padding: 11px 22px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #ff8a1f, #f57400); color: #fff; font-size: 13.5px; font-weight: 650; cursor: pointer; }
-.sq-primary:disabled { opacity: .6; }
-.sq-ghost { padding: 11px 18px; border: 1px solid #e2e2e6; border-radius: 12px; background: #fff; color: #333; font-size: 13px; text-decoration: none; cursor: pointer; }
-.sq-close { position: absolute; right: 14px; top: 14px; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px; background: rgba(255,255,255,.16); color: #fff; font-size: 15px; cursor: pointer; }
-.sq-fade-enter-active, .sq-fade-leave-active { transition: opacity .2s; }
-.sq-fade-enter-from, .sq-fade-leave-to { opacity: 0; }
-@media (max-width: 900px) {
-  .sq-dialog { grid-template-columns: 1fr; max-height: 92vh; overflow-y: auto; }
-}
 </style>

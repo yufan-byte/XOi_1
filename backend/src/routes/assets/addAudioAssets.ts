@@ -2,6 +2,7 @@ import express from "express";
 import u from "@/utils";
 import { z } from "zod";
 import { assertScriptInProject, linkAssetToScript } from "@/utils/assetScope";
+import { extFromDataUrl, MediaWriteError, saveBase64Media } from "@/utils/mediaWrite";
 import { success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 const router = express.Router();
@@ -25,27 +26,30 @@ export default router.post(
   }),
   async (req, res) => {
     const { name, describe, projectId, assetsItem, scriptId } = req.body;
+    const userId = Number((req as any).user?.id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(401).json({ detail: "未登录" });
     await assertScriptInProject(projectId, scriptId);
-    await Promise.all(
-      assetsItem.map(async (i: { src?: string; base64: string; prompt: string }) => {
-        if (i.base64) {
-          const mimeMatch = i.base64.match(/^data:audio\/([^;]+);base64,/);
-          const mimeExt = mimeMatch ? mimeMatch[1] : "mp3";
-          const mimeToExt: Record<string, string> = {
-            mpeg: "mp3",
-            "x-wav": "wav",
-            "x-aiff": "aiff",
-            "x-m4a": "m4a",
-            "x-flac": "flac",
-          };
-          const ext = mimeToExt[mimeExt] ?? mimeExt;
-          const savePath = `/${projectId}/assets/audio/${u.uuid()}.${ext}`;
-          const base64Data = i.base64.replace(/^data:[^;]+;base64,/, "");
-          await u.oss.writeFile(savePath, base64Data);
-          i.src = savePath;
-        }
-      }),
-    );
+    try {
+      await Promise.all(
+        assetsItem.map(async (i: { src?: string; base64: string; prompt: string }) => {
+          if (!i.base64) return;
+          // 原来这里按 data URL 的 mime 猜扩展名后直接写盘，不校验文件头也不记账。
+          // 现在以文件头为准（aiff / flac / m4a 的魔数已在 mediaSecurity 里补齐）。
+          const saved = await saveBase64Media({
+            userId,
+            scope: "project",
+            autoDetect: true,
+            ext: extFromDataUrl(i.base64) || "mp3",
+            relPath: (ext) => `/${projectId}/assets/audio/${u.uuid()}.${ext}`,
+            base64: i.base64,
+          });
+          i.src = saved.relPath;
+        }),
+      );
+    } catch (e) {
+      if (e instanceof MediaWriteError) return res.status(e.status).json({ detail: e.message });
+      throw e;
+    }
 
     const [id] = await u.db("o_assets").insert({
       name,

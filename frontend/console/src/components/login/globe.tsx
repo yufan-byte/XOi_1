@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useRef } from "react";
+import { memo,useCallback, useEffect, useRef, useState } from "react";
 import type { OrbitBus } from "./orbit-data";
 import { cn } from "@/lib/utils";
 
@@ -11,7 +11,17 @@ const OrbitScene = dynamic(() => import("./orbit-scene"), { ssr: false, loading:
 const MOVE_K = 0.005, PITCH_K = 0.004, DEADZONE = 5;
 
 /** 登录页三维模型地球 + 作品展映（3D 模式）；容器承接指针事件（按下捕获 → 增量写入 bus.drag → 场景每帧消费） */
-export function Globe({ className, bus, active = true, reduced = false }: { className?: string; bus: React.RefObject<OrbitBus>; active?: boolean; reduced?: boolean }) {
+export const Globe=memo(function Globe({ className, bus, active = true, reduced = false }: { className?: string; bus: React.RefObject<OrbitBus>; active?: boolean; reduced?: boolean }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if(!active)return;
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(() => setReady(true), { timeout: 1200 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(() => setReady(true), 250);
+    return () => clearTimeout(id);
+  }, [active]);
   const st = useRef({ id: -1, x: 0, y: 0, moved: false });
   const down = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!active || e.button !== 0) return;
@@ -44,7 +54,7 @@ export function Globe({ className, bus, active = true, reduced = false }: { clas
       style={{ touchAction: "none" }}
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={leave}>
       {/* 全端挂载：手机与桌面同一套 3D 舞台（旧版只在 ≥640px 挂载，手机端是渐变糊墙首屏） */}
-      <OrbitScene bus={bus} reduced={reduced} />
+      {ready ? <OrbitScene bus={bus} reduced={reduced} paused={!active} /> : <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,#1a2027_0%,#11141a_48%,#050506_100%)]" />}
     </div>
   );
-}
+});

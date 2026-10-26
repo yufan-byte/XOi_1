@@ -13,8 +13,8 @@ export function useResellerAll() {
 }
 export function useSaveSection() {
   const qc = useQueryClient();
-  return async <K extends Section>(section: K, value: ResellerData[K], action?: string) => {
-    const r = await api<ResellerData[K]>("/api/reseller/config", { method: "PUT", body: JSON.stringify({ section, value, action }) });
+  return async <K extends Section>(section: K, value: ResellerData[K], action?: string,guard?:{expectedValue:ResellerData[K]}) => {
+    const r = await api<ResellerData[K]>("/api/reseller/config", { method: "PUT", body: JSON.stringify({ section, value, action,...guard }) });
     qc.invalidateQueries({ queryKey: ["reseller"] }); return r;
   };
 }

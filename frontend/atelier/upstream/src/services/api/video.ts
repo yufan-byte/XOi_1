@@ -8,13 +8,15 @@ import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceDuration, normalize
 import { isKIEGrokVideoModel, isKIEKlingV3Config, kieKlingOmniVariant } from "./protocols/kling-models";
 import { autoDLBaseUrl, getAutoDLCapabilities } from "@/lib/autodl";
 import { fetchAutoDLWorkflow } from "./autodl";
-import { isAgnesVideoV25Model, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
+import { isAgnesVideoV25Model, isCogVideoX3Model, isSeedance25Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { autoSyncToCloud, imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig, type VideoElementReference } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
+import { catalogVideoInput, isCatalogSeedance } from "@/xoi/video-input";
+import { plainModelName } from "@/xoi/model-pricing";
 
 export type VideoResponse = { id: string; task_id?: string; video_id?: string; source_id?: string; sourceId?: string; channelId?: string; userChannelId?: string; channelName?: string; channel_id?: string; user_channel_id?: string; channel_name?: string; status?: string; video_url?: string; url?: string; storageKey?: string; progress?: number; error?: { message?: string }; size?: string; seconds?: string; model?: string; created_at?: string | number; createdAt?: string | number; started_at?: string | number; startedAt?: string | number; request_body?: string };
 type ApiVideoEnvelope = { code: number; data?: VideoResponse | VideoResponse[] | null; msg?: string; message?: string };
@@ -22,7 +24,7 @@ type ApiVideoResponse = VideoResponse | ApiVideoEnvelope;
 export type VideoGenerationResult = { id: string; url: string; durationMs: number; width: number; height: number; bytes: number; mimeType: string; task: VideoResponse };
 export type CreatedVideoGenerationTask = { task: VideoResponse; pollId: string; startedAt: number; requestBody: unknown };
 export type VideoProgressHandler = (progress: number, task: VideoResponse) => void;
-export type VideoTaskCreateOptions = { clientTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string };
+export type VideoTaskCreateOptions = { clientTaskId?: string; source?: "video-workbench" | "canvas"; sourceId?: string; nodeId?: string };
 export const VIDEO_POLL_INTERVAL_MS = 5000;
 
 export class VideoRequestError extends Error {
@@ -115,7 +117,7 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     try {
         const createOptions = normalizeVideoTaskCreateOptions(options);
         const accountProxy = usesAccountProxy(config);
-        const headers = { ...aiHeaders(config), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}) };
+        const headers = { ...aiHeaders(config), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}), ...(accountProxy && createOptions.nodeId ? { "X-Video-Task-Node-ID": createOptions.nodeId } : {}) };
         const directProvider = !accountProxy ? directAIProviderForConfig(config) : null;
         const channel = localChannelForActiveModel(config);
         const createUrl = !accountProxy && isGeminiConfig(config, model)
@@ -239,6 +241,7 @@ async function cacheProtectedVideo(config: AiConfig, model: string, task: VideoR
 }
 
 async function createGrok2APIVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    if(input.videoReferences.length)throw new VideoRequestError("当前 Grok2API 接口不支持参考视频，请更换模型或断开视频连线；未提交生成");
     const body: Record<string, unknown> = {
         model,
         prompt,
@@ -321,9 +324,24 @@ async function create88APIVideoRequestBody(config: AiConfig, model: string, prom
 }
 
 async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    if (usesAccountProxy(config) && isCatalogSeedance(plainModelName(model))) {
+        // Server adapter consumes JSON, not multipart. Keep every reference; backend validates limits.
+        const images = [...input.references, ...[input.firstFrame, input.lastFrame].filter((v): v is ReferenceImage => Boolean(v))];
+        const mediaValue = async (reference: ReferenceVideo | ReferenceAudio) => {
+            const value = await mediaReferenceToFormValue(reference);
+            return typeof value === "string" ? value : readFileAsDataUrl(value);
+        };
+        const [imageURLs, videoURLs, audioURLs] = await Promise.all([
+            Promise.all(images.map(imageToAgnesReference)),
+            Promise.all(input.videoReferences.map(mediaValue)),
+            Promise.all(input.audioReferences.map(mediaValue)),
+        ]);
+        return catalogVideoInput(config, plainModelName(model), prompt, { images: [...new Set(imageURLs)], videos: videoURLs, audios: audioURLs });
+    }
     if (videoChannelProtocol(config, model) === "autodl") {
         const capabilities = getAutoDLCapabilities(await fetchAutoDLWorkflow(autoDLBaseUrl(config, model), model));
         if (!capabilities) throw new VideoRequestError("当前 AutoDL 工作流尚未适配");
+        if(input.videoReferences.length>capabilities.videoMax)throw new VideoRequestError("当前 AutoDL 工作流无法接收这些参考视频，请更换工作流或减少视频连线；未提交生成");
         const { autoDLReferenceURL } = await import("./direct-ai");
         const [images, videos, audios, firstFrame, lastFrame] = await Promise.all([
             Promise.all((capabilities.imageMax ? input.references : []).map(autoDLReferenceURL)),
@@ -348,6 +366,7 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     if (isCogVideoX3Model(model)) return createCogVideoX3RequestBody(config, model, prompt, input);
     if (isAgnesVideoV25Model(model)) return createAgnesVideoV25RequestBody(config, model, prompt, input);
     if (isAgnesVideoModel(model)) {
+        if(input.videoReferences.length)throw new VideoRequestError("当前 Agnes 视频接口只支持图片参考，请更换支持视频参考的模型；未提交生成");
         const references = input.references;
         const inputReferences = await Promise.all(references.slice(0, 7).map(imageToAgnesReference));
         const dimensions = size ? parseVideoDimensions(size) : null;
@@ -376,6 +395,8 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     const motionControl = apimartMotionControl || kieMotionControl;
     const klingV3 = apimartKlingV3 || kieKlingV3;
     const kling = klingV26 || klingV3;
+    if(input.videoReferences.length&&kling&&kieKlingOmni!=="reference-to-video"&&kieKlingOmni!=="transformation")throw new VideoRequestError("当前 Kling 模式不支持参考视频，请更换模型或模式；未提交生成");
+    if(input.videoReferences.length>1&&kieKlingOmni)throw new VideoRequestError("当前 Kling 模式最多接收一个参考视频，请减少视频连线；未提交生成");
     const body = new FormData();
     body.append("model", model);
     body.append("prompt", prompt);
@@ -404,7 +425,7 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
     } else {
         if (!kieMotionControl && !isGeminiOmniFlashVideoModel(model)) {
             const seconds = isSeedanceVideoConfig(config)
-                ? String(normalizeSeedanceDuration(config.videoSeconds, modelKey(model).includes("seedance-2-5") ? 30 : 15))
+                ? String(normalizeSeedanceDuration(config.videoSeconds, isSeedance25Model(model) ? 30 : 15))
                 : normalizeVideoSecondsForModel(model, config.videoSeconds);
             body.append("seconds", seconds);
         }
@@ -439,7 +460,7 @@ async function createArkSeedanceVideoRequestBody(config: AiConfig, model: string
     return {
         model,
         prompt,
-        seconds: normalizeSeedanceDuration(config.videoSeconds, modelKey(model).includes("seedance-2-5") ? 30 : 15),
+        seconds: normalizeSeedanceDuration(config.videoSeconds, isSeedance25Model(model) ? 30 : 15),
         size: normalizeSeedanceRatio(config.size),
         resolution_name: normalizeVideoResolution(config.vquality),
         video_generate_audio: boolConfig(config.videoGenerateAudio, false),

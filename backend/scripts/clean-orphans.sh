@@ -7,12 +7,12 @@
 # 本脚仅清除这些残留,严格保全当前真正提供服务的 listener 及其整条祖系守护链。
 #
 # 用法:
-#     cd backend && bash scripts/clean-orphans.sh                 # 默认端口 10588
+#     cd backend && bash scripts/clean-orphans.sh                 # 默认端口 12121
 #     cd backend && KEEP_PORT=10589 bash scripts/clean-orphans.sh  # 其它端口场景
 set -u
 
 PROJ_KEY="Jing_luo/backend"
-PORT="${KEEP_PORT:-10588}"
+PORT="${KEEP_PORT:-12121}"
 export LC_ALL=C
 
 CF=$(mktemp); CFS=$(mktemp); KF=$(mktemp); KFS=$(mktemp)

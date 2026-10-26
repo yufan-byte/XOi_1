@@ -22,13 +22,13 @@ const CATS: [Modality, string][] = [["chat", "对话"], ["image", "图像"], ["v
 const UNIT: Record<CatalogModel["billingUnit"], string> = { per_request: "/次", per_second: "/秒", per_1k_chars: "/千字", per_1m_tokens: "/1M" };
 const input = "h-11 rounded-xl border bg-card px-4 text-[15px] outline-none focus:border-primary/50";
 
-/** ⚡ = ¥1 */
+/** Admin cost and retail comparisons use yuan; customers see 10 points per yuan. */
 export function zapPrice(cny: number) {
-  if (!Number.isFinite(cny) || cny <= 0) return "⚡0";
-  if (cny < 0.0001) return "⚡<0.0001";
-  if (cny < 0.01) return `⚡${cny.toFixed(4)}`;
-  if (cny < 1) return `⚡${cny.toFixed(3)}`;
-  return `⚡${cny.toFixed(2)}`;
+  if (!Number.isFinite(cny) || cny <= 0) return "¥0";
+  if (cny < 0.0001) return "¥<0.0001";
+  if (cny < 0.01) return `¥${cny.toFixed(4)}`;
+  if (cny < 1) return `¥${cny.toFixed(3)}`;
+  return `¥${cny.toFixed(2)}`;
 }
 
 /** 模型管理中心：可售模型 / 定价设置（?tab=pricing） */
@@ -45,6 +45,7 @@ export function ModelsCenter({ only }: { only?: "pricing" } = {}) {
       <div className="space-y-5">
         {(catalog.error || cfg.error) && <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">加载失败：{((catalog.error ?? cfg.error) as Error).message}</div>}
         <section className="grid gap-3 sm:grid-cols-2"><Kpi label="对用户加价率" value={`${c.models.markupPct}%`} icon={<Coins />} accent /><Kpi label="对下级加价率" value={`${c.models.downstreamMarkupPct ?? 5}%`} icon={<Network />} /></section>
+        <UpstreamSyncPanel />
         {(!catalog.data && !catalog.error) || cfg.isLoading ? <div className="h-[50vh] rounded-2xl shimmer" /> : <PricingTab key="pricing-compact" compact models={catalog.data ?? []} cfg={c} setCfg={setCfg} />}
       </div>
     );
@@ -58,11 +59,40 @@ export function ModelsCenter({ only }: { only?: "pricing" } = {}) {
         </nav>
       )}
       {(catalog.error || cfg.error) && <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">加载失败：{((catalog.error ?? cfg.error) as Error).message}</div>}
+      <UpstreamSyncPanel />
       {catalog.error ? null
         : !catalog.data || cfg.isLoading ? <div className="h-[50vh] rounded-[16px] shimmer" />
         : tab === "models" ? <SalesTab key="models" models={catalog.data} cfg={cfg.data ?? FALLBACK_CFG} setCfg={setCfg} /> : <PricingTab key="pricing" models={catalog.data} cfg={cfg.data ?? FALLBACK_CFG} setCfg={setCfg} />}
     </div>
   );
+}
+
+function UpstreamSyncPanel() {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  type SyncStatus = { syncedAt: string | null; models: number; status: string; canSync: boolean; syncedChannels?: number; totalChannels?: number; channels?: { name: string; status: string }[] };
+  const query = useQuery({ queryKey: ["upstream-pricing-sync"], retry: false, queryFn: () => api<SyncStatus>("/api/reseller/models/upstream-status"), refetchInterval: 60_000 });
+  if (!query.data) return null;
+  const sync = async () => {
+    setBusy(true);
+    try {
+      const result = await api<{ failedChannels?: { name: string }[] }>("/api/reseller/models/sync-upstream", { method: "POST", body: "{}" });
+      await Promise.all([qc.invalidateQueries({ queryKey: ["upstream-pricing-sync"] }), qc.invalidateQueries({ queryKey: ["catalog"] })]);
+      if (result.failedChannels?.length) toast.warning(`其余分组已同步；${result.failedChannels.map(item => item.name).join("、")} 保留现有价格并将自动重试`);
+      else toast.success("上游模型和成本价已同步，本站加价率保持不变");
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const failed = query.data.channels?.filter(channel => channel.status !== "synced").map(channel => channel.name) ?? [];
+  const state = query.data.status === "synced"
+    ? `已同步 ${query.data.models} 个模型 · ${new Date(query.data.syncedAt!).toLocaleString("zh-CN")}`
+    : query.data.status === "partial"
+      ? `已同步 ${query.data.syncedChannels ?? 0}/${query.data.totalChannels ?? 0} 个分组；${failed.join("、") || "待更新分组"} 保留现有价格并自动重试`
+      : "尚未完成同步，当前使用网关已有价格";
+  return <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-xs">
+    <div><p className="font-medium">造物价格自动同步 · 每 15 分钟</p><p className="mt-1 text-muted-foreground">{state}。本站售价按你设置的加价率计算，1 元 = 10 积分。</p></div>
+    {query.data.canSync && <Button size="sm" disabled={busy} onClick={sync}>{busy ? "同步中…" : "立即同步"}</Button>}
+  </section>;
 }
 
 function SalesTab({ models, cfg, setCfg }: { models: CatalogModel[]; cfg: ModelsAdmin; setCfg: (c: ModelsAdmin) => void }) {
@@ -156,7 +186,7 @@ function PricingTab({ models, cfg, setCfg, compact }: { models: CatalogModel[]; 
             <span className="font-mono text-[10px] text-muted-foreground">0 – 50%</span>
             <Button size="sm" disabled={busy || (cfg.remaining <= 0 && Number(val) !== rate)} onClick={saveMarkup}>保存</Button>
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">调价只对客户之后的新充值生效;客户已充值的额度按充值那刻锁定的价格用到耗尽(锁价防套利,不可回改)。新价约 30 秒内在客户端刷新。</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">售价 = 上游成本 ×（1 + 加价率）；积分 = 售价 × 10。保存后影响后续模型调用，已有充值余额不变，新报价约 30 秒内刷新。</p>
           <p className="mt-2 text-[11px] text-muted-foreground">本月还可调整 {cfg.remaining} 次(30 天内最多 10 次)</p>
         </section>
         <section className={card}>
@@ -199,7 +229,7 @@ function PricingTab({ models, cfg, setCfg, compact }: { models: CatalogModel[]; 
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-[10px] text-muted-foreground">客户价 = 进货价 × (1 + 加价率)。⚡1 = ¥1。</p>
+          <p className="mt-2 text-[10px] text-muted-foreground">客户价 = 进货价 × (1 + 加价率)。客户积分 = 客户价 × 10；成本 ¥1，加价 30% 后为 ¥1.30，即 13 积分。</p>
         </section>
       </>
     );
@@ -228,7 +258,7 @@ function PricingTab({ models, cfg, setCfg, compact }: { models: CatalogModel[]; 
               <span className="text-sm text-muted-foreground">0 – 50%</span>
               <button type="button" disabled={busy || cfg.remaining <= 0 && Number(val) !== rate} onClick={saveMarkup} className="ml-auto h-11 rounded-xl bg-primary px-6 font-medium text-white hover:bg-primary-strong disabled:opacity-60">保存</button>
             </div>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">调价只对客户之后的新充值生效;客户已充值的额度按充值那刻锁定的价格用到耗尽(锁价防套利,不可回改)。新价约 30 秒内在客户端刷新。</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">售价 = 上游成本 ×（1 + 加价率）；积分 = 售价 × 10。保存后影响后续模型调用，已有充值余额不变，新报价约 30 秒内刷新。</p>
             <p className="mt-2 text-sm font-medium">本月还可调整 {cfg.remaining} 次(30 天内最多 10 次)</p>
           </div>
         </div>
@@ -242,7 +272,7 @@ function PricingTab({ models, cfg, setCfg, compact }: { models: CatalogModel[]; 
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">客户价 = 进货价 × (1 + 加价率)。⚡1 = ¥1。</p>
+        <p className="mt-3 text-xs text-muted-foreground">客户价 = 进货价 × (1 + 加价率)。客户积分 = 客户价 × 10；成本 ¥1，加价 30% 后为 ¥1.30，即 13 积分。</p>
       </section>
 
       <section className="pane p-6">

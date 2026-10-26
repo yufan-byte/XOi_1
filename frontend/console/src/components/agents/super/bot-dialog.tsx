@@ -82,7 +82,7 @@ function Inner({ onClose }: { onClose: () => void }) {
       <BotDialogBody draft={draft} setDraft={setDraft} />
       <div className="mt-[18px] flex items-center justify-end gap-[8px]">
         <button type="button" onClick={() => setDraft(DEFAULT_BOT)} className="inline-flex h-[37.6px] items-center justify-center gap-[6.6px] rounded-[4px] px-[13.2px] text-[15.4px] font-semibold leading-[22px] text-foreground hover:bg-muted">恢复默认</button>
-        <button type="button" onClick={() => { setBot(draft); onClose(); toast.success("已保存"); }} className="inline-flex h-[37.6px] items-center justify-center gap-[6.6px] rounded-[4px] border border-primary/40 bg-[linear-gradient(135deg,oklch(0.54_0.247_293),oklch(0.5_0.1_293))] px-[13.2px] text-[15.4px] font-semibold leading-[22px] text-white">保存</button>
+        <button type="button" onClick={() => { setBot(draft); onClose(); toast.success("已保存"); }} className="inline-flex h-[37.6px] items-center justify-center gap-[6.6px] rounded-[10px] border border-primary/40 bg-primary px-[13.2px] text-[15.4px] font-semibold leading-[22px] text-primary-foreground transition-colors hover:bg-primary-strong">保存</button>
       </div>
     </>
   );

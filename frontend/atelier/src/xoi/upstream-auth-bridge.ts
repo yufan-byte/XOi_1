@@ -15,12 +15,20 @@
  */
 
 import { useUserStore as useUpstreamUserStore } from "@upstream/stores/use-user-store";
-import { getAuthToken } from "@/xoi/owner";
+import { getAuthToken, getVerifiedToken } from "@/xoi/owner";
 
 const UPSTREAM_AUTH_KEY = "infinite-canvas-auth-token-v1";
 
 let expiryTimer: ReturnType<typeof setTimeout> | null = null;
 let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+let lastProfileRefresh = 0;
+
+function refreshProfile(force = false) {
+    const state = useUpstreamUserStore.getState();
+    if ((!force && document.hidden) || state.isLoading || !state.token || state.token !== getVerifiedToken() || Date.now() - lastProfileRefresh < 30_000) return;
+    lastProfileRefresh = Date.now();
+    void state.hydrateUser();
+}
 
 function rawXoiToken(): string {
     // 宿主约定值本身含 "Bearer " 前缀；上游 aiHeaders 会自己再拼一次，
@@ -58,7 +66,16 @@ function forceTopLogin() {
 
 export function syncUpstreamAuthSession() {
     const raw = rawXoiToken();
-    if (!raw) return; // 宿主未登录不代管（登录页本身也在 iframe 外，不会走到画布）
+    // store/IndexedDB 的 owner 在启动时固定；换号必须整页重建，不能只替换 JWT。
+    if (!raw) {
+        forceTopLogin();
+        return;
+    }
+    if (raw !== getVerifiedToken()) {
+        try { (window.top ?? window).location.reload(); }
+        catch { window.location.reload(); }
+        return;
+    }
     const expMs = jwtExpMs(raw);
     if (expMs !== null && expMs <= Date.now()) {
         forceTopLogin();
@@ -82,12 +99,17 @@ export function syncUpstreamAuthSession() {
 /** 宿主登录态变化（登录/登出/换号）→ storage 事件跨文档广播，画布实时跟随 */
 export function installUpstreamAuthBridge() {
     syncUpstreamAuthSession();
+    refreshProfile(true);
     window.addEventListener("storage", (event) => {
         if (event.key === "token" || event.key === null) syncUpstreamAuthSession();
     });
     // 兜底轮询：storage 事件只对「别的文档」触发改键，且计时器可能被浏览器节流；
-    // 60 秒对一次宿主 token，过期/换号最终都会被收敛
+    // 切号后尽快清掉旧账号的内存 store。
     if (fallbackInterval === null) {
-        fallbackInterval = setInterval(syncUpstreamAuthSession, 60_000);
+        fallbackInterval = setInterval(() => { syncUpstreamAuthSession(); refreshProfile(); }, 2_000);
     }
+    window.addEventListener("focus", () => { syncUpstreamAuthSession(); refreshProfile(); });
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) { syncUpstreamAuthSession(); refreshProfile(); }
+    });
 }

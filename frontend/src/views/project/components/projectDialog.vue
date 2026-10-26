@@ -1,6 +1,7 @@
 <template>
   <div class="addProject">
     <t-dialog
+      attach="body"
       class="createProjectDialog"
       @closed="emit('closed')"
       placement="center"
@@ -15,7 +16,7 @@
       :cancel-btn="$t('workbench.project.dialog.cancel')">
       <div class="createWorkspace">
         <aside class="createSteps">
-          <div class="createStepsEyebrow">PROJECT BRIEF</div>
+          <div class="createStepsEyebrow">创作参数</div>
           <div class="createStepsTitle">创作参数预设</div>
           <div class="setupNote"><strong>先确定创作基调</strong><span>预先设定项目类型、制作规格、视觉参考与导演叙事方案，后续可随时调整。</span></div>
           <div class="setupMeta"><span>内容来源</span><strong>{{ formState.projectType === 'novel' ? '小说改编' : '剧本创作' }}</strong></div>
@@ -39,9 +40,9 @@
               <t-input v-model="formState.type" :placeholder="$t('workbench.project.dialog.novelTypePh')" />
             </t-form-item>
             <t-form-item :label="$t('workbench.project.dialog.modelData')">
-              <div class="ac" style="gap: 5px; width: 100%">
+              <div class="modelParameters">
                 <modelSelect v-model="formState.imageModel" type="image" />
-                <t-select v-model="formState.imageQuality" class="paramSelect ml-5" :placeholder="$t('workbench.production.editImage.quality')">
+                <t-select v-model="formState.imageQuality" class="paramSelect" :placeholder="$t('workbench.production.editImage.quality')">
                   <t-option value="1K" label="1K" />
                   <t-option value="2K" label="2K" />
                   <t-option value="4K" label="4K" />
@@ -49,15 +50,20 @@
               </div>
             </t-form-item>
             <t-form-item :label="$t('workbench.project.dialog.videoModelData')">
-              <div class="ac" style="gap: 5px; width: 100%">
+              <div class="modelParameters">
                 <modelSelect v-model="formState.videoModel" type="video" @change="changeFn" :changeConfig="true" />
-                <t-select v-model="formState.mode" class="paramSelect ml-5" :placeholder="$t('workbench.production.editImage.mode')">
+                <t-select v-model="formState.mode" class="paramSelect" :placeholder="$t('workbench.production.editImage.mode')">
                   <t-option v-for="value in mode" :key="value.value" :value="value.value" :label="value.label" />
                 </t-select>
               </div>
             </t-form-item>
             <t-form-item :label="$t('workbench.project.dialog.videoRatio')">
               <t-select v-model="formState.videoRatio" :options="RATIO_OPTIONS" />
+            </t-form-item>
+            <t-form-item :label="$t('workbench.project.dialog.textModelData')">
+              <div class="modelParameters">
+                <modelSelect v-model="formState.textModel" type="text" :placeholder="$t('workbench.project.dialog.textModelPh')" />
+              </div>
             </t-form-item>
             <t-form-item :label="$t('workbench.project.dialog.novelIntro')">
               <t-textarea
@@ -73,12 +79,15 @@
               <div class="artStylePicker">
                 <div class="artStyleHeader">
                   <div><strong>视觉风格方案</strong><small>选择画面质感、色彩与美术方向</small></div>
-                  <t-button size="small" variant="outline" @click="openVisualManualDialog()">
+                  <t-button v-if="visualPreference.mode === 'preset'" size="small" variant="text" @click="openVisualManualDialog()">
                     <template #icon><i-plus size="14" /></template>
-                    {{ $t("workbench.project.dialog.newVisualManual") }}
+                    专业手册
                   </t-button>
                 </div>
-                <div class="artStyleContent">
+                <div class="preferenceChoices"><button v-for="choice in preferenceChoices" :key="choice.value" type="button" :class="{ active: visualPreference.mode === choice.value }" @click="setPreferenceMode('artStyle', choice.value)">{{ choice.label }}</button></div>
+                <p v-if="visualPreference.mode === 'none'" class="preferenceNote">暂不限定画面风格，先创建项目。后续可在导演助理中逐步明确。</p>
+                <t-textarea v-else-if="visualPreference.mode === 'custom'" :value="visualPreference.text" @change="(value: unknown) => setCustomPreference('artStyle', String(value))" placeholder="例如：宋代写实电影，低饱和自然光；人物服装、房间布局保持一致。" :maxlength="4000" :autosize="{ minRows: 4, maxRows: 7 }" />
+                <div v-else class="artStyleContent">
                   <t-loading :loading="visualManualLoading" :text="$t('workbench.project.dialog.loading')">
                     <div class="gridContainer">
                       <div
@@ -110,12 +119,15 @@
               <div class="directorManual">
                 <div class="directorManualHeader">
                   <div><strong>导演叙事方案</strong><small>选择节奏、镜头语言与叙事基调</small></div>
-                  <t-button size="small" variant="outline" @click="openDirectorManualDialog()">
+                  <t-button v-if="narrativePreference.mode === 'preset'" size="small" variant="text" @click="openDirectorManualDialog()">
                     <template #icon><i-plus size="14" /></template>
-                    {{ $t("workbench.project.dialog.addDirectorManual") }}
+                    专业手册
                   </t-button>
                 </div>
-                <div class="artStyleContent">
+                <div class="preferenceChoices"><button v-for="choice in preferenceChoices" :key="choice.value" type="button" :class="{ active: narrativePreference.mode === choice.value }" @click="setPreferenceMode('directorManual', choice.value)">{{ choice.label }}</button></div>
+                <p v-if="narrativePreference.mode === 'none'" class="preferenceNote">暂不套用叙事模板。导演助理以剧本为准，重要决策由你确认。</p>
+                <t-textarea v-else-if="narrativePreference.mode === 'custom'" :value="narrativePreference.text" @change="(value: unknown) => setCustomPreference('directorManual', String(value))" placeholder="例如：悬疑慢揭示，少旁白，通过人物反应和环境细节交代信息。" :maxlength="4000" :autosize="{ minRows: 4, maxRows: 7 }" />
+                <div v-else class="artStyleContent">
                   <t-loading :loading="directorManualLoading" :text="$t('workbench.project.dialog.loading')">
                     <div class="gridContainer">
                       <div
@@ -151,6 +163,8 @@
     </t-dialog>
     <!-- 新建/编辑视觉手册弹窗 -->
     <t-dialog
+      attach="body"
+      v-if="visualManualDialogVisible"
       class="artStyleDialog"
       v-model:visible="visualManualDialogVisible"
       :header="editingVisualManual ? $t('workbench.project.dialog.editVisualManualTitle') : $t('workbench.project.dialog.newVisualManualTitle')"
@@ -222,6 +236,8 @@
     </t-dialog>
     <!-- 新建/编辑导演手册弹窗 -->
     <t-dialog
+      attach="body"
+      v-if="directorDialogVisible"
       class="artStyleDialog"
       v-model:visible="directorDialogVisible"
       :header="editingDirectorManual ? $t('workbench.project.dialog.editingDirectorManual') : $t('workbench.project.dialog.newDirecorManualTitle')"
@@ -297,8 +313,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from "vue";
+import { readCreativePreference, customCreativePreference, type CreativePreference } from '../../../../../shared/creativePreference';
 import axios from "@/utils/axios";
-import { MdEditor } from "md-editor-v3";
+import { MdEditor } from "@/utils/markdown";
 import { resolveThemeMode } from "@/utils/theme";
 import settingStore from "@/stores/setting";
 const { themeSetting } = storeToRefs(settingStore());
@@ -344,6 +361,7 @@ const emit = defineEmits<{
       videoRatio: string;
       imageModel: string;
       videoModel: string;
+      textModel: string;
       projectType: string;
       imageQuality: "1K" | "2K" | "4K" | "";
       mode: string;
@@ -362,6 +380,7 @@ interface ProjectData {
   videoRatio: string | null;
   imageModel: string;
   videoModel: string;
+  textModel?: string;
   projectType: string;
   imageQuality: "1K" | "2K" | "4K" | "";
   visualManual?: string;
@@ -378,6 +397,7 @@ interface ProjectFormData {
   videoRatio: string;
   imageModel: string;
   videoModel: string;
+  textModel: string;
   imageQuality: "1K" | "2K" | "4K" | "";
   mode: string;
 }
@@ -436,6 +456,7 @@ const DEFAULT_FORM: () => ProjectFormData & { id: number; era: string; createTim
   userId: 0,
   imageModel: "",
   videoModel: "",
+  textModel: "",
   imageQuality: "",
   mode: "",
   directorManual: "",
@@ -443,9 +464,28 @@ const DEFAULT_FORM: () => ProjectFormData & { id: number; era: string; createTim
 
 // ===== 表单 =====
 const formState = ref(DEFAULT_FORM());
+type PreferenceField = 'artStyle' | 'directorManual';
+const preferenceChoices = [{ value: 'none', label: '暂不设置' }, { value: 'preset', label: '选用方案' }, { value: 'custom', label: '自己描述' }] as const;
+const preferenceModes = ref<Record<PreferenceField, CreativePreference['mode']>>({ artStyle: 'none', directorManual: 'none' });
+const preferenceCache: Record<PreferenceField, Partial<Record<CreativePreference['mode'], string>>> = { artStyle: {}, directorManual: {} };
+const visualPreference = computed(() => ({ ...readCreativePreference(formState.value.artStyle), mode: preferenceModes.value.artStyle }));
+const narrativePreference = computed(() => ({ ...readCreativePreference(formState.value.directorManual), mode: preferenceModes.value.directorManual }));
+function setPreferenceMode(field: PreferenceField, mode: CreativePreference['mode']) {
+  preferenceCache[field][preferenceModes.value[field]] = formState.value[field];
+  preferenceModes.value[field] = mode;
+  formState.value[field] = mode === 'none' ? '' : preferenceCache[field][mode] || (mode === 'custom' ? customCreativePreference('') : '');
+}
+function setCustomPreference(field: PreferenceField, text: string) { formState.value[field] = customCreativePreference(text); }
+function resetPreferenceModes() {
+  for (const field of ['artStyle', 'directorManual'] as const) {
+    preferenceCache[field] = {};
+    preferenceModes.value[field] = readCreativePreference(formState.value[field]).mode;
+  }
+}
 
 function resetForm() {
   formState.value = DEFAULT_FORM();
+  resetPreferenceModes();
 }
 
 function handleCancel() {
@@ -458,8 +498,12 @@ function handleOk() {
   if (!formState.value.type) return window.$message.warning($t("workbench.project.msg.enterProjectType"));
   if (!formState.value.imageModel) return window.$message.warning($t("workbench.project.msg.enterImageModel"));
   if (!formState.value.videoModel) return window.$message.warning($t("workbench.project.msg.enterVideoModel"));
-  if (!formState.value.artStyle) return window.$message.warning($t("workbench.project.msg.enterArtStyle"));
-  if (!formState.value.directorManual) return window.$message.warning($t("workbench.project.msg.directorManual"));
+  // 文本模型是剧本对话与资产提取的唯一入口，缺它项目无法运作，必须在创建/编辑时选好
+  if (!formState.value.textModel) return window.$message.warning($t("workbench.project.msg.enterTextModel"));
+  if (preferenceModes.value.artStyle === 'preset' && !formState.value.artStyle) return window.$message.warning('请选择视觉方案，或选择暂不设置');
+  if (preferenceModes.value.directorManual === 'preset' && !formState.value.directorManual) return window.$message.warning('请选择叙事方案，或选择暂不设置');
+  if (visualPreference.value.mode === 'custom' && !visualPreference.value.text.trim()) return window.$message.warning('请填写视觉要求，或选择暂不设置');
+  if (narrativePreference.value.mode === 'custom' && !narrativePreference.value.text.trim()) return window.$message.warning('请填写叙事要求，或选择暂不设置');
   if (!formState.value.videoRatio) return window.$message.warning($t("workbench.project.msg.enterVideoRatio"));
   if (!formState.value.intro) return window.$message.warning($t("workbench.project.msg.enterProjectIntro"));
   if (!formState.value.imageQuality) return window.$message.warning($t("workbench.project.msg.enterProjectQuality"));
@@ -474,6 +518,7 @@ function handleOk() {
       videoRatio: formState.value.videoRatio,
       imageModel: formState.value.imageModel,
       videoModel: formState.value.videoModel,
+      textModel: formState.value.textModel || "",
       projectType: formState.value.projectType || "novel",
       directorManual: formState.value.directorManual,
       imageQuality: formState.value.imageQuality,
@@ -489,6 +534,7 @@ function handleOk() {
       videoRatio: formState.value.videoRatio || "16:9",
       imageModel: formState.value.imageModel,
       videoModel: formState.value.videoModel,
+      textModel: formState.value.textModel || "",
       imageQuality: formState.value.imageQuality,
       directorManual: formState.value.directorManual,
       mode: formState.value.mode,
@@ -514,47 +560,6 @@ const promptToolbars: ToolbarNames[] = [
   "preview",
 ];
 
-watch(addProjectShow, async (visible) => {
-  if (visible) {
-    if (props.projectData) {
-      formState.value = {
-        ...DEFAULT_FORM(),
-        id: props.projectData.id as unknown as number,
-        name: props.projectData.name || "",
-        intro: props.projectData.intro || "",
-        type: props.projectData.type || "",
-        artStyle: props.projectData.artStyle || "",
-        videoRatio: props.projectData.videoRatio || "16:9",
-        imageModel: props.projectData.imageModel || "",
-        videoModel: props.projectData.videoModel || "",
-        imageQuality: props.projectData.imageQuality || "",
-        projectType: props.projectData.projectType || "novel",
-        mode: props.projectData.mode || "text",
-        directorManual: props.projectData.directorManual || "",
-      };
-      // 编辑模式下主动获取视频模型详情，填充 mode 列表以回显 label
-      if (props.projectData.videoModel) {
-        try {
-          const { data } = await axios.post("/modelSelect/getModelDetail", {
-            modelId: props.projectData.videoModel,
-          });
-          if (data?.mode) {
-            mode.value = data.mode.map((item: any) => ({
-              label: getModeLabel(item),
-              value: modeToKey(item),
-            }));
-          }
-        } catch (e) {
-          // 获取失败不影响其他功能
-        }
-      }
-    } else {
-      resetForm();
-    }
-    fetchVisualManuals();
-    queryDirectorManual();
-  }
-});
 
 // ===== 视觉手册 =====
 const visualManualOptions = ref<VisualManualItem[]>([]);
@@ -900,9 +905,56 @@ function handleDirectorManualCoverFileChange(e: Event) {
   });
   (e.target as HTMLInputElement).value = "";
 }
+watch(addProjectShow, async (visible) => {
+  if (visible) {
+    if (props.projectData) {
+      formState.value = {
+        ...DEFAULT_FORM(),
+        id: props.projectData.id as unknown as number,
+        name: props.projectData.name || "",
+        intro: props.projectData.intro || "",
+        type: props.projectData.type || "",
+        artStyle: props.projectData.artStyle || "",
+        videoRatio: props.projectData.videoRatio || "16:9",
+        imageModel: props.projectData.imageModel || "",
+        videoModel: props.projectData.videoModel || "",
+        textModel: props.projectData.textModel || "",
+        imageQuality: props.projectData.imageQuality || "",
+        projectType: props.projectData.projectType || "novel",
+        mode: props.projectData.mode || "text",
+        directorManual: props.projectData.directorManual || "",
+      };
+      resetPreferenceModes();
+      // 编辑模式下主动获取视频模型详情，填充 mode 列表以回显 label
+      if (props.projectData.videoModel) {
+        try {
+          const { data } = await axios.post("/modelSelect/getModelDetail", {
+            modelId: props.projectData.videoModel,
+          });
+          if (data?.mode) {
+            mode.value = data.mode.map((item: any) => ({
+              label: getModeLabel(item),
+              value: modeToKey(item),
+            }));
+          }
+        } catch (e) {
+          // 获取失败不影响其他功能
+        }
+      }
+    } else {
+      resetForm();
+    }
+    fetchVisualManuals();
+    queryDirectorManual();
+  }
+}, { immediate: true });
 </script>
 
 <style lang="scss" scoped>
+.preferenceChoices { display:flex; gap:8px; margin:16px 0; flex-wrap:wrap; }
+.preferenceChoices button { border:1px solid #e5dfd6; border-radius:9px; padding:8px 14px; background:#fff; color:#777066; cursor:pointer; }
+.preferenceChoices button.active { color:#b6552a; border-color:#e8bda3; background:#fff4eb; }
+.preferenceNote { padding:18px; margin:0; color:#847a6e; background:#f3f0ea; border-radius:10px; font-size:13px; line-height:1.8; }
 .dialogIntro {
   display: flex;
   align-items: center;
@@ -929,7 +981,7 @@ function handleDirectorManualCoverFileChange(e: Event) {
 .createWorkspace {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  min-height: 680px;
+  min-height: 0;
   background: #fcfbf8;
 }
 
@@ -961,7 +1013,7 @@ function handleDirectorManualCoverFileChange(e: Event) {
 .createContent { min-width: 0; padding: 30px; overflow: auto; background: #fcfbf8; }
 
 :deep(.t-dialog__body) {
-  max-height: min(72vh, 760px);
+  max-height: min(calc(100dvh - 140px), 760px);
   overflow-y: auto;
   padding: 0;
 }
@@ -1006,9 +1058,20 @@ function handleDirectorManualCoverFileChange(e: Event) {
   border-top: 1px solid var(--td-component-border);
 }
 
+/* Keep form labels and model quotes in normal flow, including narrow dialogs. */
+.createContent :deep(.t-form__item) { display: flex; flex-direction: column; align-items: stretch; margin-bottom: 18px; }
+.createContent :deep(.t-form__label) { float: none; width: 100% !important; height: auto; min-height: 24px; padding: 0 0 8px; line-height: 20px; text-align: left; }
+.createContent :deep(.t-form__controls) { width: 100%; min-width: 0; margin-left: 0 !important; }
+.createContent :deep(.t-form__controls-content) { display: block; min-width: 0; }
+.modelParameters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: 100%; }
+.modelParameters :deep(.modelSelectField), .modelParameters :deep(.paramSelect) { width: 100%; min-width: 0; }
+.modelParameters :deep(.modelSelectControl) { width: 100%; min-width: 0; }
+.modelParameters :deep(.modelSelectControl > span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .formColumns {
-  display: flex;
-  gap: 30px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
   animation: fadeSlideIn 300ms ease-out;
 
   .formLeft {
@@ -1559,7 +1622,16 @@ function handleDirectorManualCoverFileChange(e: Event) {
   }
 }
 
+@media (max-width: 600px) {
+  .createSteps { display: none; }
+  .createContent { padding: 20px 16px; }
+  .artStyleHeader, .directorManualHeader { flex-wrap: wrap; gap: 8px; }
+  .gridContainer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) {
+  .formColumns { grid-template-columns: minmax(0, 1fr); }
+  .createStepsTitle { margin-bottom: 14px; }
+  .setupMeta { display: none; }
   .createWorkspace { grid-template-columns: 1fr; }
   .createSteps { padding: 18px; }
   .createStepsTitle { margin-bottom: 16px; }
@@ -1702,4 +1774,11 @@ function handleDirectorManualCoverFileChange(e: Event) {
     transform: scale(1);
   }
 }
+</style>
+
+<style lang="scss">
+/* Dialogs teleport to body so fixed positioning stays relative to the viewport. */
+.createProjectDialog .t-dialog, .t-dialog.createProjectDialog { padding: 0 !important; overflow: hidden; border-radius: 16px; border: 1px solid #dcd9d2; background: #fcfbf8; box-shadow: 0 24px 80px rgba(42,38,31,.18); }
+.createProjectDialog .t-dialog__body { padding: 0 !important; max-height: min(calc(100dvh - 128px), 760px); overflow-y: auto; overscroll-behavior: contain; }
+.createProjectDialog .t-dialog__footer { margin: 0; padding: 16px 24px; border-top: 1px solid #e2dfd8; background: #fcfbf8; }
 </style>

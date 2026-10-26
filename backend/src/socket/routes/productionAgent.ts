@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import u from "@/utils";
+import {releaseLifecycle} from "@/utils/releaseLifecycle";
 import { Namespace, Socket } from "socket.io";
 import * as agent from "@/agents/productionAgent/index";
 import ResTool from "@/socket/resTool";
@@ -56,7 +57,7 @@ export default (nsp: Namespace) => {
       callback?.({ success: true });
     });
 
-    socket.on("chat", async (data: { content: string }) => {
+    socket.on("chat", releaseLifecycle.socketHandler(async (data: { content: string; model?: string }) => {
       const { content } = data;
       abortController?.abort();
       abortController = new AbortController();
@@ -72,6 +73,7 @@ export default (nsp: Namespace) => {
         resTool,
         msg,
         thinkConfig,
+        textModel: typeof data.model === 'string' && data.model.startsWith('newapi:') ? data.model as `newapi:${string}` : undefined,
       };
 
       try {
@@ -79,13 +81,15 @@ export default (nsp: Namespace) => {
       } catch (err: any) {
         if (err.name !== "AbortError" && !currentController.signal.aborted) {
           console.error("[productionAgent] chat error:", u.error(err).message);
+          socket.emit("error", { message: u.error(err).message });
+          resTool.sendError(msg.id, u.error(err).message);
         }
       } finally {
         if (abortController === currentController) {
           abortController = null;
         }
       }
-    });
+    },message=>socket.emit("error",{message})));
 
     socket.on("updateThinkConfig", (data: { think: boolean; thinlLevel: 0 | 1 | 2 | 3 }) => {
       thinkConfig.think = data.think;

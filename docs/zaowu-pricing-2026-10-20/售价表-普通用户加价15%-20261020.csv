@@ -1,0 +1,191 @@
+﻿model_name,类型,计费,档位售价(普通用户×1.15),成本(÷1.15),备注
+aliyun-image-superres,图片,按次/Token,倍率-,-,
+aliyun-video-superres,图片,按秒,倍率-,-,
+doubao-seedream-4-5,图片,按次/Token,倍率-,-,
+doubao-seedream-5-0,图片,按次/Token,倍率-,-,
+doubao-seedream-5-0-pro,图片,按次/Token,倍率-,-,
+face-repaint,图片,按次/Token,倍率-,-,
+flux-2,图片,按次/Token,倍率-,-,
+flux-3,图片,按次/Token,倍率-,-,
+flux-kontext,图片,按次/Token,倍率-,-,
+gemini-3-pro-image,图片,按次/Token,倍率-,-,
+gemini-3.1-flash-image,图片,按次/Token,倍率-,-,
+gemini-3.1-flash-lite-image,图片,按次/Token,倍率-,-,
+gemini-nano-banana-2.1-image,图片,按次/Token,倍率-,-,
+gpt-image-2,图片,按次/Token,倍率-,-,
+gpt-image-2-c,图片,按次/Token,倍率-,-,
+gpt-image-2-official,图片,按次/Token,倍率-,-,
+gpt-image-2.5-flare,图片,按次/Token,倍率-,-,
+gpt-image-2.5-sunburst,图片,按次/Token,倍率-,-,
+grok-imagine-image,图片,按次/Token,倍率-,-,
+grok-imagine-image-2.0,图片,按次/Token,倍率-,-,
+kling-image-o3,图片,按次/Token,倍率-,-,
+qwen-image-2.0,图片,按次/Token,倍率-,-,
+qwen-image-3.0,图片,按次/Token,倍率-,-,
+wan2.7-image,图片,按次/Token,倍率-,-,
+claude-fable-5,文本,按 Token,倍率10.35（基础1.75×官方线5.14×1.15，按Token计）,按Token,官方专线独占；成本=基础×5.14
+claude-fable-5-1,文本,按 Token,倍率-,按Token,官方专线独占，表达式已含×5.14
+claude-haiku-4-5,文本,按 Token,倍率 ¥0.2012/次,按Token,
+claude-opus-4-6,文本,按 Token,倍率 ¥1.0062/次,按Token,
+claude-opus-4-7,文本,按 Token,倍率 ¥1.0062/次,按Token,
+claude-opus-4-8,文本,按 Token,倍率 ¥1.0062/次,按Token,
+claude-opus-5,文本,按 Token,倍率 ¥1.0062/次,按Token,
+claude-opus-5-5,文本,按 Token,倍率 ¥2.0447/次,按Token,
+claude-sonnet-4-6,文本,按 Token,倍率 ¥0.6038/次,按Token,
+claude-sonnet-5,文本,按 Token,倍率 ¥0.4025/次,按Token,
+claude-sonnet-5-5,文本,按 Token,倍率 ¥2.4536/次,按Token,
+codex-auto-review,文本,按 Token,倍率 ¥0.5112/次,按Token,
+deepseek-v4-flash,文本,按 Token,倍率 ¥0.5725/次,按Token,
+deepseek-v4-pro,文本,按 Token,倍率 ¥3.6805/次,按Token,
+deepseek-v4-pro-0813,文本,按 Token,倍率 ¥4.2588/次,按Token,
+deepseek-v4.1-flash,文本,按 Token,倍率 ¥0.2658/次,按Token,
+doubao-seed-2-0-pro,文本,按 Token,倍率 ¥2.2901/次,按Token,
+gemini-3-flash,文本,按 Token,倍率 ¥0.2556/次,按Token,
+gemini-3-pro,文本,按 Token,倍率 ¥1.0224/次,按Token,
+gemini-3.1-flash-lite,文本,按 Token,倍率 ¥0.1278/次,按Token,
+gemini-3.1-pro,文本,按 Token,倍率 ¥1.0224/次,按Token,
+gemini-3.5-flash,文本,按 Token,倍率 ¥0.7668/次,按Token,
+gemini-3.5-flash-lite,文本,按 Token,倍率 ¥0.1534/次,按Token,
+gemini-3.6-flash,文本,按 Token,倍率 ¥0.3834/次,按Token,
+gemini-3.7-flash,文本,按 Token,倍率 ¥0.3834/次,按Token,
+gemini-3.8-flash,文本,按 Token,倍率 ¥0.3834/次,按Token,
+gemini-4-argon,文本,按 Token,倍率 ¥1.6358/次,按Token,
+glm-5.2,文本,按 Token,倍率 ¥3.031/次,按Token,
+glm-5.3,文本,按 Token,倍率 ¥4.5801/次,按Token,
+glm-5.3-flash,文本,按 Token,倍率 ¥0.2454/次,按Token,
+gpt-5.3-codex,文本,按 Token,倍率 ¥1.7891/次,按Token,
+gpt-5.4,文本,按 Token,倍率 ¥2.5559/次,按Token,
+gpt-5.4-mini,文本,按 Token,倍率 ¥0.7668/次,按Token,
+gpt-5.4-nano,文本,按 Token,倍率 ¥0.1431/次,按Token,
+gpt-5.5,文本,按 Token,倍率-,按Token,
+gpt-5.5-enterprise,文本,按 Token,倍率-,按Token,
+gpt-5.6,文本,按 Token,倍率-,按Token,
+gpt-5.6-luna,文本,按 Token,倍率-,按Token,
+gpt-5.6-sol,文本,按 Token,倍率-,按Token,
+gpt-5.6-sol-enterprise,文本,按 Token,倍率-,按Token,
+gpt-5.6-terra,文本,按 Token,倍率-,按Token,
+gpt-5.6-terra-enterprise,文本,按 Token,倍率-,按Token,
+gpt-6-astra,文本,按 Token,倍率-,按Token,
+gpt-6-astra-enterprise,文本,按 Token,倍率-,按Token,
+gpt-6-sol,文本,按 Token,倍率 ¥0.777/次,按Token,
+gpt-6.1-sol,文本,按 Token,倍率 ¥0.4089/次,按Token,
+grok-4-20-non-reasoning,文本,按 Token,倍率-,按Token,
+grok-4.5,文本,按 Token,倍率-,按Token,
+grok-4.6,文本,按 Token,倍率-,按Token,
+grok-4.7,文本,按 Token,倍率 ¥0.5112/次,按Token,
+grok-imagine-1-5-7tu-special,文本,按秒,倍率-,-,
+grok-imagine-1-5-manju-special,文本,按次/Token,default ¥1.2558/次,default ¥1.092/次,
+grok-imagine-1.5,文本,按秒,倍率-,-,
+grok-imagine-1.5-special,文本,按次/Token,default ¥0.5023/次,default ¥0.4368/次,
+kimi-k3,文本,按 Token,倍率 ¥6.1341/次,按Token,
+minimax-m3,文本,按 Token,倍率 ¥1.0428/次,按Token,
+mj_imagine,文本,按次/Token,倍率-,-,
+omni-flash-1-1,文本,按次/Token,1080p ¥1.193/次；default ¥1.0674/次,1080p ¥1.0374/次；default ¥0.9282/次,
+qwen3.5-omni-flash,文本,按 Token,倍率 ¥1.3886/次,按Token,
+qwen3.6-plus,文本,按 Token,倍率 ¥16.358/次,按Token,
+qwen3.7-flash,文本,按 Token,倍率 ¥0.1154/次,按Token,
+qwen3.7-max,文本,按 Token,倍率 ¥6.1341/次,按Token,
+qwen3.7-plus,文本,按 Token,倍率 ¥1.0223/次,按Token,
+qwen3.8-flash,文本,按 Token,倍率 ¥0.4907/次,按Token,
+qwen3.8-max,文本,按 Token,倍率 ¥12.2682/次,按Token,
+grok-imagine-video,视频,按秒,倍率-,-,
+grok-imagine-video-1.5,视频,按次/Token,default ¥1.5333/次,default ¥1.333333/次,支持参考图/7张参考图/15秒任意秒
+grok-imagine-video-manju-special,视频,按次/Token,default ¥1.0465/次,default ¥0.91/次,
+grok-imagine-video-special,视频,按秒,9:16|first-frame/text-to-video|10 ¥1.0465/秒,9:16|first-frame/text-to-video|10 ¥0.91/秒,
+grok-video-3,视频,按秒,倍率-,-,
+happyhorse-1-0,视频,按秒,倍率-,-,
+happyhorse-1-1,视频,按秒,倍率-,-,
+kling-3.0-turbo,视频,按秒,倍率-,-,
+kling-avatar,视频,按秒,倍率-,-,
+kling-lip-sync,视频,按秒,倍率-,-,
+kling-v3,视频,按秒,倍率-,-,
+kling-v3-motion-control,视频,按秒,倍率-,-,
+kling-v3-omni-cankao,视频,按秒,倍率-,-,
+kling-v4,视频,按秒,倍率-,-,
+minimax-h3-768p,视频,按次/Token,default ¥1.9167/次,default ¥1.666667/次,纯正768p，1.666667元一次9图3音频0视频
+minimax-hailuo-2-3,视频,按秒,倍率-,-,
+pixverse-c1,视频,按秒,倍率-,-,
+pixverse-v6,视频,按秒,倍率-,-,
+seedance-2-0-manju-special,视频,按次/Token,default ¥2.093/次,default ¥1.82/次,
+seedance-2.0-1080p-official,视频,按秒,default ¥3.5458/秒,default ¥3.0833/秒,官方火山引擎的，按秒/元计算，稳定933，超级稳定，就是贵！不卡人脸
+seedance-2.0-480p-discount,视频,按次/Token,default ¥4.2279/次,default ¥3.676471/次,按次收费，支持9图片3音频，自行使用！！稳定
+seedance-2.0-480p-official,视频,按秒,default ¥0.9301/秒,default ¥0.8088/秒,官方火山引擎的，按秒/元计算，稳定933，超级稳定，就是贵！不卡人脸
+seedance-2.0-720p-discount,视频,按次/Token,default ¥7.6667/次,default ¥6.666667/次,按次收费，支持9图片3音频，网友反馈画质有点差，自行使用！！稳定
+seedance-2.0-720p-official,视频,按秒,default ¥1.6292/秒,default ¥1.4167/秒,官方火山引擎的，按秒/元计算，稳定933，超级稳定，就是贵！不卡人脸
+seedance-2.0-900-3,视频,按次/Token,default ¥2.0125/次,default ¥1.75/次,9图mini通道，内置的过人脸，不卡人脸，1.75元一条，支持15秒，失败基本都
+seedance-2.0-ad-720p,视频,按次/Token,default ¥7.6667/次,default ¥6.666667/次,按次收费，933自己测像满血的。 固定输出 720p，支持 4-15 秒整数、原
+seedance-2.0-fast-2,视频,按次/Token,default ¥4.6/次,default ¥4.0/次,9 图 / 3 视频 / 3 音频 /支持真人，按条计费，网友反馈像mini，自
+seedance-2.0-lec-720p,视频,按次/Token,default ¥8.625/次,default ¥7.5/次,按次收费，933满血过人脸
+seedance-2.0-me,视频,按次/Token,default ¥9.5833/次,default ¥8.333333/次,9图/3视频/3音频/720p，即梦2.0，支持10秒，15秒，满血
+seedance-2.0-std,视频,按次/Token,default ¥2.875/次,default ¥2.5/次,720p 只支持9图 2.0模型 内置的过真人
+seedance-2.0-svip-900-720p,视频,按次/Token,default ¥2.3958/次,default ¥2.083333/次,900卡人脸，需要提示词。联系管理，也可以看飞书文档自己写，支持10秒和15秒，
+seedance-2.0-v3-720p,视频,按次/Token,default ¥5.75/次,default ¥5.0/次,
+seedance-2.5-1080p-2,视频,按秒,default ¥1.4375/秒,default ¥1.25/秒,按秒收费，1080p，30图10音频参考，暂不不支持视频参考，不卡人脸
+seedance-2.5-480p-2,视频,按秒,default ¥0.7475/秒,default ¥0.65/秒,按秒/元收费，480p，30个图，10个音频，暂不支持参考视频。支持 4–30 
+seedance-2.5-720p-2,视频,按秒,default ¥0.8625/秒,default ¥0.75/秒,按秒/元收费，720P，30个图，10个音频，不支持参考视频。支持 4–30 秒
+seedance-2.5-900,视频,按次/Token,default ¥9.0083/次,default ¥7.833333/次,按次收费，不是dola  2.5 9图 ，支持30秒。9图，不卡人脸，禁止涉黄
+seedance2.0-900-fast,视频,按次/Token,default ¥3.45/次,default ¥3.0/次,3元/次固定15秒、720P、fast，最多9张参考图。不是dala。总秒数最好
+seedance2.0-903,视频,按次/Token,default ¥7.2833/次,default ¥6.333333/次,官渠，官方渠道转发，参考9图片 0视频 3音频 720P ，原生过真人，可生成4
+seedance2.0-full,视频,按次/Token,1080p ¥13.4167/次；480p ¥5.0735/次；4k ¥32.5833/次；default ¥7.6667/次,1080p ¥11.666667/次；480p ¥4.411765/次；4k ¥28.333333/次；default ¥6.666667/次,满血 4-15秒 按次收费
+seedance2.0-full-fast,视频,按次/Token,480p ¥5.0735/次；default ¥7.0917/次,480p ¥4.411765/次；default ¥6.166667/次,满血 4-15秒 按次收费
+seedance2.0-gz-fast,视频,按秒,480p ¥0.406/秒；default ¥0.8817/秒,480p ¥0.353/秒；default ¥0.7667/秒,官转线路；返回官方 URL；过真人脸；URL 可溯源
+seedance2.0-gz-mini,视频,按秒,480p ¥0.2524/秒；default ¥0.5367/秒,480p ¥0.2195/秒；default ¥0.4667/秒,官转线路；返回官方 URL；过真人脸；URL 可溯源
+seedance2.0-gz-special,视频,按秒,1080p ¥1.15/秒；default ¥1.035/秒,1080p ¥1.0/秒；default ¥0.9/秒,超分画质增强！官转稳定特价线路；过真人脸；500秒出
+seedance2.0-line1,视频,按秒,720p ¥0.8625/秒；default ¥0.5047/秒,720p ¥0.75/秒；default ¥0.4389/秒,长期稳定渠道，推荐使用！2.0模型 支持 480p 720p 9图3视频3音频
+seedance2.0-line1-fast,视频,按秒,720p ¥0.575/秒；default ¥0.389/秒,720p ¥0.5/秒；default ¥0.3382/秒,长期稳定渠道，推荐使用！fast模型 支持 480p 720p 9图3视频3音频
+seedance2.0-line1-fast-xoi,视频,按秒,720p ¥0.575/秒；default ¥0.4408/秒,720p ¥0.5/秒；default ¥0.3833/秒,长期稳定渠道，推荐使用！fast模型 支持 480p 720p 9图3视频3音频
+seedance2.0-line1-xoi,视频,按秒,720p ¥0.8625/秒；default ¥0.6708/秒,720p ¥0.75/秒；default ¥0.5833/秒,长期稳定渠道，推荐使用！2.0模型 支持 480p 720p 9图3视频3音频
+seedance2.0-md-720p,视频,按次/Token,default ¥8.05/次,default ¥7.0/次,720p。933，按次收费
+seedance2.0-v3-fast-933-720p,视频,按次/Token,default ¥5.3667/次,default ¥4.666667/次,500秒左右完全不降智fast质量原生不卡脸4-15秒  不是dola
+seedance2.0-v3-new-933,视频,按次/Token,default ¥5.75/次,default ¥5.0/次,保证是满血2.0 4-15秒全参933 500秒左右
+seedance2.0-x97,视频,按秒,1080p ¥1.4375/秒；720p ¥0.9392/秒；default ¥0.5558/秒,1080p ¥1.25/秒；720p ¥0.8167/秒；default ¥0.4833/秒,支持 5- 30 秒 wan3.0 参考：图片·10 · 视频·5 · 音频·5
+seedance2.0-x98,视频,按次/Token,1080p ¥8.2417/次；480p ¥4.7353/次；default ¥5.75/次,1080p ¥7.166667/次；480p ¥4.117647/次；default ¥5.0/次,2.0 模型 · 4-15秒 · 最多支持9张图3个音频 支持 480 720 
+seedance2.0-z-480p,视频,按次/Token,default ¥3.0441/次,default ¥2.647059/次,933 15s，卡人脸。失败就是人脸没有过
+seedance2.0-z-720p,视频,按次/Token,default ¥5.75/次,default ¥5.0/次,933 15s，卡人脸。失败就是人脸没有过
+seedance2.0-z-fast-480p,视频,按次/Token,default ¥2.5368/次,default ¥2.205882/次,933 15s，卡人脸。失败就是人脸没有过
+seedance2.0-z-fast-720p,视频,按次/Token,default ¥3.8333/次,default ¥3.333333/次,933 15s，卡人脸。失败就是人脸没有过
+seedance2.5-720p-ac,视频,按次/Token,default ¥10.5417/次,default ¥9.166667/次,按次收费，固定输出 720p，支持10-30  秒、最多 30 张图片、10 段
+seedance2.5-dj-480p,视频,按秒,default ¥0.9583/秒,default ¥0.8333/秒,低价渠道。按秒/元收费。支持30张图，10音频，不支持视频。
+seedance2.5-dj-720p,视频,按秒,default ¥2.0125/秒,default ¥1.75/秒,低价渠道。按秒/元收费。支持30张图，10音频，不支持视频。
+seedance2.5-full,视频,按次/Token,1080p ¥42.1667/次；480p ¥23.0/次；default ¥30.6667/次,1080p ¥36.666667/次；480p ¥20.0/次；default ¥26.666667/次,满血 4-30秒 按次收费
+seedance2.5-gf-720p,视频,按秒,default ¥0.9775/秒,default ¥0.85/秒,官转:720P，按秒收费，30图10音频无法参考视频，平均500秒出视频，稳定，
+seedance2.5-gz-special,视频,按秒,1080p ¥1.9167/秒；default ¥1.495/秒,1080p ¥1.6667/秒；default ¥1.3/秒,超分画质增强！官转稳定特价线路；过真人脸；500秒出
+seedance2.5-line1,视频,按秒,720p ¥1.2458/秒；default ¥0.7103/秒,720p ¥1.0833/秒；default ¥0.6176/秒,长期稳定渠道，推荐使用！2.5模型 支持 480p 720p 30图10视频10
+seedance2.5-line1-xoi,视频,按秒,720p ¥1.2458/秒；default ¥0.805/秒,720p ¥1.0833/秒；default ¥0.7/秒,长期稳定渠道，推荐使用！2.5模型 支持 480p 720p 30图10视频10
+seedance2.5-lob-720p,视频,按次/Token,default ¥8.625/次,default ¥7.5/次,它目前支持30个图，10个视频，10个音频，720P的，擦边的基本上过不了
+seedance2.5-md-720p-2,视频,按次/Token,default ¥8.05/次,default ¥7.0/次,按次收费，固定输出 720p，支持 4–30 秒、最多 30 张图片。不支持视频
+seedance2.5-pp-720p,视频,按次/Token,default ¥15.1417/次,default ¥13.166667/次,按次收费，支持 30 个图、10 个视频、10 个音频，时长 3-30 秒，不卡
+seedance2.5-v3-720p-new-3010,视频,按次/Token,default ¥9.5833/次,default ¥8.333333/次,5-20分钟生成时间较快 4-30秒 原生不卡脸全参30图10音10视
+seedance2.5-wd-480p,视频,按秒,default ¥0.7667/秒,default ¥0.6667/秒,稳定渠道。支持10~30秒。按秒/元收费，支持30张图、10个音频，不支持参考视
+seedance2.5-x94,视频,按次/Token,1080p ¥13.4167/次；480p ¥9.5833/次；default ¥10.5417/次,1080p ¥11.666667/次；480p ¥8.333333/次；default ¥9.166667/次,速度稳定500秒出视频 2.5 模型 · 4-30秒 · 最多支持9张图3个音频
+seedance2.5-xu-480p-2,视频,按秒,default ¥0.6517/秒,default ¥0.5667/秒,按秒收费，支持 30 个图、10 个音频，无法参考视频，支持4~30秒
+seedance2.5-xu-720p-2,视频,按秒,default ¥0.7667/秒,default ¥0.6667/秒,按秒收费，支持30个图、10个音频，无法参考视频，支持4~30秒
+sora-2-official,视频,按秒,倍率-,-,
+sora-2.5-480p-guanzhuan,视频,按秒,default ¥1.0542/秒,default ¥0.9167/秒,seedace-2.5-480p  不卡真人 按秒计费/支持4~30秒/30图、
+sora-2.5-720p-guanzhuan,视频,按秒,default ¥1.725/秒,default ¥1.5/秒,seedace-2.5-720P  按秒计费 不卡真人/4-30秒/30图，10
+sora-v3-933-pro,视频,按次/Token,default ¥7.6667/次,default ¥6.666667/次,2.0 满血 720P 支持9张参考图 0个参考视频 3个参考音频 不卡真人 按
+veo-3.1,视频,按次/Token,first-frame/reference|快速|1080p ¥3.9558/次；first-frame/reference|经济|1080p ¥1.1773/次；first-frame/reference|经济|720p ¥0.9418/次；first-frame/reference|高质量|1080p ¥1.8837/次；first-frame/reference|高质量|720p ¥1.5697/次；text-to-video/first-last|快速|1080p ¥3.9558/次；text-to-video/first-last|经济|1080p ¥1.1773/次；text-to-video/first-last|经济|720p ¥0.9418/次；text-to-video/first-last|高质量|1080p ¥1.8837/次；text-to-video/first-last|高质量|720p ¥0.9628/次；default ¥0.6279/次,first-frame/reference|快速|1080p ¥3.4398/次；first-frame/reference|经济|1080p ¥1.02375/次；first-frame/reference|经济|720p ¥0.819/次；first-frame/reference|高质量|1080p ¥1.638/次；first-frame/reference|高质量|720p ¥1.36498/次；text-to-video/first-last|快速|1080p ¥3.4398/次；text-to-video/first-last|经济|1080p ¥1.02375/次；text-to-video/first-last|经济|720p ¥0.819/次；text-to-video/first-last|高质量|1080p ¥1.638/次；text-to-video/first-last|高质量|720p ¥0.8372/次；default ¥0.546/次,
+veo-4-omni,视频,按秒,extend|720p|10 ¥1.507/秒；first-last|1080p|10 ¥1.193/秒；first-last|1080p|4/6/8 ¥2.093/秒；first-last|720p|10 ¥0.9837/秒；first-last|720p|4/6/8 ¥2.093/秒,extend|720p|10 ¥1.3105/秒；first-last|1080p|10 ¥1.0374/秒；first-last|1080p|4/6/8 ¥1.82/秒；first-last|720p|10 ¥0.8554/秒；first-last|720p|4/6/8 ¥1.82/秒,
+veo-4-omni-manju-special,视频,按次/Token,default ¥1.0674/次,default ¥0.9282/次,
+veo-4-omni-v2v,视频,按次/Token,default ¥1.2767/次,default ¥1.1102/次,
+viduq3,视频,按秒,倍率-,-,
+wan-2-6,视频,按秒,倍率-,-,
+wan-3-0,视频,按秒,倍率-,-,
+wan-3-0-special,视频,按次/Token,default ¥10.6743/次,default ¥9.282/次,
+wan2.7-video,视频,按秒,倍率-,-,
+wan3.0-1080p-2,视频,按次/Token,default ¥9.5833/次,default ¥8.333333/次,"按次收费, 1080p、支持 5–30 秒和 10 图 / 5 视频 / 5 音"
+wan3.0-1080p-3,视频,按次/Token,default ¥7.6667/次,default ¥6.666667/次,10图 / 5视频 / 5音频  / 5-30s / 速度快 /
+wan3.0-1080p-4,视频,按次/Token,default ¥9.0083/次,default ¥7.833333/次,10图 / 5视频 / 5音频  / 5-30s / 速度快 /
+wan3.0-480p,视频,按秒,default ¥0.345/秒,default ¥0.3/秒,按秒收费，支持10张图、5个视频、5个音频
+wan3.0-480p-2,视频,按次/Token,default ¥7.8583/次,default ¥6.833333/次,"按次收费, 480p、支持 5–30 秒和 10 图 / 0视频 / 5 音频，"
+wan3.0-720p,视频,按秒,default ¥0.575/秒,default ¥0.5/秒,按秒收费，15-30秒选择，支持10图5视频5音频，原生不卡脸
+wan3.0-720p-3,视频,按次/Token,default ¥7.6667/次,default ¥6.666667/次,10图 / 5视频 / 5音频  / 5-30s / 速度快 /
+wan3.0-720p-4,视频,按次/Token,default ¥9.0083/次,default ¥7.833333/次,10图 / 5视频 / 5音频  / 5-30s / 速度快 /
+doubao-tts-2.0,音频,按次/Token,倍率-,-,
+gemini-2.5-pro-tts,音频,按次/Token,倍率-,-,
+gemini-3.1-flash-tts,音频,按次/Token,倍率-,-,
+gpt-4o-mini-tts,音频,按次/Token,倍率-,-,
+music,音频,按次/Token,倍率-,-,
+speech-2.8,音频,按次/Token,倍率-,-,
+voice-clone,音频,按次/Token,default ¥19.1906/次,default ¥16.68744/次,
+voice-design,音频,按次/Token,default ¥15.5393/次,default ¥13.512417/次,

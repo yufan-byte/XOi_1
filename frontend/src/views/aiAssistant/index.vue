@@ -57,6 +57,7 @@
           <footer class="drawerFoot">
             <button class="clearAllBtn" @click="clearConversations"><i-delete-one />清空历史</button>
           </footer>
+
         </aside>
       </transition>
 
@@ -65,111 +66,14 @@
         <transition name="fade" mode="out-in">
           <!-- ── 空态:IP 吉祥物 + 业务化 PromptCard ×3 ── -->
           <section v-if="messages.length === 0" key="empty" class="emptyStage">
-            <section class="mioraBanner" aria-label="无限画布功能轮播">
-              <div ref="bannerCarouselRef" class="bannerStage">
-                <button
-                  v-for="banner in visibleBanners"
-                  :key="banner.position"
-                  type="button"
-                  class="bannerCard"
-                  :data-banner-offset="banner.offset"
-                  :class="{ active: banner.offset === 0, clickable: Boolean(banner.linkUrl || banner.videoUrl) }"
-                  :style="bannerCardStyle(banner)"
-                  :aria-label="banner.alt"
-                  @pointerdown="handleBannerPointerDown"
-                  @pointermove="handleBannerPointerMove"
-                  @pointerup="handleBannerPointerUp"
-                  @pointercancel="handleBannerPointerCancel"
-                  @click="openBanner(banner)">
-                  <span class="bannerCardInner">
-                    <img
-                      v-if="banner.imageUrl"
-                      :src="banner.imageUrl"
-                      :alt="banner.alt"
-                      draggable="false"
-                      decoding="async"
-                      loading="eager"
-                      fetchpriority="high"
-                    />
-                    <span class="bannerFeatureCard" :class="{ withImage: Boolean(banner.imageUrl) }" :style="banner.imageUrl ? undefined : { background: banner.grad }">
-                      <small>XOi CREATIVE STUDIO</small>
-                      <strong>{{ banner.title }}</strong>
-                      <p>{{ banner.desc }}</p>
-                      <em>打开工作区 <span>↗</span></em>
-                    </span>
-                    <span v-if="banner.offset === 0 && banner.videoUrl" class="bannerPlay" aria-hidden="true">▶</span>
-                  </span>
-                </button>
-                <button type="button" class="bannerArrow bannerArrowLeft" aria-label="上一张" @click.stop="changeBanner(-1)">‹</button>
-                <button type="button" class="bannerArrow bannerArrowRight" aria-label="下一张" @click.stop="changeBanner(1)">›</button>
-              </div>
-              <div class="bannerDots" aria-label="轮播切换">
-                <button v-for="(banner, index) in canvasBanners" :key="banner.alt" type="button" :class="{ active: index === activeBannerIndex }" :aria-label="`切换到第 ${index + 1} 张`" @click="selectBanner(index)"></button>
-              </div>
+            <!-- ── Hero：本地视频头图（2026-10-24 替代旧 3D 轮播；素材已自托管 /miora-home/，不依赖外站 CDN）── -->
+            <section class="homeHero" aria-label="XOi 创作工作台">
+              <video class="homeHeroMedia" src="/miora-home/hero.mp4" poster="/miora-home/hero-poster.webp" loop muted autoplay playsinline preload="metadata"></video>
             </section>
 
-            <section class="launchIntro" aria-labelledby="launch-title">
-              <div class="launchIntroCopy">
-                <span class="launchEyebrow"><i-magic /> 创作 Agent</span>
-                <h1 id="launch-title">先把想法讲清楚，剩下的交给画布</h1>
-                <p>文本模型先理解与拆解需求，进入画布后再按任务选择图片或视频模型。进入画布本身不扣媒体积分。</p>
-              </div>
-              <ol class="launchSteps" aria-label="创作流程">
-                <li><b>01</b><span><strong>描述想法</strong><small>支持素材与 Skill</small></span></li>
-                <li><b>02</b><span><strong>AI 规划</strong><small>当前文本模型思考</small></span></li>
-                <li><b>03</b><span><strong>画布生成</strong><small>按需选择图片 / 视频模型</small></span></li>
-              </ol>
-            </section>
 
             <div class="legacyEmpty" aria-hidden="true">
-            <div class="mascotWrap">
-              <!--
-                IP 吉祥物·三件事严守 plan 第四部分策略:
-                  ① viewBox 直搬 Miora 原值 "0 0 48 48"(此前误写成 -12/-12/72/72 致坐标系整体错位);
-                  ② ip-body 方块的 width/height/transform 三元组一字不改地照搬 ref-miora-sidebar.html L56 原值
-                     (width=63.8367 height=63.8367 transform=matrix(-1 0 0 1 55.1021 -7.34692)),
-                     只把 fill 由 url(#pattern0_8850_1320)[指向被 docx 掐剩孤'i'无法解码的PNG data-uri]
-                       换成纯黑 #000000 以弃外图版权依赖;
-                     该 mirror 平移矩阵决定了身躯边界框的实际落点 ≈ (-8.74,-7.35)-(55.10,56.49),
-                     必须保留否则后续双眼会相对躯壳位移失准;
-                  ③ 四条 ip-eye-white/pupil 贝塞尔曲线 path 因同样遭 docx 字符上限截断不可 verbatim 还原,
-                    抽象化为与原 viewBox 同系下的竖椭圆+实心圆替代;圆心按原文各 path 起点
-                      (M22.1682/M13.9745/M23.6896/M15.6084)所提示的两簇光学区估位列于身躯上方左右对称.
-                   .ip-eye-white/.ip-eye-pupil/.ip-body 类名沿用使全局 xo-ipBlink* 关键帧与暗模式 filter 不破链.
-              -->
-              <svg class="mascotArt" width="48" height="48" viewBox="0 0 48 48" fill="none" role="img" aria-label="XOi 助手吉祥物">
-                <defs>
-                  <!-- 身躯贴图 · verbatim 直录 ref-miora-sidebar.html L62-L68 的 pattern/use/image 三件套骨架；
-                       patternContentUnits=objectBoundingBox 使 pattern 局部坐标系归一到 [0..1]×[0..1]；
-                       use scale(0.0013587)=1/736 将 736×736 image 缩进单位框恰好铺满 rect 边界。
-                       ref 里 xlink:href 是被 docx w:t 上限掐剩孤 'i' 无法 decode 的内嵌 base64 data-uri，
-                       此处改引本仓 assets/ip_body.png(user 已下到的原图)经 Vite 解析为 URL 同源加载：
-                         一甩脱万级 base64 致源码膨胀、二还原 Miora IP 形象真貌、
-                         三暗模式 .ip-body filter brightness/invert 整体作用于位图仍转中度灰辨识未损。-->
-                  <pattern id="pattern0_8850_1320" patternContentUnits="objectBoundingBox" width="1" height="1">
-                    <use href="#image0_8850_1320" transform="scale(0.0013587)" />
-                  </pattern>
-                  <image id="image0_8850_1320" width="736" height="736" preserveAspectRatio="none"
-                         :href="ipBodyUrl" :xlink:href="ipBodyUrl"></image>
-                </defs>
-                <!-- 身躯方块 · 三元组(width63.8367 / height63.8367 / transform matrix(-1 0 0 1 55.1021 -7.34692))
-                     连同 viewBox "0 0 48 48" 四件全部直录 ref L53/L56 守 geometry-verbatim 底线一字不改；
-                     fill 复刻 url(#pattern0_8850_1320) 指 pattern → image → 本仓 ip_body.png 真·IP 贴图；
-                     rx 移除回归原文方正轮廓 —— PNG 位图自身已含角色造型细节不再需 css 圆角软化补救。-->
-                <rect class="ip-body" width="63.8367" height="63.8367"
-                      transform="matrix(-1 0 0 1 55.1021 -7.34692)"
-                      fill="url(#pattern0_8850_1320)"></rect>
-                <!-- 双白眼球·两道贝塞尔曲线 path 直录自 ref(docx 行宽折叠曾误判其残缺实则各以 X.XXXXZ 闭合并无缺失),
-                     配合下方 @keyframes ipBlinkWhite scaleY 缩放完成眨眼上半动作 -->
-                <path class="ip-eye-white" d="M22.1682 25.68C22.1682 28.7196 23.9078 31.1836 26.5445 31.1836C29.1812 31.1836 31.7166 28.5869 31.7166 25.5474C31.7166 22.5079 29.5791 20.0438 26.9424 20.0438C24.3057 20.0438 22.1682 22.6405 22.1682 25.68Z" fill="#ffffff"></path>
-                <path class="ip-eye-white" d="M13.9745 23.8886C13.1461 26.2792 13.9581 28.6821 15.4825 29.2103C17.0069 29.7385 18.7027 28.0878 19.5311 25.6972C20.3594 23.3066 19.7952 20.9404 18.2707 20.4122C16.7463 19.884 14.8028 21.498 13.9745 23.8886Z" fill="#ffffff"></path>
-                <!-- 双瞳孔·配 @keyframes ipBlinkPupil translateY 微移收尾下半眨眼 -->
-                <path class="ip-eye-pupil" d="M23.6896 23.5078C23.4533 24.8850 23.9870 26.1849 25.29 26.4085C26.5929 26.6321 28.2994 25.7017 28.5357 24.3246C28.7720 22.9474 28.0932 21.6309 26.7903 21.4073C25.4874 21.1838 23.9259 22.1307 23.6896 23.5078Z" fill="#000000"></path>
-                <path class="ip-eye-pupil" d="M15.6084 22.5914C15.2502 23.6791 15.3989 24.7558 16.2037 25.0209C17.0084 25.2859 18.2456 24.6530 18.6038 23.5652C18.9621 22.4775 18.7225 21.3780 17.9178 21.1129C17.1130 20.8479 15.9667 21.5036 15.6084 22.5914Z" fill="#000000"></path>
-              </svg>
-              <h3 class="greetTitle">{{ inspirationMode ? '打开灵感盒' : '你好！我是' }} <span class="gradient-text">{{ inspirationMode ? '✦' : 'XOi' }}</span></h3>
-              <p class="greetSub">{{ inspirationMode ? '从一个提示词开始，也可以继续改写成你的版本' : '短剧创作搭档 · 点张灵感卡起步' }}</p>
-            </div>
+
             <div class="promptCards">
               <article
                 v-for="(card, ci) in promptCards"
@@ -213,19 +117,20 @@
         </transition>
       </main>
 
+
+      <!-- 与无限画布共用交互语义的完整 Agent Composer；保留本页 Tab 灵感提示。 -->
       <section v-if="messages.length === 0" class="creationDock" aria-label="选择创作类型">
         <div class="creationDockMascot" aria-hidden="true">
           <video src="/miora-home/mascot-preview.webm" autoplay muted loop playsinline></video>
         </div>
         <div class="creationTabs" role="tablist">
-          <button v-for="category in creationCategories" :key="category.key" type="button" :class="{ active: activeCategory === category.key }" :aria-selected="activeCategory === category.key" @click="activeCategory = category.key">
-            <span class="categoryIcon" v-html="category.icon"></span>
+          <button v-for="category in creationCategories" :id="`creation-tab-${category.key}`" :key="category.key" type="button" role="tab" :class="{ active: activeCategory === category.key }" :aria-selected="activeCategory === category.key" :tabindex="activeCategory === category.key ? 0 : -1" aria-controls="creation-examples" @click="activeCategory = category.key; focusComposer()" @keydown="handleCreationTabKey($event, category.key)">
+            <svg class="categoryIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path :d="category.icon" /></svg>
             <span>{{ category.label }}</span>
           </button>
         </div>
       </section>
 
-      <!-- 与无限画布共用交互语义的完整 Agent Composer；保留本页 Tab 灵感提示。 -->
       <footer
         ref="composerRef"
         class="composerToolbar upstreamComposer"
@@ -250,7 +155,7 @@
             <div v-else-if="!filteredSkills.length" class="skillEmpty"><strong>还没有可调用的 Skill</strong><span>先去 Skills 页面安装需要的写作、视觉或导演能力</span><router-link to="/skills">浏览 Skills →</router-link></div>
             <div v-else class="skillList">
               <button v-for="skill in filteredSkills" :key="skill.path" type="button" class="skillOption" :class="{ selected: selectedSkills.includes(skill.path) }" @click="toggleSkill(skill.path)">
-                <span class="skillGlyph"><i-toolkit size="20px" /></span><span class="skillCopy"><strong>{{ skill.name }}</strong><small>{{ skill.desc }}</small></span><span class="skillOfficial">{{ selectedSkills.includes(skill.path) ? '已选' : (skill.source === 'general' ? '通用' : '已安装') }}</span>
+                <span class="skillGlyph"><i-toolkit size="20px" /></span><span class="skillCopy"><strong>{{ skill.name }}</strong><small>{{ skill.desc }}</small></span><span class="skillOfficial">{{ selectedSkills.includes(skill.path) ? '已选' : (skill.source === 'general' ? '官方' : '个人') }}</span>
               </button>
             </div>
             <div class="skillPickerDivider"></div>
@@ -262,6 +167,10 @@
           </aside>
         </transition>
         <div class="editorRow" :class="{ hasInput: Boolean(inputValue), hasSkills: composerAttachments.length || activeSkillOptions.length }" @click="focusComposer">
+          <!-- Tab 建议：与 textarea 同格叠层（相同盒模型），起点与光标天然重合 -->
+          <div v-if="messages.length === 0 && !inputValue && ghostText && !composerAttachments.length && !activeSkillOptions.length" id="creation-examples" class="ghostLayer" :class="{ focused: composerFocused }" role="tabpanel" :aria-labelledby="`creation-tab-${activeCategory}`">
+            <kbd>Tab</kbd><span>{{ ghostText }}</span>
+          </div>
           <div v-if="composerAttachments.length || activeSkillOptions.length" class="editorSkills">
             <button v-for="file in composerAttachments" :key="file.id" type="button" :title="`移除 ${file.name}`" @click.stop="removeComposerAttachment(file.id)">
               <span>{{ file.type.startsWith('image/') ? '🖼' : file.type.startsWith('video/') ? '🎬' : '🎵' }}</span>{{ file.name }}<i-close size="12px" />
@@ -272,53 +181,31 @@
           </div>
           <textarea
             ref="taRef"
+            @focus="warmCanvas(); composerFocused = true"
+            @blur="composerFocused = false"
             v-model="inputValue"
             rows="1"
             :disabled="status === 'pending' || status === 'streaming'"
-            :placeholder="inputValue ? '描述创作目标，或让我继续操作画布' : ''"
+            :placeholder="ghostText ? '' : '描述你想创作的内容，也可以上传参考素材……'"
             aria-label="描述创作目标，或让我继续操作画布"
             @keydown.tab="handleSkillTab"
             @keydown.backspace="handleComposerBackspace"
             @keydown.delete="handleComposerDelete"
             @keydown.enter.exact.prevent="handleSend"
+            @keydown.esc="ghostText = ''"
             @input="autogrowTextarea"></textarea>
-          <div v-if="!inputValue" class="completionHint promptCycleHint" aria-hidden="true">
-            <span class="promptSpark">✦</span><span class="promptCycleLabel">{{ completionSuggestion || cyclePromptText }}</span><kbd>Tab 补全</kbd>
-          </div>
         </div>
 
-        <div v-if="messages.length === 0" class="composerBillingBar">
-          <div class="billingNow">
-            <span class="billingStatusDot" aria-hidden="true"></span>
-            <span class="billingLabel">当前思考</span>
-            <strong>{{ selectedModelLabel || defaultTextModel || '系统默认模型' }}</strong>
-            <ModelCostHint
-              v-if="selectedModelName || defaultTextModel"
-              class="inlineCostHint"
-              :model="selectedModelName || defaultTextModel"
-              type="text"
-              :input-length="inputValue.length"
-              compact />
-          </div>
-          <button type="button" class="billingGuideToggle" :aria-expanded="showBillingGuide" @click.stop="showBillingGuide = !showBillingGuide">
-            {{ showBillingGuide ? '收起计费详情' : '查看生成模型与积分' }}
-            <i-down :class="{ rotated: showBillingGuide }" />
-          </button>
-        </div>
 
         <transition name="billing-guide">
           <section v-if="messages.length === 0 && showBillingGuide" class="billingGuide" aria-label="模型与积分说明">
-            <article class="billingGuideCard textCard">
-              <span class="billingGuideIcon">✦</span>
-              <div><small>对话规划</small><strong>{{ selectedModelLabel || defaultTextModel || '系统默认文本模型' }}</strong><ModelCostHint :model="selectedModelName || defaultTextModel" type="text" :input-length="inputValue.length" compact /></div>
+            <p class="billingExplanation">积分 = 人民币费用 × 10；不是按提问次数统一收费。文字按实际 Token 用量，图片按张／次，视频按所选模型的秒数或次数计费。</p>
+            <div class="billingCalculation"><ModelCostHint :model="selectedModelName || defaultTextModel" type="text" :input-length="inputValue.length" compact show-formula show-basis /></div>
+            <article class="billingGuideCard">
+              <div><small>图片参考 · 1 张</small><strong>{{ creationModelLabel(defaultImageModel) || '进入画布后选择' }}</strong><ModelCostHint v-if="defaultImageModel" :model="defaultImageModel" type="image" :quality="imageQuality" :count="1" compact /></div>
             </article>
             <article class="billingGuideCard">
-              <span class="billingGuideIcon">▧</span>
-              <div><small>图片生成 · 进入画布后可更换</small><strong>{{ defaultImageModel || '选择图片模型后显示价格' }}</strong><ModelCostHint v-if="defaultImageModel" :model="defaultImageModel" type="image" compact /></div>
-            </article>
-            <article class="billingGuideCard">
-              <span class="billingGuideIcon">▣</span>
-              <div><small>视频生成 · 进入画布后可更换</small><strong>{{ defaultVideoModel || '选择视频模型后显示价格' }}</strong><ModelCostHint v-if="defaultVideoModel" :model="defaultVideoModel" type="video" compact /></div>
+              <div><small>视频参考 · {{ videoQuality }} · 5 秒</small><strong>{{ creationModelLabel(defaultVideoModel) || '进入画布后选择' }}</strong><ModelCostHint v-if="defaultVideoModel" :model="defaultVideoModel" type="video" :resolution="videoQuality" :duration="5" compact /></div>
             </article>
             <p>仅在实际调用模型时结算；图片 / 视频不会因进入画布而扣费，最终以网关返回的实际用量为准。</p>
           </section>
@@ -327,7 +214,7 @@
         <div class="toolbarLeft">
           <input ref="attachmentInputRef" hidden type="file" multiple accept="image/*,video/*,audio/*" @change="onComposerFilesSelected" />
           <button type="button" class="roundIconBtn assetTrigger" aria-label="添加素材" title="添加素材" @click.stop="toggleAssetMenu">
-            <i-paperclip size="16px" /><span class="toolLabel">素材</span>
+            <i-paperclip size="16px" />
           </button>
           <div v-if="showAssetMenu" class="assetMenu">
             <div class="assetMenuHeader"><strong>添加素材</strong><span>把参考内容带入这次创作</span></div>
@@ -335,24 +222,19 @@
             <button type="button" @click="openAssetPicker"><span class="assetMenuIcon"><i-folder-open size="18px" /></span><span class="assetMenuCopy"><b>我的素材</b><small>从无限创意画布资产库选择</small></span><kbd>⌘ M</kbd></button>
           </div>
           <button ref="skillButtonRef" type="button" class="roundIconBtn skillButton" :class="{ active: showSkillPicker || selectedSkills.length }" title="搭配 Skills" @click="toggleSkillPicker">
-            <i-toolkit size="16px" /><span class="toolLabel">Skill</span>
+            <i-toolkit size="16px" />
             <span v-if="selectedSkills.length" class="skillCount">{{ selectedSkills.length }}</span>
           </button>
+          <!-- 思考模型/图像/视频 = 进画布的默认配置，收成一行小胶囊（Codex 式），点击弹各自浮层 -->
           <div class="modelSlot" aria-label="选择负责思考的文本模型">
-            <span class="modelSlotLabel">思考模型</span>
             <modelSelect
               v-model="selectedModelValue"
               v-model:label="selectedModelLabel"
               type="text"
               size="small"
+              :show-price-hint="false"
               placeholder="选择模型"
               @change="onPickModel" />
-            <ModelCostHint
-              v-if="selectedModelValue"
-              class="composerCostHint"
-              :model="selectedModelName"
-              type="text"
-              :input-length="inputValue.length" />
           </div>
           <div class="composerSetting">
             <button type="button" class="settingPill" title="图片设置" @click="openComposerSetting('image')">▧ <span>{{ imageQuality }} · {{ imageSize }}</span></button>
@@ -377,7 +259,23 @@
         </div>
 
         <div class="toolbarRight">
-          <button type="button" class="roundIconBtn reasoningButton" :class="{ active: reasoningEnabled }" :title="reasoningEnabled ? '推理已开启' : '推理已关闭'" :aria-label="reasoningEnabled ? '关闭推理' : '开启推理'" :aria-pressed="reasoningEnabled" @click="reasoningEnabled = !reasoningEnabled">✦<span class="toolLabel">推理</span></button>
+          <div v-if="messages.length === 0" class="composerBillingBar">
+            <div class="billingNow">
+              <span class="billingLabel">本次对话</span>
+              <ModelCostHint
+                v-if="selectedModelName || defaultTextModel"
+                class="inlineCostHint"
+                :model="selectedModelName || defaultTextModel"
+                type="text"
+                :input-length="inputValue.length"
+                compact />
+            </div>
+            <button type="button" class="billingGuideToggle" :aria-expanded="showBillingGuide" @click.stop="showBillingGuide = !showBillingGuide">
+              <span class="creditRule">{{ CREDIT_RULE_LABEL }}</span>{{ showBillingGuide ? '收起说明' : '计费说明' }}
+              <i-down :class="{ rotated: showBillingGuide }" />
+            </button>
+          </div>
+          <button type="button" class="roundIconBtn reasoningButton" :class="{ active: reasoningEnabled }" :title="reasoningEnabled ? '推理已开启' : '推理已关闭'" :aria-label="reasoningEnabled ? '关闭推理' : '开启推理'" :aria-pressed="reasoningEnabled" @click="reasoningEnabled = !reasoningEnabled">✦</button>
           <t-button
             v-if="status !== 'streaming'"
             theme="primary"
@@ -403,6 +301,30 @@
 
       </footer>
 
+      <!-- ── 功能区：左侧主推（短剧工坊）+ 右侧 2×2 创作入口（原轮播四卡重排到这里）── -->
+      <section class="featureBand" aria-label="创作入口">
+        <button type="button" class="featureHero" @click="router.push('/project')">
+          <img src="/miora-home/film-pipeline.png" alt="" loading="eager" decoding="async" />
+          <span class="featureHeroCopy">
+            <small>XOI STUDIO</small>
+            <strong>短剧工坊</strong>
+            <p>从故事、剧本到镜头与成片，在同一条流水线上持续推进。</p>
+            <em>进入短剧工坊 <span>↗</span></em>
+          </span>
+        </button>
+        <div class="featureGrid">
+          <button v-for="card in featureCards" :key="card.title" type="button" class="featureCard" @click="router.push(card.route)">
+            <span class="featureThumb" :style="card.imageUrl ? undefined : { background: card.grad }">
+              <img v-if="card.imageUrl" :src="card.imageUrl" :alt="card.alt" loading="lazy" decoding="async" />
+            </span>
+            <span class="featureCopy">
+              <strong>{{ card.title }}<i v-if="card.hot" class="featureHot">HOT</i></strong>
+              <small>{{ card.desc }}</small>
+            </span>
+          </button>
+        </div>
+      </section>
+
       <Teleport to="body">
         <div v-if="showAssetPicker" class="assetPickerOverlay" role="dialog" aria-modal="true" aria-label="选择我的素材" @click.self="closeAssetPicker">
           <div class="assetPickerDialog">
@@ -411,23 +333,29 @@
         </div>
       </Teleport>
 
-      <section v-if="messages.length === 0" class="inspirationShowcase" aria-labelledby="inspiration-heading">
+      <section v-if="messages.length === 0" ref="inspirationSectionRef" class="inspirationShowcase" aria-labelledby="inspiration-heading">
         <header>
-          <h2 id="inspiration-heading"><i-bulb />优质灵感</h2>
+          <h2 id="inspiration-heading"><i-lightning />优质灵感</h2>
           <div class="inspirationActions">
-            <button type="button" @click="shuffleInspirations">↻ 换一批</button>
-            <router-link to="/inspiration">查看更多灵感 <i-right /></router-link>
+            <button type="button" :disabled="inspirationLoading" @click="refreshInspirations">↻ 换一批</button>
+            <router-link to="/square">查看更多灵感 <i-right /></router-link>
           </div>
         </header>
-        <div class="inspirationGrid">
-          <article v-for="item in inspirationItems" :key="item.title" class="inspirationCard">
-            <router-link class="inspirationMedia" :to="`/inspiration/${item.detailIndex}`" :aria-label="`在 XOi 查看灵感：${item.title}`">
-              <img :src="item.image" :alt="item.title" loading="lazy" />
-            </router-link>
-            <span class="inspirationInfo"><strong>{{ item.title }}</strong><small>{{ item.category }}</small><button type="button" @click="useInspiration(item.prompt)">使用提示词</button></span>
+        <div v-if="inspirationLoading && !inspirationItems.length" class="inspirationStatus" role="status">正在加载广场灵感…</div>
+        <div v-else-if="!inspirationItems.length" class="inspirationStatus" role="status">{{ inspirationError ? '灵感暂时加载失败，点击「换一批」重试' : '广场暂时没有可展示的灵感' }}</div>
+        <div v-else class="inspirationGrid">
+          <article v-for="item in inspirationItems" :key="`${item.src}:${item.id}`" class="inspirationCard">
+            <button type="button" class="inspirationMedia" :aria-label="`查看灵感：${item.t || '未命名作品'}`" @click="inspirationDetail = item">
+              <video v-if="item.mk === 'video' || item.k === 'video'" :src="item.u" muted playsinline preload="metadata" @error="onInspirationCoverError" />
+              <img v-else :src="item.u" :alt="item.t" loading="lazy" decoding="async" @error="onInspirationCoverError" />
+              <span class="inspirationBadge">{{ item.src === 'canvas' ? '◈ 画布工作流' : item.src === 'video' ? '▶ 视频灵感' : '▧ 图片灵感' }}</span>
+              <span class="inspirationCoverFallback">封面暂不可用</span>
+            </button>
+            <span class="inspirationInfo"><strong :title="item.t">{{ item.t || '未命名作品' }}</strong><small>{{ item.category }}</small><button type="button" @click="item.src === 'canvas' ? inspirationDetail = item : useInspiration(squarePromptOf(item))">{{ item.src === 'canvas' ? '查看与复刻' : '使用提示词' }}</button></span>
           </article>
         </div>
       </section>
+      <SquareWorkDialog v-if="inspirationDetail" :work="inspirationDetail" :items="inspirationItems" origin="aiAssistant" @close="inspirationDetail = null" @navigate="inspirationDetail = $event" @use-prompt="useDetailPrompt" />
 
     </div>
   </div>
@@ -439,25 +367,21 @@ import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { MessagePlugin } from "tdesign-vue-next";
 import axios from "@/utils/axios";
+import {safeAssistantMarkup} from "@/utils/safeAssistantMarkup";
 import settingStore from "@/stores/setting";
 import { showPointsToast } from "@/utils/pointsToast";
 // Miora IP 身躯贴图 · 736×737 PNG 经 Vite ESM-import 解析为运行期 hashed URL，
 // 注入下方 <image :href=:xlink:href> 以还原本仓此前无法解码的那张外图真貌。
-import ipBodyUrl from "@/assets/ip_body.png";
-import inspirationCyber from "@/assets/visual-presets/cyber-3d.png";
-import inspirationGuofeng from "@/assets/visual-presets/style-guofeng-cyber.png";
-import inspirationUrban from "@/assets/visual-presets/urban-romance.png";
-import inspirationAnime from "@/assets/visual-presets/style-urban-romance-anime.png";
-import inspirationCinematic from "@/assets/visual-presets/style-real-urban-cinematic.png";
-import inspirationGuochao from "@/assets/visual-presets/style-guochao-2d.png";
-import inspirationClay from "@/assets/visual-presets/style-clay-stopmotion.png";
-import inspirationFantasy from "@/assets/visual-presets/guochao-fantasy.png";
+import { loadSquareSnapshot, squarePromptOf, type SquareItem, type SquareType } from "@/utils/square";
+import SquareWorkDialog from "@/components/square/SquareWorkDialog.vue";
 // 全局 UI 偏好·承载 aiAssistant 页「暂请显露外围工作台 chrome 以便横向跳转兄弟模块」一道应急开关；
 // 与 layouts/WorkbenchLayout.isImmersive 共享同源布尔令内外两层同步联动杜绝脱节(详见 @/stores/uiPrefs.ts)。
 import uiPrefsStore from "@/stores/uiPrefs";
 import userStore from "@/stores/user";
 import modelSelect from "@/components/modelSelect.vue";
 import ModelCostHint from "@/components/ModelCostHint.vue";
+import { CREDIT_RULE_LABEL } from "@/utils/points";
+import { creationCategories } from "./creationPresets";
 const { baseUrl } = storeToRefs(settingStore());
 // Pinia 同 id 单例：此处拿到的 uiPrefs 与 WorkbenchLayout 内读到的指向同一份 reactive state，
 // 任一处翻 toggle 都会让本地伪工具条显隐与外层 topMenu 显隐成对联动。
@@ -468,103 +392,27 @@ const router = useRouter();
 const inspirationMode = computed(() => route.query.mode === "inspiration");
 
 const activeCategory = ref("branding");
-const creationCategories = [
-  { key: "branding", label: "品牌设计", icon: "◉" },
-  { key: "video", label: "影视创意", icon: "▦" },
-  { key: "commerce", label: "电商广告", icon: "▣" },
-  { key: "gaming", label: "互动游戏", icon: "⌘" },
-  { key: "web", label: "网页应用", icon: "▱" },
+const activeCreationCategory = computed(() => creationCategories.find(category => category.key === activeCategory.value) || creationCategories[0]);
+function handleCreationTabKey(event: KeyboardEvent, key: string) {
+  if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const current = creationCategories.findIndex(category => category.key === key);
+  const index = event.key === "Home" ? 0 : event.key === "End" ? creationCategories.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + creationCategories.length) % creationCategories.length;
+  activeCategory.value = creationCategories[index].key;
+  nextTick(() => document.getElementById(`creation-tab-${activeCategory.value}`)?.focus());
+}
+// 功能区入口卡（原 3D 轮播四卡重排为 2×2 网格；左侧主推卡固定为短剧工坊）
+type FeatureCard = { alt: string; title: string; desc: string; imageUrl?: string; grad?: string; route: string; hot?: boolean };
+const featureCards: FeatureCard[] = [
+  { alt: "无限画布", title: "无限画布", desc: "把提示词、参考图与生成结果放进同一张画布，持续推演创意", imageUrl: "/miora-home/ai-creative-canvas.png", route: "/canvas" },
+  { alt: "白模预演", title: "白模预演", desc: "3D 场景排兵布阵，镜头与关键帧先预演再实拍", imageUrl: "/miora-home/director-stage.png", route: "/director3d" },
+  { alt: "创作智能体", title: "创作智能体", desc: "一句话拆解成海报、视频、品牌视觉等可执行任务", imageUrl: "/miora-home/creative-agent.png", route: "/aiAssistant", hot: true },
+  { alt: "灵感广场", title: "灵感广场", desc: "看看别人在做什么，一键套用同款工作流", imageUrl: "/miora-home/inspiration-square.svg", route: "/square" },
 ];
-type CanvasBanner = { imageUrl?: string; videoUrl?: string; linkUrl?: string; alt: string; title?: string; desc?: string; grad?: string; route?: string };
-// 功能导流卡：全部指向站内四个创作模块（第三方推广/返佣广告已按「统一走 new-api」方案清除，不再依赖外部 CDN 图）。
-const canvasBanners: CanvasBanner[] = [
-  { alt: "无限创意画布", title: "让灵感成为作品", desc: "把提示词、参考图、分镜与生成结果放进同一张画布，持续推演你的创意。", imageUrl: "/miora-home/ai-creative-canvas.png", route: "/canvas" },
-  { alt: "镜头导演台", title: "镜头导演台", desc: "搭建 3D 场景、安排人物走位、设计镜头与关键帧，把导演想法变成可预演的分镜。", imageUrl: "/miora-home/director-stage.png", route: "/director3d" },
-  { alt: "AI影像创作中心", title: "AI 影像创作中心", desc: "从故事、剧本到镜头与成片，漫剧创作在同一条流水线上持续推进。", imageUrl: "/miora-home/film-pipeline.png", route: "/project" },
-  { alt: "创作智能体", title: "创作智能体", desc: "一句话描述创意，智能体帮你拆解成海报、视频、品牌视觉等可执行的创作任务。", imageUrl: "/miora-home/creative-agent.png", route: "/aiAssistant" },
-];
-const bannerCarouselRef = ref<HTMLElement | null>(null);
-const activeBannerPosition = ref(0);
-const activeBannerIndex = computed(() => (activeBannerPosition.value % canvasBanners.length + canvasBanners.length) % canvasBanners.length);
-const bannerDragX = ref(0);
-let bannerPointerStart: number | null = null;
-let bannerDragged = false;
-const visibleBanners = computed(() => [-1, 0, 1].map((offset) => {
-  const position = activeBannerPosition.value + offset;
-  const index = (position % canvasBanners.length + canvasBanners.length) % canvasBanners.length;
-  return { ...canvasBanners[index], offset, position, index };
-}));
-// 轮播两侧的卡片仍然在 DOM 中，但因为 3D 变换和容器溢出，浏览器可能把它们
-// 误判为不可见并推迟 lazy image 的请求。提前把整组素材放入浏览器缓存，切换时
-// 只做位置变化，不再出现“滑到中间才加载”的白色占位。
-const preloadedBannerImages = new Set<string>();
-function preloadBannerImages() {
-  for (const banner of canvasBanners) {
-    if (!banner.imageUrl || preloadedBannerImages.has(banner.imageUrl)) continue;
-    const image = new Image();
-    image.decoding = "async";
-    image.src = banner.imageUrl;
-    preloadedBannerImages.add(banner.imageUrl);
-  }
-}
-// Keep the carousel visually compact while preserving its reserved layout height.
-const BANNER_WIDTH = "min(calc(100vw - 2rem), 740px)";
-const SIDE_BANNER_WIDTH = "min(82vw, 520px)";
-function bannerAngle(offset: number) { return offset === 0 ? 0 : offset < 0 ? 12 : -12; }
-function bannerCardStyle(banner: { offset: number }) {
-  const progress = Math.max(-1, Math.min(1, bannerDragX.value / 160));
-  const angle = bannerAngle(banner.offset) - progress * 12;
-  const active = banner.offset === 0;
-  return {
-    left: active ? `calc(50% + ${bannerDragX.value}px)` : banner.offset < 0 ? `calc(50% - ${SIDE_BANNER_WIDTH} + 16px + ${bannerDragX.value}px)` : `calc(50% + ${SIDE_BANNER_WIDTH} - 16px + ${bannerDragX.value}px)`,
-    width: active ? BANNER_WIDTH : SIDE_BANNER_WIDTH,
-    translate: "-50% -50%",
-    zIndex: active ? 3 : 1,
-    // The stage owns the perspective. Applying a second perspective to each
-    // card can make off-centre descendants get culled by WebKit's compositor.
-    transform: `rotateY(${angle}deg)`,
-    transformOrigin: "center center",
-    // A 12deg side card is still front-facing. Hiding its backface here can
-    // otherwise turn the card into a blank painted surface in Safari/WebKit.
-    backfaceVisibility: "visible" as const,
-    touchAction: "pan-y",
-  };
-}
-function selectBanner(index: number) {
-  activeBannerPosition.value = index;
-}
-function changeBanner(step: number) {
-  activeBannerPosition.value += step;
-}
-function handleBannerPointerDown(event: globalThis.PointerEvent) {
-  bannerPointerStart = event.clientX;
-  bannerDragged = false;
-  (event.currentTarget as HTMLButtonElement).setPointerCapture(event.pointerId);
-}
-function handleBannerPointerMove(event: globalThis.PointerEvent) {
-  if (bannerPointerStart === null) return;
-  bannerDragX.value = Math.max(-180, Math.min(180, event.clientX - bannerPointerStart));
-  bannerDragged = Math.abs(bannerDragX.value) > 4;
-}
-function finishBannerDrag(step = 0) {
-  bannerPointerStart = null;
-  if (step) activeBannerPosition.value += step;
-  window.requestAnimationFrame(() => { bannerDragX.value = 0; });
-}
-function handleBannerPointerUp(event: globalThis.PointerEvent) {
-  if (bannerPointerStart === null) return;
-  const distance = event.clientX - bannerPointerStart;
-  bannerDragged = Math.abs(distance) > 4;
-  finishBannerDrag(Math.abs(distance) > 60 ? (distance < 0 ? 1 : -1) : 0);
-}
-function handleBannerPointerCancel() { bannerDragged = false; finishBannerDrag(); }
-function openBanner(banner: CanvasBanner & { index: number; position: number }) {
-  if (bannerDragged) { bannerDragged = false; return; }
-  if (banner.position !== activeBannerPosition.value) { activeBannerPosition.value = banner.position; return; }
-  // 功能导流卡一律站内跳转（外部推广链接已清除）
-  if (banner.route) router.push(banner.route);
-}
-function openCanvasWithPrompt(preset = inputValue.value.trim()) {
+let canvasOpening=false;
+function warmCanvas(){window.dispatchEvent(new Event('xoi:canvas-warmup'));}
+async function openCanvasWithPrompt(preset = inputValue.value.trim()) {
+  if(canvasOpening)return;
   const prompt = preset.trim();
   try {
     localStorage.setItem("xoi_canvas_handoff_v1", JSON.stringify({
@@ -583,7 +431,8 @@ function openCanvasWithPrompt(preset = inputValue.value.trim()) {
     MessagePlugin.warning("画布入口数据暂时无法保存，请重试");
     return;
   }
-  router.push("/canvas?source=xoi&handoff=1");
+  canvasOpening=true;
+  try{await router.push("/canvas?source=xoi&handoff=1");}finally{canvasOpening=false;}
 }
 
 interface Message {
@@ -636,18 +485,13 @@ const completionSuggestion = computed(() => {
   };
   return suggestions[skill.group] || `根据我的描述使用「${skill.name}」完成创作，并给出可直接使用的结果。`;
 });
-const cyclePrompts = [
-  "帮我画一组卡通 IP 形象设计",
-  "为品牌设计一套高级感视觉识别",
-  "生成一支 60 秒电影感短片分镜",
-  "做一张适合电商首页的产品主视觉",
-  "设计一个东方奇幻世界观和角色设定",
-];
+const cyclePrompts = computed(() => activeCreationCategory.value.examples.map(example => example.prompt));
 const cyclePromptIndex = ref(0);
-const cyclePrompt = computed(() => cyclePrompts[cyclePromptIndex.value]);
-const cyclePromptText = ref(cyclePrompts[0]);
+const cyclePrompt = computed(() => cyclePrompts.value[cyclePromptIndex.value] || cyclePrompts.value[0]);
+const cyclePromptText = ref<string>(creationCategories[0].examples[0].brief);
 let cyclePromptPhase: "typing" | "holding" | "deleting" = "typing";
 let cyclePromptTimer: number | undefined;
+watch(activeCategory, () => { cyclePromptIndex.value = 0; cyclePromptText.value = activeCreationCategory.value.examples[0].title; cyclePromptPhase = "typing"; });
 const filteredSkills = computed(() => {
   const keyword = skillKeyword.value.trim().toLowerCase();
   const sourceItems = skillOptions.value.filter((item) => item.source === skillTab.value);
@@ -739,7 +583,6 @@ onMounted(() => window.addEventListener("resize", updateSkillPickerHeight));
 onBeforeUnmount(() => document.removeEventListener("pointerdown", closeSkillPickerOnOutside));
 onBeforeUnmount(() => window.removeEventListener("message", handleAssetPickerMessage));
 onBeforeUnmount(() => window.removeEventListener("resize", updateSkillPickerHeight));
-onMounted(preloadBannerImages);
 function scheduleCyclePrompt(delay = 60) {
   cyclePromptTimer = window.setTimeout(runCyclePrompt, delay);
 }
@@ -748,7 +591,8 @@ function runCyclePrompt() {
     scheduleCyclePrompt(240);
     return;
   }
-  const target = cyclePrompt.value;
+  const example = activeCreationCategory.value.examples[cyclePromptIndex.value];
+  const target = `${example.title} · ${example.brief}`;
   if (cyclePromptPhase === "typing") {
     cyclePromptText.value = target.slice(0, cyclePromptText.value.length + 1);
     if (cyclePromptText.value === target) {
@@ -764,7 +608,7 @@ function runCyclePrompt() {
   }
   cyclePromptText.value = cyclePromptText.value.slice(0, -1);
   if (!cyclePromptText.value) {
-    cyclePromptIndex.value = (cyclePromptIndex.value + 1) % cyclePrompts.length;
+    cyclePromptIndex.value = (cyclePromptIndex.value + 1) % cyclePrompts.value.length;
     cyclePromptPhase = "typing";
     scheduleCyclePrompt(320);
   } else scheduleCyclePrompt(34);
@@ -990,7 +834,7 @@ const savedSnapshotOfMessages = (): Message[] => JSON.parse(JSON.stringify(messa
 
 function pickPrompt(text: string) {
   inputValue.value = text;
-  nextTick(() => taRef.value?.focus());
+  nextTick(() => { autogrowTextarea(); taRef.value?.focus(); });
 }
 
 // 滚动到底部(mainScroll 与 messageList 共享滚动容器,统一操作 mainRef)
@@ -1001,15 +845,7 @@ function scrollToBottom() {
 }
 
 // Markdown 简易格式化(同原件 verbatim)
-function formatMessage(content: string): string {
-  if (!content) return "";
-  return content.trim()
-    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/\n/g, '<br>');
-}
+function formatMessage(content: string): string { return safeAssistantMarkup(content); }
 
 // 复制助手回复·所见即所得纯文本优先(md 星号会污染普通粘贴场景),
 // DOM 缺失时退回原始 md 源兜底;navigator.clipboard 不可用时降级 execCommand('copy') 兼容 http / 受限环境(devConfig.vue 同款套路)
@@ -1166,12 +1002,15 @@ const defaultTextModel = ref("");
 const defaultImageModel = ref("");
 const defaultVideoModel = ref("");
 const showBillingGuide = ref(false);
+const creationModelLabels = ref<Record<string, string>>({});
+function creationModelLabel(model: string) { return creationModelLabels.value[model] || model; }
 
 async function loadCreationDefaults() {
   try {
     const response = await fetch("/api/config", { headers: { Authorization: localStorage.getItem("token") || "" } });
     if (!response.ok) return;
     const config = await response.json();
+    creationModelLabels.value = Object.fromEntries((config?.model_catalog || []).map((model: any) => [model.modelName, model.name || model.label || model.modelName]));
     defaultTextModel.value = String(config?.chat_model || config?.chat_models?.[0] || "");
     defaultImageModel.value = String(config?.image_model || config?.image_models?.[0] || "");
     defaultVideoModel.value = String(config?.video_model || config?.video_models?.[0] || "");
@@ -1241,7 +1080,68 @@ function acceptCyclePrompt() {
   inputValue.value = cyclePrompt.value;
   nextTick(() => { autogrowTextarea(); taRef.value?.focus(); });
 }
+const ghostText = ref("");
+const composerFocused = ref(false);
+// Tab 虚拟建议（即梦同款）：光标在框外时打字机循环轮换该分类的建议；
+// 点进对话框 → 特效停住、完整句子变淡常驻；开始打字即散。
+const ghostPrompts = computed(() => (activeCreationCategory.value.examples ?? []).map((e) => e.prompt));
+// ghost 与 textarea 第一行精确对齐：实测 textarea 盒位置（padding 怎么改都不偏）
+const ghostIdx = ref(0);
+const ghostFull = computed(() => ghostPrompts.value[ghostIdx.value] ?? "");
+let ghostTimer: number | null = null;
+function stopGhostTypewriter() { if (ghostTimer !== null) { window.clearTimeout(ghostTimer); ghostTimer = null; } }
+function startGhostTypewriter() {
+  stopGhostTypewriter();
+  if (composerFocused.value || inputValue.value || messages.value.length || !ghostFull.value) { ghostText.value = ghostFull.value; return; }
+  let i = 0;
+  const type = () => {
+    i += 1;
+    ghostText.value = ghostFull.value.slice(0, i);
+    if (i < ghostFull.value.length) ghostTimer = window.setTimeout(type, 26);
+    else ghostTimer = window.setTimeout(erase, 1500);
+  };
+  const erase = () => {
+    let j = ghostFull.value.length;
+    const step = () => {
+      j -= 2;
+      if (j > 0) { ghostText.value = ghostFull.value.slice(0, j); ghostTimer = window.setTimeout(step, 11); }
+      else {
+        ghostIdx.value = (ghostIdx.value + 1) % Math.max(1, ghostPrompts.value.length);
+        i = 0;
+        ghostTimer = window.setTimeout(type, 380);
+      }
+    };
+    step();
+  };
+  type();
+}
+watch(activeCategory, (key) => {
+  const cat = creationCategories.find((c) => c.key === key);
+  ghostIdx.value = 0;
+  void cat;
+  startGhostTypewriter();
+});
+watch(composerFocused, (focused) => {
+  if (focused) { stopGhostTypewriter(); ghostText.value = ghostFull.value; }
+  else if (!inputValue.value && !messages.value.length) startGhostTypewriter();
+});
+watch(inputValue, (v) => {
+  if (v) { stopGhostTypewriter(); ghostText.value = ""; }
+  else if (messages.value.length === 0) startGhostTypewriter();
+});
+onUnmounted(stopGhostTypewriter);
 function handleSkillTab(event: KeyboardEvent) {
+  if (!inputValue.value && ghostText.value) {
+    event.preventDefault();
+    inputValue.value = ghostText.value;
+    ghostText.value = "";
+    nextTick(() => {
+      autogrowTextarea();
+      const ta = taRef.value;
+      if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = ta.value.length; }
+    });
+    return;
+  }
   if (!inputValue.value && completionSuggestion.value) {
     event.preventDefault();
     acceptSkillCompletion();
@@ -1290,27 +1190,81 @@ const inspirationPromptCards = [
   { title: "同题三种风格", desc: "电影感、轻喜剧、赛博寓言一次比较", prompt: "围绕“凌晨三点收到来自未来的外卖”这个命题，分别用电影感悬疑、都市轻喜剧、赛博寓言写三个故事梗概。" },
 ] as const;
 const promptCards = computed(() => inspirationMode.value ? inspirationPromptCards : defaultPromptCards);
-type InspirationItem = { title:string; category:string; image:string; prompt:string; detailIndex:number };
-const inspirationPool: InspirationItem[] = [
-  { title:"城市电影感",category:"影视与分镜",image:inspirationCinematic,detailIndex:5,prompt:"为雨夜城市题材微短剧设计一段电影感开场，用霓虹、倒影和人物动作推进情绪，输出分镜表。" },
-  { title:"都市心动故事",category:"摄影短片",image:inspirationUrban,detailIndex:6,prompt:"构思一部成熟都市情感短剧，用暖色摄影和人物空间距离表现关系变化，给出角色与前3集钩子。" },
-  { title:"青春窗边",category:"摄影短片",image:inspirationAnime,detailIndex:3,prompt:"策划一支窗边自然光风格的青春短片，使用日系胶片质感，给出60秒剧情和逐镜头拍摄方案。" },
-  { title:"新国潮品牌视觉",category:"品牌与广告",image:inspirationGuochao,detailIndex:11,prompt:"为年轻消费品牌设计新国潮视觉系统，把东方符号转成现代二维语言，输出 Logo、色彩、图形和海报方向。" },
-  { title:"黏土奇遇记",category:"影视与分镜",image:inspirationClay,detailIndex:8,prompt:"策划一支黏土定格动画短片，突出手作纹理和微缩布景，输出故事梗概、角色和12镜分镜。" },
-  { title:"月下国潮幻想",category:"东方美学",image:inspirationFantasy,detailIndex:4,prompt:"设计一张月下国潮幻想海报，把传统纹样、神兽和超现实空间结合，给出构图、配色、材质和生成提示词。" },
-  { title:"赛博国风世界",category:"东方美学",image:inspirationGuofeng,detailIndex:13,prompt:"搭建一个赛博国风短剧世界，将古典建筑、数字霓虹和机械角色融合，输出世界观、角色和首集分镜。" },
-  { title:"三维动画角色",category:"角色与 IP",image:inspirationCyber,detailIndex:9,prompt:"设计一个适合商业动画的3D角色 IP，给出体块语言、配色、表情、动作和衍生品方向。" },
-];
+type InspirationItem = SquareItem & { category: string };
+const inspirationSectionRef = ref<HTMLElement | null>(null);
+const inspirationPool = ref<InspirationItem[]>([]);
 const inspirationItems = ref<InspirationItem[]>([]);
-function shuffleInspirations() {
-  const shuffled = [...inspirationPool];
+const inspirationDetail = ref<SquareItem | null>(null);
+function useDetailPrompt(prompt: string) { inspirationDetail.value = null; useInspiration(prompt); }
+const inspirationLoading = ref(false);
+const inspirationError = ref(false);
+const inspirationKinds: SquareType[] = ["image", "canvas", "video"];
+let inspirationObserver: IntersectionObserver | undefined;
+function randomize<T>(items: T[]): T[] {
+  const shuffled = [...items];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const target = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
   }
-  inspirationItems.value = shuffled;
+  return shuffled;
 }
-shuffleInspirations();
+function shuffleInspirations() {
+  const previous = new Set(inspirationItems.value.map(item => `${item.src}:${item.id}`));
+  const fresh = inspirationPool.value.filter(item => !previous.has(`${item.src}:${item.id}`));
+  const available = fresh.length >= Math.min(8, inspirationPool.value.length) ? fresh : inspirationPool.value;
+  const selected = inspirationKinds.flatMap(kind => randomize(available.filter(item => item.src === kind)).slice(0, kind === "image" ? 4 : 2));
+  const keys = new Set(selected.map(item => `${item.src}:${item.id}`));
+  selected.push(...randomize(available.filter(item => !keys.has(`${item.src}:${item.id}`))).slice(0, 8 - selected.length));
+  inspirationItems.value = randomize(selected).slice(0, 8);
+}
+async function loadInspirations() {
+  if (inspirationLoading.value) return;
+  inspirationLoading.value = true;
+  inspirationError.value = false;
+  try {
+    const results = await Promise.allSettled(inspirationKinds.map(kind => loadSquareSnapshot(kind)));
+    inspirationPool.value = results.flatMap(result => {
+      if (result.status !== "fulfilled") return [];
+      const snap = result.value;
+      const categories = new Map(snap.categories);
+      return snap.hot.map(id => snap.items[id]).filter((item): item is SquareItem => !!item && !!item.u)
+        .map(item => ({ ...item, category: categories.get(item.c) || (item.src === "canvas" ? "画布工作流" : item.src === "video" ? "视频灵感" : "图片灵感") }));
+    });
+    inspirationError.value = results.some(result => result.status === "rejected");
+    shuffleInspirations();
+  } finally {
+    inspirationLoading.value = false;
+  }
+}
+function refreshInspirations() {
+  if (inspirationPool.value.length && !inspirationError.value) shuffleInspirations();
+  else void loadInspirations();
+}
+watch(inspirationSectionRef, section => {
+  inspirationObserver?.disconnect();
+  if (!section || inspirationPool.value.length) return;
+  if (typeof IntersectionObserver === "undefined") { void loadInspirations(); return; }
+  inspirationObserver = new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting)) {
+      inspirationObserver?.disconnect();
+      void loadInspirations();
+    }
+  }, { rootMargin: "320px" });
+  inspirationObserver.observe(section);
+}, { flush: "post" });
+onBeforeUnmount(() => inspirationObserver?.disconnect());
+function onInspirationCoverError(event: Event) {
+  const media = event.target as HTMLImageElement | HTMLVideoElement;
+  const src = media.getAttribute("src") || "";
+  if (src.startsWith("/api/media/") && media.dataset.retried !== "1") {
+    media.dataset.retried = "1";
+    media.setAttribute("src", `${src}${src.includes("?") ? "&" : "?"}_r=1`);
+    if (media instanceof HTMLVideoElement) media.load();
+    return;
+  }
+  media.style.visibility = "hidden";
+  media.closest(".inspirationMedia")?.classList.add("is-cover-failed");
+}
 function useInspiration(prompt: string) {
   inputValue.value = prompt;
   nextTick(() => { autogrowTextarea(); taRef.value?.focus(); taRef.value?.scrollIntoView({ behavior: "smooth", block: "center" }); });
@@ -1683,7 +1637,7 @@ function useInspiration(prompt: string) {
 .floatTag{position:absolute;display:flex;align-items:center;justify-content:center;height:28px;border:1px solid rgba(0,0,0,.07);border-radius:99px;background:rgba(255,255,255,.34);backdrop-filter:blur(7px);color:#222;font-size:12px;white-space:nowrap}
 .tagPoster{left:98px;top:15px;width:62px;opacity:.5}.tagVideo{left:164px;top:5px;width:62px;opacity:.3}.tagBrand{left:177px;top:42px;width:64px}.tagVisual{left:139px;top:78px;width:84px}.tagImage{left:185px;top:116px;width:64px;opacity:.7}
 .emptyMode .composerToolbar{position:relative;z-index:8;flex:0 0 160px;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:1fr 36px;grid-template-areas:"editor editor editor" "left mid right";width:996px;height:160px;margin:20px 2px 0;padding:14px 12px 10px;gap:0 8px;border:2px solid transparent;border-radius:20px;background:linear-gradient(#fff,#fff) padding-box,radial-gradient(circle at 65% 100%,rgba(57,188,248,.35),transparent 42%),radial-gradient(circle at 42% 100%,rgba(253,126,20,.3),transparent 40%),#f0f0f0 border-box;box-sizing:border-box;overflow:visible}
-.emptyMode .editorRow{grid-area:editor;align-items:flex-start;align-content:flex-start;padding:6px 14px;border:0;border-radius:0;background:#fff;box-shadow:none!important;cursor:text}
+.emptyMode .editorRow{grid-area:editor;display:grid;align-items:start;align-content:start;padding:6px 14px;border:0;border-radius:0;background:#fff;box-shadow:none!important;cursor:text}
 .emptyMode .editorRow:focus-within{border:0;background:#fff;box-shadow:none!important}
 .emptyMode .editorRow textarea,.emptyMode .editorRow textarea:focus,.emptyMode .editorRow textarea:hover{border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;-webkit-appearance:none;appearance:none}
 .promptCycleHint{width:auto;max-width:calc(100% - 14px);min-height:34px;pointer-events:none;animation:prompt-cycle-in .28s ease}
@@ -1815,7 +1769,7 @@ function useInspiration(prompt: string) {
 .assetPickerDialog{position:relative;width:min(900px,calc(100vw - 36px));height:min(680px,calc(100vh - 48px));overflow:hidden;border:1px solid rgba(0,0,0,.12);border-radius:20px;background:#fff;box-shadow:0 30px 90px rgba(20,20,25,.28)}
 .assetPickerFrame{display:block;width:100%;height:100%;border:0;background:#fff}
 @keyframes asset-picker-fade{from{opacity:0}to{opacity:1}}
-.inspirationShowcase{width:996px;margin:36px 2px 80px;padding-bottom:30px}.inspirationShowcase>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.inspirationShowcase h2{display:flex;align-items:center;gap:8px;margin:0;color:#242424;font-size:20px;font-weight:650}.inspirationShowcase h2 svg{font-size:20px}.inspirationActions{display:flex;align-items:center;gap:8px}.inspirationActions button,.inspirationShowcase header a{display:flex;align-items:center;gap:5px;padding:7px 11px;border:0;border-radius:9px;background:#f1f1f1;color:#555;text-decoration:none;font-size:12px;cursor:pointer;transition:.18s ease}.inspirationActions button:hover,.inspirationShowcase header a:hover{background:#e8e8e8;color:#111}.inspirationGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.inspirationCard{min-width:0;overflow:hidden;border:1px solid #ececef;border-radius:15px;background:#fff;text-align:left;box-shadow:0 5px 18px rgba(25,27,35,.035);transition:transform .22s ease,box-shadow .22s ease}.inspirationCard:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(25,27,35,.1)}.inspirationMedia{position:relative;display:block;aspect-ratio:1.55/1;overflow:hidden;background:#f2f2f3}.inspirationMedia img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .35s ease}.inspirationCard:hover .inspirationMedia img{transform:scale(1.035)}.inspirationInfo{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px 8px;padding:11px 12px 12px}.inspirationInfo strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#26262a;font-size:14px;font-weight:600}.inspirationInfo small{grid-column:1;color:#9a9aa1;font-size:11px}.inspirationInfo button{grid-column:2;grid-row:1/3;padding:6px 9px;border:0;border-radius:8px;background:#f2f2f3;color:#555;font-size:11px;cursor:pointer}.inspirationInfo button:hover{background:#171717;color:#fff}
+.inspirationShowcase{width:996px;margin:36px 2px 80px;padding-bottom:30px}.inspirationShowcase>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.inspirationShowcase h2{display:flex;align-items:center;gap:8px;margin:0;color:#242424;font-size:20px;font-weight:650}.inspirationShowcase h2 svg{font-size:20px}.inspirationActions{display:flex;align-items:center;gap:8px}.inspirationActions button,.inspirationShowcase header a{display:flex;align-items:center;gap:5px;padding:7px 11px;border:0;border-radius:9px;background:#f1f1f1;color:#555;text-decoration:none;font-size:12px;cursor:pointer;transition:.18s ease}.inspirationActions button:hover,.inspirationShowcase header a:hover{background:#e8e8e8;color:#111}.inspirationGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.inspirationCard{min-width:0;overflow:hidden;border:1px solid #ececef;border-radius:15px;background:#fff;text-align:left;box-shadow:0 5px 18px rgba(25,27,35,.035);transition:transform .22s ease,box-shadow .22s ease}.inspirationCard:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(25,27,35,.1)}.inspirationMedia{position:relative;display:block;width:100%;padding:0;border:0;text-align:left;cursor:pointer;aspect-ratio:1.55/1;overflow:hidden;background:#f2f2f3}.inspirationMedia img,.inspirationMedia video{display:block;width:100%;height:100%;object-fit:cover;transition:transform .35s ease}.inspirationCard:hover .inspirationMedia img{transform:scale(1.035)}.inspirationBadge{position:absolute;left:10px;bottom:10px;padding:4px 8px;border-radius:6px;background:#0009;color:#fff;font-size:11px;pointer-events:none}.inspirationCoverFallback{display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:#999;font-size:13px}.inspirationMedia.is-cover-failed .inspirationCoverFallback{display:flex}.inspirationStatus{padding:48px 20px;text-align:center;color:#888;font-size:13px;border:1px dashed #ddd;border-radius:15px}.inspirationActions button:disabled{cursor:wait;opacity:.6}.inspirationInfo{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px 8px;padding:11px 12px 12px}.inspirationInfo strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#26262a;font-size:14px;font-weight:600}.inspirationInfo small{grid-column:1;color:#9a9aa1;font-size:11px}.inspirationInfo button{grid-column:2;grid-row:1/3;padding:6px 9px;border:0;border-radius:8px;background:#f2f2f3;color:#555;font-size:11px;cursor:pointer}.inspirationInfo button:hover{background:#171717;color:#fff}
 
 @media(max-width:1100px){
   .emptyMode .assistantPanel{max-width:calc(100% - 40px)}
@@ -2092,6 +2046,345 @@ function useInspiration(prompt: string) {
   .emptyMode .creationTabs .categoryIcon{width:21px;height:21px}.emptyMode .upstreamComposer{border-radius:22px;padding:12px}
   .composerBillingBar{align-items:center}.billingGuideToggle{white-space:nowrap}.emptyMode .modelSlot{min-width:205px}
 }
+
+/* Keep inspiration inside the input surface, not as another card section. */
+.creationDock{height:auto;margin-top:38px}
+.emptyMode .creationTabs{position:relative;inset:auto;width:100%}
+.emptyMode .mainScrollArea{flex:0 0 auto;min-height:0}
+.creationDockMascot{top:-48px;bottom:auto;right:30px;height:48px;width:90px;pointer-events:none}
+.composerExamples{grid-area:examples;display:flex;align-items:center;gap:12px;min-width:0;padding:0 8px 4px;color:#a09b96;font-size:11px;line-height:1.5}
+.composerExamples button{border:0;padding:2px 0;background:none;color:#918a83;font:inherit;cursor:pointer;transition:color .15s}
+.composerExamples button:hover{color:#d96113}.composerExamples button:focus-visible{outline:2px solid #ed914b;outline-offset:3px;border-radius:3px}
+.emptyMode .upstreamComposer{grid-template-areas:"editor editor" "examples examples" "billing billing" "guide guide" "left right";grid-template-rows:minmax(76px,auto) auto auto auto 40px;gap:4px 12px;border-radius:22px;box-shadow:0 14px 42px rgba(40,34,29,.065);border-color:#e8e3df;background:#fff}
+.emptyMode .upstreamComposer .editorRow{min-height:76px}
+.emptyMode .toolbarLeft,.emptyMode .toolbarRight{height:38px}
+.emptyMode .toolbarLeft .roundIconBtn,.emptyMode .settingPill,.emptyMode .modelSlot,.emptyMode .toolbarRight .reasoningButton{background:transparent;border-radius:8px;box-shadow:none}
+.emptyMode .toolbarLeft .roundIconBtn:hover,.emptyMode .settingPill:hover,.emptyMode .modelSlot:hover,.emptyMode .toolbarRight .reasoningButton:hover{background:#f6f4f2;border-color:transparent;box-shadow:none}
+.emptyMode .launchSteps li{padding:0 10px;border:0;border-radius:0;background:none;box-shadow:none}.emptyMode .launchSteps small{display:none}
+.emptyMode .launchSteps b{width:22px;height:22px;background:none;color:#a59d96;font-weight:500}
+.emptyMode .launchSteps strong{font-size:11px;font-weight:500;color:#8a817a}
+.creationTabs .categoryIcon{stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;padding:4px}
+.creationTabs button:focus-visible{outline:2px solid #ed914b;outline-offset:2px}
+.composerBillingBar{gap:12px;padding:10px 4px;min-height:38px}
+.billingLabel{font-size:12px;color:#8a827c}
+.inlineCostHint{padding-left:0;border-left:0;font-size:12px!important;color:#b85b23!important}
+.billingNow{flex-wrap:wrap;gap:10px}
+.creditRule{padding-right:10px;margin-right:10px;border-right:1px solid #e5ddd5;color:#85796f;font-size:11px;font-weight:500}
+.billingGuideToggle{display:inline-flex;align-items:center;font-size:12px}
+.billingGuide{grid-template-columns:repeat(2,minmax(0,1fr));padding:14px 16px;gap:12px 20px;border:1px solid #eee5dc;border-radius:14px;background:#fcfaf8}
+.billingGuide>.billingExplanation{padding:0;font-size:12px;color:#736b63}
+.billingCalculation{grid-column:1/-1}
+.billingGuideCard{display:block;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.billingGuideCard small{font-size:11px;color:#8b8178}
+.billingGuideCard strong{font-size:12px}.billingGuideCard :deep(.modelCostHint){font-size:11px}
+.billingGuide>p:last-child{font-size:11px;line-height:1.6}
+.emptyMode .modelSlot{height:36px;min-width:0;width:auto;background:transparent;padding:0 8px;gap:6px}
+.modelSlot :deep(.modelSelectField){width:160px;min-width:0}
+.modelSlot :deep(.modelSelectControl){height:30px!important;border:0!important;background:transparent!important;box-shadow:none!important;font-size:12px;font-weight:600;padding:0 5px!important;border-radius:7px!important}
+.modelSlot :deep(.modelSelectControl.opened){color:#d96118}
+@media(max-width:760px){
+  .emptyMode .assistantPanel,.emptyMode .upstreamComposer,.creationDock{min-width:0;max-width:100%}
+  .emptyMode .mioraBanner{width:100%;margin:0;height:200px}.emptyMode .bannerStage{height:190px}
+  .emptyMode .toolbarLeft{min-width:0;max-width:100%;height:auto;flex-wrap:wrap;overflow:visible}
+  .emptyMode .toolbarRight{min-width:0;height:auto}
+  .emptyMode .launchSteps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;overflow:visible}
+  .emptyMode .launchSteps li{min-width:0;padding:9px 7px;gap:5px}.emptyMode .launchSteps b{width:24px;height:24px;font-size:10px}
+  .emptyMode .launchSteps strong{font-size:10px}.emptyMode .launchSteps small{display:none}
+  .creationDock{height:auto;margin-top:34px}.creationDockMascot{right:12px;top:-34px;height:34px;width:64px}
+  .composerExamples{gap:10px;flex-wrap:wrap;font-size:10px}.composerBillingBar{flex-wrap:wrap;align-items:flex-start;gap:5px}
+  .emptyMode .upstreamComposer{grid-template-rows:minmax(66px,auto) auto auto auto auto}
+  .billingLabel,.inlineCostHint{display:inline-flex}.billingGuideToggle{padding-left:0}.billingGuide{grid-template-columns:1fr;padding:12px}
+  .billingCalculation{grid-column:1}.emptyMode .modelSlot{min-width:210px}
+}
+
+/* 2026-10-24 calm creation home: one container, one primary task, no viewport-
+   based carousel sizing. Keep these empty-state rules together as the final
+   visual source of truth; message-mode composer styles remain untouched. */
+.emptyMode.aiAssistant{
+  background:
+    radial-gradient(circle at 52% 0%,rgba(255,155,69,.07),transparent 30%),
+    linear-gradient(180deg,#fff 0%,#fcfbfa 100%);
+}
+.emptyMode .assistantPanel{max-width:min(1120px,calc(100% - 48px));padding:0;overflow:visible}
+.emptyMode .mainScrollArea{flex:0 0 auto;min-height:0;padding-top:20px;overflow:visible}
+.emptyMode .emptyStage{width:100%;min-height:0;padding:0}
+
+/* Compact feature carousel. Adjacent slides are image-only previews. */
+.emptyMode .mioraBanner{width:100%;height:224px;margin:0;overflow:hidden}
+.emptyMode .bannerStage{height:214px;perspective:1200px;overflow:visible}
+.emptyMode .bannerCard{aspect-ratio:3.55/1;border-radius:18px;box-shadow:0 12px 32px rgba(30,25,22,.14)}
+.emptyMode .bannerCard.active{box-shadow:0 0 0 1px rgba(255,255,255,.16),0 16px 38px rgba(30,25,22,.17)}
+.emptyMode .bannerCard:not(.active){opacity:.34;filter:saturate(.7) brightness(.86);box-shadow:none}
+.emptyMode .bannerCard:not(.active) .bannerFeatureCard{display:none}
+.emptyMode .bannerFeatureCard{gap:7px;padding:26px 36px;background:linear-gradient(90deg,rgba(7,9,14,.93) 0%,rgba(7,9,14,.80) 40%,rgba(7,9,14,.60) 54%,rgba(7,9,14,.16) 70%,transparent 84%);text-shadow:0 1px 3px rgba(6,8,12,.55)}
+.emptyMode .bannerFeatureCard.withImage{background:linear-gradient(90deg,rgba(7,9,14,.93) 0%,rgba(7,9,14,.80) 40%,rgba(7,9,14,.58) 54%,rgba(7,9,14,.14) 70%,transparent 84%)}
+.emptyMode .bannerFeatureCard small{font-size:9px;letter-spacing:.15em}
+.emptyMode .bannerFeatureCard strong{font-size:clamp(23px,2vw,29px);line-height:1.15}
+.emptyMode .bannerFeatureCard p{max-width:25em;font-size:13px;line-height:1.55;color:rgba(255,255,255,.82);text-wrap:balance}
+.emptyMode .bannerFeatureCard em{margin-top:3px;padding:7px 11px;font-size:11px}
+.emptyMode .bannerArrow{width:34px;height:34px;opacity:0;border-color:rgba(255,255,255,.26);background:rgba(15,15,18,.46);font-size:23px;transition:opacity .18s ease,background .18s ease}
+.emptyMode .mioraBanner:hover .bannerArrow,.emptyMode .bannerArrow:focus-visible{opacity:1}
+.emptyMode .bannerArrowLeft{left:max(14px,calc(50% - 356px))}
+.emptyMode .bannerArrowRight{right:max(14px,calc(50% - 356px))}
+.emptyMode .bannerDots{position:absolute;right:0;bottom:3px;left:0;z-index:6;gap:6px;height:4px;pointer-events:none}
+.emptyMode .bannerDots button{width:16px;height:3px;background:#d3cbc4;pointer-events:auto}
+.emptyMode .bannerDots button.active{width:30px;background:#f57400}
+
+/* Intro and creation modes share the same alignment as the composer. */
+.emptyMode .launchIntro{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:24px;margin:22px 0 0;padding:0 2px}
+.emptyMode .launchEyebrow{font-size:11px;letter-spacing:.09em}
+.emptyMode .launchIntro h1{margin:7px 0 6px;font-size:clamp(25px,2.2vw,29px);line-height:1.2;letter-spacing:-.032em}
+.emptyMode .launchIntro p{max-width:none;font-size:13px;line-height:1.6;color:#837c76}
+.emptyMode .launchSteps{display:flex;align-items:center;gap:24px;padding-bottom:2px}
+.emptyMode .launchSteps li{gap:5px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;white-space:nowrap}
+.emptyMode .launchSteps li:not(:last-child):after{content:"→";right:-18px;width:auto;height:auto;background:none;color:#c8c1bb;font-size:12px;transform:translateY(-50%)}
+.emptyMode .launchSteps b{width:auto;height:auto;background:none;color:#aaa19a;font-size:10px;font-weight:500}
+.emptyMode .launchSteps strong{color:#817973;font-size:11px;font-weight:550}
+.emptyMode .launchSteps small{display:none}
+.emptyMode .creationDock{height:auto;margin-top:20px}
+.emptyMode .creationDockMascot,.emptyMode .composerMascot{display:none}
+.emptyMode .creationTabs{position:relative;inset:auto;width:100%;height:44px;padding:4px;gap:4px;border:1px solid rgba(52,44,38,.06);border-radius:14px;background:#f5f3f1;box-shadow:none;backdrop-filter:none}
+.emptyMode .creationTabs button{height:34px;gap:7px;border:1px solid transparent;border-radius:10px;color:#7d7670;font-size:13px;font-weight:560;box-shadow:none}
+.emptyMode .creationTabs button:hover{background:rgba(255,255,255,.72);color:#37312d}
+.emptyMode .creationTabs button.active{border-color:rgba(235,103,20,.10);background:#fff;color:#342d28;box-shadow:0 2px 7px rgba(54,45,38,.07)}
+.emptyMode .creationTabs button.active:after{bottom:2px;width:16px;background:#f57400}
+.emptyMode .creationTabs .categoryIcon{width:21px;height:21px;padding:3px;background:transparent;color:#968e87}
+.emptyMode .creationTabs button.active .categoryIcon{background:transparent;color:#e9640b}
+
+/* Composer: fixed placeholder, prompt chips, one compact toolbar. */
+.emptyMode .upstreamComposer{
+  top:auto;width:100%;min-height:0;margin:10px 0 0;padding:14px 16px 12px;
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-rows:minmax(84px,auto) auto auto 42px;
+  grid-template-areas:"editor editor" "examples examples" "guide guide" "left right";
+  gap:4px 12px;border:1px solid #e8e3df;border-radius:20px;background:#fff;
+  box-shadow:0 12px 34px rgba(48,39,32,.065),inset 0 1px 0 #fff;
+}
+.emptyMode .upstreamComposer:focus-within{border-color:rgba(234,109,31,.32);box-shadow:0 14px 38px rgba(48,39,32,.075),0 0 0 3px rgba(245,116,0,.045)}
+.emptyMode .upstreamComposer .editorRow{min-height:84px;max-height:220px;padding:3px 4px 0;gap:6px}
+.emptyMode .upstreamComposer .editorRow textarea,
+.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea,
+.emptyMode .upstreamComposer .editorRow.hasInput textarea{
+  flex:1 1 100%;width:100%;min-width:0;max-width:none;height:66px;min-height:66px;
+  margin:0;padding:6px 2px 0;color:#2d2926;font-size:16px;line-height:27px;overflow:auto;
+}
+.emptyMode .upstreamComposer .editorRow textarea::placeholder,
+.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea::placeholder,
+.emptyMode .upstreamComposer .editorRow:not(.hasInput):focus-within textarea::placeholder{color:#9c958f}
+.emptyMode .upstreamComposer .editorRow textarea:focus::placeholder{color:#b3aca6}
+.emptyMode .composerExamples{display:flex;grid-area:examples;align-items:center;gap:8px;min-width:0;padding:0 2px 7px;color:#9a928b;font-size:12px;line-height:1.4}
+.emptyMode .composerExamples .examplesLabel{flex:none;margin-right:1px;color:#9a928b}
+.emptyMode .composerExamples button{flex:none;padding:5px 10px;border:1px solid #eee9e5;border-radius:8px;background:#faf8f6;color:#766e67;font-size:12px;cursor:pointer;transition:background .16s ease,border-color .16s ease,color .16s ease}
+.emptyMode .composerExamples button:hover{border-color:#f2d5c1;background:#fff5ee;color:#d95f12}
+.emptyMode .composerExamples kbd{flex:none;margin-left:6px;padding:3px 6px;border:0;border-radius:5px;background:#f5f3f1;color:#aaa29b;font:500 10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace}
+.emptyMode .toolbarLeft,.emptyMode .toolbarRight{height:40px;min-width:0;gap:5px}
+.emptyMode .toolbarLeft{justify-content:flex-start}
+.emptyMode .toolbarRight{justify-content:flex-end}
+.emptyMode .toolbarLeft .roundIconBtn,.emptyMode .settingPill,.emptyMode .modelSlot,.emptyMode .toolbarRight .reasoningButton{
+  height:34px;border:1px solid transparent;border-radius:9px;background:transparent;color:#625b55;box-shadow:none;
+}
+.emptyMode .toolbarLeft .roundIconBtn:hover,.emptyMode .settingPill:hover,.emptyMode .modelSlot:hover,.emptyMode .toolbarRight .reasoningButton:hover{border-color:transparent;background:#f7f4f2;color:#332e2a;box-shadow:none}
+.emptyMode .upstreamComposer .roundIconBtn.assetTrigger,.emptyMode .upstreamComposer .roundIconBtn.skillButton,.emptyMode .upstreamComposer .roundIconBtn.reasoningButton{height:34px;padding:0 10px;background:transparent}
+.emptyMode .upstreamComposer .roundIconBtn.skillButton.active,.emptyMode .upstreamComposer .roundIconBtn.reasoningButton.active{background:#fff1e7;color:#db5d08}
+.emptyMode .reasoningButton:after{display:none}
+.emptyMode .modelSlot{min-width:0;width:auto;padding:0 7px;gap:5px}
+.emptyMode .modelSlotLabel{color:#958c85;font-size:10px}
+.emptyMode .modelSlot :deep(.modelSelectField){width:168px;min-width:0}
+.emptyMode .modelSlot :deep(.modelSelectControl){height:30px!important;padding:0 4px!important;border-radius:7px!important;font-size:12px}
+.emptyMode .composerBillingBar{display:flex;grid-area:auto;align-items:center;justify-content:flex-end;gap:7px;min-height:0;margin-right:4px;padding:0;border:0;background:transparent;color:#8f867f;font-size:11px;white-space:nowrap}
+.emptyMode .billingNow{gap:5px;overflow:visible}
+.emptyMode .billingLabel{display:none}
+.emptyMode .inlineCostHint{margin:0;padding:0;border:0;font-size:11px!important;color:#a0785d!important}
+.emptyMode .creditRule{display:none}
+.emptyMode .billingGuideToggle{gap:3px;padding:5px 3px;background:transparent;color:#9a918a;font-size:11px;font-weight:500}
+.emptyMode .billingGuideToggle:hover{background:transparent;color:#d96113}
+.emptyMode .sendButton{height:38px!important;min-width:106px!important;padding:0 15px!important;border-radius:11px!important;gap:7px}
+.emptyMode .sendButton:not(:disabled){background:linear-gradient(135deg,#ff9b45,#f26432)!important;color:#fff!important;box-shadow:0 7px 16px rgba(242,100,50,.20)!important}
+.emptyMode .sendButton:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 9px 20px rgba(242,100,50,.25)!important}
+.emptyMode .sendButton:disabled{background:#f2efec!important;color:#b9b2ac!important;box-shadow:none!important}
+.emptyMode .sendButtonLabel{font-size:12px;font-weight:650}
+.emptyMode .billingGuide{margin:4px 0 8px;padding:12px 14px;gap:10px 18px;border:1px solid #f0e7df;border-radius:12px;background:#fcfaf8}
+
+/* Inspiration is a quiet content continuation with consistent media geometry. */
+.emptyMode .inspirationShowcase{width:100%;margin:30px 0 80px;padding:0 0 24px}
+.emptyMode .inspirationShowcase>header{margin-bottom:15px}
+.emptyMode .inspirationShowcase h2{gap:7px;color:#302b27;font-size:20px;font-weight:680;letter-spacing:-.02em}
+.emptyMode .inspirationShowcase h2 svg{color:#f57400;font-size:19px}
+.emptyMode .inspirationActions{gap:7px}
+.emptyMode .inspirationActions button,.emptyMode .inspirationShowcase header a{padding:7px 10px;border-radius:8px;background:transparent;color:#847b74;font-size:12px}
+.emptyMode .inspirationActions button{background:#f5f2ef}
+.emptyMode .inspirationActions button:hover,.emptyMode .inspirationShowcase header a:hover{background:#f5f2ef;color:#d96113}
+.emptyMode .inspirationGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.emptyMode .inspirationCard{overflow:hidden;border:1px solid #eee9e5;border-radius:15px;background:#fff;box-shadow:0 4px 14px rgba(45,37,31,.035);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.emptyMode .inspirationCard:hover{transform:translateY(-2px);border-color:#eadfd6;box-shadow:0 12px 26px rgba(45,37,31,.085)}
+.emptyMode .inspirationMedia{aspect-ratio:4/3;background:#f3f0ed}
+.emptyMode .inspirationCard:hover .inspirationMedia img,.emptyMode .inspirationCard:hover .inspirationMedia video{transform:scale(1.025)}
+.emptyMode .inspirationBadge{top:9px;bottom:auto;left:9px;padding:4px 7px;border-radius:6px;background:rgba(25,22,20,.56);backdrop-filter:blur(7px);font-size:10px}
+.emptyMode .inspirationInfo{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title action" "category action";align-items:center;gap:3px 10px;padding:11px 12px 12px}
+.emptyMode .inspirationInfo strong{grid-area:title;overflow:hidden;color:#3a3430;font-size:13px;font-weight:620;text-overflow:ellipsis;white-space:nowrap}
+.emptyMode .inspirationInfo small{grid-area:category;overflow:hidden;color:#9a918a;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.emptyMode .inspirationInfo button{grid-area:action;padding:6px 8px;border:0;border-radius:7px;background:#fff3ea;color:#d86114;font-size:11px;white-space:nowrap;cursor:pointer}
+.emptyMode .inspirationInfo button:hover{background:#ffe8d8;color:#bd4e08}
+.emptyMode .inspirationStatus{padding:38px 20px;border-color:#e8e1db;border-radius:14px;color:#968d86}
+
+@media(max-width:1100px){
+  .emptyMode .assistantPanel{max-width:calc(100% - 40px)}
+  .emptyMode .launchIntro{grid-template-columns:1fr;gap:12px}
+  .emptyMode .launchSteps{padding-bottom:0}
+  .emptyMode .composerBillingBar .billingNow{display:none}
+  .emptyMode .modelSlotLabel{display:none}
+  .emptyMode .inspirationGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .emptyMode .assistantPanel{max-width:100%;padding:0 14px}
+  .emptyMode .mainScrollArea{padding-top:12px;overflow:visible}
+  .emptyMode .mioraBanner{width:100%;height:184px;margin:0}
+  .emptyMode .bannerStage{height:178px;overflow:hidden}
+  .emptyMode .bannerCard{aspect-ratio:2.03/1;border-radius:16px}
+  .emptyMode .bannerCard:not(.active){opacity:0;pointer-events:none}
+  .emptyMode .bannerFeatureCard{gap:6px;padding:20px 22px}
+  .emptyMode .bannerFeatureCard small{font-size:8px}
+  .emptyMode .bannerFeatureCard strong{font-size:22px}
+  .emptyMode .bannerFeatureCard p{display:none}
+  .emptyMode .bannerFeatureCard em{margin-top:3px;padding:6px 9px}
+  .emptyMode .bannerArrow{display:none}
+  .emptyMode .bannerDots{bottom:2px;gap:5px}
+  .emptyMode .bannerDots button{width:14px}
+  .emptyMode .bannerDots button.active{width:24px}
+  .emptyMode .launchIntro{gap:13px;margin-top:19px;padding:0}
+  .emptyMode .launchIntro h1{font-size:24px}
+  .emptyMode .launchIntro p{font-size:12px}
+  .emptyMode .launchSteps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:100%}
+  .emptyMode .launchSteps li{justify-content:center;gap:5px;min-width:0}
+  .emptyMode .launchSteps li:not(:last-child):after{right:-9px;font-size:10px}
+  .emptyMode .launchSteps strong{font-size:10px}
+  .emptyMode .creationDock{margin-top:18px}
+  .emptyMode .creationTabs{height:44px;gap:7px;padding:4px 2px;border-color:transparent;background:transparent;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%)}
+  .emptyMode .creationTabs::-webkit-scrollbar{display:none}
+  .emptyMode .creationTabs button{min-width:102px;border-color:#efe9e4;background:#fff}
+  .emptyMode .creationTabs button.active{border-color:rgba(235,103,20,.18);background:#fff1e6}
+  .emptyMode .upstreamComposer{padding:12px;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(76px,auto) auto auto auto auto;grid-template-areas:"editor" "examples" "guide" "left" "right";gap:4px;border-radius:18px}
+  .emptyMode .upstreamComposer .editorRow{min-height:76px}
+  .emptyMode .upstreamComposer .editorRow textarea,.emptyMode .upstreamComposer .editorRow:not(.hasInput) textarea,.emptyMode .upstreamComposer .editorRow.hasInput textarea{height:58px;min-height:58px;font-size:15px;line-height:25px}
+  .emptyMode .composerExamples{flex-wrap:nowrap;gap:7px;padding-bottom:8px;overflow-x:auto;scrollbar-width:none}
+  .emptyMode .composerExamples::-webkit-scrollbar{display:none}
+  .emptyMode .composerExamples kbd{display:none}
+  .emptyMode .toolbarLeft{width:100%;height:38px;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding-bottom:2px}
+  .emptyMode .toolbarRight{justify-content:space-between;width:100%;height:40px;padding-top:4px;border-top:1px solid #f2eeeb}
+  .emptyMode .composerBillingBar{margin-right:auto}
+  .emptyMode .composerBillingBar .billingNow{display:flex}
+  .emptyMode .modelSlot{min-width:0}
+  .emptyMode .modelSlot :deep(.modelSelectField){width:132px}
+  .emptyMode .sendButton{min-width:98px!important}
+  .emptyMode .billingGuide{grid-template-columns:1fr;padding:12px}
+  .emptyMode .billingCalculation{grid-column:1}
+  .emptyMode .inspirationShowcase{margin-top:26px;margin-bottom:48px}
+  .emptyMode .inspirationShowcase h2{font-size:18px}
+  .emptyMode .inspirationGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .emptyMode .inspirationInfo{grid-template-columns:1fr;grid-template-areas:"title" "category" "action";gap:3px;padding:10px}
+  .emptyMode .inspirationInfo button{justify-self:start;margin-top:5px;padding:5px 7px}
+}
+@media(max-width:420px){
+  .emptyMode .launchSteps{display:none}
+  .emptyMode .creationTabs button{min-width:96px}
+  .emptyMode .toolLabel{display:none}
+  .emptyMode .upstreamComposer .roundIconBtn.assetTrigger,.emptyMode .upstreamComposer .roundIconBtn.skillButton,.emptyMode .upstreamComposer .roundIconBtn.reasoningButton{width:34px;padding:0}
+  .emptyMode .settingPill{max-width:104px;padding:0 8px;font-size:11px}
+  .emptyMode .modelSlot :deep(.modelSelectField){width:142px}
+  .emptyMode .composerBillingBar .billingNow{display:none}
+  .emptyMode .inspirationActions button,.emptyMode .inspirationShowcase header a{padding:6px;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){
+  .emptyMode .bannerCard,.emptyMode .inspirationCard,.emptyMode .inspirationMedia img,.emptyMode .inspirationMedia video{transition:none}
+}
+
+/* ── 2026-10-24 首页改版：视频 Hero + 功能区 + 自定义收拢（即梦/Miora 式首屏）── */
+.emptyMode .mainScrollArea{flex:1 1 auto;min-height:0;padding-top:26px}
+.homeHero{position:relative;width:100%;height:clamp(230px,30vh,320px);border-radius:22px;overflow:hidden;background:#f3f1ec;box-shadow:0 1px 2px rgba(30,30,25,.05),0 10px 30px rgba(30,30,25,.08)}
+.homeHeroMedia{width:100%;height:100%;object-fit:cover;display:block}
+.featureBand{display:grid;grid-template-columns:minmax(280px,5fr) 7fr;gap:14px;width:100%;padding:0 24px;box-sizing:border-box;margin:26px 0 30px;flex:none}
+.featureHero{position:relative;display:flex;align-items:flex-end;min-height:150px;padding:16px 18px;border:0;border-radius:18px;overflow:hidden;cursor:pointer;text-align:left;background:#17181c}
+.featureHero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55;transition:opacity .2s ease}
+.featureHero:hover>img{opacity:.72}
+.featureHeroCopy{position:relative;z-index:1;display:flex;flex-direction:column;gap:4px;color:#fff}
+.featureHeroCopy small{font-size:10px;letter-spacing:.16em;opacity:.65}
+.featureHeroCopy strong{font-size:19px;font-weight:700;letter-spacing:-.01em}
+.featureHeroCopy p{margin:0;font-size:12px;line-height:1.55;color:rgba(255,255,255,.78)}
+.featureHeroCopy em{margin-top:8px;display:inline-flex;align-items:center;gap:4px;width:fit-content;padding:6px 13px;border-radius:999px;background:rgba(255,255,255,.16);backdrop-filter:blur(6px);font-style:normal;font-size:12px;font-weight:650}
+.featureHeroCopy em span{font-size:11px}
+.featureGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.featureCard{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e8e9e4;border-radius:16px;background:#fff;cursor:pointer;text-align:left;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.featureCard:hover{border-color:#dcd9cf;box-shadow:0 6px 18px rgba(30,30,25,.08);transform:translateY(-1px)}
+.featureThumb{position:relative;flex:none;width:72px;height:54px;border-radius:10px;overflow:hidden;background:#f0efe9}
+.featureThumb img{width:100%;height:100%;object-fit:cover;display:block}
+.featureCopy{min-width:0;display:flex;flex-direction:column;gap:3px}
+.featureCopy strong{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:680;color:#232421}
+.featureHot{font-style:normal;padding:1px 6px;border-radius:6px;background:#fdeee1;color:#d7622d;font-size:10px;font-weight:700;letter-spacing:.04em}
+.featureCopy small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11.5px;line-height:1.5;color:#8a8c84}
+.customPanel{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;border:1px dashed #e3e4dd;border-radius:14px;background:#fafaf7;margin-top:8px}
+.customTrigger.active{color:#ff7417;background:#fff0e7}
+.emptyMode .customTrigger .toolLabel{display:inline-flex}
+/* 技能面板：官方/个人 标签（此前 display:none，对齐即梦的右侧标签） */
+.skillOption .skillOfficial{display:inline-flex;align-items:center;flex:none;height:20px;padding:0 8px;border-radius:999px;background:#f2f2f0;color:#8f9089;font-size:11px;font-weight:550}
+.skillOption.selected .skillOfficial{background:#fff0e7;color:#ff7417}
+.promptCardsTitle{margin:0 0 10px;font-size:13px;font-weight:680;color:#6b6d65}
+@media (max-width: 900px){
+  .featureBand{grid-template-columns:1fr;padding:0 12px}
+  .featureHero{min-height:132px}
+  .homeHero{height:185px}
+  .featureGrid{grid-template-columns:1fr}
+}
+
+
+/* —— Tab 虚拟补全 + 输入框精修（对齐即梦/Miora 质感）—— */
+.emptyMode .editorRow{position:relative}
+.ghostLayer,.emptyMode .editorRow textarea{grid-area:1/1}
+.ghostLayer{display:flex;align-items:flex-start;gap:9px;min-width:0;padding:4px 2px;pointer-events:none;color:#a3a49b;font-size:16px;line-height:1.65;overflow:hidden}
+.ghostLayer kbd{flex:none;display:inline-flex;align-items:center;height:24px;padding:0 8px;margin-top:1px;border:1px solid #dddcd4;border-radius:6px;background:#fff;font-family:inherit;font-size:12px;font-weight:600;line-height:1;color:#77786f;box-shadow:0 1px 2px rgba(30,30,25,.05)}
+.ghostLayer span{min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ghostLayer.focused{opacity:.42}
+.roundIconBtn.customTrigger{width:auto;min-width:32px;padding:0 11px;gap:5px;border-radius:16px}
+.customTrigger .toolLabel{white-space:nowrap}
+.emptyMode .upstreamComposer{border-radius:24px;box-shadow:0 1px 3px rgba(30,30,25,.05),0 16px 44px rgba(30,30,25,.09)}
+.emptyMode .upstreamComposer .editorRow textarea{font-size:15px;line-height:1.6}
+
+
+/* —— 分类胶囊排：移到对话框上方，Miora 式轻量 chips —— */
+.creationDock{height:auto;margin:0 0 12px;flex:none}
+.creationDockMascot{display:none!important}
+.emptyMode .creationTabs{position:static;inset:auto;transform:none;display:flex;flex-wrap:wrap;justify-content:center;width:100%;height:auto;padding:0;gap:8px;border:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.emptyMode .creationTabs button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 16px;border:0;border-radius:999px;background:#f1f1ee;color:#75766e;font-size:13.5px;font-weight:560;box-shadow:none;transition:background .16s ease,color .16s ease}
+.emptyMode .creationTabs button:hover{background:#e7e7e2;color:#2c2d29}
+.emptyMode .creationTabs button.active{background:#1f2019;color:#fff}
+.emptyMode .creationTabs button .categoryIcon{width:15px;height:15px}
+
+
+/* 对话框收成单行：思考模型/图像/视频胶囊与输入框同排，不再占独立面板 */
+.modelSlotLabel{display:none}
+.modelSlot{min-width:0}
+.modelSlot :deep(.t-select__wrap),.modelSlot :deep(.t-select){width:150px}
+.customPanel{display:none}
+.emptyMode .upstreamComposer .editorRow textarea{min-height:52px;height:52px;max-height:132px}
+
+
+/* 图像/视频设置弹窗：620px 大卡收成 400px 紧凑版，内容等比缩小不变形 */
+.emptyMode .upstreamComposer .mediaSettingMenu{width:400px;padding:18px;gap:11px;max-height:min(560px,calc(100vh - 200px));border-radius:16px}
+.emptyMode .mediaSettingMenu h3{font-size:16px}
+.emptyMode .mediaSettingMenu>label,.emptyMode .settingTitleRow>label{font-size:12.5px}
+.emptyMode .upstreamComposer .mediaSettingMenu .settingSegment{gap:8px}
+.emptyMode .upstreamComposer .mediaSettingMenu .settingSegment button{height:36px;border-radius:18px;font-size:13px}
+.emptyMode .upstreamComposer .mediaSettingMenu .ratioGrid,.emptyMode .upstreamComposer .mediaSettingMenu .videoSizeGrid{gap:8px}
+.emptyMode .upstreamComposer .mediaSettingMenu .ratioGrid button,.emptyMode .upstreamComposer .mediaSettingMenu .videoSizeGrid button{min-height:76px;gap:5px;border-radius:12px;font-size:12.5px}
+.emptyMode .ratioGrid button i{width:30px;max-height:30px;border-width:2.5px}
+.emptyMode .ratioGrid button span,.emptyMode .videoSizeGrid button span{font-size:13px}
+.emptyMode .upstreamComposer .mediaSettingMenu .dimensionRow{gap:8px}
+.emptyMode .upstreamComposer .mediaSettingMenu .dimensionRow strong{font-size:14px}
+
+
+.emptyMode .upstreamComposer .mediaSettingMenu .ratioGrid button,.emptyMode .upstreamComposer .mediaSettingMenu .videoSizeGrid button{min-height:88px;gap:4px}
+.emptyMode .ratioGrid button span,.emptyMode .videoSizeGrid button span{font-size:12.5px;line-height:1.3}
+.emptyMode .videoSizeGrid button small,.emptyMode .ratioGrid button small{font-size:10.5px;line-height:1.25;color:#a8a8a0}
+
 </style>
 
 <!-- 非 scoped 全局段:IP mascot 眨眼动效 + 暗模式身体灰度适配 + 减弱运动守护(affectation 不能受 scoped 数据属性哈希约束否则 :root/.dark 选择器失配)-->
@@ -2104,4 +2397,21 @@ function useInspiration(prompt: string) {
 @media(prefers-reduced-motion:reduce){.ip-eye-white,.ip-eye-pupil{animation:none;}}
 /* 暗模式:IP 身躯亮度反相转中度灰维持辨识度 */
 :root[data-theme=dark] .ip-body,:root.dark .ip-body{filter:brightness(0) invert(.45);}
+
+/* —— 分类胶囊排：移到对话框上方，Miora 式轻量 chips —— */
+.creationDock{height:auto;margin:0 0 12px;flex:none}
+.creationDockMascot{display:none!important}
+.emptyMode .creationTabs{position:static;inset:auto;transform:none;display:flex;flex-wrap:wrap;justify-content:center;width:100%;height:auto;padding:0;gap:8px;border:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.emptyMode .creationTabs button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 16px;border:0;border-radius:999px;background:#f1f1ee;color:#75766e;font-size:13.5px;font-weight:560;box-shadow:none;transition:background .16s ease,color .16s ease}
+.emptyMode .creationTabs button:hover{background:#e7e7e2;color:#2c2d29}
+.emptyMode .creationTabs button.active{background:#1f2019;color:#fff}
+.emptyMode .creationTabs button .categoryIcon{width:15px;height:15px}
+
+
+/* —— Tab ghost 叠层·终局规则（必须最后声明，压过 .upstreamComposer .editorRow 的 flex）—— */
+.emptyMode .upstreamComposer .editorRow{display:grid!important;grid-template-rows:minmax(0,auto);align-items:start;align-content:start;gap:0}
+.emptyMode .upstreamComposer .editorRow.hasSkills{display:flex!important}
+.emptyMode .upstreamComposer .editorRow textarea{grid-area:1/1!important;flex:none;width:100%}
+.ghostLayer{grid-area:1/1;padding:6px 2px 0;font-size:16px;line-height:27px}
+.ghostLayer kbd{height:24px;margin-top:1px}
 </style>

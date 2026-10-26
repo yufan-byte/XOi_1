@@ -14,7 +14,6 @@ import { CanvasNodeType, type CanvasAgentSkillSelection, type CanvasConnection, 
 import { fitNodeSize } from "@/lib/canvas/canvas-node-size";
 import { imageMetadata } from "@/lib/canvas/canvas-node-factory";
 import { uploadImage } from "@/services/image-storage";
-import { useThemeStore } from "@/stores/use-theme-store";
 
 export type XoiImportImage = { src: string; name?: string; id?: number; type?: string; projectId?: number };
 export type XoiSaveResultImage = { id?: number | string; type?: string; projectId?: number; src: string };
@@ -103,14 +102,6 @@ export function getXoiFrom(): string {
     }
 }
 
-/** 监听宿主主题广播（App.vue initIframeTheme → {type:'xoi:theme', theme, accent}），同步画布明暗 */
-export function installThemeBridge() {
-    window.addEventListener("message", (event) => {
-        const data = event.data as { type?: unknown; theme?: unknown } | null;
-        if (!data || typeof data !== "object" || data.type !== "xoi:theme") return;
-        if (data.theme === "light" || data.theme === "dark") useThemeStore.getState().setTheme(data.theme);
-    });
-}
 
 // ---- 入口引导：建画布 + 导入图片节点（复刻旧 xoi-bridge.js autoCreateAndImport）----
 

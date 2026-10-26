@@ -4,6 +4,8 @@ import channelNotes from "@/data/channel-notes.json";
 import manualModels from "@/data/manual-models.json";
 import { aicostCaps, aicostHint, aicostSchema, type AicostCaps } from "@/lib/aicost-caps";
 import { seriesOfUpstream } from "@/lib/model-series";
+import { hiddenModelIds } from "@/lib/model-visibility";
+export { setHiddenModels, isModelHidden } from "@/lib/model-visibility";
 
 export type Modality = "chat" | "image" | "video" | "audio";
 
@@ -329,9 +331,6 @@ function fmtYuan(v: number) {
 }
 
 /** 代理商在「模型管理」里禁用的模型（reseller.models.disabled）：目录默认隐藏它们。由 BrandProvider 加载配置后写入并使 catalog 查询失效。 */
-const hiddenModelIds = new Set<string>();
-export function setHiddenModels(ids: string[]) { hiddenModelIds.clear(); for (const id of ids) hiddenModelIds.add(id); }
-export function isModelHidden(id: string) { return hiddenModelIds.has(id); }
 
 /** 同一模型在多个渠道时，非默认渠道的售卖 id 带后缀（claude-opus-5-official、gpt-5.5-enterprise）。
  *  卡片沿用原模型，名称后加后缀标记好在平铺的模型下拉里区分。这里只是后缀的中文译名，没登记的后缀原样显示，

@@ -1,5 +1,8 @@
 import { tool, jsonSchema, Tool } from "ai";
 import { z } from "zod";
+import { requireDirectorReview } from '@/utils/directorStageReview';
+import { continuitySchema, type Continuity } from '@/utils/directorContinuity';
+import { saveStoryboardBatch, updateStoryboardContinuity } from '@/utils/storyboardStore';
 import _ from "lodash";
 import ResTool from "@/socket/resTool";
 import u from "@/utils";
@@ -70,7 +73,7 @@ interface ToolConfig {
 function createSocketQueue(delayMs = 800) {
   let lastPromise: Promise<any> = Promise.resolve();
   return <T>(fn: () => Promise<T>): Promise<T> => {
-    lastPromise = lastPromise.then(
+    lastPromise = lastPromise.catch(() => undefined).then(
       () =>
         new Promise<T>((resolve, reject) => {
           setTimeout(() => fn().then(resolve, reject), delayMs);
@@ -97,6 +100,16 @@ export default (toolCpnfig: ToolConfig) => {
       ),
       execute: async ({ key }) => {
         const thinking = msg.thinking(`正在获取${flowDataKeyLabels[key]}工作区数据...`);
+
+        if (key === 'script' || key === 'scriptPlan' || key === 'storyboardTable') {
+          const {projectId,scriptId}=resTool.data;
+          const script=await u.db('o_script').where({id:scriptId,projectId}).first();
+          if(!script)throw Error('剧集不属于当前项目');
+          const row=await u.db('o_agentWorkData').where({projectId,episodesId:scriptId,key:'productionAgent'}).first();
+          const data=row?.data?JSON.parse(row.data):{};
+          const value=key==='script'?script.content||'':data[key]||'';
+          thinking.appendText(value);thinking.complete();return value;
+        }
 
         const flowData: FlowData = await new Promise((resolve) => socket.emit("getFlowData", { key }, (res: any) => resolve(res)));
         thinking.appendText(`获取到${flowDataKeyLabels[key]}:\n` + JSON.stringify(flowData[key], null, 2));
@@ -131,7 +144,7 @@ export default (toolCpnfig: ToolConfig) => {
         const thinking = msg.thinking("正在操作资产...");
         const { projectId, scriptId } = resTool.data;
         const startTime = Date.now();
-        const parentAssets = await u.db("o_assets").where("id", deriveAsset.assetsId).select("id", "type").first();
+        const parentAssets = await u.db("o_assets").where({ id: deriveAsset.assetsId, projectId }).select("id", "type").first();
         if (!parentAssets) return "关联的资产不存在";
 
         const data = {
@@ -144,12 +157,16 @@ export default (toolCpnfig: ToolConfig) => {
           startTime,
         };
         if (deriveAsset.id) {
-          await u.db("o_assets").where("id", deriveAsset.id).update(data);
+          const updated = await u.db("o_assets").where({ id: deriveAsset.id, projectId, assetsId: deriveAsset.assetsId }).update(data);
+          if (!updated) throw new Error('衍生资产不属于当前项目或关联资产');
           thinking.appendText(`已更新衍生资产，ID: ${deriveAsset.id}\n`);
         } else {
-          const [insertedId] = await u.db("o_assets").insert(data);
+          const insertedId = await u.db.transaction(async trx => {
+            const [row] = await trx('o_assets').insert(data).returning('id');
+            await trx('o_scriptAssets').insert({ scriptId, assetId: Number(row.id) });
+            return Number(row.id);
+          });
           data.id = insertedId;
-          await u.db("o_scriptAssets").insert({ scriptId, assetId: insertedId });
           thinking.appendText(`已新增衍生资产，ID: ${insertedId}\n`);
         }
         const res = await new Promise((resolve) => socket.emit("addDeriveAsset", data, (res: any) => resolve(res)));
@@ -170,9 +187,13 @@ export default (toolCpnfig: ToolConfig) => {
       ),
       execute: async ({ assetsId, id }) => {
         const thinking = msg.thinking("正在操作资产...");
-        const { scriptId } = resTool.data;
-        await u.db("o_assets").where("id", id).del();
-        await u.db("o_scriptAssets").where({ scriptId, assetId: id }).del();
+        const { scriptId, projectId } = resTool.data;
+        await u.db.transaction(async trx => {
+          const target = await trx('o_assets').where({ id, projectId, assetsId }).forUpdate().first();
+          if (!target) throw new Error('衍生资产不属于当前项目，未删除任何内容');
+          await trx('o_scriptAssets').where({ scriptId, assetId: id }).del();
+          await trx('o_assets').where({ id, projectId, assetsId }).del();
+        });
         thinking.appendText(`已删除衍生资产，ID: ${id}\n`);
         const res = await new Promise((resolve) => socket.emit("delDeriveAsset", { assetsId, id }, (res: any) => resolve(res)));
         thinking.updateTitle("资产操作完成");
@@ -217,6 +238,8 @@ export default (toolCpnfig: ToolConfig) => {
       ),
       execute: async ({ ids }) => {
         const thinking = msg.thinking("正在生成分镜...");
+        const reviewError = await requireDirectorReview(u.db, Number(resTool.data.projectId), Number(resTool.data.scriptId));
+        if (reviewError) { thinking.complete(); return reviewError; }
         socketQueue(
           () =>
             new Promise((resolve, reject) =>
@@ -240,6 +263,17 @@ export default (toolCpnfig: ToolConfig) => {
         return "开始生成分镜";
       },
     }),
+    update_storyboard_continuity: tool({
+      description:'在计划和分镜表审核后，修正现有镜头的场景关联与连续性。不删除、覆盖或重新生成图片视频，不重复创建镜头。',
+      inputSchema:jsonSchema<{id:number;continuity:Continuity;associateAssetsIds:number[]}>(z.object({id:z.number().int().positive(),continuity:continuitySchema,associateAssetsIds:z.array(z.number().int().positive()).max(32)}).toJSONSchema()),
+      execute:async({id,continuity,associateAssetsIds})=>{
+        const projectId=Number(resTool.data.projectId),scriptId=Number(resTool.data.scriptId);
+        const review=await requireDirectorReview(u.db,projectId,scriptId);if(review)return review;
+        await updateStoryboardContinuity(u.db,projectId,scriptId,id,continuity,associateAssetsIds);
+        socket.emit('directorStageSaved');
+        return '衔接方案已更新；历史图片与视频保留，下一次生成才会应用新方案。本次未生成媒体。';
+      },
+    }),
     add_flowData_storyboard: tool({
       description: "新增分镜面板到工作区",
       inputSchema: jsonSchema<{
@@ -249,6 +283,7 @@ export default (toolCpnfig: ToolConfig) => {
         duration: number;
         associateAssetsIds: number[] | null;
         shouldGenerateImage: string;
+        continuity: Continuity;
       }>(
         z
           .object({
@@ -258,10 +293,13 @@ export default (toolCpnfig: ToolConfig) => {
             duration: z.number().describe("视频推荐时间"),
             associateAssetsIds: z.array(z.number()).nullable().describe("该分镜所需的资产ID列表"),
             shouldGenerateImage: z.enum(["true", "false"]).describe("是否需要生成分镜图片"),
+            continuity: continuitySchema,
           })
           .toJSONSchema(),
       ),
       execute: async (raw) => {
+        const reviewError = await requireDirectorReview(u.db, Number(resTool.data.projectId), Number(resTool.data.scriptId));
+        if (reviewError) return reviewError;
         const thinking = msg.thinking("正在新增 分镜面板 数据...");
         const data = {
           videoDesc: raw.videoDesc,
@@ -270,27 +308,12 @@ export default (toolCpnfig: ToolConfig) => {
           duration: raw.duration,
           associateAssetsIds: raw.associateAssetsIds ?? [],
           shouldGenerateImage: raw.shouldGenerateImage,
+          continuity: raw.continuity,
         };
-        socketQueue(
-          () =>
-            new Promise((resolve, reject) =>
-              socket.emit("addStoryboard", { ...data }, (res: any) => {
-                if (res?.error) return reject(new Error(res.error));
-                resolve(res);
-              }),
-            ),
-        )
-          .then((res) => {
-            thinking.appendText("新增的分镜数据:\n" + JSON.stringify(data, null, 2));
-            thinking.updateTitle("新增分镜成功");
-            thinking.complete();
-          })
-          .catch((e) => {
-            thinking.appendText("新增的分镜数据:\n" + JSON.stringify(data, null, 2));
-            thinking.updateTitle("新增分镜失败");
-            thinking.complete();
-          });
-        return true;
+        const saved=await saveStoryboardBatch(u.db,Number(resTool.data.projectId),Number(resTool.data.scriptId),[{...data,prompt:data.prompt||'',state:'未生成',shouldGenerateImage:data.shouldGenerateImage==='true'?1:0}]);
+        thinking.appendText('镜头已保存到服务器');thinking.updateTitle('新增分镜成功');thinking.complete();
+        socket.emit('directorStageSaved');
+        return saved.map(s=>({id:s.id,track:s.track,continuity:s.continuity}));
       },
     }),
   };

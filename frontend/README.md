@@ -2,14 +2,20 @@
 
 XOi AI 短剧创作平台的前端应用，基于 Vue 3、TypeScript、Vite、Pinia 和 TDesign 构建。
 
-## 开发
+## 本地运行（统一入口）
+
+在仓库根目录执行 `./start.sh`，网页、API 和实时连接统一使用 `http://localhost:12121`。不启动 Vite、nodemon 或调试监听进程。数据库和模型网关作为内部依赖保留。
+
+修改前端后使用 `./stop.sh`、`./start.sh --build` 构建并更新网页。使用 `--skip-docker` 可复用已运行的数据库和网关。
+
+## 本地快捷命令
 
 ```bash
 yarn install
 yarn dev
 ```
 
-默认开发地址：`http://localhost:50188`。
+`dev` 和 `preview` 均复用 12121，不再启动独立的网页开发或预览服务器。代码更新后按下面的构建步骤生成网页，再同步到后端。
 
 ## 构建
 

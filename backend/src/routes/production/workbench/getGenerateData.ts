@@ -3,6 +3,7 @@ import u from "@/utils";
 import { z } from "zod";
 import { success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
+import { orderedDirectorTrackIds } from '@/utils/directorTrackOrder';
 const router = express.Router();
 
 interface VideoItem {
@@ -158,7 +159,7 @@ export default router.post(
       trackData.map((t) => t.id),
     );
     const trackList: TrackItem[] = [];
-    const trackIdMap = [...new Set<number>(trackData.map((t) => t.id!))];
+    const trackIdMap = orderedDirectorTrackIds(storyboardList, trackData);
     for (const trackId of trackIdMap) {
       const item = trackData.find((t) => t.id === trackId);
       trackList.push({

@@ -1,4 +1,5 @@
 import express from "express";
+import { resolveTextModelKey } from "@/utils/textModel";
 import u from "@/utils";
 import { z } from "zod";
 import sharp from "sharp";
@@ -100,7 +101,7 @@ export default router.post(
       const imageId = imageIdMap[item.id!];
       const typeConfig = promptRecord[item.type!] || promptRecord["role"];
 
-      const { text } = await u.Ai.Text("universalAi").invoke({
+      const { text } = await u.Ai.Text(await resolveTextModelKey({ projectId })).invoke({
         system: `${typeConfig.prompt}`,
         messages: [
           {

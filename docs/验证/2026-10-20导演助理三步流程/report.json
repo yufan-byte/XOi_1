@@ -1,0 +1,40 @@
+{
+  "report": [
+    {
+      "name": "three ordered stages; table preset updates the current scene"
+    },
+    {
+      "name": "changing A to B updates the framing draft and the actual camera; no duplicate shots or actor changes"
+    },
+    {
+      "name": "undo restores the previous camera framing"
+    },
+    {
+      "name": "stationary follow applies actor and camera travel together, rendered camera frames visibly change"
+    },
+    {
+      "name": "blocking edits the selected actor only and preserves the camera and the other actor route"
+    },
+    {
+      "name": "AI camera planning and scene editing live under the correct step, without triggering a model"
+    }
+  ],
+  "traffic": {
+    "model": 0,
+    "authorize": 0,
+    "save": 1,
+    "upload": 0
+  },
+  "network": {
+    "GET /api/reseller/config": 1,
+    "GET /api/auth/me": 2,
+    "GET /api/login/self": 1,
+    "GET /api/team": 1,
+    "GET /api/director-scenes": 1,
+    "GET /api/aiAssistant/director/skills": 1,
+    "GET /api/director-scenes/:id": 2,
+    "POST /api/modelSelect/getModelList": 1,
+    "PUT /api/director-scenes/:id": 1
+  },
+  "errors": []
+}

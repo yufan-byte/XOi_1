@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
-import { ArrowUp, Brain, FolderOpen, ImageIcon, Menu, Square, Upload, Video } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { ArrowUp, ChevronDown, Film, FolderOpen, ImageIcon, Menu, Square, Upload, Video } from "lucide-react";
 import { Button, Dropdown } from "antd";
 
+import { ModelPicker } from "@/components/model-picker";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { useEffectiveConfig } from "@/stores/use-config-store";
+import { modelOptionLabel, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { useModelPricing, modelPricingText } from "@/xoi/model-pricing";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAgentSkillSelection, type CanvasAssistantReference } from "@/types/canvas";
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { CanvasReferenceAnalysisPopover } from "./canvas-reference-analysis-popover";
@@ -58,7 +60,11 @@ export function CanvasAssistantComposer({
 }: CanvasAssistantComposerProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const effectiveConfig = useEffectiveConfig();
-    const reasoningEnabled = agentConfig.textReasoningEnabled === true;
+    const updateGlobalConfig = useConfigStore((state) => state.updateConfig);
+    const pricing = useModelPricing();
+    const pricingRows = pricing.rows;
+    const [showModelDetails, setShowModelDetails] = useState(false);
+    const [analyzeOpen, setAnalyzeOpen] = useState(false);
     const imageConfig = useMemo(() => ({ ...effectiveConfig, quality: agentConfig.imageQuality, size: agentConfig.imageSize }), [agentConfig.imageQuality, agentConfig.imageSize, effectiveConfig]);
     const videoConfig = useMemo(() => ({ ...effectiveConfig, vquality: agentConfig.videoQuality, size: agentConfig.videoSize }), [agentConfig.videoQuality, agentConfig.videoSize, effectiveConfig]);
     const promptReferences = useMemo(() => {
@@ -84,11 +90,34 @@ export function CanvasAssistantComposer({
                     onReferenceIdsChange={onReferenceIdsChange}
                     onPasteImage={onPasteImage}
                     onSubmit={submit}
-                    className="thin-scrollbar min-h-20 max-h-[220px] w-full px-1 py-0 text-sm leading-5"
+                    className="thin-scrollbar min-h-24 max-h-[220px] w-full px-1 pb-8 pt-0 text-sm leading-6"
                     style={{ color: theme.node.text }}
                     placeholder="描述创作目标，或让我继续操作画布"
                     placeholderClassName="!left-1 !top-0"
                 />
+                <div className="mt-1 border-t pt-2" style={{ borderColor: theme.node.stroke }}>
+                    <div className="flex min-w-0 items-center justify-between gap-2 px-1 text-[11px]">
+                        <span className="min-w-0 truncate opacity-70">Agent 思考 · {modelOptionLabel(effectiveConfig, effectiveConfig.textModel) || "系统文本模型"}</span>
+                        <button type="button" className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] hover:bg-black/5" style={{ color: theme.node.activeStroke }} aria-expanded={showModelDetails} onClick={() => setShowModelDetails((open) => !open)}>
+                            模型与积分 <ChevronDown className={`size-3 transition-transform ${showModelDetails ? "rotate-180" : ""}`} />
+                        </button>
+                    </div>
+                    {showModelDetails ? (
+                        <div className="mt-2 max-h-[min(34vh,260px)] space-y-2 overflow-y-auto rounded-xl border p-2.5" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+                            {pricing.error ? <div className="flex items-center justify-between gap-2 text-[11px]" role="status"><span>{pricing.error}</span><button type="button" className="shrink-0 underline" onClick={pricing.reload}>重试</button></div> : null}
+                            <div className="flex items-center justify-between gap-2 text-[11px]"><span>对话规划</span><span className="text-right opacity-65">{modelPricingText(pricingRows, effectiveConfig.textModel, "text", pricing)}</span></div>
+                            <div className="min-w-0 rounded-lg border p-2" style={{ borderColor: theme.toolbar.border, background: theme.toolbar.panel }}>
+                                <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px]"><span className="inline-flex shrink-0 items-center gap-1 font-medium"><ImageIcon className="size-3" />图片模型</span><span className="min-w-0 truncate text-right opacity-60">{modelPricingText(pricingRows, effectiveConfig.imageModel, "image", pricing)}</span></div>
+                                <ModelPicker config={effectiveConfig} value={effectiveConfig.imageModel} capability="image" fullWidth className="!h-8 !min-w-0 !rounded-lg !px-2 !text-xs" onChange={(imageModel) => updateGlobalConfig("imageModel", imageModel)} />
+                            </div>
+                            <div className="min-w-0 rounded-lg border p-2" style={{ borderColor: theme.toolbar.border, background: theme.toolbar.panel }}>
+                                <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px]"><span className="inline-flex shrink-0 items-center gap-1 font-medium"><Video className="size-3" />视频模型</span><span className="min-w-0 truncate text-right opacity-60">{modelPricingText(pricingRows, effectiveConfig.videoModel, "video", pricing)}</span></div>
+                                <ModelPicker config={effectiveConfig} value={effectiveConfig.videoModel} capability="video" fullWidth className="!h-8 !min-w-0 !rounded-lg !px-2 !text-xs" onChange={(videoModel) => updateGlobalConfig("videoModel", videoModel)} />
+                            </div>
+                            <p className="m-0 text-[10px] leading-4 opacity-55">选择模型不扣积分，实际生成时按模型用量结算。</p>
+                        </div>
+                    ) : null}
+                </div>
                 <div className="@container mt-2 flex items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-1 items-center gap-1">
                         <Dropdown
@@ -97,14 +126,19 @@ export function CanvasAssistantComposer({
                                 items: [
                                     { key: "upload", icon: <Upload className="size-4" />, label: "上传文件" },
                                     { key: "assets", icon: <FolderOpen className="size-4" />, label: "我的素材" },
+                                    { type: "divider" },
+                                    { key: "analyze", icon: <Film className="size-4" />, label: "拆解参考视频", disabled: isRunning },
                                 ],
-                                onClick: ({ key }) => (key === "upload" ? onOpenUpload() : onOpenAssets()),
+                                onClick: ({ key }) => {
+                                    if (key === "analyze") { setAnalyzeOpen(true); return; }
+                                    key === "upload" ? onOpenUpload() : onOpenAssets();
+                                },
                             }}
                         >
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Menu className="size-4" />} aria-label="添加素材" />
                         </Dropdown>
                         {onSkillSelect && onSkillRemove ? <CanvasAgentSkillPopover selectedSkills={selectedSkills} onSelect={onSkillSelect} onDeleteSelected={onSkillRemove} onInsertExample={example => onPromptChange([prompt.trim(), example].filter(Boolean).join("\n\n"))} /> : null}
-                        <CanvasReferenceAnalysisPopover references={references} model={effectiveConfig.textModel} skills={selectedSkills} disabled={isRunning} onInsert={report => onPromptChange([prompt.trim(), report].filter(Boolean).join("\n\n"))} />
+                        <CanvasReferenceAnalysisPopover references={references} model={effectiveConfig.textModel} skills={selectedSkills} disabled={isRunning} hideTrigger open={analyzeOpen} onOpenChange={setAnalyzeOpen} onInsert={report => onPromptChange([prompt.trim(), report].filter(Boolean).join("\n\n"))} />
                         {codexControls}
                         <CanvasImageSettingsPopover
                             config={imageConfig}
@@ -130,19 +164,6 @@ export function CanvasAssistantComposer({
                         />
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                        {!codexControls ? (
-                            <Button
-                                type="text"
-                                shape="circle"
-                                className="!h-8 !w-8 !min-w-8"
-                                style={{ color: theme.node.text, background: reasoningEnabled ? theme.toolbar.activeBg : undefined }}
-                                icon={<Brain className="size-4" />}
-                                title={reasoningEnabled ? "推理已开启" : "推理已关闭"}
-                                aria-label={reasoningEnabled ? "关闭推理" : "开启推理"}
-                                aria-pressed={reasoningEnabled}
-                                onClick={() => onAgentConfigChange({ textReasoningEnabled: !reasoningEnabled })}
-                            />
-                        ) : null}
                         <Button
                             type="primary"
                             shape="circle"

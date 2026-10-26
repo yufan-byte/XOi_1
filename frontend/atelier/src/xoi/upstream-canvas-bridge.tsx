@@ -2,11 +2,13 @@ import { useMemo } from "react";
 import { App, Button } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 import { nanoid } from "nanoid";
+import {normalizeWorkflowLayout} from "./graph-layout";
 import { ArrowLeft } from "lucide-react";
 
 import { useCanvasStore } from "@upstream/app/(user)/canvas/stores/use-canvas-store";
 import { fitNodeSize } from "@upstream/app/(user)/canvas/utils/canvas-node-size";
 import { uploadImage } from "@upstream/services/image-storage";
+import { useConfigStore as useUpstreamConfigStore } from "@upstream/stores/use-config-store";
 
 type ImportImage = { src: string; name?: string; id?: number; type?: string; projectId?: number };
 type LooseNode = { id: string; type: string; title: string; position: { x: number; y: number }; width: number; height: number; metadata?: Record<string, any> };
@@ -30,6 +32,7 @@ type CanvasHandoff = {
     videoUrls?: string[];
     image?: { size?: string; quality?: string };
     video?: { size?: string; quality?: string };
+    model?: string;
     reasoning?: boolean;
     source?: string;
 };
@@ -37,7 +40,7 @@ type CanvasHandoff = {
 /** 造物灵感广场 canvas-previews.json 的单节点 / 单连线（字段是造物压缩过的短名） */
 type PreviewNode = { id: string; type: string; x?: number; y?: number; w?: number; h?: number; parent?: string | null; data?: Record<string, unknown> };
 type PreviewEdge = { s: string; t: string };
-type GraphPayload = { workId?: string; title?: string; prompt?: string; nodes?: PreviewNode[]; edges?: PreviewEdge[] };
+type GraphPayload = { workId?: string; title?: string; prompt?: string; source?: string; referenceId?:string; focusNodeIds?: string[]; nodes?: PreviewNode[]; edges?: PreviewEdge[] };
 
 async function waitForHydration() {
     if (useCanvasStore.persist.hasHydrated()) return;
@@ -69,7 +72,7 @@ export async function runUpstreamXoiImport(navigate: (path: string) => void) {
         });
     }
     useCanvasStore.getState().updateProject(projectId, { nodes: nodes as never[] });
-    navigate(`/canvas/${projectId}`);
+    await navigate(`/canvas/${projectId}`);
 }
 
 /** 宿主侧栏「新建画布」一键直达：?new=1&source=xoi 建一个空白项目并直接进编辑器，
@@ -83,13 +86,15 @@ export async function runUpstreamXoiNewCanvas(navigate: (path: string) => void) 
     await waitForHydration();
     const count = useCanvasStore.getState().projects.length + 1;
     const projectId = useCanvasStore.getState().createProject(`无限画布 ${count}`);
-    navigate(`/canvas/${projectId}`);
+    await navigate(`/canvas/${projectId}`);
 }
 
 /** Consume the outer creative-chat composer request using the upstream canvas
  * store and pending-agent protocol, so the full upstream Agent panel receives
  * exactly the same prompt, Skills, attachments and media defaults. */
 export async function runUpstreamXoiHandoff(navigate: (path: string) => void) {
+    const params = new URLSearchParams(location.search);
+    if(params.get("source")!=="xoi"||params.get("handoff")!=="1")return;
     const raw = localStorage.getItem(HANDOFF_KEY);
     if (!raw) return;
     let handoff: CanvasHandoff;
@@ -102,6 +107,9 @@ export async function runUpstreamXoiHandoff(navigate: (path: string) => void) {
     if (!prompt) return;
     localStorage.removeItem(HANDOFF_KEY);
     await waitForHydration();
+
+    const requestedTextModel = String(handoff.model || "").split("::").pop()!.replace(/^newapi:/, "");
+
 
     const assets = (handoff.assets || []).filter((item) => item?.dataUrl).map((item, index) => {
         const nodeId = item.id || nanoid();
@@ -118,8 +126,10 @@ export async function runUpstreamXoiHandoff(navigate: (path: string) => void) {
     const videoPreset: Record<string, string> = { 横屏: "1280x720", 竖屏: "720x1280", 方形: "960x960", 标准横屏: "1112x834", 标准竖屏: "834x1112", 宽银幕: "1470x630" };
     const videoSize = videoPreset[handoff.video?.size || "横屏"] || "1280x720";
     const projectId = useCanvasStore.getState().createProject(prompt.slice(0, 28) || "无限画布", {
-        pendingAgentRequest: { prompt, assets: assets as never[], skills },
+        pendingAgentRequest: { prompt, assets: assets as never[], skills, requestedModel:requestedTextModel, awaitServerModels:true },
         agentConfig: {
+            textModel: requestedTextModel || useUpstreamConfigStore.getState().config.textModel,
+            textChannelId: useUpstreamConfigStore.getState().config.textChannelId,
             textApiMode: "chat",
             textReasoningEnabled: handoff.reasoning === true,
             autoGenerateMedia: false,
@@ -163,7 +173,7 @@ export async function runUpstreamXoiHandoff(navigate: (path: string) => void) {
         }
         if (nodes.length) useCanvasStore.getState().updateProject(projectId, { nodes: nodes as never[] });
     }
-    navigate(`/canvas/${projectId}`);
+    await navigate(`/canvas/${projectId}`);
 }
 
 /** 造物 preview 节点类型 → atelier 节点类型。config 家族（imageConfig/videoConfig/llmConfig/audioConfig）
@@ -201,7 +211,7 @@ function flattenVideoStory(data: Record<string, unknown>): string {
 
 /** 造物 preview 图 → atelier 图：类型收敛、x/y/w/h → position/width/height、data.* → metadata.*、
  *  parent → metadata.groupId、{s,t} 连线 → {fromNodeId,toNodeId}。无法识别的节点与悬空连线一律丢弃。 */
-function adaptPreviewGraph(payload: GraphPayload) {
+export function adaptPreviewGraph(payload: GraphPayload) {
     const raw = payload.nodes || [];
     const groupIds = new Set(raw.filter((item) => item.type === "group").map((item) => item.id));
     const nodes: LooseNode[] = [];
@@ -249,6 +259,14 @@ function adaptPreviewGraph(payload: GraphPayload) {
             if (data.generate_audio != null) metadata.generateAudio = data.generate_audio ? "true" : "false";
             if (typeof data.videoModeManual === "string" && data.videoModeManual) metadata.videoMode = data.videoModeManual;
         }
+        if (payload.source === "director3d") {
+            if (data.directorSource) metadata.directorSource = data.directorSource;
+            if(data.referenceRole)metadata.referenceRole=data.referenceRole;
+            if(data.previz)metadata.previz=data.previz;
+            if(mappedType==="video"){if(data.durationMs)metadata.durationMs=data.durationMs;if(data.mimeType)metadata.mimeType=data.mimeType;}
+            if(mappedType === "director" && payload.referenceId)metadata.directorReferenceId=payload.referenceId;
+            if (mappedType === "director" && data.directorProject) { metadata.directorProject=data.directorProject;metadata.directorCover=typeof data.url==="string"?data.url:undefined; }
+        }
         if (item.parent && groupIds.has(item.parent)) metadata.groupId = item.parent;
         nodes.push({
             id: item.id,
@@ -264,13 +282,13 @@ function adaptPreviewGraph(payload: GraphPayload) {
     const connections: LooseConnection[] = (payload.edges || [])
         .filter((edge) => edge && ids.has(edge.s) && ids.has(edge.t))
         .map((edge) => ({ id: nanoid(), fromNodeId: edge.s, toNodeId: edge.t }));
-    return { nodes, connections };
+    return { nodes:normalizeWorkflowLayout(nodes), connections };
 }
 
 /** 造物画布坐标跨度可达数千像素（如 x=5180,y=7490），不设初始视口会开在空白处。
  *  按节点包围盒算一个居中铺满的视口：screen = world * k + (x, y)（与 infinite-canvas 的
  *  transform: translate(x,y) scale(k) 一致）。容器尺寸取常见工作区估值即可，误差用户一滚就有。 */
-function fitViewport(nodes: LooseNode[]) {
+function fitViewport(nodes: LooseNode[], director=false) {
     if (!nodes.length) return undefined;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const node of nodes) {
@@ -281,6 +299,7 @@ function fitViewport(nodes: LooseNode[]) {
     }
     const bw = Math.max(1, maxX - minX);
     const bh = Math.max(1, maxY - minY);
+    if(director){const width=Math.max(640,window.innerWidth-280),height=Math.max(480,window.innerHeight);const k=Math.min(1,Math.max(.05,Math.min((width-96)/bw,(height-192)/bh)));return {k,x:width/2-(minX+maxX)/2*k,y:96-minY*k};}
     const W = 1200, H = 760, PAD = 0.88;
     const k = Math.min(Math.max(Math.min(W / bw, H / bh) * PAD, 0.05), 1);
     return { k, x: W / 2 - ((minX + maxX) / 2) * k, y: H / 2 - ((minY + maxY) / 2) * k };
@@ -303,15 +322,16 @@ export async function runUpstreamXoiGraphImport(navigate: (path: string) => void
     const { nodes, connections } = adaptPreviewGraph(payload);
     if (!nodes.length) return;
     await waitForHydration();
+    if(payload.source==='director3d'&&payload.referenceId){const existing=useCanvasStore.getState().projects.find(project=>project.nodes.some(node=>node.type==='director'&&(node.metadata as any)?.directorReferenceId===payload.referenceId));if(existing){await navigate(`/canvas/${existing.id}`);return;}}
     const projectId = useCanvasStore.getState().importProject({
         title: payload.title || "复刻画布",
         nodes: nodes as never[],
         connections: connections as never[],
-        viewport: fitViewport(nodes),
+        viewport: fitViewport(payload.source==='director3d'&&Array.isArray(payload.focusNodeIds)?nodes.filter(n=>payload.focusNodeIds!.includes(n.id)):nodes,payload.source==='director3d'),
     });
     const prompt = String(payload.prompt || "").trim();
     if (prompt) useCanvasStore.getState().updateProject(projectId, { pendingAgentRequest: { prompt, assets: [], skills: [] } });
-    navigate(`/canvas/${projectId}`);
+    await navigate(`/canvas/${projectId}`);
 }
 
 function collectResults(nodes: LooseNode[], connections: LooseConnection[]) {
@@ -366,8 +386,8 @@ export function XoiCanvasBackControl() {
         }
     };
     return (
-        <div data-xoi-canvas-back className="pointer-events-auto absolute left-1/2 top-4 z-[90] -translate-x-1/2">
-            <Button icon={<ArrowLeft className="size-4" />} onClick={go}>{toChat ? "回到对话" : toSquare ? "回到广场" : toDirector ? "返回导演台" : "返回首页"}</Button>
+        <div data-xoi-canvas-back className="pointer-events-auto absolute left-[76px] top-[76px] z-30">
+            <Button size="small" icon={<ArrowLeft className="size-3.5" />} onClick={go}>{toChat ? "回到对话" : toSquare ? "回到广场" : toDirector ? "返回导演台" : "返回首页"}</Button>
         </div>
     );
 }

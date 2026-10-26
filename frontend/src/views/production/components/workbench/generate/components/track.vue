@@ -1,88 +1,70 @@
 <template>
-  <div class="videoTrack">
-    <t-card bordered :style="{ height: '100%' }">
-      <div class="trackMenu f ac jb">
-        <div class="left f ac">
-          <t-checkbox v-model="checkAll" @change="handleCheckAll">{{ $t("workbench.generate.selectAll") }}</t-checkbox>
-          <span class="selectedCount" v-if="checkedTrackIds.length">{{ $t("workbench.generate.selected") }} {{ checkedTrackIds.length }} 段</span>
-        </div>
-        <div class="right f ac">
-          <t-button size="small" variant="outline" :disabled="!checkedTrackIds.length" @click="batchDownloadVideo" title="下载已勾选镜头的已采用视频">
-            下载视频
-          </t-button>
-          <t-button size="small" variant="outline" :disabled="!checkedTrackIds.length" @click="importSelectedToEditor" title="把已采用的视频加入剪辑台">
-            导入剪辑台
-          </t-button>
-          <t-button size="small" variant="outline" :disabled="!checkedTrackIds.length" @click="batchGenText" :loading="generateTextLoad" title="为已勾选镜头生成提示词">
-            生成提示词
-          </t-button>
-          <t-button size="small" theme="primary" :disabled="!checkedTrackIds.length" @click="batchGenVideo" :loading="generateVideoLoad" title="为已勾选镜头生成视频">
-            批量生成视频
-          </t-button>
-          <!-- <t-button size="small" variant="outline" @click="importVideo">{{ $t("workbench.generate.importVideo") }}</t-button> -->
-        </div>
+  <div class="studioTracks">
+    <header class="tracksHeading">
+      <strong>本集镜头</strong>
+      <span>{{ trackList.length }} 段 · {{ totalSeconds }} 秒</span>
+    </header>
+    <button v-if="pendingStoryboardCount" type="button" class="tracksPending" @click="emit('go-frames')">
+      {{ pendingStoryboardCount }} 镜未关联视频 · 去补齐 →
+    </button>
+    <div v-if="batchMode" class="tracksBatch">
+      <label>
+        <input type="checkbox" :checked="checkAll" @change="handleCheckAll(($event.target as HTMLInputElement).checked)" />
+        全选
+        <span>已选 {{ checkedTrackIds.length }}</span>
+      </label>
+      <div>
+        <button type="button" :disabled="!checkedTrackIds.length || generateTextLoad" @click="batchGenText">整理提示词</button>
+        <button type="button" :disabled="!checkedTrackIds.length || generateVideoLoad" @click="batchGenVideo">
+          {{ generateVideoLoad ? "正在提交…" : "批量生成" }}
+        </button>
+        <button type="button" :disabled="!checkedTrackIds.length" @click="batchDownloadVideo">下载视频</button>
+        <button type="button" :disabled="!checkedTrackIds.length" @click="importSelectedToEditor">加入剪辑</button>
       </div>
-      <div class="itemBox">
-        <div
-          class="item"
-          :class="{ active: index === activeTrackIndex }"
-          v-for="(track, index) in trackList"
-          :key="track.id"
-          @click="changeIndex(index)">
-          <t-checkbox
-            class="trackCheck"
-            :checked="track.id != null && checkedTrackIds.includes(track.id)"
-            @click.stop
-            @change="(val: boolean) => toggleCheck(track.id, val)" />
-          <t-tag class="indexTag" size="small">#{{ index + 1 }}</t-tag>
-          <t-tag class="selectTag" theme="success" size="small" v-if="track.selectVideoId">已选择</t-tag>
-          <!-- 优先展示选中视频的首帧 -->
-          <div class="thumbGroup" v-if="track.selectVideoId && getSelectedVideoSrc(track)">
-            <img
-              v-if="videoCoverMap[getSelectedVideoSrc(track)!]"
-              class="thumb selectedVideoThumb"
-              :src="videoCoverMap[getSelectedVideoSrc(track)!]"
-              draggable="false" />
-            <div v-else class="thumb placeholder c">
-              <i-video size="24" />
-            </div>
+    </div>
+    <div class="studioShotList">
+      <article v-for="(track, index) in trackList" :key="track.id" class="studioShot" :class="{ active: index === activeTrackIndex }">
+        <button type="button" class="shotPick" :aria-pressed="index === activeTrackIndex" @click="changeIndex(index)">
+          <div class="shotThumb">
+            <img v-if="coverFor(track)" :src="coverFor(track)" alt="镜头画面缩略图" loading="lazy" />
+            <span v-else class="shotThumbEmpty"><i-video size="22" /></span>
+            <span v-if="trackStateClass(track) === 'processing'" class="shotBusy">生成中</span>
           </div>
-          <!-- 无选中视频时展示参考素材缩略图 -->
-          <div class="thumbGroup" v-else-if="track.medias.some((m) => m.src)">
-            <template v-for="(m, i) in track.medias" :key="i">
-              <template v-if="m.src">
-                <t-image fit="cover" v-if="m.fileType === 'image'" :src="m.src" class="thumb" />
-                <div v-else class="thumb placeholder c">
-                  <i-volume-notice v-if="m.fileType === 'audio'" size="20" />
-                  <i-video v-else size="24" />
-                </div>
-              </template>
-            </template>
-          </div>
-          <span v-else class="emptyTrack">{{ $t("workbench.generate.emptyTrack", { index: index + 1 }) }}</span>
-          <div class="trackMeta">
-            <span class="trackState" :class="trackStateClass(track)">{{ trackStateLabel(track) }}</span>
-            <span class="trackDuration">{{ track.duration || 0 }}s</span>
-          </div>
-          <div class="deleteBtn" @click.stop="confirmDeleteTrack(index)">
-            <i-close size="14" />
-          </div>
-        </div>
-        <div class="item addItem c" @click="addTrack">
-          <i-plus size="36"></i-plus>
-        </div>
-        <div class="item addItem c batchCreateBtn" :class="{ disabled: !pendingStoryboardCount }" @click="batchCreateFromStoryboard" v-if="props.storyboardList?.length">
-          <t-tooltip :content="pendingStoryboardCount ? `根据分镜批量创建（剩余 ${pendingStoryboardCount} 个）` : '分镜已全部创建片段'">
-            <i-copy size="24"></i-copy>
-          </t-tooltip>
-        </div>
-      </div>
-    </t-card>
+          <strong>{{ props.trackLabels?.[track.id] || `镜头 ${index + 1}` }}</strong>
+          <span class="shotDetails">
+            {{ track.duration || 0 }} 秒
+            <i>·</i>
+            {{ adoptedLabel(track) }}
+          </span>
+        </button>
+        <input
+          v-if="batchMode"
+          class="shotCheck"
+          type="checkbox"
+          :aria-label="`选择镜头 ${index + 1}`"
+          :checked="checkedTrackIds.includes(track.id)"
+          @change="toggleCheck(track.id, ($event.target as HTMLInputElement).checked)" />
+      </article>
+    </div>
+    <footer class="tracksFooter">
+      <button type="button" class="batchToggle" :class="{ active: batchMode }" @click="batchMode = !batchMode">
+        {{ batchMode ? "退出批量操作" : "批量操作" }}
+      </button>
+      <details>
+        <summary>更多镜头操作</summary>
+        <button type="button" @click="addTrack">添加独立片段</button>
+        <button type="button" :disabled="!pendingStoryboardCount" @click="batchCreateFromStoryboard">
+          从未关联分镜创建片段{{ pendingStoryboardCount ? `（${pendingStoryboardCount}）` : "" }}
+        </button>
+        <button type="button" :disabled="!trackList.length" @click="confirmDeleteTrack(activeTrackIndex)">删除当前片段</button>
+      </details>
+    </footer>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { Ref } from "vue";
+import { videoReferenceItems, videoReferenceError, type StudioReferenceAllowance } from "@/utils/studioVideoInput";
 import "@/views/production/components/workbench/type/type";
 import axios from "@/utils/axios";
 import projectStore from "@/stores/project";
@@ -96,19 +78,23 @@ const { removeCache } = imageListCacheStore();
 const episodesId = inject<Ref<number>>("episodesId")!;
 const props = defineProps<{
   modelParmas: ModelSetting;
+  trackLabels?: Record<number, string>;
   imageList: UploadItem[];
   storyboardList?: StoryboardItem[];
+  referenceAllowance: StudioReferenceAllowance;
   clampDuration: (trackDuration: number) => number;
 }>();
-const activeTrackIndex = defineModel("activeTrackIndex", {
+const activeTrackIndex = defineModel<number>("activeTrackIndex", {
   default: 0,
 });
 const checkedTrackIds = ref<number[]>([]); // 已勾选的轨道 id
+const batchMode = ref(false);
 const trackList = defineModel<TrackItem[]>({
   default: () => [],
 });
 const emit = defineEmits<{
   getData: [];
+  "go-frames": [];
   change: [prevIndex: number];
   saveImageList: [trackId: number];
   importVideo: [{ trackId: number; videoId: number; src: string; duration: number }[]];
@@ -116,6 +102,20 @@ const emit = defineEmits<{
 const checkAll = ref(false); // 全选状态
 const pendingStoryboardCount = computed(() => (props.storyboardList ?? []).filter((storyboard) => !storyboard.trackId).length);
 
+const totalSeconds = computed(() => Number(trackList.value.reduce((sum, track) => sum + Number(track.duration || 0), 0).toFixed(1)));
+function coverFor(track: TrackItem) {
+  const video = getSelectedVideoSrc(track);
+  return (
+    (video && videoCoverMap.value[video]) ||
+    props.storyboardList?.find((frame) => Number(frame.trackId) === track.id && frame.src)?.src ||
+    track.medias.find((m) => m.fileType === "image" && m.src)?.src ||
+    ""
+  );
+}
+function adoptedLabel(track: TrackItem) {
+  const selected = track.videoList.findIndex((video) => video.id === track.selectVideoId);
+  return selected >= 0 ? `已采用 V${selected + 1}` : trackStateLabel(track);
+}
 /** 视频封面缓存 src -> dataURL */
 const videoCoverMap = ref<Record<string, string>>({});
 
@@ -155,7 +155,7 @@ function captureVideoCover(src: string) {
   video.addEventListener(
     "loadeddata",
     () => {
-      video.currentTime = 0;
+      video.currentTime = Math.min(0.12, Number.isFinite(video.duration) ? video.duration / 2 : 0.12);
     },
     { once: true },
   );
@@ -166,6 +166,12 @@ function captureVideoCover(src: string) {
     },
     { once: true },
   );
+  const timeout = setTimeout(() => {
+    video.removeAttribute("src");
+    video.load();
+  }, 15000);
+  video.addEventListener("seeked", () => clearTimeout(timeout), { once: true });
+  video.addEventListener("error", () => clearTimeout(timeout), { once: true });
   video.load();
 }
 
@@ -187,7 +193,9 @@ function trackStateClass(track: TrackItem) {
 
 function trackStateLabel(track: TrackItem) {
   const state = trackStateClass(track);
-  return ({ processing: "生成中", failed: "需重试", selected: "已采用", ready: "待选择", prompted: "可生成", todo: "待准备" } as Record<string, string>)[state];
+  return (
+    { processing: "生成中", failed: "需重试", selected: "已采用", ready: "待选择", prompted: "可生成", todo: "待准备" } as Record<string, string>
+  )[state];
 }
 /** 删除轨道请求 */
 async function deleteTrack(index: number) {
@@ -336,7 +344,7 @@ function importSelectedToEditor() {
     .filter((item): item is { trackId: number; videoId: number; src: string; duration: number } => Boolean(item));
 
   if (!items.length) {
-    window.$message.warning("请先在右侧视频版本中点击 ✓ 选择要剪辑的版本");
+    window.$message.warning("请先在生成结果下采用要剪辑的视频版本");
     return;
   }
   emit("importVideo", items);
@@ -391,17 +399,10 @@ function batchGenText() {
  * @param filterEmpty 是否过滤掉没有 src 的项（生成视频时需要过滤，生成提示词时不需要）
  */
 function getTrackUploadInfo(track: TrackItem, filterEmpty = false) {
-  const activeTrackId = trackList.value[activeTrackIndex.value]?.id;
-
-  if (track.id === activeTrackId) {
-    const items = props.imageList as UploadItem[];
-    return (filterEmpty ? items.filter((item) => Boolean(item.src)) : items).map(({ id, sources }) => ({
-      id,
-      sources: (sources ?? "storyboard") as string,
-    }));
-  }
-  return track.medias.filter((m) => !filterEmpty || Boolean(m.src)).map(({ id, sources }) => ({ id, sources: (sources ?? "storyboard") as string }));
+  const items: (UploadItem | TrackMedia)[] = track.id === trackList.value[activeTrackIndex.value]?.id ? props.imageList : track.medias;
+  return videoReferenceItems(props.modelParmas.mode, items, props.referenceAllowance).map(({ id, sources }) => ({ id, sources: sources! }));
 }
+
 const generateVideoLoad = ref(false);
 /** 批量为已勾选轨道生成视频 */
 function batchGenVideo() {
@@ -415,6 +416,11 @@ function batchGenVideo() {
       const notHasPrompt = checkedTrackData.filter((i) => !i.prompt);
       if (notHasPrompt.length) return window.$message.warning($t("workbench.generate.skipDataWithEmptyVideoPromptWords"));
 
+      for (const track of checkedTrackData) {
+        const refs = track.id === trackList.value[activeTrackIndex.value]?.id ? props.imageList : track.medias;
+        const problem = videoReferenceError(props.modelParmas.mode, refs, props.referenceAllowance);
+        if (problem) return window.$message.warning(`${props.trackLabels?.[track.id] || "所选镜头"}：${problem}`);
+      }
       const trackData = checkedTrackData.map((track) => {
         const trackId = track.id;
         const uploadData = props.modelParmas.mode === "text" ? [] : getTrackUploadInfo(track, true);
@@ -434,10 +440,13 @@ function batchGenVideo() {
         audio: Boolean(props.modelParmas.audio),
         trackData,
       };
+      generateVideoLoad.value = true;
       try {
         const { data } = await axios.post("/production/workbench/batchGenerateVideo", requestData);
         const videoRecordId: Record<number, number> = {};
-        data.forEach((item: { videoId: number; trackId: number }) => {
+        const tasks = Array.isArray(data) ? data : data?.tasks;
+        if (!Array.isArray(tasks)) throw Error("任务已提交但返回格式异常，请刷新任务状态，避免重复生成");
+        tasks.forEach((item: { videoId: number; trackId: number }) => {
           videoRecordId[item.trackId] = item.videoId;
         });
         checkedTrackData.forEach((i) => {
@@ -491,222 +500,228 @@ watch(
 );
 </script>
 
-<style lang="scss" scoped>
-.videoTrack {
-  width: 100%;
-  overflow: hidden;
+<style scoped lang="scss">
+.tracksPending {
+  background: var(--studio-bg);
+  border: 1px solid var(--studio-line);
+  color: var(--studio-accent);
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin: 0 12px 10px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.studioTracks {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  .trackMenu {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--td-border-level-1-color);
-    .selectedCount {
-      font-size: 12px;
-      color: var(--td-text-color-secondary);
-      margin-left: 8px;
-      animation: fadeIn 200ms ease-out;
-    }
-    .left { width: 100%; min-width: 0; }
-    .right {
-      width: 100%;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 6px;
-      .t-button { border-radius: 7px; white-space: nowrap; }
-    }
-  }
-  .itemBox {
-    height: auto;
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-    overflow-y: auto;
-    gap: 10px;
-    padding-bottom: 6px;
-    &::-webkit-scrollbar {
-      height: 6px;
-    }
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 3px;
-      &:hover {
-        background: rgba(255, 255, 255, 0.25);
-      }
-    }
-    .item {
-      border-radius: 12px;
-      flex-shrink: 0;
-      width: 100%;
-      height: 78px;
-      border: 1px solid var(--td-gray-color-3);
-      overflow: hidden;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      position: relative;
-      transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-      }
-      &:active {
-        transform: scale(0.97);
-      }
-      &.active {
-        border-color: var(--td-brand-color);
-        border-width: 2px;
-        box-shadow: 0 0 0 3px rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.2), 0 8px 24px rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.15);
-        background: linear-gradient(180deg, rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.06) 0%, transparent 100%);
-        &:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 0 0 3px rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.2), 0 10px 28px rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.2);
-        }
-      }
-      .indexTag {
-        position: absolute;
-        bottom: 4px;
-        left: 4px;
-        z-index: 2;
-        backdrop-filter: blur(8px);
-        background: rgba(0, 0, 0, 0.5) !important;
-        color: #fff !important;
-        border: none !important;
-      }
-      .selectTag {
-        position: absolute;
-        bottom: 4px;
-        right: 4px;
-        z-index: 1;
-        backdrop-filter: blur(8px);
-      }
-      .trackMeta {
-        position: absolute;
-        left: 8px;
-        right: 8px;
-        top: 8px;
-        z-index: 3;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        pointer-events: none;
-        .trackState, .trackDuration { padding: 3px 6px; border-radius: 6px; background: rgba(15, 23, 42, .72); color: #fff; font-size: 10px; backdrop-filter: blur(8px); }
-        .trackState.selected { background: rgba(22, 140, 108, .88); }
-        .trackState.processing { background: rgba(37, 99, 235, .88); }
-        .trackState.failed { background: rgba(220, 38, 38, .88); }
-        .trackState.ready { background: rgba(217, 119, 6, .88); }
-      }
-      .thumbGroup {
-        width: 104px;
-        height: 76px;
-        flex: 0 0 104px;
-        display: flex;
-        .thumb {
-          flex: 1;
-          min-width: 0;
-          height: 100%;
-          object-fit: cover;
-          transition: transform 300ms ease;
-        }
-        .placeholder {
-          background: var(--td-bg-color-secondarycontainer);
-          color: var(--td-text-color-placeholder);
-          font-size: 12px;
-        }
-      }
-      &:hover .thumbGroup .thumb {
-        transform: scale(1.03);
-      }
-      .emptyTrack {
-        color: var(--td-text-color-placeholder);
-        font-size: 12px;
-      }
-      .trackMeta { left: 120px; right: 28px; top: 50px; justify-content: flex-start; gap: 6px; }
-      .trackCheck {
-        position: absolute;
-        top: 4px;
-        left: 4px;
-        z-index: 2;
-      }
-      .deleteBtn {
-        position: absolute;
-        top: 4px;
-        right: 4px;
-        width: 22px;
-        height: 22px;
-        border-radius: 50%;
-        background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(4px);
-        color: #fff;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        z-index: 1;
-        transition: background-color 150ms ease, transform 100ms ease;
-        &:hover {
-          background: rgba(220, 50, 50, 0.85);
-          transform: scale(1.1);
-        }
-        &:active {
-          transform: scale(0.9);
-        }
-      }
-      &:hover .deleteBtn {
-        display: flex;
-      }
-    }
-    .addItem { min-height: 56px; height: 56px; width: 100%; }
-    .addItem {
-      border: 2px dashed var(--td-component-border);
-      cursor: pointer;
-      border-radius: 12px;
-      transition: border-color 200ms ease, background-color 200ms ease, transform 100ms ease;
-      &:hover {
-        border-color: var(--td-brand-color);
-        background: rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.04);
-        transform: scale(1.02);
-      }
-      &:active {
-        transform: scale(0.97);
-      }
-    }
-    .batchCreateBtn {
-      min-width: 60px;
-      border: 2px dashed var(--td-brand-color);
-      color: var(--td-brand-color);
-      &:hover {
-        background: rgba(var(--td-brand-color-rgb, 0, 82, 217), 0.1);
-      }
-      &.disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        &:hover { transform: none; background: transparent; }
-      }
-    }
-    .selectedVideoThumb {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      pointer-events: none;
-      user-select: none;
-      display: block;
-    }
-  }
+  gap: 15px;
+  color: var(--studio-text);
+  background: var(--studio-white);
+  padding: 23px 18px 16px;
+  box-sizing: border-box;
 }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.tracksHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tracksHeading strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.tracksHeading > span {
+  font-size: 11px;
+  color: var(--studio-muted);
+  white-space: nowrap;
+}
+.studioShotList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 2px 2px 5px;
+}
+.studioShot {
+  position: relative;
+  flex: none;
+  padding: 7px;
+  border: 1px solid var(--studio-line);
+  border-radius: 11px;
+  background: var(--studio-bg);
+  transition: border-color 0.15s;
+}
+.studioShot.active {
+  border-color: var(--studio-accent);
+  box-shadow: 0 0 0 1px var(--studio-accent);
+}
+.shotPick {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  color: var(--studio-text);
+  font: inherit;
+  cursor: pointer;
+}
+.shotPick > strong {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.shotThumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--studio-field);
+}
+.shotThumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.shotThumbEmpty {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--studio-muted);
+}
+.shotBusy {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background: #24211cbb;
+  border-radius: 4px;
+  padding: 3px 6px;
+  color: #fff;
+  font-size: 10px;
+}
+.shotDetails {
+  font-size: 11px;
+  color: var(--studio-muted);
+  line-height: 1.5;
+  padding-bottom: 2px;
+}
+.shotDetails i {
+  font-style: normal;
+  padding: 0 3px;
+}
+.shotCheck {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--studio-accent);
+}
+.tracksFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.batchToggle,
+.tracksBatch button,
+.tracksFooter details button {
+  padding: 9px;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  background: var(--studio-white);
+  color: var(--studio-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.batchToggle:hover,
+.batchToggle.active {
+  background: var(--studio-field);
+}
+.tracksFooter details {
+  font-size: 11px;
+  color: var(--studio-muted);
+}
+.tracksFooter summary {
+  padding: 3px;
+  text-align: center;
+  cursor: pointer;
+}
+.tracksFooter details button {
+  display: block;
+  width: 100%;
+  font-size: 11px;
+  margin-top: 6px;
+  padding: 7px;
+}
+.tracksBatch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--studio-muted);
+}
+.tracksBatch > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tracksBatch > label span {
+  margin-left: auto;
+}
+.tracksBatch input {
+  accent-color: var(--studio-accent);
+}
+.tracksBatch > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.tracksBatch button {
+  font-size: 11px;
+  padding: 6px 4px;
+}
+.studioTracks button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 760px) {
+  .studioTracks {
+    padding: 14px;
+    gap: 10px;
+  }
+  .studioShotList {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .studioShot {
+    width: 155px;
+  }
+  .tracksFooter {
+    flex-direction: row;
+    align-items: center;
+  }
+  .batchToggle {
+    flex: 1;
+  }
+  .tracksFooter details {
+    flex: 1;
+  }
 }
 </style>

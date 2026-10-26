@@ -14,6 +14,7 @@ export interface AgentContext {
   isolationKey: string;
   text: string;
   selectedSkills?: unknown;
+  selectedModel?: `newapi:${string}`;
   userMessageTime?: number;
   abortSignal?: AbortSignal;
   resTool: ResTool;
@@ -65,7 +66,7 @@ export async function runDecisionAI(ctx: AgentContext) {
     `章节数量：${novelData.length}章`,
   ].join("\n");
 
-  const { fullStream } = await u.Ai.Text("scriptAgent:decisionAgent", ctx.thinkConfig.think, ctx.thinkConfig.thinlLevel).stream({
+  const { fullStream } = await u.Ai.Text(ctx.selectedModel || "scriptAgent:decisionAgent", ctx.thinkConfig.think, ctx.thinkConfig.thinlLevel).stream({
     messages: [
       { role: "system", content: prompt + creativeSkills.prompt },
       { role: "assistant", content: projectInfo + "\n" + mem },
@@ -117,7 +118,7 @@ function createSubAgent(parentCtx: AgentContext) {
     const subMsg = resTool.newMessage("assistant", name);
     const creativeSkills = await loadCreativeSkills(parentCtx.selectedSkills);
 
-    const { fullStream } = await u.Ai.Text(key, parentCtx.thinkConfig.think, parentCtx.thinkConfig.thinlLevel).stream({
+    const { fullStream } = await u.Ai.Text(parentCtx.selectedModel || key, parentCtx.thinkConfig.think, parentCtx.thinkConfig.thinlLevel).stream({
       system: system + creativeSkills.prompt,
       messages: messages ?? [{ role: "user", content: prompt }],
       abortSignal,

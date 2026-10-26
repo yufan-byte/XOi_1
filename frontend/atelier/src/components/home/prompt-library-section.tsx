@@ -379,5 +379,5 @@ function PromptArtwork({ category, index }: { category: DisplayPrompt["category"
 }
 
 function isPromptCategory(value: unknown): value is Exclude<PromptCategoryId, "all"> {
-    return typeof value === "string" && ["product", "portrait", "cinema", "space", "graphic", "commerce"].includes(value);
+    return typeof value === "string" && ["motion", "product", "portrait", "cinema", "space", "graphic", "commerce"].includes(value);
 }

@@ -8,7 +8,7 @@ import { useCanvasStore, type CanvasProject } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { exportCanvasProjects } from "../utils/canvas-export";
 
-export function CanvasProjectCard({ project }: { project: CanvasProject }) {
+export function CanvasProjectCard({ project, seq }: { project: CanvasProject; seq?: number }) {
     const router = useRouter();
     const renameProject = useCanvasStore((state) => state.renameProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
@@ -49,7 +49,7 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
                             open();
                         }}
                     >
-                        <h2 className="truncate text-xl font-semibold">{project.title}</h2>
+                        <h2 className="truncate text-xl font-semibold">{seq ? <span className="mr-2 align-middle text-[13px] font-bold tabular-nums text-stone-400 dark:text-stone-500">#{seq}</span> : null}{project.title}</h2>
                         <p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-400">
                             {project.nodes.length} 个节点 · {project.connections.length} 条连线
                         </p>

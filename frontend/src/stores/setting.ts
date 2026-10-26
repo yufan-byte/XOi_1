@@ -6,7 +6,7 @@ export default defineStore(
     const activeMenu = ref("ui");
 
     // 开发环境直连后端；生产构建后前后端同源部署，走相对路径由 Nginx 反代
-    const baseUrl = ref<string>(import.meta.env.DEV ? "http://localhost:10588/api" : "/api");
+    const baseUrl = ref<string>("/api");
 
     const otherSetting = ref({
       axiosTimeOut: 60 * 10 * 1000,

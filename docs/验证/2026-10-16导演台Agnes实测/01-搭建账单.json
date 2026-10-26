@@ -1,0 +1,399 @@
+{
+  "startedAt": "2026-10-16T09:18:13.461Z",
+  "model": "newapi:agnes-2.5-flash",
+  "projectId": "director3d-u1-agnes-live-20261016",
+  "realRequests": true,
+  "fixtures": false,
+  "cases": [
+    {
+      "mode": "搭场景",
+      "intent": "请搭建一个简单的桌边对话场景：在现有场景里增加两个人物，分别叫记者和受访者，中间一张桌子，两张椅子。两人相对，坐着交谈。设置一个能同时拍到两人的中景机位。保留原有物体，只用白模，最多8条操作。",
+      "seconds": 20.84,
+      "error": [],
+      "text": "桌边对话白模搭建\n\n新增记者、受访者、桌子与两张椅子，配置坐姿并调整机位为双人中景。保留原有主角与舞台台阶白模结构。\n\n添加 桌子\n添加 椅子·记者侧\n添加 椅子·受访侧\n添加 记者\n添加 受访者\n调整 记者 的姿势\n调整 受访者 的姿势\n设置主摄像机 · 35mm\n白模人物无面部表情与服装细节，仅作位置与姿态占位\n桌椅为简易几何体，比例按常规尺寸，可后续微调 scale\n\n应用到新版本镜头；原镜头、素材和动作保留，可撤销。精细材质、服装与表情需后续制作。\n\n应用为新版本镜头",
+      "success": true
+    }
+  ],
+  "traffic": [
+    {
+      "path": "/api/billing/preview",
+      "status": 200,
+      "data": {
+        "data": {
+          "label": "AI 场景搭建与调整",
+          "kind": "text",
+          "agent": "universalAi",
+          "model": "agnes-2.5-flash",
+          "modelId": "agnes-2.5-flash",
+          "free": true,
+          "count": 1,
+          "quote": {
+            "yuan": 0,
+            "points": 0,
+            "pointsPerYuan": 10,
+            "estimated": true,
+            "referenceVideoAdjustment": null,
+            "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+            "pricingVersion": ""
+          },
+          "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+          "unknown": false,
+          "budget": {
+            "defaultPoints": 0.001,
+            "maxPoints": 1000,
+            "maxCalls": 1,
+            "maxOutputTokens": 4096,
+            "minutes": 30
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/authorize",
+      "status": 200,
+      "data": {
+        "data": {
+          "id": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+          "limitPoints": 0.001,
+          "maxCalls": 1,
+          "expiresAt": "2026-10-16T09:48:29.610Z",
+          "freeOnly": true
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T09:48:29.610Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T09:48:29.610Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T09:48:29.610Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/aiAssistant/director/compose",
+      "status": 200,
+      "data": {
+        "code": 200,
+        "data": {
+          "plan": {
+            "name": "桌边对话白模搭建",
+            "summary": "新增记者、受访者、桌子与两张椅子，配置坐姿并调整机位为双人中景。保留原有主角与舞台台阶白模结构。",
+            "warnings": [
+              "白模人物无面部表情与服装细节，仅作位置与姿态占位",
+              "桌椅为简易几何体，比例按常规尺寸，可后续微调 scale"
+            ],
+            "actions": [
+              {
+                "kind": "add",
+                "ref": "new-table",
+                "name": "桌子",
+                "type": "table",
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1.4,
+                  0.75,
+                  0.8
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-chair-1",
+                "name": "椅子·记者侧",
+                "type": "chair",
+                "position": [
+                  0,
+                  0,
+                  1.2
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-chair-2",
+                "name": "椅子·受访侧",
+                "type": "chair",
+                "position": [
+                  0,
+                  0,
+                  -1.2
+                ],
+                "rotation": [
+                  0,
+                  3.14159,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-reporter",
+                "name": "记者",
+                "type": "person",
+                "position": [
+                  0,
+                  0.85,
+                  1.2
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "add",
+                "ref": "new-interviewee",
+                "name": "受访者",
+                "type": "person",
+                "position": [
+                  0,
+                  0.85,
+                  -1.2
+                ],
+                "rotation": [
+                  0,
+                  3.14159,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "pose",
+                "objectId": "new-reporter",
+                "pose": "sit"
+              },
+              {
+                "kind": "pose",
+                "objectId": "new-interviewee",
+                "pose": "sit"
+              },
+              {
+                "kind": "camera",
+                "position": [
+                  0,
+                  1.6,
+                  3.8
+                ],
+                "target": [
+                  0,
+                  1,
+                  0
+                ],
+                "focalLength": 35
+              }
+            ]
+          },
+          "projectId": "director3d-u1-agnes-live-20261016",
+          "activeShotId": "shot-01"
+        },
+        "message": "成功"
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "67",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792142328
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T09:48:29.610Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "67",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792142328
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T09:48:29.610Z"
+          }
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "preflight": {
+    "data": {
+      "label": "AI 场景搭建与调整",
+      "kind": "text",
+      "agent": "universalAi",
+      "model": "agnes-2.5-flash",
+      "modelId": "agnes-2.5-flash",
+      "free": true,
+      "count": 1,
+      "quote": {
+        "yuan": 0,
+        "points": 0,
+        "pointsPerYuan": 10,
+        "estimated": true,
+        "referenceVideoAdjustment": null,
+        "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+        "pricingVersion": ""
+      },
+      "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+      "unknown": false,
+      "budget": {
+        "defaultPoints": 0.001,
+        "maxPoints": 1000,
+        "maxCalls": 1,
+        "maxOutputTokens": 4096,
+        "minutes": 30
+      }
+    }
+  },
+  "quotaBefore": "5103444130",
+  "failure": "locator.waitFor: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.director3d-iframe').contentFrame().locator('.play-button.is-playing') to be visible\u001b[22m\n\n    at applyAndVerify (/Users/zhaochenyu/Desktop/C_code/XOi_1/backend/scripts/verify-director-agnes-live.mjs:58:113)\n    at async file:///Users/zhaochenyu/Desktop/C_code/XOi_1/backend/scripts/verify-director-agnes-live.mjs:74:19",
+  "budgets": [
+    {
+      "billing_id": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true
+    }
+  ],
+  "logs": [
+    {
+      "request_id": "202610160918301059972198268d9d65hQgu4G0",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    }
+  ],
+  "quotaAfter": "5103444130",
+  "completedAt": "2026-10-16T09:19:44.812Z"
+}

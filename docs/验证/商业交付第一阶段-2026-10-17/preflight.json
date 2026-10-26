@@ -1,0 +1,67 @@
+{
+  "passed": true,
+  "readOnly": true,
+  "modelRequests": 0,
+  "checks": [
+    {
+      "name": "程序资源 serve/app.js",
+      "ok": true
+    },
+    {
+      "name": "程序资源 web/index.html",
+      "ok": true
+    },
+    {
+      "name": "程序资源 web/console/index.html",
+      "ok": true
+    },
+    {
+      "name": "程序资源 web/atelier-canvas/index.html",
+      "ok": true
+    },
+    {
+      "name": "程序资源 fonts/Comismsh.ttf",
+      "ok": true
+    },
+    {
+      "name": "剧本技能资源",
+      "ok": true
+    },
+    {
+      "name": "入口依赖 主站",
+      "ok": true
+    },
+    {
+      "name": "入口依赖 console/",
+      "ok": true
+    },
+    {
+      "name": "入口依赖 atelier-canvas/",
+      "ok": true
+    },
+    {
+      "name": "服务身份与存活",
+      "ok": true
+    },
+    {
+      "name": "发布版本",
+      "ok": true
+    },
+    {
+      "name": "依赖与关键模块就绪",
+      "ok": true
+    },
+    {
+      "name": "页面 /",
+      "ok": true
+    },
+    {
+      "name": "页面 /console/login",
+      "ok": true
+    },
+    {
+      "name": "页面 /atelier-canvas/index.html",
+      "ok": true
+    }
+  ]
+}

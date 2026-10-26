@@ -18,11 +18,12 @@ export function fileToDataUrl(file: File): Promise<string> {
 
 function waitFor(target: EventTarget, event: string) {
   return new Promise<void>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error("视频读取超时")), 15000);
-    target.addEventListener(event, () => {
-      window.clearTimeout(timer);
-      resolve();
-    }, { once: true });
+    const cleanup = () => { window.clearTimeout(timer); target.removeEventListener(event, ready); target.removeEventListener("error", fail); };
+    const ready = () => { cleanup(); resolve(); };
+    const fail = () => { cleanup(); reject(new Error("无法解码视频，请上传浏览器支持的 MP4 / WebM 文件")); };
+    const timer = window.setTimeout(() => { cleanup(); reject(new Error("视频读取超时")); }, 15000);
+    target.addEventListener(event, ready, { once: true });
+    target.addEventListener("error", fail, { once: true });
   });
 }
 
@@ -32,17 +33,20 @@ export async function captureVideoFrames(source: File | string, count = 8): Prom
   video.muted = true;
   video.playsInline = true;
   video.preload = "metadata";
-  video.src = objectUrl;
   try {
-    await waitFor(video, "loadedmetadata");
+    const metadata = waitFor(video, "loadedmetadata");
+    video.src = objectUrl;
+    await metadata;
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
     if (!duration) throw new Error("无法读取视频时长");
+    if (duration < 1 || duration > 60) throw new Error("当前工作台支持 1–60 秒参考视频，请先裁剪后上传");
     const frameCount = Math.max(4, Math.min(12, count));
     const frames: CapturedFrame[] = [];
     for (let index = 0; index < frameCount; index += 1) {
       const time = Math.min(duration - 0.04, Math.max(0, duration * ((index + 0.5) / frameCount)));
+      const seek = waitFor(video, "seeked");
       video.currentTime = time;
-      await waitFor(video, "seeked");
+      await seek;
       const maxSide = 720;
       const scale = Math.min(1, maxSide / Math.max(video.videoWidth || 1, video.videoHeight || 1));
       const canvas = document.createElement("canvas");

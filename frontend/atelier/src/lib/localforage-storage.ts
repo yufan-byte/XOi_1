@@ -1,7 +1,7 @@
 import localforage from "localforage";
 import type { StateStorage } from "zustand/middleware";
 
-import { ownerDbName } from "@/xoi/owner";
+import { ownerDbName, ownerKey } from "@/xoi/owner";
 
 // app_state 库按宿主登录用户分桶（ownerDbName），模块在 main.tsx 的 initOwner 之后才加载
 let appStateInstance: ReturnType<typeof localforage.createInstance> | null = null;
@@ -21,7 +21,7 @@ export const localForageStorage: StateStorage = {
         try {
             return (await appStateStore().getItem<string>(name)) || null;
         } catch {
-            return window.localStorage.getItem(name);
+            return window.localStorage.getItem(ownerKey(name));
         }
     },
     setItem: async (name, value) => {
@@ -29,7 +29,7 @@ export const localForageStorage: StateStorage = {
         try {
             await appStateStore().setItem(name, value);
         } catch {
-            window.localStorage.setItem(name, value);
+            window.localStorage.setItem(ownerKey(name), value);
         }
     },
     removeItem: async (name) => {
@@ -37,7 +37,7 @@ export const localForageStorage: StateStorage = {
         try {
             await appStateStore().removeItem(name);
         } catch {
-            window.localStorage.removeItem(name);
+            window.localStorage.removeItem(ownerKey(name));
         }
     },
 };

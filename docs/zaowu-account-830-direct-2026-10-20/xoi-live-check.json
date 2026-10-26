@@ -1,0 +1,53 @@
+{
+  "checked_at": "2026-10-20T04:01:00+08:00",
+  "account_uid": 830,
+  "target_group": "xoi",
+  "expected_models": [
+    "seedance2.0-line1-xoi",
+    "seedance2.0-line1-fast-xoi",
+    "seedance2.5-line1-xoi"
+  ],
+  "newapi_channel_list": {
+    "endpoint": "GET /api/channel/?p=1&page_size=100",
+    "total_channels": 87,
+    "xoi_group_or_model_matches": 0
+  },
+  "pricing": {
+    "endpoint": "GET /api/pricing",
+    "total_models": 185,
+    "pricing_version": "a42d372ccf0b5dd13ecf71203521f9d2",
+    "has_xoi_group_ratio": false,
+    "has_xoi_usable_group": false,
+    "xoi_model_or_enable_group_matches": 0
+  },
+  "models_probe": {
+    "method": "临时创建指定分组密钥，仅调用 GET /v1/models，随后立即删除",
+    "xoi": {
+      "token_creation_status": 200,
+      "stored_group": "xoi",
+      "models_status": 403,
+      "model_count": 0,
+      "message": "这条线路暂时不可用，请换一条线路，或稍后再试"
+    },
+    "default_control": {
+      "token_creation_status": 200,
+      "models_status": 200,
+      "model_count": 183
+    },
+    "temporary_tokens_deleted": true
+  },
+  "persistent_account_tokens_after_check": [
+    {
+      "id": 288,
+      "group": "default",
+      "status": 1
+    },
+    {
+      "id": 284,
+      "group": "default",
+      "status": 2
+    }
+  ],
+  "generation_requests_made": 0,
+  "conclusion": "当前线上 NewAPI 尚未向 UID 830 提供可用的 xoi 渠道或三条专用型号。"
+}

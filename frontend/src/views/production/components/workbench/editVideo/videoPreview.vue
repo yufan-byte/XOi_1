@@ -16,7 +16,10 @@
 
     <!-- 播放进度条 -->
     <div class="previewProgress">
-      <input type="range" min="0" :max="durationInSeconds" :value="currentTimeInSeconds" step="0.01" class="progressSlider" @input="handleSeek" />
+      <button type="button" class="previewPlay" :disabled="durationInSeconds <= 0" @click="isPlaying ? playbackStore.pause() : playbackStore.play()" :aria-label="isPlaying ? '暂停' : '播放'">{{ isPlaying ? 'Ⅱ' : '▶' }}</button>
+      <span class="previewTimecode">{{ formatTime(currentTimeInSeconds) }}</span>
+      <input type="range" aria-label="预览播放进度" :disabled="durationInSeconds <= 0" min="0" :max="durationInSeconds" :value="currentTimeInSeconds" step="0.01" class="progressSlider" @input="handleSeek" />
+      <span class="previewTimecode">{{ formatTime(durationInSeconds) }}</span>
     </div>
   </div>
 </template>
@@ -232,8 +235,8 @@ function getMaxSpriteDuration(): number {
 function getEffectiveDuration(): number {
   const spriteDuration = getMaxSpriteDuration();
   const storeDuration = playbackStore.duration * 1e6;
-  // 使用两者中的较大值，确保有有效时长
-  return Math.max(spriteDuration, storeDuration, 0);
+  // The timeline library reserves at least 60 seconds of ruler space, not content.
+  return spriteDuration > 0 ? spriteDuration : Math.max(storeDuration, 0);
 }
 
 /**
@@ -1442,8 +1445,8 @@ watch(
 watch(
   () => playbackStore.duration,
   (newDuration) => {
-    duration.value = newDuration * 1e6;
-    avCanvasDebugData.duration = newDuration * 1e6;
+    duration.value = getMaxSpriteDuration() || newDuration * 1e6;
+    avCanvasDebugData.duration = duration.value;
   },
 );
 
@@ -1820,6 +1823,7 @@ defineExpose({
     @extend %flexCenter;
     position: relative;
     overflow: hidden;
+    :deep(canvas) { max-width:100%; max-height:100%; object-fit:contain; }
 
     .previewScreenPlaceholder {
       @extend %flexCenter;
@@ -1863,13 +1867,19 @@ defineExpose({
   }
 
   .previewProgress {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    box-sizing:border-box;
+    height:36px;
     flex-shrink: 0;
-    padding: 10px 16px 12px;
+    padding: 0 12px;
     background: var(--td-bg-color-container);
     border-top: 1px solid var(--td-border-level-1-color);
 
     .progressSlider {
-      width: 100%;
+      flex:1;
+      min-width:0;
       height: 6px;
       -webkit-appearance: none;
       appearance: none;
@@ -1912,6 +1922,7 @@ defineExpose({
     }
   }
 }
+.previewPlay { border:0; background:transparent; color:#be572f; cursor:pointer; padding:4px; }
 
 @keyframes pulse {
   0%,
@@ -1925,4 +1936,12 @@ defineExpose({
     transform: scale(1.1);
   }
 }
+</style>
+
+<style scoped>
+.videoPreview { background:#232321; border-radius:0; box-shadow:none; }
+.previewProgress { gap:12px; padding:0 8px !important; background:#232321 !important; box-sizing:border-box; }
+.previewTimecode { font-size:10px; color:#b9b2a7; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.previewPlay { background:transparent; color:#e6ded2; border:0; }.previewPlay:disabled { opacity:.35; cursor:default; }
+.progressSlider { accent-color:#c77c54; }
 </style>

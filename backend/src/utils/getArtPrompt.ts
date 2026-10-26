@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import getPath from "./getPath";
+import { readCreativePreference, creativePreferencePrompt } from '../../../shared/creativePreference';
 
 /**
  * 传入一个指定路径参数（风格名称），以及一个指定文件名，递归获取该文件并返回其内容
@@ -9,6 +10,9 @@ import getPath from "./getPath";
  * @returns 文件内容字符串，未找到时返回空字符串
  */
 export function getArtPrompt(styleName: string, source: string, fileName: string): string {
+  const preference = readCreativePreference(styleName);
+  if (preference.mode === 'none') return '';
+  if (preference.mode === 'custom') return creativePreferencePrompt(styleName, source === 'story_skills' ? '叙事要求' : '视觉要求');
   const baseDir = getPath(["skills", source, styleName]);
 
   if (!fs.existsSync(baseDir)) {
@@ -35,6 +39,9 @@ export function getArtPrompt(styleName: string, source: string, fileName: string
  * @returns Record<文件名(不含后缀), 文件内容>
  */
 export function getAllArtPrompts(styleName: string, source: string): Record<string, string> {
+  const preference = readCreativePreference(styleName);
+  if (preference.mode === 'none') return {};
+  if (preference.mode === 'custom') return { prefix: creativePreferencePrompt(styleName, source === 'story_skills' ? '叙事要求' : '视觉要求') };
   const baseDir = getPath(["skills", source, styleName]);
 
   if (!fs.existsSync(baseDir)) {

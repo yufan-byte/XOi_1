@@ -1,4 +1,4 @@
-import { Clapperboard, FileText, ImagePlus, Images, Maximize2, MessageCircle, Video } from "lucide-react";
+import { Clapperboard, FileText, Images, Maximize2, MessageCircle } from "lucide-react";
 
 // XOi 适配：模型/供应商由宿主管理员统一配置，画布内不再暴露"配置"页入口
 export const navigationTools = [
@@ -15,16 +15,6 @@ export const navigationTools = [
     {
         slug: "director",
         icon: Clapperboard,
-        external: false,
-    },
-    {
-        slug: "image",
-        icon: ImagePlus,
-        external: false,
-    },
-    {
-        slug: "video",
-        icon: Video,
         external: false,
     },
     {

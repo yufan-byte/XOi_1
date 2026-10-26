@@ -1,0 +1,35 @@
+{
+  "readyForProduction": false,
+  "blockers": [
+    "productionAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "universalAi 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "ttsDubbing 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "scriptAgent:decisionAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "scriptAgent:supervisionAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "scriptAgent:adaptationStrategyAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "scriptAgent:scriptAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "productionAgent:decisionAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "productionAgent:supervisionAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "productionAgent:deriveAssetsAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "productionAgent:generateAssetsAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "scriptAgent:storySkeletonAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "productionAgent:directorPlanAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "productionAgent:storyboardGenAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "productionAgent:storyboardPanelAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "productionAgent:storyboardTableAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "scriptAgent 仍为测试或非 NewAPI 默认模型：newapi:agnes-2.5-flash",
+    "生产 NewAPI 仍启用 Agnes 测试渠道；须在生产库关闭，本地测试库不动"
+  ],
+  "agents": 17,
+  "enabledChannels": [
+    {
+      "id": "1",
+      "name": "OpenAI"
+    },
+    {
+      "id": "2",
+      "name": "造物全模型上游"
+    }
+  ],
+  "note": "仅核对配置，不证明真实生成、定价结算或退款已通过付费验收。"
+}

@@ -1,12 +1,12 @@
 <template>
-  <t-card class="outputNode">
-    <div class="titleBar dragHandle pr">
-      <div class="title">成片</div>
+  <t-card class="outputNode" :class="{ fluid: standalone }">
+    <div class="titleBar" :class="{ dragHandle: !standalone, pr: !standalone }">
+      <DirectorNodeHeading node-id="output" step="07" label="FINAL CUT" title="成片" description="预览与交付当前集的最终作品" />
       <t-tag v-if="items && items.length" size="small" theme="success" variant="light">{{ items.length }} 个</t-tag>
-      <Handle :id="props.handleIds.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
+      <Handle v-if="!standalone" :id="props.handleIds!.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
     </div>
 
-    <div class="content">
+    <div class="content nowheel nodrag">
       <div v-if="!items || items.length === 0" class="outputEmpty" @click.stop="goEditor">
         <div class="emptyIcon"><i-movie theme="outline" size="26" /></div>
         <div class="emptyTitle">还没有成片</div>
@@ -31,9 +31,10 @@
 </template>
 
 <script setup lang="ts">
+import DirectorNodeHeading from "./DirectorNodeHeading.vue";
 import { Handle, Position } from "@vue-flow/core";
 import type { Ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 interface OutputItem {
   id: number;
@@ -46,21 +47,22 @@ interface OutputItem {
 }
 
 const props = defineProps<{
-  id: string;
+  id?: string;
   items?: OutputItem[];
-  handleIds: {
+  handleIds?: {
     target: string;
   };
+  standalone?: boolean;
 }>();
 
 const router = useRouter();
+const route = useRoute();
 // 与视频工作台节点同源的当前分集上下文（production/index.vue provide）
 const episodesId = inject<Ref<number>>("episodesId", ref(0));
 
-/** 空态整卡可点：直达独立剪辑台，进入即自动装配分镜 */
+/** 空态整卡可点：进入当前项目剪辑，并自动装配该分集的分镜。 */
 function goEditor() {
-  const query = episodesId.value ? `?episode=${episodesId.value}` : "";
-  router.push(`/editor${query}`);
+  router.push({ path: "/editor", query: { projectId: route.query.projectId, episode: String(episodesId.value), returnTo: route.fullPath } });
 }
 </script>
 
@@ -69,6 +71,10 @@ function goEditor() {
   width: 360px;
   user-select: text;
   cursor: default;
+
+  &.fluid {
+    width: 100%;
+  }
 
   .titleBar {
     display: flex;

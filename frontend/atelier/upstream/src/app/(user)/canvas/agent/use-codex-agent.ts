@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getAuthToken, getVerifiedToken, ownerKey } from "@/xoi/owner";
 import {
     createCodexAgentClient, normalizeCodexEndpoint, readCodexAgentConfig, type CodexConnection, type CodexModel, type CodexRpcEvent, type CodexToolEvent,
 } from "@/services/api/codex-agent";
@@ -23,7 +24,6 @@ type ActiveRun = {
     buffer: CodexRpcEvent[]; messages: Map<string, string>; finished: boolean; controller: AbortController;
     finish: (error?: Error) => void;
 };
-const CONNECTION_KEY = "canvas-codex-connection";
 const defaultConnection = { endpoint: "http://127.0.0.1:3210", token: "" };
 const agentTools = [...CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL].map(({ function: tool }) => ({ name: tool.name, description: tool.description, inputSchema: tool.parameters }));
 const stopped = () => new DOMException("Agent 已停止", "AbortError");
@@ -34,12 +34,17 @@ export function useCodexAgent(options: {
     onApproval: (request: CodexRpcEvent, signal: AbortSignal) => Promise<unknown>;
     onBootstrap: () => void;
 }) {
+    const connectionKey = ownerKey(`xoi:canvas-codex-connection:v2:${options.canvasId}`);
+    const assertOwner = () => {
+        const current = getAuthToken().replace(/^(Bearer\s+)+/i, "").trim();
+        if (!current || current !== getVerifiedToken()) throw new Error("账号已切换，请重新打开画布并配对");
+    };
     const [connection, setConnectionState] = useState<CodexConnection>(defaultConnection);
     const [models, setModels] = useState<CodexModel[]>([]);
     const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "error">("idle");
     const [error, setError] = useState("");
     const [retry, setRetry] = useState(0);
-    const [enabled, setEnabled] = useState(true);
+    const [enabled, setEnabled] = useState(false);
     const connectionAttempt = useRef(0);
     const client = useRef<Client | null>(null);
     const active = useRef<ActiveRun | null>(null);
@@ -61,12 +66,13 @@ export function useCodexAgent(options: {
         const attempt = connectionAttempt.current;
         setStatus("connecting");
         try {
+            assertOwner();
             const value = { endpoint: normalizeCodexEndpoint(next.endpoint), token: next.token.trim() };
             if (!value.token) {
                 await readCodexAgentConfig(value.endpoint);
                 throw new Error("已发现本地 Agent，请使用插件自动连接，或手动填写 Token");
             }
-            try { localStorage.setItem(CONNECTION_KEY, JSON.stringify(value)); } catch { /* 仍允许当前页面连接 */ }
+            try { sessionStorage.setItem(connectionKey, JSON.stringify(value)); } catch { /* 仍允许当前页面连接 */ }
             setConnectionState(value);
             setEnabled(true);
             setRetry((value) => value + 1);
@@ -81,7 +87,7 @@ export function useCodexAgent(options: {
     };
     useEffect(() => {
         try {
-            const stored = JSON.parse(localStorage.getItem(CONNECTION_KEY) || "null");
+            const stored = JSON.parse(sessionStorage.getItem(connectionKey) || "null");
             if (stored && typeof stored.endpoint === "string" && typeof stored.token === "string") setConnectionState(stored);
         } catch { /* 本地配置不可用时使用默认值 */ }
         const bootstrap = () => {
@@ -188,6 +194,7 @@ export function useCodexAgent(options: {
             toolQueue = toolQueue.then(async () => {
                 try {
                     signal.throwIfAborted();
+                    assertOwner();
                     if (client.current !== link || (event.source === "codex" && !pending)) throw stopped();
                     const action = normalizeCanvasAgentAction(event.name, event.arguments, event.requestId);
                     let result: CanvasAgentToolResult;
@@ -237,6 +244,7 @@ export function useCodexAgent(options: {
     }, [options.canvasId, connection.endpoint, connection.token, retry, enabled]);
 
     const getClient = () => {
+        assertOwner();
         if (!client.current?.connected() || status !== "ready") throw new Error(error || "请先连接本地 Agent");
         return client.current;
     };

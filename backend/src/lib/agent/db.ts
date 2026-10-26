@@ -38,9 +38,11 @@ function databaseUrl(): string {
 export function db(): pg.Pool | null {
   const url = databaseUrl();
   if (!url) return null;
+  const max=Number(process.env.XOI_AGENT_DB_POOL_MAX||8);
+  if(!Number.isSafeInteger(max)||max<1||max>100)throw new Error("XOI_AGENT_DB_POOL_MAX 必须为 1–100 的整数");
   globalThis.__xoiAgentPool ??= new pg.Pool({
     connectionString: url,
-    max: 8,
+    max,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
   });

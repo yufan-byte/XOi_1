@@ -1,27 +1,17 @@
 import localforage from "localforage";
 import type { StateStorage } from "zustand/middleware";
-import { ownerDbName } from "@/xoi/owner";
+import { ownerDbName, ownerKey } from "@/xoi/owner";
 
-// XOi 宿主按用户分桶，画布与外层资产中心才能看到同一批素材。
-// 旧的 infinite-canvas 库仍由资产 store 做一次性迁移兜底。
+// 只读取已验证用户的分桶。公共旧库归属不明，不能自动复制给当前账号。
 const appStateStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "app_state" });
-const legacyAppStateStore = localforage.createInstance({ name: "infinite-canvas", storeName: "app_state" });
 
 export const localForageStorage: StateStorage = {
     getItem: async (name) => {
         if (typeof window === "undefined") return null;
         try {
-            const current = await appStateStore.getItem<string>(name);
-            if (current) return current;
-            // 同一份迁移兜底覆盖画布项目、配置、提示词等旧版状态键。
-            const legacy = await legacyAppStateStore.getItem<string>(name);
-            if (legacy) {
-                await appStateStore.setItem(name, legacy);
-                return legacy;
-            }
-            return null;
+            return (await appStateStore.getItem<string>(name)) || null;
         } catch {
-            return window.localStorage.getItem(name);
+            return window.localStorage.getItem(ownerKey(name));
         }
     },
     setItem: async (name, value) => {
@@ -29,7 +19,7 @@ export const localForageStorage: StateStorage = {
         try {
             await appStateStore.setItem(name, value);
         } catch {
-            window.localStorage.setItem(name, value);
+            window.localStorage.setItem(ownerKey(name), value);
         }
     },
     removeItem: async (name) => {
@@ -37,7 +27,7 @@ export const localForageStorage: StateStorage = {
         try {
             await appStateStore.removeItem(name);
         } catch {
-            window.localStorage.removeItem(name);
+            window.localStorage.removeItem(ownerKey(name));
         }
     },
 };

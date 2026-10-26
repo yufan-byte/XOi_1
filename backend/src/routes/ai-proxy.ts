@@ -24,6 +24,10 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { allowedGatewayTail } from "@/utils/gatewayProxyPath";
 import { getUserGatewayCredentials } from "@/lib/gateway/newapi";
+import { trackedGatewayFetch } from "@/lib/gateway/receipts";
+import { BillingBudgetError } from "@/utils/billingBudgetPolicy";
+import { ModelCapacityError } from "@/utils/modelConcurrency";
+import { resolveUserCatalogModel, type ModelKind } from "@/lib/model-catalog";
 
 const router = express.Router();
 
@@ -44,7 +48,7 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
   const controller = new AbortController();
   const cancel = () => { if (!res.writableFinished) controller.abort(); };
   res.on("close", cancel);
-  const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+  const timer = setTimeout(() => controller.abort(), 4 * 60 * 1000); // 上游卡死不该让前端无限等：4 分钟兜底中断
   timer.unref();
 
   try {
@@ -56,7 +60,14 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
     let body: any;
     if (req.method !== "GET" && req.method !== "HEAD") {
       const contentType = String(req.headers["content-type"] || "");
-      if (contentType.includes("application/json")) body = JSON.stringify(req.body ?? {});
+      if (contentType.includes("application/json")) {
+        const jsonBody = { ...(req.body ?? {}) };
+        if (req.method === "POST" && typeof jsonBody.model === "string") {
+          const kind: ModelKind = /^images\//.test(tail) ? "image" : /^videos(?:\/|$)/.test(tail) ? "video" : /^audio\//.test(tail) ? "audio" : "text";
+          jsonBody.model = (await resolveUserCatalogModel(userId, jsonBody.model.replace(/^newapi:/, ""), kind)).model.modelName;
+        }
+        body = JSON.stringify(jsonBody);
+      }
       else if (contentType) {
         const maxBytes = 32 * 1024 * 1024;
         if (Number(req.headers["content-length"]) > maxBytes) return res.status(413).json({ message: "请求体超过 32MB" });
@@ -73,7 +84,7 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
     if (req.headers.accept) headers.accept = String(req.headers.accept);
     headers["content-type"] = contentTypeOf(req) || "application/json";
 
-    const upstream = await fetch(`${cred.baseUrl}/${tail}`, {
+    const upstream = await trackedGatewayFetch(`${cred.baseUrl}/${tail}`, {
       method: req.method,
       headers,
       body,
@@ -82,6 +93,10 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
       ...(body instanceof Transform ? { duplex: "half" } : {}),
     } as RequestInit);
 
+    if (upstream.status >= 400) {
+      const size = typeof body === "string" ? body.length : body instanceof Transform ? -1 : JSON.stringify(body ?? {}).length;
+      console.warn(`[ai-proxy] 网关返回 ${upstream.status} /${tail} 请求体≈${size}B`);
+    }
     res.status(upstream.status);
     upstream.headers.forEach((value, key) => {
       if (!HOP_BY_HOP.has(key) && key !== "set-cookie") res.setHeader(key, value);
@@ -89,8 +104,9 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
     if (!upstream.body) return res.end();
     await pipeline(Readable.fromWeb(upstream.body as any), res, { signal: controller.signal });
   } catch (e) {
+    console.warn('[ai-proxy] 模型调用失败:', (e as Error)?.message);
     console.error("[ai-proxy] 转发失败:", (e as Error).message);
-    if (!res.headersSent && !res.destroyed) res.status(502).json({ code: 502, msg: "模型网关转发失败，请稍后重试", data: null });
+    if (!res.headersSent && !res.destroyed) res.status(e instanceof ModelCapacityError?429:e instanceof BillingBudgetError ? 402 : 502).json({ code: e instanceof ModelCapacityError?"MODEL_CAPACITY":e instanceof BillingBudgetError ? "BUDGET_STOPPED" : 502, message:e instanceof ModelCapacityError||e instanceof BillingBudgetError ? e.message : "模型网关转发失败，请稍后重试", data: null });
     else res.end();
   } finally {
     clearTimeout(timer);

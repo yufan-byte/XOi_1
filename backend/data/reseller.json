@@ -1,0 +1,145 @@
+{
+  "site": {
+    "name": "",
+    "subtitle": "",
+    "hideSubtitle": false,
+    "logo": "",
+    "footer": ""
+  },
+  "domain": {
+    "subdomain": "",
+    "subdomainReason": "",
+    "subdomainStatus": "none",
+    "customDomains": []
+  },
+  "theme": {
+    "skin": "obsidian",
+    "loginVideo": "",
+    "customBackground": "",
+    "customTemplate": ""
+  },
+  "models": {
+    "disabled": [],
+    "markupPct": 0,
+    "markupHistory": []
+  },
+  "customerService": {
+    "contacts": [],
+    "groups": []
+  },
+  "settings": {
+    "notifyEmail": "",
+    "notifyRegister": true,
+    "notifyCommission": true,
+    "minTopup": 0,
+    "allowCustomAmount": true,
+    "topupTiers": [],
+    "userInvite": false,
+    "inviteRate": 0,
+    "inviteReward": "credits",
+    "showInviteCodeOnSignup": true
+  },
+  "recruit": {
+    "markup": 500,
+    "clicks": 0
+  },
+  "customers": {},
+  "finance": {
+    "accounts": [],
+    "profile": {
+      "company": "",
+      "bank": "",
+      "account": "",
+      "taxId": "",
+      "invoiceFile": ""
+    },
+    "withdrawals": [],
+    "invoices": []
+  },
+  "audit": [
+    {
+      "id": "8fqerwb3",
+      "at": 1791217557954,
+      "actorRole": "reseller",
+      "actorEmail": "cheny",
+      "action": "redemption.create",
+      "targetType": "redemption",
+      "targetId": "zyf",
+      "ip": "::1"
+    },
+    {
+      "id": "es44cyrm",
+      "at": 1791027125383,
+      "actorRole": "reseller",
+      "actorEmail": "cheny",
+      "action": "redemption.create",
+      "targetType": "redemption",
+      "targetId": "测试",
+      "ip": "::1"
+    },
+    {
+      "id": "oo3arp7s",
+      "at": 1790968311685,
+      "actorRole": "reseller",
+      "actorEmail": "cheny",
+      "action": "redemption.create",
+      "targetType": "redemption",
+      "targetId": "1",
+      "ip": "::1"
+    },
+    {
+      "id": "jwrvyksv",
+      "at": 1790967970948,
+      "actorRole": "reseller",
+      "actorEmail": "cheny",
+      "action": "redemption.create",
+      "targetType": "redemption",
+      "targetId": "自检待删",
+      "ip": "::ffff:127.0.0.1"
+    },
+    {
+      "id": "jx2lidl2",
+      "at": 1790964958259,
+      "actorRole": "reseller",
+      "actorEmail": "cheny",
+      "action": "agreement.signed",
+      "targetType": "agreement",
+      "targetId": "1",
+      "ip": "::1"
+    },
+    {
+      "id": "flenpf6s",
+      "at": 1790964451787,
+      "actorRole": "reseller",
+      "actorEmail": "cheny",
+      "action": "reseller.theme.update",
+      "targetType": "reseller",
+      "targetId": "1",
+      "ip": "::1"
+    },
+    {
+      "id": "pcyy9vfh",
+      "at": 1790964449326,
+      "actorRole": "reseller",
+      "actorEmail": "cheny",
+      "action": "reseller.theme.update",
+      "targetType": "reseller",
+      "targetId": "1",
+      "ip": "::1"
+    }
+  ],
+  "activities": {
+    "topupBonus": {
+      "enabled": false,
+      "tiers": []
+    },
+    "checkin": {
+      "enabled": false,
+      "amount": 0.1,
+      "mode": "pool",
+      "pool": 0,
+      "savedOn": "",
+      "savesToday": 0
+    }
+  }
+}

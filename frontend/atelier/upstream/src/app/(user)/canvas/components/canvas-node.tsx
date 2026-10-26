@@ -8,6 +8,7 @@ import { ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, Refre
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { useUserStore } from "@/stores/use-user-store";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
 import { CanvasNodeType, type CanvasNodeData, type Position } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
@@ -207,8 +208,8 @@ export const CanvasNode = React.memo(function CanvasNode({
 
             const dx = (event.clientX - resizeRef.current.startX) / scale;
             const dy = (event.clientY - resizeRef.current.startY) / scale;
-            const minWidth = 220;
-            const minHeight = 160;
+            const minWidth = data.type === CanvasNodeType.Config ? 560 : 220;
+            const minHeight = data.type === CanvasNodeType.Config ? 360 : 160;
             const startRight = resizeRef.current.startLeft + resizeRef.current.startWidth;
             const startBottom = resizeRef.current.startTop + resizeRef.current.startHeight;
             const fromLeft = resizeRef.current.corner.includes("left");
@@ -297,7 +298,8 @@ export const CanvasNode = React.memo(function CanvasNode({
                 if (!referenceSelectionState) return;
                 event.preventDefault();
                 event.stopPropagation();
-                if (event.button === 0 && referenceSelectionState === "available") onSelectReference?.(data.id);
+                // available=可添加；target/disabled 也上报，由页面 toast 说明原因（否则点了没反应像卡死）
+                if (event.button === 0 && referenceSelectionState !== "target") onSelectReference?.(data.id);
             }}
             onContextMenu={(event) => {
                 if (referenceSelectionState) event.preventDefault();
@@ -467,6 +469,20 @@ const nodeContentRenderers = {
 } satisfies Partial<Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>>;
 
 function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "node" | "theme" | "now">) {
+    const [cancelState,setCancelState]=useState("");
+    const [cancelError,setCancelError]=useState("");
+    const cancelQueued = async () => {
+        const kind=node.type===CanvasNodeType.Video?"video":node.type===CanvasNodeType.Audio?"audio":"image";
+        const taskId=kind==="video"?node.metadata?.videoTaskId:kind==="audio"?node.metadata?.audioTaskId:node.metadata?.imageTaskId;
+        if(!taskId||cancelState)return;
+        setCancelState("pending");setCancelError("");
+        try {
+            const token=useUserStore.getState().token;
+            const response=await fetch(`/api/workspace/generation-tasks/${kind}/${encodeURIComponent(taskId)}/cancel`,{method:"POST",headers:{Authorization:`Bearer ${token}`}});
+            const body=await response.json();if(!response.ok)throw new Error(body.message||"取消失败，请查询原任务");
+            setCancelState("done");
+        }catch(error){setCancelState("");setCancelError(error instanceof Error?error.message:"取消失败");}
+    };
     const startTimeRef = useRef(Date.now());
     const [localNow, setLocalNow] = useState(Date.now());
     useEffect(() => {
@@ -478,6 +494,12 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     const startedAt = typeof node.metadata?.startedAt === "number" ? node.metadata.startedAt : startTimeRef.current;
     const elapsedMs = Math.max(0, currentNow - startedAt);
     const progress = Math.max(0, Math.min(100, Math.round(node.metadata?.progress || 0)));
+    const queued = node.metadata?.taskStage === "queued";
+    const label = cancelState==="done"?"已取消":queued ? "等待执行" : node.metadata?.taskStage === "unknown" ? "结果待核实，请勿重复生成" : progress > 0 ? `正在生成 ${progress}%` : "正在生成";
+    const cancelControl=queued?<div className="max-w-full text-center text-xs" onPointerDown={event=>event.stopPropagation()}>
+        <button type="button" disabled={Boolean(cancelState)} onClick={cancelQueued} className="rounded-md border px-3 py-1.5 disabled:opacity-50" style={{borderColor:theme.node.stroke,color:theme.node.text}}>{cancelState==="pending"?"正在取消…":cancelState==="done"?"已取消":"取消等待"}</button>
+        {cancelError?<p role="alert" className="mt-1 break-words">{cancelError}</p>:null}
+    </div>:null;
 
     if (node.type === CanvasNodeType.Video) {
         return (
@@ -485,16 +507,17 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
                     <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: selectionBlue }} />
                     <div className="text-sm font-semibold" style={{ color: selectionBlue }}>
-                        正在创作 {progress}%
+                        {label}
                     </div>
+                    {cancelControl}
                     <span className="rounded-full px-2 py-1 text-xs" style={{ background: theme.toolbar.panel, color: theme.node.text }}>
                         {formatDuration(elapsedMs)}
                     </span>
                 </div>
                 <div className="space-y-1">
                     <div className="flex items-center justify-between text-[11px]" style={{ color: theme.node.muted }}>
-                        <span>当前创作进度</span>
-                        <span>{progress}%</span>
+                        <span>{queued ? "等待调度，尚未提交上游" : "正在处理，请勿重复生成"}</span>
+                        <span>{progress > 0 ? `${progress}%` : ""}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full" style={{ background: theme.node.stroke }}>
                         <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: selectionBlue }} />
@@ -507,7 +530,9 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.activeStroke }}>
             <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
-            <span className="text-[10px] tracking-[0.2em]">{progress > 0 ? `生成中 ${progress}%` : "生成中"}</span>
+            <span className="text-[10px] tracking-[0.2em]">{label}</span>
+            {queued ? <span className="text-xs" style={{color:theme.node.muted}}>尚未提交上游</span> : null}
+            {cancelControl}
             <span className="rounded-full border px-2 py-1 text-xs tracking-normal" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
                 {formatDuration(elapsedMs)}
             </span>
@@ -521,9 +546,12 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
 }
 
 function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry">) {
+    const uncertain=node.metadata?.taskStage==="unknown"||/待核实|勿重复|不要重复/.test(node.metadata?.errorDetails||"");
+    const cancelled=["cancelled","canceled"].includes(node.metadata?.taskStage||"");
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
-            <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || "生成失败"}</div>
+            <div className="text-xs leading-5" style={{color:cancelled?theme.node.muted:uncertain?"#b86b18":"#b5473c"}}>{node.metadata?.errorDetails || (cancelled?"已取消，未提交上游":"生成失败")}</div>
+            {uncertain?<div className="text-xs" style={{color:theme.node.muted}}>请先核对原任务和积分明细，不会自动重新生成。</div>:<>
             <button
                 type="button"
                 className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:scale-[1.02]"
@@ -535,8 +563,9 @@ function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "
                 onMouseDown={(event) => event.stopPropagation()}
             >
                 <RefreshCw className="size-3.5" />
-                重试
+                重新生成
             </button>
+            </>}
         </div>
     );
 }

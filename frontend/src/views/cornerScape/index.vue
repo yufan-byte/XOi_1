@@ -1,5 +1,9 @@
 <template>
   <div class="cornerScape f">
+    <StoryWorkspaceHeader current="cornerScape" :project-type="project?.projectType" title="角色场景" description="为剧本提取出的角色、场景与道具生成统一画风的形象图，完成后进入分镜制作。">
+      <template #meta><span>{{ dataList.length }} 个资产</span><span>已出图 {{ cornerReadyCount }}</span></template>
+    </StoryWorkspaceHeader>
+    <div class="cornerWorkspaceBody">
     <!-- 左侧：批量生成面板 -->
     <div class="left">
       <t-card shadow class="card">
@@ -19,6 +23,9 @@
           <t-form-item :label="$t('workbench.cornerScape.genModel')">
             <modelSelect v-model="selectValue" :type="`image`" />
           </t-form-item>
+          <t-form-item :label="$t('workbench.cornerScape.textModel')">
+            <modelSelect v-model="textModelValue" type="text" :placeholder="$t('workbench.cornerScape.textModelPh')" />
+          </t-form-item>
           <t-form-item :label="$t('workbench.cornerScape.resolution')">
             <t-select v-model="resolution" :placeholder="$t('workbench.cornerScape.resolutionPh')" :options="resolutionOptions"></t-select>
           </t-form-item>
@@ -26,28 +33,26 @@
             <t-textarea v-model="otherTextPrompt" :placeholder="$t('workbench.cornerScape.textPromptPh')"></t-textarea>
           </t-form-item>
         </t-form>
-        <div class="panelActions">
-          <div class="actionRow">
-            <t-button theme="primary" variant="outline" block @click="batchGenerationPrompt">
-              {{ $t("workbench.cornerScape.batchGenerationPrompt") }}
-            </t-button>
-            <t-button theme="primary" variant="outline" block @click="batchSelectBindAudio">
-              {{ $t("workbench.cornerScape.batchBingAudio") }}
+        <template #footer>
+          <div class="panelActions">
+            <div class="actionRow">
+              <t-button theme="primary" variant="outline" block @click="batchGenerationPrompt">
+                {{ $t("workbench.cornerScape.batchGenerationPrompt") }}
+              </t-button>
+              <t-button theme="primary" variant="outline" block @click="batchSelectBindAudio">
+                {{ $t("workbench.cornerScape.batchBingAudio") }}
+              </t-button>
+            </div>
+            <t-button theme="primary" block @click="batchGenerationImage">
+              {{ $t("workbench.cornerScape.startBatch") }}
             </t-button>
           </div>
-          <t-button theme="primary" block @click="batchGenerationImage">
-            {{ $t("workbench.cornerScape.startBatch") }}
-          </t-button>
-        </div>
+        </template>
       </t-card>
     </div>
     <!-- 主内容区 -->
     <div class="content">
       <div class="contentHeader">
-        <div class="pageTitleRow">
-          <h2 class="pageTitle">{{ $t("workbench.menu.cornerScape") }}</h2>
-          <p class="pageSubtitle">{{ $t("workbench.cornerScape.workbenchSubtitle") }}</p>
-        </div>
         <div class="filterChips">
           <button class="chip" :class="{ active: activeFilter === '' }" @click="setFilter('')">
             {{ $t("workbench.cornerScape.filterAll") }}
@@ -71,6 +76,12 @@
           </button>
         </div>
         <div class="selectionBar">
+          <!-- 全选放在明面上：不必再进"智能选择"下拉里找 -->
+          <button type="button" class="selectAllBtn" :class="{ active: allVisibleSelected }" @click="toggleSelectAll">
+            <t-icon :name="allVisibleSelected ? 'check-rectangle-filled' : 'check-rectangle'" />
+            <span>{{ allVisibleSelected ? $t("workbench.cornerScape.clearSelection") : $t("workbench.cornerScape.selectAll") }}</span>
+            <span class="cnt">{{ displayList.length }}</span>
+          </button>
           <t-tag size="medium" theme="primary" variant="light" v-if="selectedIds.length > 0">
             {{ $t("workbench.cornerScape.selectedChips", { count: selectedIds.length }) }}
           </t-tag>
@@ -110,7 +121,11 @@
                 {{ $t("workbench.cornerScape.cancelGeneration") }}
               </t-tag>
             </div>
-            <t-empty v-if="!item.state && item.promptState !== '生成中'" type="maintenance" :title="$t('workbench.cornerScape.waitingGen')" />
+            <!-- 提示词生成失败：把真实原因摆出来，而不是继续转圈 -->
+            <t-popup :content="item.promptErrorReason || $t('workbench.cornerScape.promptFailedHint')" v-if="!item.state && (item.promptState === '失败' || item.promptState === '生成失败')">
+              <t-empty type="fail" :title="$t('workbench.cornerScape.promptFailed')" />
+            </t-popup>
+            <t-empty v-else-if="!item.state && item.promptState !== '生成中'" type="maintenance" :title="$t('workbench.cornerScape.waitingGen')" />
             <div v-else-if="item.state === '生成中' || item.promptState === '生成中' || item.audioBindState == '生成中'" class="generatingBox">
               <t-loading />
               <span class="generatingText">
@@ -289,6 +304,7 @@
       </div>
     </transition>
 
+    </div>
     <!-- 流水线下一步：角色场景 → 分镜成片 -->
     <NextStepBar current="cornerScape" :status="pipelineStatus" :status-tone="pipelineStatusTone" next-label="下一步：分镜成片" />
   </div>
@@ -303,6 +319,7 @@ import openAssetsSelector from "@/utils/assetsCheck";
 import { sendToCanvas } from "@/utils/sendToCanvas";
 import { showPointsToast } from "@/utils/pointsToast";
 import NextStepBar from "@/components/pipeline/NextStepBar.vue";
+import StoryWorkspaceHeader from "@/components/pipeline/StoryWorkspaceHeader.vue";
 import { guardCornerScape } from "@/utils/pipelineGuard";
 
 const { otherSetting } = storeToRefs(settingStore());
@@ -333,6 +350,8 @@ interface DataItem {
 const activeFilter = ref(""); // ''=全部 / role / scene / tool / needHandle
 const { project } = storeToRefs(projectStore());
 const selectValue = ref(project.value?.imageModel ?? "");
+// 提示词生成用的文本模型：默认取项目配置，可在面板里临时切换
+const textModelValue = ref(project.value?.textModel ?? "");
 const resolution = ref("1K");
 const otherTextPrompt = ref("");
 const resolutionOptions = [
@@ -444,6 +463,7 @@ function statusBadge(item: DataItem): { label: string; cls: string; loading: boo
     return { label: $t("workbench.cornerScape.generating"), cls: "generating", loading: true };
   }
   if (item.state === "生成失败") return { label: $t("workbench.cornerScape.genFailed"), cls: "failed", loading: false };
+  if (item.promptState === "失败" || item.promptState === "生成失败") return { label: $t("workbench.cornerScape.promptFailed"), cls: "failed", loading: false };
   if (item.state === "已完成") return { label: $t("workbench.cornerScape.stateDone"), cls: "done", loading: false };
   return { label: $t("workbench.cornerScape.waitingGen"), cls: "waiting", loading: false };
 }
@@ -526,6 +546,9 @@ function selectPromptEmpty() {
 function selectAll() {
   selectedIds.value = displayList.value.map((item) => item.id);
 }
+
+/** 当前筛选范围内是否已全选（全选按钮的勾选态） */
+const allVisibleSelected = computed(() => displayList.value.length > 0 && displayList.value.every((item) => selectedIds.value.includes(item.id)));
 
 // 反选：在当前筛选可见范围内取反，隐藏项保持原状
 function toggleSelectAll() {
@@ -626,6 +649,7 @@ async function cancelGenerationFn(item: DataItem) {
     cancelBtn: $t("workbench.assets.cancelBtn"),
     theme: "warning",
     onConfirm: async () => {
+      dialog.destroy(); // TDesign 插件式弹窗需手动收起
       try {
         const { data } = await axios.post("/cornerScape/getAllAssets", {
           projectId: project.value?.id,
@@ -745,7 +769,7 @@ function regenerateItem() {
     window.$message.warning($t("workbench.cornerScape.msg.selectResolution"));
     return;
   }
-  if (!editForm.prompt.trim()) {
+  if (promptNotReady({ prompt: editForm.prompt, promptState: currentItem.value.promptState })) {
     window.$message.warning($t("workbench.cornerScape.msg.enterPrompt"));
     return;
   }
@@ -835,6 +859,13 @@ async function polishPrompts() {
     polishing.value = false;
   }
 }
+/** 提示词是否可直接用于出图：空、失败态、或模型拒答句子都算没准备好。 */
+function promptNotReady(item: { prompt?: string | null; promptState?: string | null }) {
+  const text = String(item.prompt ?? "").trim();
+  if (!text) return true;
+  if (item.promptState === "失败" || item.promptState === "生成失败") return true;
+  return /(无法生成|无法提供|无法按|抱歉|违反.{0,12}(规则|约束|规范)|不符合.{0,12}(风格|规则))/i.test(text.slice(0, 120));
+}
 //批量生成提示词
 async function batchGenerationPrompt() {
   if (selectedIds.value.length === 0) {
@@ -863,6 +894,7 @@ async function batchGenerationPrompt() {
       })),
       concurrentCount: otherSetting.value.assetsBatchGenereateSize,
       otherTextPrompt: otherTextPrompt.value,
+      textModel: textModelValue.value || undefined,
     });
   } catch (e: any) {
     window.$message.error(e?.message ?? $t("workbench.cornerScape.msg.promptGenFail"));
@@ -922,7 +954,7 @@ async function batchGenerationImage() {
 
   const items = dataList.value.filter((item) => selectedIds.value.includes(item.id));
   //检查如果勾选的数据prompt有空的，提示用户勾选的哪一个提示词未生成，然后终止批量生成
-  const emptyPrompts = items.filter((item) => !item.prompt);
+  const emptyPrompts = items.filter((item) => promptNotReady(item));
   if (emptyPrompts.length > 0) {
     const emptyPromptNames = emptyPrompts.map((item) => item.name).join(", ");
     window.$message.warning(
@@ -1204,42 +1236,36 @@ async function selectAudio() {
   align-items: flex-start;
   animation: fadeIn 300ms ease-out;
 
-  /* ---------- 品牌紫：实心主按钮 ---------- */
+  /* ---------- 主操作按钮：暖橙实心 ---------- */
   :deep(.t-button--theme-primary.t-button--variant-base) {
-    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    background: linear-gradient(135deg, #f2803f, #e0641f) !important;
     border: none !important;
     color: #fff !important;
     border-radius: 10px !important;
-    font-weight: 500;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    font-weight: 600;
+    box-shadow: 0 6px 14px rgba(224, 100, 31, 0.18);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     &:not(.t-is-disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
-    }
-    &:not(.t-is-disabled):active {
-      transform: scale(0.97) translateY(0) !important;
+      box-shadow: 0 8px 18px rgba(224, 100, 31, 0.26);
+      background: linear-gradient(135deg, #f88746, #e96a26) !important;
     }
     &.t-is-disabled {
-      background: rgba(0, 0, 0, 0.08) !important;
-      color: rgba(0, 0, 0, 0.26) !important;
+      background: #efe9e3 !important;
+      color: #b3a79c !important;
       box-shadow: none;
     }
   }
-  /* ---------- 品牌紫：描边按钮 ---------- */
+  /* ---------- 次级按钮：暖橙描边 ---------- */
   :deep(.t-button--theme-primary.t-button--variant-outline) {
-    border-color: rgba(102, 126, 234, 0.45) !important;
-    color: #667eea !important;
-    background: rgba(102, 126, 234, 0.04) !important;
+    border-color: #f0c4a8 !important;
+    color: #d06a33 !important;
+    background: #fff6ef !important;
     border-radius: 10px !important;
-    font-weight: 500;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    font-weight: 550;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     &:not(.t-is-disabled):hover {
-      border-color: #667eea !important;
-      background: rgba(102, 126, 234, 0.1) !important;
-    }
-    &:not(.t-is-disabled):active {
-      transform: scale(0.97) !important;
+      border-color: #e8a377 !important;
+      background: #ffefe3 !important;
     }
   }
 
@@ -1249,8 +1275,8 @@ async function selectAudio() {
     height: 100%;
     min-height: 0;
     flex-shrink: 0;
-    margin-right: 16px;
-    margin-bottom: 16px;
+    /* 外边距会叠加 height:100% 把卡片底边推出可视区（按钮被裁掉），间距交给父容器 gap */
+    margin: 0;
     display: flex;
     flex-direction: column;
     animation: fadeSlideIn 350ms ease-out;
@@ -1275,13 +1301,28 @@ async function selectAudio() {
           font-weight: 600;
         }
       }
-      :deep(.t-card__body) {
-        flex: 1;
+      :deep(.t-card__header-wrapper) {
+        /* TDesign 默认 flex:1，会把卡片高度分走一半，必须按住 */
+        flex: 0 0 auto;
         min-height: 0;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
+      }
+      :deep(.t-card__body) {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: block;
+        /* body 是唯一滚动区：内容超高出现滚动条，可一直往下滚 */
+        overflow-y: auto;
+        overflow-x: hidden;
         padding: 14px 18px;
+      }
+      :deep(.t-card__footer-wrapper) {
+        /* TDesign 默认 flex:1，必须按住，否则会抢卡片高度把 body 挤扁 */
+        flex: 0 0 auto;
+        min-height: 0;
+      }
+      :deep(.t-card__footer) {
+        padding: 0;
+        display: block;
       }
     }
     .panelTitle {
@@ -1293,7 +1334,7 @@ async function selectAudio() {
       flex-shrink: 0;
       margin: 0 0 10px;
       font-size: 12px;
-      color: rgba(0, 0, 0, 0.45);
+      color: #8d8177;
       line-height: 1.6;
     }
     .scopeBar {
@@ -1304,19 +1345,21 @@ async function selectAudio() {
       font-size: 12px;
       padding: 8px 10px;
       border-radius: 10px;
-      background: rgba(102, 126, 234, 0.08);
-      color: #667eea;
+      background: #fff3ea;
+      color: #c25c22;
+      border: 1px solid #f7dcc6;
       margin-bottom: 12px;
       transition: all 0.25s;
       &.scoped {
-        background: rgba(102, 126, 234, 0.16);
-        font-weight: 500;
+        background: #ffe9d8;
+        font-weight: 550;
       }
     }
     .paramForm {
-      flex: 1;
+      /* 不再自己开滚动，交给 .t-card__body 统一滚，避免双重滚动条 */
+      flex: 0 0 auto;
       min-height: 0;
-      overflow: auto;
+      overflow: visible;
       padding-right: 2px;
       /* 滚动条 */
       &::-webkit-scrollbar {
@@ -1356,18 +1399,20 @@ async function selectAudio() {
       border: 1px solid var(--material-border-light);
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       &:focus-within {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: #eba575;
+        box-shadow: 0 0 0 3px rgba(240, 138, 90, 0.1);
       }
     }
     .panelActions {
+      /* 位于卡片 footer，天然固定在卡片底部，body 滚动时它不动 */
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      background: var(--td-bg-color-container, #fff);
       border-top: 1px solid rgba(0, 0, 0, 0.06);
-      padding-top: 12px;
-      margin-top: 12px;
+      padding: 12px 18px;
+      margin: 0;
       .actionRow {
         display: flex;
         gap: 8px;
@@ -1412,30 +1457,31 @@ async function selectAudio() {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          background: var(--material-thin);
+          border: 1px solid #ecdfd4;
+          background: #fff;
           border-radius: 999px;
           padding: 5px 14px;
           font-size: 13px;
           cursor: pointer;
-          color: rgba(0, 0, 0, 0.65);
-          transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+          color: #5c534b;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
           .count {
             font-size: 12px;
             line-height: 18px;
             padding: 0 7px;
             border-radius: 999px;
-            background: rgba(0, 0, 0, 0.06);
+            background: #f4ece4;
+            color: #8d8177;
           }
           &:hover {
-            border-color: rgba(102, 126, 234, 0.5);
-            color: #667eea;
+            border-color: #e8b795;
+            color: #c25c22;
           }
           &.active {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #ff8847, #f26432);
             border-color: transparent;
             color: #fff;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 3px 10px rgba(239, 100, 48, 0.22);
             .count {
               background: rgba(255, 255, 255, 0.25);
               color: #fff;
@@ -1452,6 +1498,38 @@ async function selectAudio() {
         background: var(--material-thin);
         border: 1px solid var(--material-border-light);
         border-radius: 12px;
+
+        /* 全选：一眼可见的常驻按钮，不再藏进"智能选择"下拉 */
+        .selectAllBtn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          height: 32px;
+          padding: 0 12px;
+          border: 1px solid #e3ddd3;
+          border-radius: 999px;
+          background: #fff;
+          color: #5d564d;
+          font: inherit;
+          font-size: 13px;
+          cursor: pointer;
+          transition: color .16s ease, border-color .16s ease, background .16s ease;
+
+          .cnt {
+            min-width: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #f2ede6;
+            color: #8a8076;
+            font-size: 11px;
+            line-height: 18px;
+            text-align: center;
+          }
+
+          &:hover { border-color: #e0c3ad; color: #b4551f; }
+          &.active { border-color: #f0c7a8; background: #fff5ec; color: #b4551f; }
+          &.active .cnt { background: #fbe3d1; color: #a8541f; }
+        }
       }
     }
 
@@ -1508,14 +1586,13 @@ async function selectAudio() {
       &:nth-child(7) { animation-delay: 240ms; }
       &:nth-child(8) { animation-delay: 280ms; }
       &.selected {
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.28), 0 4px 16px rgba(102, 126, 234, 0.14) !important;
+        border-color: #ef9f70 !important;
+        background: #fffaf5 !important;
+        box-shadow: 0 0 0 2px rgba(240, 130, 70, 0.16), 0 8px 22px #302b2812 !important;
       }
       &:hover {
-        transform: translateY(-3px) !important;
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.1),
-          inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-        border-color: rgba(102, 126, 234, 0.3) !important;
+        box-shadow: 0 10px 26px #302b2814 !important;
+        border-color: #e6c3ab !important;
       }
       &:active {
         transform: scale(0.98) !important;
@@ -1531,12 +1608,12 @@ async function selectAudio() {
         position: relative;
         width: 100%;
         height: 170px;
-        background: rgba(0, 0, 0, 0.02);
+        background: #faf7f3;
         flex-shrink: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+        border-bottom: 1px solid #f4ece4;
         overflow: hidden;
         .selectBox {
           position: absolute;
@@ -1565,14 +1642,14 @@ async function selectAudio() {
             border-radius: 50%;
           }
           &.done {
-            color: #2ba471;
+            color: #c9804e;
             .dot {
-              background: #2ba471;
+              background: #c9804e;
             }
           }
           &.generating {
-            color: #667eea;
-            border-color: rgba(102, 126, 234, 0.4);
+            color: #d4601f;
+            border-color: rgba(240, 138, 90, 0.45);
           }
           &.failed {
             color: #d54941;
@@ -1606,12 +1683,12 @@ async function selectAudio() {
           gap: 12px;
           width: 100%;
           height: 100%;
-          background: linear-gradient(135deg, rgba(102, 126, 234, 0.06), rgba(118, 75, 162, 0.06));
+          background: linear-gradient(135deg, #fff6ef, #ffefe3);
           .generatingText {
             font-size: 13px;
-            color: #667eea;
+            color: #d4601f;
             letter-spacing: 0.05em;
-            font-weight: 500;
+            font-weight: 550;
           }
         }
         .image {
@@ -1681,7 +1758,7 @@ async function selectAudio() {
         .desc {
           margin: 6px 0 0;
           font-size: 12px;
-          color: rgba(0, 0, 0, 0.4);
+          color: #8d8177;
           line-height: 1.55;
           overflow: hidden;
           display: -webkit-box;
@@ -1689,7 +1766,7 @@ async function selectAudio() {
           line-clamp: 2;
           -webkit-box-orient: vertical;
           &.empty {
-            color: rgba(0, 0, 0, 0.25);
+            color: #bfb3a8;
           }
         }
         .metaRow {
@@ -1710,7 +1787,7 @@ async function selectAudio() {
             flex-shrink: 0;
             font-weight: 500;
             &.ready {
-              color: #2ba471;
+              color: #c9804e;
             }
             &.pending {
               color: #e37318;
@@ -1773,14 +1850,14 @@ async function selectAudio() {
     }
   }
   .t-button--theme-primary {
-    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    background: linear-gradient(135deg, #f2803f, #e0641f) !important;
     border: none !important;
     color: #fff !important;
     border-radius: 10px !important;
-    font-weight: 500;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+    font-weight: 600;
+    box-shadow: 0 6px 14px rgba(224, 100, 31, 0.18);
     &:hover {
-      box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
+      box-shadow: 0 8px 18px rgba(224, 100, 31, 0.26);
     }
   }
 }
@@ -1828,8 +1905,8 @@ async function selectAudio() {
     gap: 12px;
     .generatingText {
       font-size: 13px;
-      color: #667eea;
-      font-weight: 500;
+      color: #d4601f;
+      font-weight: 550;
     }
   }
   .imageToolsWrap {
@@ -1876,12 +1953,12 @@ async function selectAudio() {
         align-items: center;
         gap: 4px;
         font-size: 12px;
-        color: #2ba471;
+        color: #c9804e;
         .dot {
           width: 6px;
           height: 6px;
           border-radius: 50%;
-          background: #2ba471;
+          background: #c9804e;
         }
         &.none {
           color: rgba(0, 0, 0, 0.4);
@@ -2000,15 +2077,11 @@ async function selectAudio() {
   overflow: hidden;
 
   &:hover {
-    border-color: rgba(102, 126, 234, 0.3);
-    transform: scale(1.03);
-  }
-  &:active {
-    transform: scale(0.97);
+    border-color: rgba(240, 138, 90, 0.4);
   }
   &.selected {
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    border-color: #ef9f70;
+    box-shadow: 0 0 0 2px rgba(240, 130, 70, 0.16);
   }
 }
 
@@ -2059,18 +2132,98 @@ async function selectAudio() {
 </style>
 
 <style lang="scss">
+/* 全局覆盖：本页根节点不scoped的部分（分页器、按钮统一暖橙） */
 .cornerScape {
-  box-sizing:border-box; height:100%; padding:22px 28px 24px; gap:16px;
-  background:radial-gradient(circle at 92% 0,rgba(255,174,119,.15),transparent 22%),linear-gradient(180deg,#faf9fb,#f5f5f7);
-  .left>.card { border:1px solid #e8e7ec !important; border-radius:21px !important; background:rgba(255,255,255,.9) !important; box-shadow:0 12px 30px rgba(40,37,54,.06) !important; }
-  .contentHeader { padding:20px 22px !important; border:1px solid rgba(89,76,148,.1) !important; border-radius:21px !important; background:radial-gradient(circle at 91% 0,rgba(255,151,91,.2),transparent 24%),linear-gradient(132deg,#fff,#f6f3ff 62%,#fff5ed) !important; box-shadow:0 12px 30px rgba(58,49,99,.06) !important; }
-  .pageTitle { color:#292733 !important; font-size:30px !important; letter-spacing:-.04em; }.pageSubtitle{color:#777482 !important}
-  .chip.active { border-color:transparent !important; background:#f26b35 !important; color:#fff !important; }.chip.active .count{color:#fff !important}
-  .grid>.card { border:1px solid #e8e7ec !important; border-radius:19px !important; background:#fff !important; box-shadow:0 9px 26px rgba(40,37,54,.055) !important; }
   .paginationBar { display:flex; justify-content:center; flex:none; padding:0 4px 12px; }
-  .paginationBar .t-pagination { background:rgba(255,255,255,.8); border:1px solid #e8e7ec; border-radius:12px; padding:5px 8px; }
-  .t-button--theme-primary.t-button--variant-base:not(:disabled) { border-color:transparent !important; background:linear-gradient(135deg,#ff8847,#f26432) !important; color:#fff !important; }.t-button--theme-primary.t-button--variant-base:not(:disabled) .t-button__text,.t-button--theme-primary.t-button--variant-base:not(:disabled) .t-icon{color:#fff !important}
-  .t-button--theme-primary.t-button--variant-outline:not(:disabled){border-color:#f1a27e !important;background:#fff7f2 !important;color:#df5f29 !important}.t-button--theme-primary.t-button--variant-outline:not(:disabled) .t-button__text,.t-button--theme-primary.t-button--variant-outline:not(:disabled) .t-icon{color:#df5f29 !important}
-  .t-button:disabled{border-color:#e5e4e8 !important;background:#efeff1 !important;color:#9c9aa2 !important}.t-button:disabled .t-button__text,.t-button:disabled .t-icon{color:#9c9aa2 !important}
+  .paginationBar .t-pagination { background:#fff; border:1px solid #eee7e2; border-radius:12px; padding:5px 8px; }
+}
+</style>
+
+<style lang="scss" scoped>
+.cornerScape { box-sizing:border-box; padding:20px 24px 16px; display:flex; flex-direction:column; align-items:stretch; overflow:hidden; background:var(--xoi-workspace-bg,#faf8f6) !important; }
+.cornerScape :deep(.storyWorkspaceHeader) { margin-bottom:14px; flex:none; }
+.cornerWorkspaceBody { position:relative; display:flex; flex:1; min-height:0; gap:16px; }
+.cornerScape .left { height:100%; min-height:0; margin:0; width:clamp(250px,21vw,310px); }
+.cornerScape .content { margin:0; }
+.cornerScape .left .card { border-color:var(--xoi-workspace-border,#eee7e2) !important; border-radius:14px !important; background:#fff !important; box-shadow:none !important; }
+/* 内容头：宽屏时筛选 chips 与批量操作同一行，窄屏自动换行 */
+.cornerScape .contentHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 14px !important; border:1px solid var(--xoi-workspace-border,#eee7e2) !important; border-radius:14px !important; background:#fff !important; box-shadow:none !important; }
+.cornerScape .contentHeader .filterChips { margin-top:0; }
+.cornerScape .contentHeader .selectionBar { margin-top:0; padding:0; border-radius:0; border:0; background:transparent; }
+.cornerScape .grid .card { border-color:var(--xoi-workspace-border,#eee7e2) !important; border-radius:14px !important; background:#fff !important; box-shadow:0 3px 12px #302b2806 !important; }
+.cornerScape .grid .card.selected { border-color:#ef9f70 !important; }
+@media(max-width:1050px) { .cornerScape { overflow:auto; } .cornerWorkspaceBody { flex:none; flex-direction:column; } .cornerScape .left { width:100%; height:auto; } .cornerScape .left .card { height:auto; } .cornerScape .content { height:auto; overflow:visible; } .cornerScape .grid { overflow:visible; } }
+@media(max-width:700px) { .cornerScape { padding:14px; } .cornerScape .grid { grid-template-columns:minmax(0,1fr); } }
+</style>
+
+<style scoped>
+/* 提示浮层在左下角绝对定位，给面板底部预留高度（--pipeline-hint-space，默认 104px）。
+   结构：左栏不滚 → 卡片 flex 吃掉「高度 - 预留」→ 卡片 body 唯一滚动
+   → 底部 .panelActions 用 sticky 钉住，三个按钮永远可见。 */
+.cornerScape .left {
+  box-sizing:border-box;
+  /* 给左下角流程提示浮层留位：浮层绝对定位，会盖住面板底边 */
+  padding-bottom:var(--pipeline-hint-space,104px);
+  /* 关键：左栏自身不能做滚动容器，否则卡片（连同底部操作按钮）会被一起推出可视区 */
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  /* 兜底：即使上游高度链异常，面板也不会超过可视区（topMenu 56 + 上下 padding 40） */
+  max-height:calc(100dvh - 96px);
+}
+/* 卡片撑满「左栏高度 - 浮层预留」；底部按钮由 body 内 sticky 保证可见 */
+.cornerScape .left > .card {
+  flex:1 1 auto;
+  height:auto;
+  max-height:100%;
+  min-height:0;
+}
+/* Card's loading wrapper sits BETWEEN flex card and body. It must shrink too. */
+.cornerScape .left > .card :deep(> .t-loading__parent) {
+  display:flex;
+  flex:1 1 0;
+  min-height:0;
+  overflow:hidden;
+}
+.cornerScape .left > .card :deep(.t-card__body) {
+  flex:1 1 0;
+  min-height:0;
+  overflow:auto;
+}
+.cornerScape .left > .card :deep(> .t-card__footer) {
+  flex:0 0 auto;
+  background:#fff;
+  z-index:1;
+}
+.cornerScape .left .paramForm {
+  /* 与卡片 body 统一滚动，避免双重滚动条 */
+  flex:0 0 auto;
+  min-height:0;
+  overflow:visible;
+}
+.cornerScape .left::-webkit-scrollbar { width:8px; }
+.cornerScape .left::-webkit-scrollbar-thumb { background:#ddd6cf; border-radius:8px; }
+.cornerScape .left::-webkit-scrollbar-thumb:hover { background:#cfc6bd; }
+.cornerScape .left::-webkit-scrollbar-track { background:transparent; }
+
+/* 交互反馈只用颜色/阴影，一律不做位移和缩放：
+   之前 hover 会 translateY(-1px)、按下 scale(.97)、卡片悬停上移 3px，
+   观感上就是"光标过去/点确认，按钮自己跑了一下"。 */
+.cornerScape :deep(.t-button),
+.cornerScape .grid .card,
+.cornerScape .contentHeader {
+  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease, color .16s ease;
+}
+.cornerScape :deep(.t-button:not(.t-is-disabled):hover),
+.cornerScape :deep(.t-button:not(.t-is-disabled):active),
+.cornerScape .grid .card:hover,
+.cornerScape .grid .card:active { transform: none !important; }
+.cornerScape .contentHeader .filterChips { margin-top:0; }
+@media(max-width:1050px) {
+  .cornerScape .left { height:auto; overflow:visible; padding-bottom:0; }
+  .cornerScape .left .card { height:auto; }
+  /* 页面整体滚动：底部留出浮层高度，滚到底时「开始批量生成图片」正好在浮层上方 */
+  .cornerScape { padding-bottom:calc(var(--pipeline-hint-space, 104px) + 12px); }
 }
 </style>

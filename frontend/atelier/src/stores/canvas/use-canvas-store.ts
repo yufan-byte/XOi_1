@@ -37,7 +37,7 @@ type CanvasStore = {
 };
 
 const initialViewport: ViewportTransform = { x: 0, y: 0, k: 1 };
-const CANVAS_STORE_KEY = ownerKey("infinite-canvas:canvas_store");
+const CANVAS_STORE_KEY = ownerKey("infinite-canvas:canvas_store:v2");
 type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
@@ -45,21 +45,12 @@ let queuedPersistState: PersistedCanvasState | null = null;
 // 持久化 = IndexedDB 本地缓存(离线兜底) + 宿主后端 /api/canvases 双写（以服务端为水合准绳）
 const canvasStorage: PersistStorage<CanvasStore> = {
     getItem: async (name) => {
-        const [localValue, serverProjects] = await Promise.all([
-            localForageStorage.getItem(name),
-            fetchServerProjects(),
-        ]);
+        const serverProjects = await fetchServerProjects();
         let parsed: StorageValue<CanvasStore> | null = null;
         if (serverProjects !== null) {
             parsed = { state: { projects: serverProjects }, version: 0 } as StorageValue<CanvasStore>;
             // 服务端为准绳，顺手刷新本地缓存供离线启动
             void localForageStorage.setItem(name, JSON.stringify(parsed));
-        } else if (localValue) {
-            try {
-                parsed = JSON.parse(localValue) as StorageValue<CanvasStore>;
-            } catch {
-                parsed = null;
-            }
         }
         if (!parsed) return null;
         queuedPersistState = parsed.state as PersistedCanvasState;

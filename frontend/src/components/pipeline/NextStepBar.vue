@@ -1,9 +1,11 @@
 <template>
-  <!-- 流水线「下一步」吸底条：把「做完这步要回侧栏找下一步」变成一次点击。
-       固定左下角（右下角留给角景的交付托盘），浅色玻璃卡，与工作台其它浮层同风格。 -->
-  <div class="pipelineNextBar" v-if="currentStep">
+  <!-- 小浮层只占左下角，滚动区为它预留局部空间，不挤压整个工作区。 -->
+  <Teleport defer to="#pipeline-dock">
+  <div ref="barRef" class="pipelineNextBar" :class="{ collapsed }" v-if="currentStep">
+    <button v-if="collapsed" type="button" class="pnbToggle" aria-label="展开流程提示" :aria-expanded="false" @click="toggleCollapsed"><span class="pnbBadge">{{ current === 'scriptAgent' ? '可选环节' : `第 ${stepNo} / ${stepTotal} 步` }}</span><span class="pnbStep">{{ currentStep.label }}</span><span class="pnbExpand">›</span></button>
+    <template v-else>
     <div class="pnbLeft">
-      <span class="pnbBadge">第 {{ stepNo }} / {{ stepTotal }} 步</span>
+      <span class="pnbBadge">{{ current === 'scriptAgent' ? '可选环节' : `第 ${stepNo} / ${stepTotal} 步` }}</span>
       <span class="pnbStep">{{ currentStep.label }}</span>
       <span v-if="status" class="pnbStatus" :class="`tone-${statusTone}`">
         <i class="pnbDot"></i>{{ status }}
@@ -11,12 +13,14 @@
     </div>
     <div class="pnbRight">
       <slot name="secondary"></slot>
+      <button type="button" class="pnbCollapse" aria-label="收起流程提示" :aria-expanded="true" @click="toggleCollapsed">⌄</button>
       <t-button
         v-if="nextStep"
         class="pnbMain"
         theme="primary"
         :loading="pending"
         :disabled="disabled"
+        @pointerenter="warmNext" @focus="warmNext" @touchstart.passive="warmNext"
         @click="handleNext">
         <template v-if="disabled && disabledHint">
           {{ disabledHint }}
@@ -28,12 +32,15 @@
       </t-button>
       <span v-else class="pnbDone"><i class="pnbDot"></i>已是最后一步</span>
     </div>
+    </template>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
+import { warmPage } from "@/router/pageLoading";
+import { computed, ref, watch, onMounted, onUnmounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import projectStore from "@/stores/project";
 import { getNextStep, getStep, getStepNo, getStepTotal, type PipelineStepId } from "./pipelineSteps";
@@ -62,6 +69,7 @@ const props = withDefaults(
 const emit = defineEmits<{ (e: "next", target: { path: string; query?: Record<string, any> }): void }>();
 
 const router = useRouter();
+const route = useRoute();
 const { project } = storeToRefs(projectStore());
 
 const projectType = computed(() => project.value?.projectType);
@@ -71,45 +79,74 @@ const stepTotal = computed(() => getStepTotal(projectType.value));
 const nextStep = computed(() => getNextStep(props.current, projectType.value));
 
 const pending = ref(false);
+const barRef = ref<HTMLElement>();
+let workspace: HTMLElement | null = null;
+onMounted(() => {
+  workspace = barRef.value?.closest<HTMLElement>(".view") ?? null;
+  // 固定预留高度，而不是实时测量浮层高度：
+  // 之前折叠/展开会改变这个值 → 页面 padding 变化 → 内容上下跳（"光标过去/点确认就跑"）。
+  workspace?.style.setProperty("--pipeline-hint-space", "104px");
+});
+onUnmounted(() => { workspace?.style.removeProperty("--pipeline-hint-space"); });
+const collapsed = ref((() => { try { return sessionStorage.getItem("xoi_pipeline_hint_expanded") !== "1"; } catch { return true; } })());
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value;
+  try { sessionStorage.setItem("xoi_pipeline_hint_expanded", collapsed.value ? "0" : "1"); } catch {}
+}
+
+function warmNext() {
+  if (!props.disabled) void warmPage(props.nextTo?.path ?? nextStep.value?.path ?? "");
+}
+let warmTimer: ReturnType<typeof setTimeout> | undefined;
+watch(() => [props.disabled, props.nextTo?.path, nextStep.value?.path], () => {
+  clearTimeout(warmTimer);
+  warmTimer = setTimeout(warmNext, 1200);
+}, { immediate: true });
+onUnmounted(() => clearTimeout(warmTimer));
 
 async function handleNext() {
   if (props.disabled || pending.value) return;
   const target = props.nextTo ?? (nextStep.value ? { path: nextStep.value.path } : null);
   if (!target) return;
-
-  if (props.beforeNext) {
-    pending.value = true;
-    try {
-      const ok = await props.beforeNext();
-      if (!ok) return;
-    } finally {
-      pending.value = false;
-    }
-  }
-  emit("next", target);
-  router.push(target);
+  pending.value = true;
+  try {
+    if (props.beforeNext && await props.beforeNext() === false) return;
+    emit("next", target);
+    await router.push({ path: target.path, query: { ...target.query, ...(project.value?.id ? { projectId: String(project.value.id) } : {}), ...(route.query.episode ? { episode: route.query.episode } : {}) } });
+  } finally { pending.value = false; }
 }
+
 </script>
 
 <style scoped>
 .pipelineNextBar {
-  position: fixed;
-  left: 24px;
-  bottom: 24px;
-  z-index: 90;
+  position: relative;
+  flex: none;
+  order: 2;
+  box-sizing: border-box;
+  width: fit-content;
+  min-width: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 18px;
-  max-width: calc(100vw - 48px);
+  max-width: min(560px, 100%);
+  margin-top: 0;
+  flex-wrap: wrap;
+  justify-content: space-between;
   padding: 11px 14px 11px 18px;
   border: 1px solid rgba(103, 94, 143, 0.14);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+
   box-shadow: 0 14px 40px rgba(42, 39, 58, 0.14);
 }
 
+.pipelineNextBar.collapsed { padding: 0; border-radius: 13px; gap: 0; box-shadow: 0 4px 14px rgba(42,39,58,.06); }
+.pnbToggle { display:flex; align-items:center; gap:10px; padding:10px 12px; border:0; border-radius:13px; background:transparent; cursor:pointer; }
+.pnbExpand { color:#9a8b83; font-size:19px; line-height:1; }
+.pnbCollapse { display:grid; place-items:center; width:26px; height:26px; border:0; border-radius:7px; background:#f5f3f0; color:#887e74; cursor:pointer; }
+.pnbToggle:focus-visible,.pnbCollapse:focus-visible { outline:2px solid #f26432; outline-offset:2px; }
 .pnbLeft {
   display: flex;
   align-items: center;
@@ -157,7 +194,7 @@ async function handleNext() {
 }
 
 .pnbStatus.tone-ok {
-  color: #2ba471;
+  color: #bd8055;
 }
 
 .pnbStatus.tone-warn {
@@ -169,6 +206,7 @@ async function handleNext() {
   align-items: center;
   gap: 10px;
   flex: none;
+  margin-left: auto;
 }
 
 .pnbArrow {
@@ -180,7 +218,7 @@ async function handleNext() {
   align-items: center;
   gap: 5px;
   padding: 0 4px;
-  color: #2ba471;
+  color: #bd8055;
   font-size: 12px;
 }
 
@@ -196,15 +234,15 @@ async function handleNext() {
 
 @media (max-width: 720px) {
   .pipelineNextBar {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    max-width: none;
     gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
   }
 
   .pnbStatus {
     display: none;
   }
+  .pnbRight { margin-left: auto; max-width: 100%; }
+  .pnbMain { max-width: 100%; }
 }
 </style>

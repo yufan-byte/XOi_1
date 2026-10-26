@@ -1,6 +1,7 @@
 "use client";
 
 import localforage from "localforage";
+import { ownerDbName, ownerKey } from "@/xoi/owner";
 
 import { nanoid } from "nanoid";
 import { readImageMeta } from "@/lib/image-utils";
@@ -53,11 +54,11 @@ export type StorageConfig = {
     autoSyncAllAssets: boolean;
 };
 
-const store = localforage.createInstance({ name: "infinite-canvas", storeName: "image_files" });
+const store = localforage.createInstance({ name: ownerDbName("files"), storeName: "image_files" });
 const objectUrls = new Map<string, string>();
 const serverUrls = new Map<string, string>();
-export const USER_STORAGE_PROVIDER_KEY = "infinite-canvas:user_storage_provider";
-export const USER_WEBDAV_STORAGE_PROVIDER_KEY = "infinite-canvas:user_webdav_storage_provider";
+export const USER_STORAGE_PROVIDER_KEY = ownerKey("infinite-canvas:user_storage_provider");
+export const USER_WEBDAV_STORAGE_PROVIDER_KEY = ownerKey("infinite-canvas:user_webdav_storage_provider");
 let storageConfigPromise: Promise<StorageConfig> | null = null;
 export const STORAGE_SYNC_FAILED_EVENT = "infinite-canvas:storage-sync-failed";
 const autoSyncRequests = new Map<string | Blob, Promise<{ storageKey: string } | null>>();

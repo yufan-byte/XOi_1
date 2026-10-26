@@ -5,6 +5,8 @@ import * as zod from "zod";
 import { error, success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
+import { resolveTextModelKey } from "@/utils/textModel";
+import { promptRejectionReason } from "@/utils/promptQuality";
 const router = express.Router();
 interface OutlineItem {
   description: string;
@@ -43,10 +45,11 @@ export default router.post(
     projectId: zod.number(),
     concurrentCount: zod.number().int().min(1).optional(),
     otherTextPrompt: zod.string(),
+    textModel: zod.string().optional(),
   }),
   async (req, res) => {
     const userId = (req as any).user?.id;
-    const { projectId, items, concurrentCount, otherTextPrompt } = req.body;
+    const { projectId, items, concurrentCount, otherTextPrompt, textModel } = req.body;
 
     // 检查积分（每个资产扣一次）
     if (userId) {
@@ -60,9 +63,14 @@ export default router.post(
       }
     }
     //获取风格
-    const project = await u.db("o_project").where("id", projectId).select("artStyle", "type", "intro").first();
+    const project = await u.db("o_project").where("id", projectId).select("artStyle", "type", "intro", "textModel").first();
     //如果没有找到对应的项目，返回错误
     if (!project) return res.status(500).send(success({ message: "项目为空" }));
+
+    // 文本模型：面板本次选择 > 项目配置 > 系统默认 > 账号可用 DeepSeek（universalAi 已退役）
+    const pickedModel = String(textModel || "").trim();
+    const projectModel = String((project as any).textModel || "").trim();
+    const aiKey = await resolveTextModelKey({ projectId, override: pickedModel || projectModel });
 
     // 预加载公共数据
     const assetsIds = items.map((item: { assetsId: number }) => item.assetsId);
@@ -103,21 +111,33 @@ export default router.post(
     const limit = pLimit(concurrentCount ?? 1);
     const tasks = items.map((item: { assetsId: number; type: string; name: string; describe: string }) =>
       limit(async () => {
-        const assetData = assetsDataMap.get(item.assetsId);
-        if (!assetData) return;
-        const typeConfig = getTypeConfig(!!assetData.assetsId);
-        const config = typeConfig[item.type];
-        if (!config) return;
-        //获取到视觉手册
-        const visualManual = await u.getArtPrompt(project.artStyle as string, "art_skills", config.visualManual);
-        if (!visualManual) {
-          await u.db("o_assets").where("id", item.assetsId).update({ promptState: "生成失败", promptErrorReason: "视觉手册未定义" });
-          return;
-        }
-        const systemPrompt = visualManual;
+        // 任何提前返回 / 异常都必须落到终态，否则前端会永远停在"生成中"
+        let settled = false;
+        const fail = async (reason: string) => {
+          if (settled) return;
+          settled = true;
+          await u
+            .db("o_assets")
+            .where("id", item.assetsId)
+            .update({ promptState: "失败", promptErrorReason: reason })
+            .catch(() => {});
+        };
         try {
-          const { _output } = (await u.Ai.Text("universalAi").invoke({
-            system: systemPrompt + "\n" + otherTextPrompt,
+          const assetData = assetsDataMap.get(item.assetsId);
+          if (!assetData) return await fail("资产不存在");
+          const typeConfig = getTypeConfig(!!assetData.assetsId);
+          const config = typeConfig[item.type];
+          if (!config) return await fail("未知资产类型，无法生成提示词");
+          //获取到视觉手册
+          const visualManual = await u.getArtPrompt(project.artStyle as string, "art_skills", config.visualManual);
+          if (!visualManual) return await fail("视觉手册未定义");
+
+          const { _output } = (await u.Ai.Text(aiKey).invoke({
+            system:
+              visualManual +
+              "\n" +
+              otherTextPrompt +
+              "\n\n【硬性要求】即使素材设定与全局风格约束存在冲突，也必须按项目既定的画风/年代/质感改写后直接输出可出图的画面提示词；禁止用\"无法生成\"、\"违反规则\"之类的话拒答，禁止输出解释说明或免责声明。只输出提示词正文。",
             messages: [
               {
                 role: "user",
@@ -130,25 +150,28 @@ export default router.post(
             ],
           })) as any;
 
-          if (!_output) {
-            await u.db("o_assets").where("id", item.assetsId).update({ promptState: "生成失败" });
-            return;
-          }
+          const rejected = promptRejectionReason(_output);
+          if (rejected) return await fail(rejected);
 
-          await u.db("o_assets").where("id", item.assetsId).update({ prompt: _output, promptState: "已完成" });
+          await u.db("o_assets").where("id", item.assetsId).update({ prompt: _output, promptState: "已完成", promptErrorReason: null });
+          settled = true;
         } catch (e: any) {
-          await u
-            .db("o_assets")
-            .where("id", item.assetsId)
-            .update({ promptState: "失败", promptErrorReason: u.error(e).message });
+          await fail(u.error(e).message);
         }
       }),
     );
 
-    // 后台执行，不等待结果
-    Promise.all(tasks).catch((err: any) => {
-      res.status(500).send(error(err));
-    });
+    // 后台执行，不等待结果；收尾时兜底把任何残留的"生成中"落成失败态
+    Promise.all(tasks)
+      .catch((err: any) => console.error("[batchPolishAssetsPrompt] 批量任务异常:", u.error(err).message))
+      .finally(async () => {
+        await u
+          .db("o_assets")
+          .whereIn("id", assetsIds)
+          .where("promptState", "生成中")
+          .update({ promptState: "失败", promptErrorReason: "任务异常中断，请重新生成" })
+          .catch(() => {});
+      });
 
     // 扣除积分（每个资产扣一次）
     let pointsDeducted = 0;

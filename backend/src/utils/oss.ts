@@ -1,5 +1,6 @@
 import isPathInside from "is-path-inside";
 import getPath from "@/utils/getPath";
+import { assertStorageWritable } from "@/utils/storageGuard";
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
@@ -49,11 +50,12 @@ class OSS {
   async getFileUrl(userRelPath: string, prefix?: string): Promise<string> {
     if (!prefix) prefix = "oss";
     await this.ensureInit();
+    if(prefix==='oss')await (await import('./privateMediaRuntime')).assertCurrentMediaOwner(userRelPath);
     const safePath = normalizeUserPath(userRelPath);
     // URL 始终使用 /，所以这里需要将系统分隔符转回 /
     let url = `/${prefix}/`;
     if (process.env.ossURL && process.env.ossURL !== "") url = process.env.ossURL + `/${prefix}/`;
-    if (process.env.NODE_ENV == "dev") url = `http://localhost:10588/${prefix}/`;
+    // Same-origin media URLs survive port/domain changes and HTTPS deployments.
     return `${url}${safePath.split(path.sep).join("/")}`;
   }
 
@@ -65,7 +67,10 @@ class OSS {
    */
   async getFile(userRelPath: string): Promise<Buffer> {
     await this.ensureInit();
-    return fs.readFile(resolveSafeLocalPath(userRelPath, this.rootDir));
+    await (await import('./privateMediaRuntime')).assertCurrentMediaOwner(userRelPath);
+    const expected=resolveSafeLocalPath(userRelPath,await fs.realpath(this.rootDir)),actual=await fs.realpath(expected);
+    if(actual!==expected)throw Error('不允许读取符号链接素材');
+    return fs.readFile(actual);
   }
 
   /**
@@ -76,7 +81,9 @@ class OSS {
    */
   async getImageBase64(userRelPath: string): Promise<string> {
     await this.ensureInit();
-    const absPath = resolveSafeLocalPath(userRelPath, this.rootDir);
+    await (await import('./privateMediaRuntime')).assertCurrentMediaOwner(userRelPath);
+    const absPath = resolveSafeLocalPath(userRelPath, await fs.realpath(this.rootDir));
+    if(await fs.realpath(absPath)!==absPath)throw Error('不允许读取符号链接素材');
 
     // 检查文件是否存在且为文件
     const stat = await fs.stat(absPath);
@@ -147,6 +154,10 @@ class OSS {
   async writeFile(userRelPath: string, data: Buffer | string): Promise<void> {
     await this.ensureInit();
     const absPath = resolveSafeLocalPath(userRelPath, this.rootDir);
+    // 磁盘水位兜底：所有写盘路径（路由上传、生成物落盘、一站式合成、预设写入）
+    // 最终都经过这里。盘满时 new-api 会对每个 API 请求回 503，必须在这里拦住。
+    // 查不到水位时 assertStorageWritable 按充足处理，不会误伤正常写入。
+    await assertStorageWritable(this.rootDir);
     await fs.mkdir(path.dirname(absPath), { recursive: true });
     // 如果 data 是 string，则视为 base64 编码，先解码再写入
     // 自动去除可能存在的 Data URL 前缀（如 "data:image/png;base64,"）

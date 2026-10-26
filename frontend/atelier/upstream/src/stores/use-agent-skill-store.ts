@@ -1,6 +1,7 @@
 "use client";
 
 import localforage from "localforage";
+import { ownerDbName } from "@/xoi/owner";
 import { nanoid } from "nanoid";
 import { create } from "zustand";
 
@@ -18,7 +19,7 @@ type AgentSkillStore = {
     deleteSkill: (id: string) => Promise<void>;
 };
 
-const localSkillStore = localforage.createInstance({ name: "infinite-canvas", storeName: "agent_skills" });
+const localSkillStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "agent_skills" });
 const localSkillKey = "items";
 let loadedSkillsKey = "";
 let loadSkillsPromise: Promise<void> | null = null;

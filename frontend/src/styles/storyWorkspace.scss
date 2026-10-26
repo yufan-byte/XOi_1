@@ -1,0 +1,76 @@
+/* 创作流程只使用橙色强调与暖中性色；危险操作保留语义色。 */
+.main .view.story-workspace {
+  --xoi-workspace-bg: #faf8f6;
+  --xoi-workspace-surface: #fff;
+  --xoi-workspace-tint: #fff1e7;
+  --xoi-workspace-border: #eee7e2;
+  --xoi-workspace-accent: #f57438;
+  --xoi-workspace-text: #302b28;
+  --xoi-workspace-muted: #7c7169;
+  --td-brand-color: #f57438;
+  --td-brand-color-hover: #ff8b54;
+  --td-brand-color-active: #df632d;
+  --td-brand-color-light: #fff1e7;
+  --td-brand-color-light-hover: #ffe7d7;
+  --td-brand-color-1: #fff7f0;
+  --td-brand-color-2: #ffecde;
+  --td-brand-color-3: #ffd9c2;
+  --td-brand-color-4: #ffc6a5;
+  --td-brand-color-5: #ffac80;
+  --td-brand-color-6: #ff9560;
+  --td-brand-color-7: #f57438;
+  --td-brand-color-8: #df632d;
+  --td-brand-color-9: #be5121;
+  --td-brand-color-10: #a6451c;
+  --td-success-color: #c9804e;
+  --td-success-color-light: #fff5ec;
+
+  .topMenu .shortcuts .shortcut.active {
+    background: #fff1e7 !important;
+    color: #ee7137 !important;
+  }
+  .topMenu .top-right .shortcuts .shortcut.active .icon { color:var(--xoi-workspace-accent) !important; }
+  .topMenu .top-right .shortcuts .shortcut.active .icon [stroke]:not([stroke="none"]) { stroke:var(--xoi-workspace-accent) !important; }
+  .cornerScape .scopeBar { background:#fff5ed !important; color:#b7815d !important; }
+  .cornerScape .scopeBar.scoped { background:#ffeddd !important; color:#c47b49 !important; }
+  .cornerScape .statusBadge.done,.cornerScape .promptLink.ready { color:#a57350 !important; }
+  .cornerScape .statusBadge.done .dot { background:#cf8e5e !important; }
+  .script .scriptCard .t-tag { color:#b7774b !important; background:#fff5ec !important; border-color:#f1ddcd !important; }
+  .novel .workflowChoiceManual { border-color:#f1dfd0 !important; background:#fffaf6 !important; }
+  .novel .workflowChoiceManual .workflowChoiceIcon { color:#d58b58 !important; }
+  .novel .analysisBtn:not(:disabled) { background:#fff1e7 !important; border-color:#ffdbc5 !important; box-shadow:none !important; }
+  .novel .analysisBtn:not(:disabled) .t-button__text,.novel .analysisBtn:not(:disabled) .t-icon { color:#e97940 !important; }
+  .scriptAgent .scriptChatHeader { background:linear-gradient(110deg,#fff4eb,#fffdf9) !important; }
+  .scriptAgent .agentEyebrow { color:#c58d67; }
+  .scriptAgent .agentLive,.scriptAgent .loadSkillButton { color:#c17c4e; }
+  .scriptAgent .connStatus,.scriptAgent .connStatus.connected { color:#b88760 !important; }
+  .scriptAgent .connStatus i { background:#c98e61 !important; }
+  .scriptAgent .costHintRow { background:#fffbf7 !important; }
+  .scriptAgent .scriptChatSubhead { background:#fffdfb !important; }
+  .assets .t-tabs__nav-item.t-is-active { color:#f57438 !important; }
+  .assets .t-table__body tr:hover > td,.novel .t-table__body tr:hover > td { background:#fff9f3 !important; }
+  .assets .t-table__header th,.novel .t-table__header th { background:#faf8f6 !important; }
+  .t-input,.t-select,.t-textarea { --td-bg-color-container-hover:#fffbf7; }
+  .t-button.workspaceSecondary:not(:disabled) {
+    background:#fff !important;
+    background-image:none !important;
+    border:1px solid #e8dbd1 !important;
+    color:#8b684f !important;
+    -webkit-text-fill-color:currentColor !important;
+    box-shadow:none !important;
+  }
+  .t-button.workspaceSecondary:not(:disabled) .t-button__text,
+  .t-button.workspaceSecondary:not(:disabled) .t-icon { color:#8b684f !important; }
+  .t-button.workspaceSecondary:not(:disabled):hover { background:#fff7ef !important; border-color:#edc6aa !important; }
+  .t-button--variant-outline { box-shadow:none !important; }
+  .productionStatus .statusReady { color:#a57958 !important; }
+  .flowMain .frameTypeTag { background-color:#d99567 !important; }
+  .flowMain .frameMeta .statusPill.done { color:#a57350; background:#fff1e5; }
+  .flowMain .frameMeta .statusPill.loading { color:#c17643; background:#fff1e5; }
+  @media(max-width:1050px) {
+    .cornerScape .deliveryDock { position:fixed; left:calc(68px + 14px); right:14px; bottom:var(--pipeline-hint-space,64px); max-width:calc(100% - 96px); box-sizing:border-box; gap:12px; flex-wrap:wrap; }
+    .cornerScape .deliveryDock .dockThumbs { max-width:160px; }
+    .cornerScape .deliveryDock .dockActions { flex-wrap:wrap; gap:8px; }
+    .cornerScape:has(.deliveryDock) { padding-bottom:calc(var(--pipeline-hint-space,64px) + 160px); }
+  }
+}

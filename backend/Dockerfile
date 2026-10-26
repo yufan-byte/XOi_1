@@ -1,3 +1,4 @@
+# Legacy development-only image. Production must use the repository-root Dockerfile.
 FROM node:24-bookworm-slim
 
 WORKDIR /app
@@ -15,8 +16,8 @@ RUN node -e "const fs=require('fs');const pkg=JSON.parse(fs.readFileSync('packag
     yarn cache clean
 
 ENV NODE_ENV=dev
-ENV PORT=10588
+ENV PORT=12121
 
-EXPOSE 10588
+EXPOSE 12121
 
 CMD ["yarn", "dev"]

@@ -7,6 +7,9 @@ import { useSkill } from "@/utils/agent/skillsTools";
 import { tool, jsonSchema } from "ai";
 import { o_script } from "@/types/database";
 import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
+import { normalizeAssetExtraction } from "@/utils/assetExtractionResult";
+import { db } from "@/utils/db";
+import { resolveTextModelKey } from "@/utils/textModel";
 
 const router = express.Router();
 
@@ -41,17 +44,41 @@ type GroupResult = {
   existingRefs: ExistingAssetRef[];
 } | null;
 
-/** 将 scriptIds 数组按 groupSize 分组 */
-function chunkArray(arr: number[], groupSize: number): number[][][] {
-  const chunks: number[][] = [];
-  for (let i = 0; i < arr.length; i += 5) {
-    chunks.push(arr.slice(i, i + 5));
+/** 单批拼给模型的剧本总字数上限：中文约 1 字 ≈ 1 token，40k 字对 DeepSeek 等 64K 上下文模型留足系统提示与输出余量 */
+const MAX_BATCH_CHARS = 40000;
+/** 单集剧本超过该字数直接拒绝（必然超出常见模型上下文），提前失败并写明原因，不做无意义调用 */
+const MAX_SCRIPT_CHARS = 120000;
+
+/**
+ * 长文本校验 + 分批打包：groupSize（每批最多几集）与总字数双上限。
+ * - 普通剧本：塞满 groupSize 集或 MAX_BATCH_CHARS 字即成一批，超长自动细分，单批输入不会悄悄越过模型上下文；
+ * - 单集超过 MAX_SCRIPT_CHARS：无法再拆，直接标记失败，调用方在剧本列表能看到原因。
+ */
+function packScriptBatches(
+  scriptIds: number[],
+  scriptMap: Map<number, o_script>,
+  groupSize: number,
+): { batches: number[][]; oversized: { scriptId: number; chars: number }[] } {
+  const batches: number[][] = [];
+  const oversized: { scriptId: number; chars: number }[] = [];
+  let current: number[] = [];
+  let currentChars = 0;
+  for (const id of scriptIds) {
+    const chars = (scriptMap.get(id)?.content?.length || 0) + 40; // 40 ≈ 每集分隔标记的开销
+    if (chars > MAX_SCRIPT_CHARS) {
+      oversized.push({ scriptId: id, chars });
+      continue;
+    }
+    if (current.length && (current.length >= Math.max(1, groupSize) || currentChars + chars > MAX_BATCH_CHARS)) {
+      batches.push(current);
+      current = [];
+      currentChars = 0;
+    }
+    current.push(id);
+    currentChars += chars;
   }
-  const groupChunks = [];
-  for (let i = 0; i < chunks.length; i += groupSize) {
-    groupChunks.push(chunks.slice(i, i + groupSize));
-  }
-  return groupChunks;
+  if (current.length) batches.push(current);
+  return { batches, oversized };
 }
 
 export default router.post(
@@ -72,9 +99,35 @@ export default router.post(
 
     if (!scriptIds.length) return res.status(400).send(error("请先选择剧本"));
 
-    // 检查积分（按组数扣）
-    const scriptGroups = chunkArray(scriptIds as number[], groupSize);
-    const totalGroups = scriptGroups.length;
+    const scripts = await u.db("o_script").where("projectId", projectId).whereIn("id", scriptIds);
+    if (scripts.length !== new Set(scriptIds).size) return res.status(400).send(error("所选剧本不存在或不属于当前项目"));
+
+    // 构建 scriptId -> script 内容的映射
+    const scriptMap = new Map(scripts.map((s: o_script) => [s.id, s]));
+
+    // 长文本校验 + 分批（先于积分/状态写入，超长的直接拒绝）
+    const { batches, oversized } = packScriptBatches(scriptIds as number[], scriptMap, groupSize);
+    const errors: { scriptId: number; error: string }[] = [];
+    let successCount = 0;
+    for (const { scriptId, chars } of oversized) {
+      errors.push({ scriptId, error: `剧本约 ${chars} 字，超过单集 12 万字上限` });
+      await u.db("o_script").where("id", scriptId).where("projectId", projectId).update({
+        extractState: -1,
+        errorReason: `剧本约 ${chars} 字，超出单次提取上限（约 12 万字），请先拆分剧本再提取`,
+      });
+    }
+    if (!batches.length) {
+      return res.status(400).send(error(oversized.length ? "所选剧本均超出单次提取上限，请先拆分剧本再提取" : "请先选择剧本"));
+    }
+
+    // 仅把实际参与提取的剧本置为"等待提取"；超长剧本保持失败态与原因
+    const batchIds = batches.flat();
+    await u.db("o_script").whereIn("id", batchIds).update({
+      extractState: 2,
+    });
+
+    // 检查积分（按实际批次数扣）
+    const totalGroups = batches.length;
     if (userId) {
       const required = await getActionPoints("text_generate");
       const total = required * totalGroups;
@@ -85,30 +138,26 @@ export default router.post(
         }
       }
     }
-    const scripts = await u.db("o_script").whereIn("id", scriptIds);
 
-    // 构建 scriptId -> script 内容的映射
-    const scriptMap = new Map(scripts.map((s: o_script) => [s.id, s]));
-
-    await u.db("o_script").whereIn("id", scriptIds).update({
-      extractState: 2,
-    });
-
-    const errors: { scriptId: number; error: string }[] = [];
-    let successCount = 0;
-
-    // 扣除积分（按组数扣）
+    // 扣除积分（按实际批次数扣）
     let pointsDeducted = 0;
     let balance = 0;
     if (userId) {
       const required = await getActionPoints("text_generate");
       if (required > 0) {
-        for (let i = 0; i < scriptGroups.length; i++) {
+        for (let i = 0; i < totalGroups; i++) {
           await deductPoints(userId, "text_generate", "提取素材");
         }
-        pointsDeducted = required * scriptGroups.length;
+        pointsDeducted = required * totalGroups;
         balance = await getUserPoints(userId);
       }
+    }
+
+    // 外层分组只控制并发节奏：每 outerSize 批并行跑
+    const scriptGroups: number[][][] = [];
+    const outerSize = Math.max(1, groupSize);
+    for (let i = 0; i < batches.length; i += outerSize) {
+      scriptGroups.push(batches.slice(i, i + outerSize));
     }
 
     /** 一组剧本提取完成后统一入库并建立关联 */
@@ -116,15 +165,18 @@ export default router.post(
       if (!result) return;
       const { batchScriptIds, newAssets, existingRefs } = result;
       if (!newAssets.length && !existingRefs.length) return;
+      normalizeAssetExtraction({newAssets,existingAssetRefs:existingRefs},batchScriptIds);
+      await db.transaction(async (trx) => {
+      await trx("o_project").where("id",projectId).forUpdate().first();
 
       // 查询已有资产
-      const existingAssets = await u.db("o_assets").where("projectId", projectId).select("id", "name");
+      const existingAssets = await trx("o_assets").where("projectId", projectId).select("id", "name");
       const existingMap = new Map(existingAssets.map((a) => [a.name!, a.id!]));
 
       // 插入新资产（不在已有列表中的）
       const toInsert = newAssets.filter((asset) => !existingMap.has(asset.name));
       if (toInsert.length) {
-        await u.db("o_assets").insert(
+        await trx("o_assets").insert(
           toInsert.map((asset) => ({
             name: asset.name,
             type: asset.type,
@@ -136,7 +188,7 @@ export default router.post(
       }
 
       // 重新查询获取完整的 name -> id 映射
-      const allAssets = await u.db("o_assets").where("projectId", projectId).select("id", "name");
+      const allAssets = await trx("o_assets").where("projectId", projectId).select("id", "name");
       const nameToId = new Map(allAssets.map((a) => [a.name, a.id]));
 
       // 收集所有资产与剧本的关联关系
@@ -166,15 +218,16 @@ export default router.post(
       const uniqueRows = [...new Map(scriptAssetRows.map((r) => [`${r.scriptId}_${r.assetId}`, r])).values()];
 
       // 先删除本批 scriptId 的旧关联，再插入新的
-      await u.db("o_scriptAssets").whereIn("scriptId", batchScriptIds).delete();
+      await trx("o_scriptAssets").whereIn("scriptId", batchScriptIds).delete();
       if (uniqueRows.length) {
-        await u.db("o_scriptAssets").insert(uniqueRows);
+        await trx("o_scriptAssets").insert(uniqueRows);
       }
 
       // 本批成功的剧本状态更新为 1（成功）
-      await u.db("o_script").whereIn("id", batchScriptIds).where("projectId", projectId).update({
+      await trx("o_script").whereIn("id", batchScriptIds).where("projectId", projectId).update({
         extractState: 1,
         errorReason: null,
+      });
       });
     }
     res.send(success("开始提取资产"));
@@ -229,9 +282,10 @@ export default router.post(
                 })
                 .toJSONSchema(),
             ),
-            execute: async ({ newAssets, existingAssetRefs }) => {
-              if (newAssets?.length) collectedNew = newAssets;
-              if (existingAssetRefs?.length) collectedExisting = existingAssetRefs;
+            execute: async (value) => {
+              const cleaned = normalizeAssetExtraction(value,validScriptIds);
+              if (cleaned.newAssets.length) collectedNew = cleaned.newAssets;
+              if (cleaned.existingAssetRefs.length) collectedExisting = cleaned.existingAssetRefs;
               return "无需回复用户任何内容";
             },
           });
@@ -245,7 +299,10 @@ export default router.post(
           const existingHint = existingAssetsList
             ? `\n\n【已有资产列表】：${existingAssetsList}\n对于已有资产，如果在剧本中出现，只需在 existingAssetRefs 中给出资产名称和对应的 scriptIds 数组即可，无需重复生成 desc/type。对于新发现的资产（不在已有列表中），请在 newAssets 中给出完整信息。`
             : "";
-          const output = await u.Ai.Text("universalAi").invoke({
+          // 文本模型：项目配置 > 系统默认 > 账号可用 DeepSeek（universalAi 已退役）
+          const savedTextModel = String((project as any).textModel || "");
+          const textModel = await resolveTextModelKey({ projectId, override: savedTextModel });
+          const output = await u.Ai.Text(textModel).invoke({
             messages: [
               {
                 role: "system",

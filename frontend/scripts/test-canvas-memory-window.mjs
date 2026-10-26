@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {build} from '../atelier/node_modules/esbuild/lib/main.js';
+const output=await build({entryPoints:['atelier/upstream/src/app/(user)/canvas/agent/canvas-agent-memory.ts'],absWorkingDir:new URL('..',import.meta.url).pathname,bundle:true,format:'esm',platform:'node',write:false});
+const {compactCanvasAgentHistory}=await import('data:text/javascript;base64,'+Buffer.from(output.outputFiles[0].text).toString('base64'));
+let summaries=0;
+const latest={role:'user',content:'继续做30秒，2×15秒，480p，保留现有结果'};
+const history=[{role:'user',content:'原始长稿'.repeat(5000)},{role:'assistant',content:'已创建主稿节点source-1，2个分镜待制作。'},latest];
+const result=await compactCanvasAgentHistory({protocolMessages:history,createCheckpoint:async(_previous,messages)=>{summaries++;assert.ok(JSON.stringify(messages).length<37000);return '目标30秒、DeepSeek、豆包、Seedance2.0 480p；主稿source-1。不得重复提交已有任务。';}});
+assert.equal(result.compacted,true,'History must compact before a 13K model input budget, not wait until 48K');
+assert.equal(summaries,1);
+assert.deepEqual(result.protocolMessages.at(-1),latest);
+assert.ok(result.protocolMessages.length<history.length);
+assert.match(result.contextCheckpoint,/480p/);
+let emptyCalls=0;
+const blank=await compactCanvasAgentHistory({protocolMessages:history,createCheckpoint:async()=>{emptyCalls++;return '';}});
+assert.equal(emptyCalls,1,'Empty summaries must not silently trigger another billed call');
+assert.equal(blank.compacted,true);
+assert.deepEqual(blank.protocolMessages.at(-1),latest);
+const huge=await compactCanvasAgentHistory({protocolMessages:[{role:'user',content:'超长中文稿'.repeat(50_000)},{role:'assistant',content:'done'},latest],createCheckpoint:async(_previous,messages)=>{
+ assert.ok(Buffer.byteLength(JSON.stringify(messages))<36_000,'Even one oversized historical message must be bounded before summarization');return 'brief';
+}});
+assert.equal(huge.contextCheckpoint,'brief');
+console.log('PASS: long completed rounds compact before DeepSeek limit; latest user request preserved; bounded checkpoint input');

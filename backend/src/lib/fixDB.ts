@@ -32,31 +32,19 @@ export default async (knex: Knex): Promise<void> => {
       });
     }
   };
-  //矫正因软件异常退出导致的状态不一致问题
-  await knex("o_novel").where("eventState", 0).update({
-    eventState: -1,
-    errorReason: "软件退出导致失败",
-  });
-  await knex("o_script").where("extractState", 0).update({
-    extractState: -1,
-    errorReason: "软件退出导致失败",
-  });
-  await knex("o_assets").where("promptState", "生成中").update({
-    promptState: "生成失败",
-    promptErrorReason: "软件退出导致失败",
-  });
-  await knex("o_image").where("state", "生成中").update({
-    state: "生成失败",
-    errorReason: "软件退出导致失败",
-  });
-  await knex("o_storyboard").where("state", "生成中").update({
-    state: "生成失败",
-    reason: "软件退出导致失败",
-  });
-  await knex("o_video").where("state", "生成中").update({
-    state: "生成失败",
-    errorReason: "软件退出导致失败",
-  });
+
+  /** 补齐缺失索引。CREATE INDEX IF NOT EXISTS 幂等，重复启动不会报错。 */
+  const addIndex = async (table: string, name: string, columns: string[]) => {
+    if (!(await knex.schema.hasTable(table))) return;
+    await knex.raw("CREATE INDEX IF NOT EXISTS ?? ON ?? (??)", [name, table, columns]).catch(() => {});
+  };
+
+  // 项目列表按 userId 过滤是最高频的读路径；早期建表只有主键，列表页会走全表扫。
+  await addIndex("o_project", "o_project_user_idx", ["userId"]);
+
+  // A process restart is not proof that another account/node's generation failed.
+  // Durable workers reconcile their OWN expired leases. Legacy ambiguous requests must
+  // remain available for reconciliation, never blanket-failed, replayed or refunded here.
 
   // 添加新字段
   await addColumn("o_imageFlow", "userId", "bigInteger");
@@ -68,6 +56,7 @@ export default async (knex: Knex): Promise<void> => {
   // 添加新字段
   await addColumn("o_agentDeploy", "maxOutputTokens", "integer");
   await addColumn("o_assets", "audioBindState", "integer");
+  await addColumn("o_project", "textModel", "string");
   await addColumn("o_modelPrompt", "fileName", "string");
   await addColumn("o_modelPrompt", "path", "string");
   const vendorDataSelect = await knex("o_vendorConfig").whereIn("id", ["deepseek", "atlascloud"]).select("*");

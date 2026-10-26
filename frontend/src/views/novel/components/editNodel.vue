@@ -1,7 +1,7 @@
 <template>
   <div class="editNodel">
-    <t-dialog v-model:visible="editNodelShow" :header="$t('workbench.novel.editDialog.title')" width="50%" top="10vh" placement="center">
-      <div class="data" style="overflow-x: hidden">
+    <t-dialog v-model:visible="editNodelShow" :header="$t('workbench.novel.editDialog.title')" width="min(880px, calc(100vw - 32px))" top="10vh" placement="center">
+      <div class="data" style="max-height: calc(100dvh - 220px); overflow: auto">
         <t-form label-width="80px">
           <t-form-item :label="$t('workbench.novel.editDialog.chapterName')">
             <t-input :placeholder="$t('workbench.novel.editDialog.chapterNamePh')" v-model="formData.chapter" />

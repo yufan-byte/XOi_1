@@ -1,77 +1,51 @@
 <template>
-  <div class="editor">
+  <div class="editor" :class="{ 'is-standalone': isStandalone }" @keydown="onControlKeydown">
     <!-- ─────────────── 顶栏 ─────────────── -->
     <header class="edTop">
       <div class="edTopLeft">
-        <button class="edBack" title="返回分镜成片" @click="goBack">
-          <i-arrow-left theme="outline" size="18" />
-        </button>
-        <div class="edMeta">
-          <div class="edName">{{ project?.name || "未命名项目" }}</div>
-          <div class="edSub">
-            <span>{{ episodeLabel }}</span>
-            <i class="edSep" />
-            <span>{{ timelineClipCount }} 个镜头</span>
-            <i class="edSep" />
-            <span class="edTime">{{ formatDuration(playbackStore.duration) }}</span>
-          </div>
-        </div>
+        <span class="editorMark"><i-cutting-one size="19" /></span>
+        <div class="edMeta"><div class="edNameRow"><strong class="edName">{{ isStandalone ? '独立剪辑' : '剪辑成片' }}</strong><span class="editorProjectName">{{ isStandalone ? (scriptName || '本机素材与草稿') : episodeLabel }}</span></div><div class="edSub"><span>{{ timelineClipCount }} 个片段 · {{ formatDuration(fullDuration) }}</span><span v-if="!isStandalone" class="editorProjectHint">{{ project?.name }}</span></div></div>
+        <span class="headerDivider" />
+        <button type="button" class="edGhost" :disabled="!historyStore.canUndo || isReassembling || isExporting" aria-label="撤销" title="撤销" @click="historyStore.undo()"><i-undo size="17" /></button>
+        <button type="button" class="edGhost" :disabled="!historyStore.canRedo || isReassembling || isExporting" aria-label="重做" title="重做" @click="historyStore.redo()"><i-redo size="17" /></button>
       </div>
-
       <div class="edTopRight">
-        <div class="edSave" :class="`is-${saveState}`">
-          <span class="dot" />{{ saveText }}
-        </div>
-        <button class="edGhost" :disabled="!historyStore.canUndo" title="撤销" @click="historyStore.undo()">
-          <i-undo theme="outline" size="17" />
-        </button>
-        <button class="edGhost" :disabled="!historyStore.canRedo" title="重做" @click="historyStore.redo()">
-          <i-redo theme="outline" size="17" />
-        </button>
-        <t-button theme="danger" :loading="isExporting" @click="exportDialogVisible = true">
-          <template #icon><i-export size="16" style="margin-right: 4px" /></template>
-          {{ isExporting ? "导出中…" : "导出成片" }}
-        </t-button>
+        <div class="edSave" :class="`is-${saveState}`" role="status" :title="saveText"><span class="dot" />{{ editorLoading ? '正在载入…' : saveText }}</div>
+        <details ref="editorMore" class="editorMore"><summary aria-label="更多剪辑操作">···</summary><div class="editorMoreMenu">
+          <button v-if="!isStandalone && shots.length" type="button" :disabled="isReassembling || isExporting" @click="closeMore(); confirmReassemble()">按当前分镜重新装配…</button>
+          <button v-if="localTimelineBackup" type="button" @click="closeMore(); openTimelineBackup()">查看本机未同步副本</button>
+          <button type="button" @click="closeMore(); shortcutsOpen = true">查看快捷键</button>
+        </div></details>
+        <button type="button" class="editorExport" :disabled="editorLoading || !timelineClipCount || isExporting || isReassembling" @click="exportDialogVisible = true"><i-export size="15" />{{ isExporting ? '正在导出…' : '导出成片' }}</button>
+        <span class="headerDivider" />
+        <button type="button" class="editorClose" aria-label="关闭剪辑台" :title="isExporting ? '请完成或取消导出后关闭' : '关闭剪辑台，返回原工作区'" :disabled="isExporting || isReassembling" @click="goBack"><i-close size="20" /></button>
       </div>
     </header>
-
     <!-- ─────────────── 主体 ─────────────── -->
-    <div class="edBody" :class="{ 'is-guide': showEmptyGuide }">
+    <div class="edBody" :inert="isReassembling" :class="{ 'is-guide': showEmptyGuide }">
       <!-- 上部：镜头库 · 预览 · 属性 -->
-      <div class="edUpper">
-        <aside v-show="!leftCollapsed" class="edSide edSideLeft">
-          <mediaLibrary
-            :initial-video-items="libraryVideoItems"
-            :initial-media-items="initialMediaItems"
-            :initial-audio-items="initialAudioItems"
-            :initial-image-items="initialImageItems"
-            @pick="handlePickMedia" />
-        </aside>
-        <button class="edRail" :title="leftCollapsed ? '展开镜头库' : '收起镜头库'" @click="leftCollapsed = !leftCollapsed">
-          <i-arrow-left v-if="!leftCollapsed" theme="outline" size="14" />
-          <i-arrow-right v-else theme="outline" size="14" />
-        </button>
-
-        <section class="edStage" ref="previewWrapperRef">
-          <videoPreview ref="videoPreviewRef" :canvas-width="canvasWidth" :canvas-height="canvasHeight" :style="previewStyle" />
-        </section>
-
-        <button class="edRail" :title="rightCollapsed ? '展开属性' : '收起属性'" @click="rightCollapsed = !rightCollapsed">
-          <i-arrow-right v-if="!rightCollapsed" theme="outline" size="14" />
-          <i-arrow-left v-else theme="outline" size="14" />
-        </button>
-        <aside v-show="!rightCollapsed" class="edSide edSideRight">
-          <propertyPanel />
-        </aside>
+      <div class="editorWorkspaceBar">
+        <div><button type="button" :class="{ active: !leftCollapsed }" :aria-pressed="!leftCollapsed" @click="leftCollapsed = !leftCollapsed"><i-folder-open size="14" />素材库</button><span class="workspaceHint">{{ selectedClipLabel || '选择片段，拖动边缘裁剪或在播放头处分割' }}</span></div>
+        <button type="button" :class="{ active: !rightCollapsed }" :aria-pressed="!rightCollapsed" @click="toggleInspector"><i-setting-config size="14" />片段设置</button>
       </div>
-
+      <div class="edUpper">
+        <aside v-show="!leftCollapsed" class="edSide edSideLeft"><mediaLibrary ref="mediaLibraryRef" :initial-video-items="libraryVideoItems" :initial-media-items="initialMediaItems" :initial-audio-items="initialAudioItems" :initial-image-items="initialImageItems" @pick="handlePickMedia" /></aside>
+        <section class="edStage" :class="{ 'is-expanded': expandedPreview }" ref="previewWrapperRef" @dblclick="togglePreview">
+          <span class="previewContext">成片预览 <i>·</i> {{ isStandalone ? replicateRatio : project?.videoRatio || '16:9' }}</span>
+          <div class="previewStageActions"><button type="button" aria-label="上一个剪辑点" title="上一个剪辑点" :disabled="!timelineClipCount" @click.stop="jumpEditPoint(-1)">‹</button><button type="button" aria-label="下一个剪辑点" title="下一个剪辑点" :disabled="!timelineClipCount" @click.stop="jumpEditPoint(1)">›</button><button type="button" class="previewExpand" @click.stop="togglePreview" :aria-label="expandedPreview ? '退出大屏预览' : '放大成片预览'">{{ expandedPreview ? '退出大屏 · Esc' : '⛶' }}</button></div>
+          <videoPreview ref="videoPreviewRef" :canvas-width="canvasWidth" :canvas-height="canvasHeight" :style="previewStyle" />
+          <div v-if="showEmptyGuide" class="edPreviewEmpty"><span class="emptyCutMark"><i-film size="29" /></span><strong>从一个片段开始</strong><p>{{ isStandalone ? '导入视频、图片或音乐，把它们加入下方时间线。' : '使用本集分镜视频，或从电脑导入自己的素材。' }}</p><div class="emptyEditorActions"><button v-if="!isStandalone && shots.some(shot => shot.selectedVideoUrl || shot.videos.length)" type="button" class="primary" :disabled="isReassembling || editorLoading" @click="reassemble">{{ isReassembling ? '正在装配…' : '按分镜顺序加入视频' }}</button><button type="button" @click="openLocalFiles">导入素材</button></div><small>已有剪辑会自动恢复，关闭时保留草稿。</small></div>
+        </section>
+        <aside v-show="!rightCollapsed" class="edSide edSideRight"><propertyPanel /></aside>
+      </div>
       <!-- 时间线高度拖拽条 -->
-      <div class="edSplit" @pointerdown="onSplitDown"><span /></div>
+      <div class="edSplit" role="separator" aria-label="调整时间线高度" aria-orientation="horizontal" :aria-valuemin="timelineLimits.min" :aria-valuemax="timelineLimits.max" :aria-valuenow="timelineHeight" tabindex="0" @pointerdown="onSplitDown" @keydown.up.prevent="resizeTimeline(20)" @keydown.down.prevent="resizeTimeline(-20)"><span /></div>
 
       <!-- 下部：时间线 -->
-      <div class="edTimeline" :style="{ height: timelineHeight + 'px' }">
+      <div ref="timelineElement" class="edTimeline" :style="{ height: timelineHeight + 'px' }">
+        <div v-if="missingSelectedShots && !showEmptyGuide" class="edMissingShots">{{ missingSelectedShots }} 段分镜视频尚未入轨 <span>当前剪辑保留，可从素材库加入。</span><button type="button" @click="leftCollapsed = false">查看素材 →</button></div>
         <!-- 选区（工作区）条：导出「选区」用的就是它。独立像素映射，不受时间线缩放/滚动影响 -->
-        <div class="edRange" title="拖拽拉选区间；快捷键 I 设起点、O 设终点、Esc 清除">
+        <div v-if="rangeOpen" class="edRange" title="拖拽拉选区间；快捷键 I 设起点、O 设终点、Esc 清除">
           <span class="edRangeLabel">选区</span>
           <div ref="rangeTrackRef" class="edRangeTrack" @pointerdown="onRangeTrackDown">
             <div class="edRangeFill" :style="rangeFillStyle" @pointerdown.stop="onRangeBandDown">
@@ -98,6 +72,16 @@
           :default-scale="1"
           @drop-media="handleDropMedia"
           @transition-added="onTransitionAdded">
+          <template #scale-append>
+            <button type="button" class="timelineTextButton" :class="{ active: rangeOpen }" :aria-pressed="rangeOpen" @click="rangeOpen = !rangeOpen">选区 <small v-if="hasRange">已设置</small></button>
+            <button type="button" class="timelineTextButton" :disabled="!fullDuration" title="让整条成片完整显示在时间线中" @click="fitTimeline">适应全片</button>
+            <div class="editorZoomControl">
+              <button type="button" aria-label="缩小时间线" :disabled="scaleStore.scale <= scaleStore.minScale" @click="scaleStore.zoomOut(.1)">−</button>
+              <input type="range" aria-label="时间线缩放" :min="scaleStore.minScale" :max="scaleStore.maxScale" step="0.01" :value="scaleStore.scale" @input="scaleStore.setScale(Number(($event.target as HTMLInputElement).value))" />
+              <span>{{ Math.round(scaleStore.scale * 100) }}%</span>
+              <button type="button" aria-label="放大时间线" :disabled="scaleStore.scale >= scaleStore.maxScale" @click="scaleStore.zoomIn(.1)">+</button>
+            </div>
+          </template>
           <template #custom-operation-reset>
             <t-button variant="text" size="small" title="重置时间线视图（滚动与缩放）" @click="resetView">
               <template #icon><i-refresh size="16" /></template>
@@ -108,7 +92,7 @@
             <t-button
               variant="text"
               size="small"
-              :disabled="tracksStore.selectedClipIds.size === 0"
+              :disabled="!canSplit || isExporting"
               @click="handleSplit"
               :title="$t('workbench.production.editVideo.split')">
               <template #icon><i-cutting-one size="16" /></template>
@@ -116,34 +100,18 @@
             </t-button>
           </template>
           <template #custom-operation-delete>
-            <t-button variant="text" size="small" @click="handleDeleteClips" :title="$t('workbench.production.editVideo.delete')">
+            <t-button variant="text" size="small" :disabled="!tracksStore.selectedClipIds.size || isExporting" @click="handleDeleteClips" :title="$t('workbench.production.editVideo.delete')">
               <template #icon><i-delete size="16" /></template>
               {{ $t("workbench.production.editVideo.delete") }}
             </t-button>
           </template>
         </VideoTrack>
 
-        <!-- 空白态引导：一个镜头都没有时，不要给一片黑 -->
-        <div v-if="showEmptyGuide" class="edGuide">
-          <div class="edGuideCard">
-            <div class="edGuideIcon"><i-film theme="outline" size="34" /></div>
-            <div class="edGuideTitle">{{ noProject ? "还没有打开项目" : "这里还是空的" }}</div>
-            <div class="edGuideText">
-              <template v-if="noProject">
-                剪辑台需要一个项目上下文。先回到项目列表打开一个项目，再进来就能按分镜顺序把镜头铺好。
-              </template>
-              <template v-else>
-                剪辑台按「分镜顺序」自动铺轨，但目前这一集还没有可用的镜头视频。<br />
-                先到分镜台生成镜头画面，回来就会自动排好，你直接从「改」开始。
-              </template>
-            </div>
-            <div class="edGuideActions">
-              <t-button theme="primary" @click="noProject ? router.push('/project') : goStoryboard()">
-                {{ noProject ? "去项目列表" : "去分镜台生成镜头" }}
-              </t-button>
-              <t-button v-if="!noProject" variant="outline" @click="reload">重新检测</t-button>
-            </div>
-          </div>
+        <div v-if="showEmptyGuide" class="edTimelineHint">
+          <span>{{ emptyGuideTitle }} · 单击左侧素材即可加入时间线</span>
+          <button v-if="isStandalone" type="button" @click="openLocalFiles">导入素材 →</button>
+          <button v-else-if="noProject" type="button" @click="router.push('/project')">选择项目 →</button>
+          <button v-else type="button" @click="goStoryboard">查看分镜 →</button>
         </div>
 
         <!-- 自动装配后的提示条（可撤销） -->
@@ -155,6 +123,7 @@
       </div>
     </div>
 
+    <t-dialog v-if="shortcutsOpen" v-model:visible="shortcutsOpen" header="剪辑快捷键" width="420px" :footer="false" attach="body"><div class="editorShortcuts"><p><span>播放 / 暂停</span><kbd>Space</kbd></p><p><span>保存草稿</span><kbd>⌘ / Ctrl + S</kbd></p><p><span>设置选区起点 / 终点</span><kbd>I / O</kbd></p><p><span>清除选区 / 退出大屏预览</span><kbd>Esc</kbd></p><p><span>缩放时间线</span><small>滚轮 / 双指捏合</small></p><p><span>平移时间线</span><small>双指横滑 / Shift + 滚轮</small></p></div></t-dialog>
     <!-- ─────────────── 导出 ─────────────── -->
     <t-dialog
       v-model:visible="exportDialogVisible"
@@ -188,7 +157,7 @@
           </div>
 
           <p class="exportHint">
-            合成在浏览器本地完成（WebCodecs），导完自动下载并归档到项目资产库的「成片」节点。<br />
+            合成在浏览器本地完成（WebCodecs），{{ isStandalone ? '导完下载到本机，不写入其他剧本项目。' : '导完自动下载并归档到项目资产库的「成片」节点。' }}<br />
             「按镜头分段导出」会一次下载多个文件，浏览器可能提示「允许下载多个文件」。
           </p>
 
@@ -227,13 +196,17 @@
 </template>
 
 <script setup lang="ts">
+import { editorProductionReturn } from "../../../utils/studioWorkflow";
 import { provide } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter, onBeforeRouteLeave } from "vue-router";
 import axios from "@/utils/axios";
 import mediaLibrary from "./mediaLibrary.vue";
 import videoPreview from "./videoPreview.vue";
+import { timelineWheel } from "@/utils/editorGestures";
+import { requestedClipDuration, missingShotCount } from '@/utils/timelineAssembly';
 import propertyPanel from "./propertyPanel.vue";
-import { useLocalStorage } from "@vueuse/core";
+import { useLocalStorage, useWindowSize } from "@vueuse/core";
+import { editorTimelineSize, fitEditorScale, adjacentEditPoint, canSplitEditorClip, editorDraftSerializer } from "@/utils/editorWorkspace";
 import "vue-clip-track/style.css";
 import {
   VideoTrack,
@@ -255,6 +228,9 @@ import { findOrCreateTrackWithSpace } from "./utils/trackHelper";
 import { loadVideoClipThumbnails, loadAudioClipWaveform, loadInitialAudioWaveforms } from "./utils/mediaLoader";
 import { addTransitionBetweenClips, findAdjacentClipsAtTime } from "./utils/transitionHelper";
 import projectStore from "@/stores/project";
+import { MessagePlugin } from "tdesign-vue-next";
+import { loadDraft as loadReplicateDraft } from "@/views/viralReplicate/storage";
+import { getCloudDocument, saveCloudDocument, assertWorkspaceOwner } from "@/utils/workspace";
 
 const props = withDefaults(
   defineProps<{
@@ -281,6 +257,8 @@ interface Shot {
 
 const route = useRoute();
 const router = useRouter();
+const isStandalone = computed(() => route.query.mode === "standalone");
+const replicateRatio = ref("16:9");
 
 // ─────────────────────── 上下文：项目 / 分集 ───────────────────────
 const projectState = projectStore();
@@ -298,7 +276,7 @@ const episodeLabel = computed(() => scriptName.value || (scriptId.value ? `第 $
 const canvasWidth = computed(() => props.canvasWidth || ratioSize.value.w);
 const canvasHeight = computed(() => props.canvasHeight || ratioSize.value.h);
 const ratioSize = computed(() => {
-  const ratio = project.value?.videoRatio;
+  const ratio = isStandalone.value ? replicateRatio.value : project.value?.videoRatio;
   if (ratio === "1:1") return { w: 1080, h: 1080 };
   if (ratio === "9:16") return { w: 1080, h: 1920 };
   return { w: 1920, h: 1080 };
@@ -306,34 +284,65 @@ const ratioSize = computed(() => {
 const aspectRatio = computed(() => canvasWidth.value / canvasHeight.value);
 
 // ─────────────────────── 三区布局状态 ───────────────────────
-const leftCollapsed = ref(false);
-const rightCollapsed = ref(false);
-const timelineHeight = ref(320);
-const TIMELINE_MIN = 240;
-const TIMELINE_MAX = 520;
+const leftCollapsed = ref(typeof window !== "undefined" && window.innerWidth < 900);
+const rightCollapsed = ref(true);
+let inspectorPinnedClosed = false;
+const { height: viewportHeight } = useWindowSize();
+const timelineLimits = computed(() => editorTimelineSize(viewportHeight.value));
+const timelineHeight = ref(editorTimelineSize(window.innerHeight).value);
+watch(viewportHeight, height => { timelineHeight.value = editorTimelineSize(height, timelineHeight.value).value; });
+function resizeTimeline(delta: number) { timelineHeight.value = editorTimelineSize(viewportHeight.value, timelineHeight.value + delta).value; }
+const editorLoading = ref(true), shortcutsOpen = ref(false), rangeOpen = ref(false);
+const editorMore = ref<HTMLDetailsElement>();
+function closeMore() { if (editorMore.value) editorMore.value.open = false; }
+function toggleInspector() { rightCollapsed.value = !rightCollapsed.value; inspectorPinnedClosed = rightCollapsed.value; }
+let stopSplitDrag: (() => void) | undefined;
 
 let splitDragging = false;
 function onSplitDown(e: PointerEvent) {
+  if (e.button !== 0) return;
   e.preventDefault();
+  stopSplitDrag?.();
   splitDragging = true;
   const startY = e.clientY;
   const startH = timelineHeight.value;
   const onMove = (ev: PointerEvent) => {
     if (!splitDragging) return;
     const next = startH - (ev.clientY - startY);
-    timelineHeight.value = Math.min(TIMELINE_MAX, Math.max(TIMELINE_MIN, next));
+    timelineHeight.value = editorTimelineSize(viewportHeight.value, next).value;
   };
   const onUp = () => {
     splitDragging = false;
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+    stopSplitDrag = undefined;
   };
+  stopSplitDrag = onUp;
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
 }
 
 // 预览自适应尺寸
 const previewWrapperRef = ref<HTMLElement>();
+const expandedPreview = ref(false);
+async function togglePreview() {
+  if (expandedPreview.value) {
+    if (document.fullscreenElement === previewWrapperRef.value) await document.exitFullscreen().catch(() => {});
+    expandedPreview.value = false;
+    return;
+  }
+  expandedPreview.value = true;
+  await previewWrapperRef.value?.requestFullscreen?.().catch(() => {});
+  await nextTick();
+  if (previewWrapperRef.value) {
+    wrapperSize.width = previewWrapperRef.value.clientWidth;
+    wrapperSize.height = previewWrapperRef.value.clientHeight;
+  }
+}
+function previewFullscreenChanged() { if (!document.fullscreenElement) expandedPreview.value = false; }
+function previewEscape(e: KeyboardEvent) { if (e.key === 'Escape') expandedPreview.value = false; }
 const wrapperSize = reactive({ width: 0, height: 0 });
 let resizeObserver: ResizeObserver | null = null;
 const previewStyle = computed(() => {
@@ -342,9 +351,10 @@ const previewStyle = computed(() => {
   const ratio = aspectRatio.value;
   const pad = 16;
   const availW = Math.max(cw - pad, 0);
-  const availH = Math.max(ch - pad, 0);
-  if (availW / availH > ratio) return { height: availH + "px", width: Math.floor(availH * ratio) + "px" };
-  return { width: availW + "px", height: Math.floor(availW / ratio) + "px" };
+  const controls = 36;
+  const availH = Math.max(ch - pad - controls, 0);
+  if (availW / availH > ratio) return { height: (availH + controls) + "px", width: Math.floor(availH * ratio) + "px" };
+  return { width: availW + "px", height: (Math.floor(availW / ratio) + controls) + "px" };
 });
 
 // ─────────────────────── store ───────────────────────
@@ -352,16 +362,71 @@ const tracksStore = useTracksStore();
 const playbackStore = usePlaybackStore();
 const historyStore = useHistoryStore();
 const scaleStore = useScaleStore();
+const selectedClipLabel = computed(() => tracksStore.selectedClips.length === 1 ? tracksStore.selectedClips[0]?.name || '当前片段' : tracksStore.selectedClipIds.size ? `已选 ${tracksStore.selectedClipIds.size} 个片段` : '');
+const canSplit = computed(() => tracksStore.selectedClips.some(clip => canSplitEditorClip(clip, playbackStore.currentTime)));
+watch(() => [...tracksStore.selectedClipIds], ids => { if (ids.length === 1 && !inspectorPinnedClosed) rightCollapsed.value = false; });
+function jumpEditPoint(direction: -1 | 1) { playbackStore.pause(); playbackStore.seekTo(adjacentEditPoint(tracksStore.tracks.flatMap(track => track.clips.filter(clip => clip.type !== 'transition')), playbackStore.currentTime, direction)); }
+function fitTimeline() {
+  const area = timelineElement.value?.querySelector('.track-area') as HTMLElement | null;
+  const value = fitEditorScale(fullDuration.value, area?.clientWidth || (timelineElement.value?.clientWidth || 0) - 180, scaleStore.pixelsPerSecond, scaleStore.minScale, scaleStore.maxScale);
+  if (value === null) return;
+  scaleStore.setScale(value);
+  if (area) area.scrollLeft = 0;
+}
 
-const draftKey = computed(() => `xoi:timeline-draft:${projectId.value || "project"}:${scriptId.value || "episode"}`);
-const timelineDraft = useLocalStorage<any>(draftKey, null);
+const editorOwner = localStorage.getItem("userId") || "";
+const draftKey = computed(() => {
+  if (isStandalone.value) return `xoi:${editorOwner}:timeline-draft:standalone:${String(route.query.draft || "default")}`;
+  return `xoi:${editorOwner}:timeline-draft:${projectId.value || "project"}:${scriptId.value || "episode"}`;
+});
+const timelineDraft = useLocalStorage<Track[] | null>(draftKey, null, { serializer: editorDraftSerializer });
 let draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let timelineRevision = 0, timelineQueue = Promise.resolve(), cloudAvailable = true;
+const timelineSaveMessage = ref("");
+const localTimelineBackup = ref<Track[] | null>(null);
+let currentTimelineId = "";
+let timelineSaveSequence = 0;
+async function timelineId() {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(draftKey.value));
+  return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+async function restoreCloudTimeline() {
+  timelineRevision = 0;
+  try {
+    currentTimelineId = await timelineId();
+    const meta = JSON.parse(localStorage.getItem(`${draftKey.value}:sync`) || "null");
+    localTimelineBackup.value = JSON.parse(localStorage.getItem(`${draftKey.value}:unsynced-backup`) || "null");
+    // A viral legacy key includes a verified owner; never auto-import an unscoped legacy draft.
+    if (!timelineDraft.value && route.query.viralDraft) timelineDraft.value = JSON.parse(localStorage.getItem(`xoi:timeline-draft:standalone:viral-${editorOwner}-${route.query.viralDraft}`) || "null");
+    const saved = await getCloudDocument<{ tracks: Track[]; ratio: string; name: string; shots?: Shot[] }>(editorOwner, "timeline", currentTimelineId);
+    if (saved) {
+      timelineRevision = saved.revision;
+      if (meta?.pending && meta.revision === saved.revision && timelineDraft.value) { timelineSaveMessage.value = "本机有未同步编辑 · 自动保存后可跨设备继续"; return; }
+      if (meta?.pending && timelineDraft.value) {
+        localTimelineBackup.value = JSON.parse(JSON.stringify(timelineDraft.value));
+        localStorage.setItem(`${draftKey.value}:unsynced-backup`, JSON.stringify(localTimelineBackup.value));
+      }
+      timelineDraft.value = saved.payload.tracks;
+      localStorage.setItem(`${draftKey.value}:sync`, JSON.stringify({ revision: saved.revision, pending: false }));
+      if (isStandalone.value) { replicateRatio.value = saved.payload.ratio || "16:9"; scriptName.value = saved.payload.name; if (!shots.value.length && saved.payload.shots) shots.value = saved.payload.shots; }
+      timelineSaveMessage.value = "已恢复云端剪辑草稿";
+    }
+  } catch { cloudAvailable = false; timelineSaveMessage.value = "云端不可用 · 本机草稿保留，暂不覆盖云端"; }
+}
+function openTimelineBackup() {
+  if (!localTimelineBackup.value) return;
+  cloudAvailable = false; ready = false;
+  tracksStore.reset(); localTimelineBackup.value.forEach(track => tracksStore.addTrack(JSON.parse(JSON.stringify(track))));
+  timelineDraft.value = JSON.parse(JSON.stringify(localTimelineBackup.value));
+  ready = true; timelineSaveMessage.value = "正在查看本机未同步副本 · 可导出，不覆盖云端";
+}
 
 const saveState = ref<"saved" | "saving" | "idle">("idle");
-const saveText = computed(() => (saveState.value === "saving" ? "保存中…" : saveState.value === "saved" ? "已保存到本机" : "自动草稿"));
+const saveText = computed(() => saveState.value === "saving" ? "保存中…" : timelineSaveMessage.value || "自动保存剪辑草稿");
 
 const videoPreviewRef = ref<InstanceType<typeof videoPreview>>();
 const videoTrackRef = ref();
+const mediaLibraryRef = ref<InstanceType<typeof mediaLibrary>>();
 const isExporting = ref(false);
 const exportDialogVisible = ref(false);
 
@@ -382,6 +447,7 @@ const fullDuration = computed(() => {
   }
   return Math.max(max, 0);
 });
+watch(fullDuration, seconds => playbackStore.setDuration(seconds), { flush: 'post' });
 
 /** 主轨上的镜头分段（分段导出的单位） */
 const mainTrackSegments = computed(() =>
@@ -450,10 +516,19 @@ const libraryVideoItems = computed<MediaItem[]>(() =>
     })),
 );
 
-/** 有草稿时不动用户的东西；没有素材时不铺空轨 */
-const noProject = computed(() => projectId.value <= 0);
-const showEmptyGuide = computed(() => noProject.value || shots.value.length === 0 || libraryVideoItems.value.length === 0);
+/** 空状态只看时间线是否为空；没有 AI 分镜视频不代表不能独立剪辑。 */
+const noProject = computed(() => !isStandalone.value && projectId.value <= 0);
 const timelineClipCount = computed(() => tracksStore.tracks.reduce((n, t) => n + t.clips.filter((c) => c.type !== "transition").length, 0));
+const showEmptyGuide = computed(() => noProject.value || timelineClipCount.value === 0);
+const emptyGuideTitle = computed(() => {
+  if (isStandalone.value) return "导入素材，开始独立剪辑";
+  return noProject.value ? "先选择一个项目" : "从任意素材开始剪辑";
+});
+
+function openLocalFiles() {
+  leftCollapsed.value = false;
+  mediaLibraryRef.value?.openFilePicker();
+}
 
 const MEDIA_TYPE_EXT: Record<string, string[]> = {
   image: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"],
@@ -468,6 +543,11 @@ function getMediaType(src?: string): "image" | "video" | "audio" | "unknown" {
 }
 
 async function resolveEpisode() {
+  if (isStandalone.value) {
+    scriptId.value = 0;
+    scriptName.value = "";
+    return;
+  }
   const fromQuery = Number(route.query.episode);
   if (Number.isFinite(fromQuery) && fromQuery > 0) scriptId.value = fromQuery;
   try {
@@ -484,6 +564,10 @@ async function resolveEpisode() {
 }
 
 async function loadShots() {
+  if (isStandalone.value) {
+    shots.value = [];
+    return;
+  }
   try {
     const { data } = await axios.post("/production/editorTimeline", {
       projectId: projectId.value,
@@ -496,6 +580,23 @@ async function loadShots() {
 }
 
 async function loadMaterials() {
+  if (isStandalone.value) {
+    initialMediaItems.value = [
+      {
+        id: "video-xoi-ending",
+        type: "video",
+        name: "XOi片尾.mp4",
+        duration: 0,
+        icon: "🎬",
+        color: "linear-gradient(135deg, #2d2a28 0%, #68574d 100%)",
+        url: "/assets/ending.mp4",
+        loading: true,
+      },
+    ];
+    initialAudioItems.value = [];
+    initialImageItems.value = [];
+    return;
+  }
   try {
     const { data } = await axios.post("/assets/getMaterialData", {
       projectId: projectId.value,
@@ -508,7 +609,7 @@ async function loadMaterials() {
     initialMediaItems.value = video.map((item) => ({
       id: `video-${item.id}`,
       type: "video" as const,
-      name: item.name,
+      name: Number(item.id) === 0 ? "XOi片尾.mp4" : item.name,
       duration: item.duration || 0,
       icon: "🎥",
       color: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -561,21 +662,21 @@ const trackTypes = ref<TrackTypeConfig>({
 
 const clipConfigs = ref({
   video: {
-    backgroundColor: "linear-gradient(45deg, #667eea 0%, #764ba2 100%)",
-    borderColor: "#000000",
+    backgroundColor: "#bba188",
+    borderColor: "#9d8068",
     height: 60,
-    selected: { borderColor: "#ff6b6b", boxShadow: "0 0 0 3px rgba(255, 107, 107, 0.3)" },
+    selected: { borderColor: "#c2683d", boxShadow: "0 0 0 2px rgba(194,104,61,.2)" },
   },
   audio: {
-    backgroundColor: "linear-gradient(45deg, #f093fb 0%, #f5576c 100%)",
+    backgroundColor: "#829e93",
     height: 36,
     selected: { borderColor: "#4ecdc4" },
   },
   image: {
-    backgroundColor: "linear-gradient(45deg, #43e97b 0%, #38f9d7 100%)",
+    backgroundColor: "#9eaeba",
     borderColor: "#43e97b",
     height: 60,
-    selected: { borderColor: "#ff6b6b", boxShadow: "0 0 0 3px rgba(255, 107, 107, 0.3)" },
+    selected: { borderColor: "#c2683d", boxShadow: "0 0 0 2px rgba(194,104,61,.2)" },
   },
 });
 
@@ -614,7 +715,7 @@ function ensureMainTrack(): Track | undefined {
     main = {
       id: generateId("track-"),
       type: "video",
-      name: "主轨道",
+      name: "主视频轨",
       visible: true,
       locked: false,
       clips: [],
@@ -631,10 +732,47 @@ function ensureMainTrack(): Track | undefined {
  * 这是把「从零搭一条时间线」换成「改一份初稿」的关键一步 —— 用户不该面对一条空轨。
  */
 let preAutoTracks: Track[] | null = null;
-async function autoLayout() {
+const isReassembling = ref(false);
+const missingSelectedShots = computed(() => missingShotCount(shots.value.map(s => s.selectedVideoUrl || s.videos[0]?.url || ''), tracksStore.tracks.flatMap(t => t.clips.filter(c => c.type === 'video').map(c => (c as any).sourceUrl || ''))));
+function confirmReassemble() {
+  const dialog = DialogPlugin.confirm({
+    header: '按当前分镜重新装配？',
+    body: '将先保存一份云端备份，再用当前选用视频替换主视频轨。其他轨道保留，可撤销；不会重新生成视频，不扣积分。',
+    confirmBtn: '备份并重新装配', cancelBtn: '保留当前剪辑',
+    onConfirm: async () => { dialog.destroy(); await reassemble(); },
+    onCancel: () => dialog.destroy(),
+  });
+}
+async function reassemble() {
+  if (isReassembling.value || isStandalone.value) return;
+  isReassembling.value = true;
+  const previousReady = ready;
+  let before: Track[] | undefined;
+  ready = false;
+  try {
+    if (!cloudAvailable) throw new Error('请先恢复云端连接，再备份并重新装配');
+    if (draftSaveTimer) { clearTimeout(draftSaveTimer); draftSaveTimer = null; }
+    await timelineQueue;
+    const backupId = `${currentTimelineId || await timelineId()}.backup.${Date.now()}`;
+    const tracks = JSON.parse(JSON.stringify(tracksStore.tracks));
+    before = tracks;
+    const portable = tracks.map((t: any) => ({ ...t, clips: t.clips.map(({ thumbnails, waveformData, ...c }: any) => c) }));
+    await saveCloudDocument(editorOwner, 'timeline', backupId, 0, `[装配前备份]${scriptName.value}`, { tracks: portable, ratio: project.value?.videoRatio, name: scriptName.value, sourceTimeline: currentTimelineId });
+    await autoLayout(true);
+    ready = previousReady;
+    persistTimeline();
+    window.$message.success('已按分镜重新装配，原剪辑已备份到云端，可撤销');
+  } catch (e: any) {
+    if (before) tracksStore.setTracks(before);
+    window.$message.error(e?.message || '未能重新装配，原草稿保留');
+  }
+  finally { ready = previousReady; isReassembling.value = false; }
+}
+async function autoLayout(force = false) {
   const main = ensureMainTrack();
-  if (!main || main.clips.length > 0) return;
-  if (timelineDraft.value) return; // 有草稿：用户的编排优先
+  if (force && main?.locked) throw new Error('主视频轨已锁定，请先解锁再重新装配');
+  if (!main || (!force && main.clips.length > 0)) return;
+  if (!force && timelineDraft.value) return; // 有草稿：用户的编排优先
 
   const usable = (shots.value.length ? shots.value : []).filter((s) => s.selectedVideoUrl || s.videos?.length);
   if (!usable.length) return;
@@ -645,11 +783,12 @@ async function autoLayout() {
   );
 
   preAutoTracks = JSON.parse(JSON.stringify(tracksStore.tracks));
+  if (force) tracksStore.removeClips(main.clips.map(c => c.id));
 
   let cursor = 0;
   usable.forEach((shot, i) => {
     const url = shot.selectedVideoUrl || shot.videos[0]?.url;
-    const duration = Math.max(durations[i] || shot.duration || 0, 0.5);
+    const duration = requestedClipDuration(shot.duration, durations[i]);
     const clip = {
       id: generateId("clip-"),
       trackId: main.id,
@@ -669,9 +808,10 @@ async function autoLayout() {
     cursor += duration;
   });
 
-  playbackStore.setDuration(Math.max(cursor, 10));
+  playbackStore.setDuration(fullDuration.value);
   playbackStore.seekTo(0);
   historyStore.initialize();
+  if (force) clearRange();
   if (cursor > 0) {
     autoLayoutNotice.value = `已按分镜顺序铺入 ${usable.length} 个镜头（共 ${formatDuration(cursor)}），可以直接开始精剪`;
   }
@@ -683,7 +823,7 @@ function undoAutoLayout() {
     preAutoTracks.forEach((t) => tracksStore.addTrack(JSON.parse(JSON.stringify(t))));
     preAutoTracks = null;
   }
-  playbackStore.setDuration(60);
+  playbackStore.setDuration(fullDuration.value);
   playbackStore.seekTo(0);
   historyStore.initialize();
   autoLayoutNotice.value = "";
@@ -699,13 +839,18 @@ async function initializeTracks() {
   await autoLayout();
 
   if (!tracksStore.tracks.length) ensureMainTrack();
-  if (playbackStore.duration <= 0) playbackStore.setDuration(60);
+  playbackStore.setDuration(fullDuration.value);
   historyStore.initialize();
   await loadInitialAudioWaveforms(tracksStore);
   ready = true;
 }
 
 async function reload() {
+  if (isStandalone.value) {
+    autoLayoutNotice.value = "";
+    await initializeTracks();
+    return;
+  }
   await Promise.all([resolveEpisode(), loadShots(), loadMaterials()]);
   autoLayoutNotice.value = "";
   await initializeTracks();
@@ -719,11 +864,46 @@ function scheduleDraftSave() {
   if (!ready) return;
   saveState.value = "saving";
   if (draftSaveTimer) clearTimeout(draftSaveTimer);
-  draftSaveTimer = setTimeout(() => {
-    timelineDraft.value = JSON.parse(JSON.stringify(tracksStore.tracks));
-    saveState.value = "saved";
-  }, 600);
+  draftSaveTimer = setTimeout(persistTimeline, 600);
 }
+function persistTimeline() {
+    if (!ready) return;
+    if (draftSaveTimer) clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    const localKey = draftKey.value, documentId = currentTimelineId;
+    const sequence = ++timelineSaveSequence;
+    const payload = { tracks: JSON.parse(JSON.stringify(tracksStore.tracks)), ratio: isStandalone.value ? replicateRatio.value : project.value?.videoRatio, name: scriptName.value, shots: isStandalone.value ? JSON.parse(JSON.stringify(shots.value)) : undefined };
+    timelineDraft.value = payload.tracks;
+    let localSaved = true;
+    try {
+      localStorage.setItem(localKey, JSON.stringify(payload.tracks)); // Synchronous checkpoint before pagehide/navigation.
+      localStorage.setItem(`${localKey}:sync`, JSON.stringify({ revision: timelineRevision, pending: true }));
+    } catch {
+      localSaved = false;
+      timelineSaveMessage.value = "本机缓存空间不足，正在尝试云端保存";
+    }
+    timelineQueue = timelineQueue.catch(() => {}).then(async () => {
+      if (sequence !== timelineSaveSequence) return; // Coalesce stale autosaves while a previous network write is in flight.
+      assertWorkspaceOwner(editorOwner);
+      if (!cloudAvailable) throw new Error("云端尚未读取成功，本机修改保留；请联网后重新打开并核对");
+      // Thumbnails and waveforms are regenerated locally; do not upload these bulky preview caches.
+      const portable = JSON.parse(JSON.stringify(payload, (key, value) => ["thumbnail", "thumbnails", "waveformData", "loading"].includes(key) ? undefined : value));
+      if (/"blob:/i.test(JSON.stringify(portable))) throw new Error("本机素材尚未上传 · 草稿只保存在本机");
+      const saved = await saveCloudDocument(editorOwner, "timeline", documentId, timelineRevision, payload.name || "剪辑草稿", portable);
+      timelineRevision = saved.revision;
+      if (sequence === timelineSaveSequence) { timelineSaveMessage.value = "已保存到云端"; saveState.value = "saved"; }
+      if (sequence === timelineSaveSequence) {
+        try { localStorage.setItem(`${localKey}:sync`, JSON.stringify({ revision: timelineRevision, pending: false })); }
+        catch { /* The cloud commit is authoritative even if this device's cache is full. */ }
+      }
+    }).catch((error: any) => {
+      timelineSaveMessage.value = error.response?.status === 409 ? (error.response?.data?.message || "其他设备已更新 · 本机修改保留，请核对") : error.message || "云端保存失败 · 本机修改保留";
+      if (!localSaved) timelineSaveMessage.value = "云端与本机缓存均未保存成功 · 请勿关闭页面，先导出或重试";
+      if (error.response?.status === 409) cloudAvailable = false;
+      saveState.value = "idle";
+    });
+}
+onBeforeRouteLeave(async () => { if (isExporting.value) { window.$message.warning('正在导出，请完成或取消导出后再关闭'); return false; } if (isReassembling.value) { window.$message.warning('正在备份并装配，请稍候再离开'); return false; } persistTimeline(); await Promise.race([timelineQueue, new Promise(resolve => setTimeout(resolve, 1000))]); ready = false; });
 
 // 只注册一次。放在 setup 顶层而不是 initializeTracks 里 —— reload() 会再跑一次初始化，注册在里面会越挂越多
 watch(
@@ -737,12 +917,14 @@ function handleSplit() {
   const selectedIds = Array.from(tracksStore.selectedClipIds);
   if (!selectedIds.length) return;
   const currentTime = playbackStore.currentTime;
+  let changed = false;
   selectedIds.forEach((id) => {
     const clip = tracksStore.getClip(id);
-    if (!clip || currentTime <= clip.startTime || currentTime >= clip.endTime) return;
+    if (!clip || !canSplitEditorClip(clip, currentTime)) return;
     tracksStore.splitClip(id, currentTime);
+    changed = true;
   });
-  historyStore.pushSnapshot($t("workbench.production.editVideo.splitClip"));
+  if (changed) historyStore.pushSnapshot($t("workbench.production.editVideo.splitClip"));
 }
 
 function handleDeleteClips() {
@@ -819,6 +1001,12 @@ async function handleDropMedia(mediaData: any, trackId: string, startTime: numbe
 
 /** 单击素材：追加到主轨（视频）或同类型轨道末尾，绝不覆盖已有内容 */
 function handlePickMedia(item: any) {
+  if (isReassembling.value || isExporting.value || editorLoading.value) return;
+  if (item.type === 'transition') {
+    const main = ensureMainTrack();
+    if (main) handleDropTransition(item, main.id, playbackStore.currentTime);
+    return;
+  }
   const trackEnd = (track: Track) =>
     track.clips.filter((c) => c.type !== "transition").reduce((max, c) => Math.max(max, c.endTime), 0);
 
@@ -859,7 +1047,7 @@ function onTransitionAdded(transitionClip: any) {
 /** 重置时间线视图：缩放乱了 / 滚远了，一键回到起点 */
 function resetView() {
   scaleStore.reset();
-  videoTrackRef.value?.reset?.();
+  // VideoTrack.reset() CLEARS tracks/history. Never use it to reset the viewport.
   const area = document.querySelector(".track-area") as HTMLElement | null;
   if (area) area.scrollLeft = 0;
 }
@@ -896,18 +1084,31 @@ function onDocMouseUp() {
   if (area) area.style.cursor = "";
 }
 
+const timelineElement = ref<HTMLElement>();
+let wheelFrame = 0;
+let pendingScroll = 0;
 function onTrackWheel(e: WheelEvent) {
+  const area = (e.target as HTMLElement)?.closest('.track-area') as HTMLElement | null;
+  if (!area) return;
   e.preventDefault();
-  if (e.deltaY < 0) scaleStore.zoomIn(0.2);
-  else scaleStore.zoomOut(0.2);
+  e.stopPropagation();
+  const result = timelineWheel(e, scaleStore.scale, scaleStore.minScale, scaleStore.maxScale, wheelFrame ? pendingScroll : area.scrollLeft, Math.max(0, e.clientX - area.getBoundingClientRect().left));
+  scaleStore.setScale(result.scale);
+  pendingScroll = result.scroll;
+  if (wheelFrame) cancelAnimationFrame(wheelFrame);
+  wheelFrame = requestAnimationFrame(() => {
+    area.scrollLeft = pendingScroll;
+    area.dispatchEvent(new Event('scroll'));
+    wheelFrame = 0;
+  });
 }
 
 function initTrackInteractions() {
   nextTick(() => {
+    timelineElement.value?.addEventListener("wheel", onTrackWheel, { passive: false, capture: true });
     const area = document.querySelector(".track-area") as HTMLElement | null;
-    if (!area) return;
-    area.addEventListener("mousedown", onTrackMouseDown);
-    area.addEventListener("wheel", onTrackWheel, { passive: false });
+    area?.addEventListener("mousedown", onTrackMouseDown);
+    // Delegate once: tracks can be inserted/replaced after asynchronous cloud restore.
     document.addEventListener("mousemove", onDocMouseMove);
     document.addEventListener("mouseup", onDocMouseUp);
   });
@@ -1010,6 +1211,8 @@ function clearRange() {
 }
 
 function setInAtPlayhead() {
+  if (!fullDuration.value) return;
+  rangeOpen.value = true;
   const t = playbackStore.currentTime;
   rangeTouched.value = true;
   inPoint.value = Math.max(0, Math.min(t, outPoint.value - MIN_RANGE_GAP));
@@ -1017,6 +1220,8 @@ function setInAtPlayhead() {
 }
 
 function setOutAtPlayhead() {
+  if (!fullDuration.value) return;
+  rangeOpen.value = true;
   const t = playbackStore.currentTime;
   rangeTouched.value = true;
   outPoint.value = Math.min(fullDuration.value, Math.max(t, inPoint.value + MIN_RANGE_GAP));
@@ -1024,10 +1229,16 @@ function setOutAtPlayhead() {
 }
 
 /** I / O / Esc：剪辑软件的老习惯，改区间不用去拖那条窄带 */
+function onControlKeydown(event: KeyboardEvent) {
+  // Let a focused button activate with Space instead of also starting timeline playback.
+  if (event.code === 'Space' && (event.target as HTMLElement)?.closest('button, summary')) event.stopPropagation();
+}
 function onEditorKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (!isReassembling.value) persistTimeline(); return; }
+  if (isReassembling.value) return;
   const el = e.target as HTMLElement | null;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || isExporting.value || exportDialogVisible.value || shortcutsOpen.value) return;
   if (e.key === "i" || e.key === "I") setInAtPlayhead();
   else if (e.key === "o" || e.key === "O") setOutAtPlayhead();
   else if (e.key === "Escape") clearRange();
@@ -1089,20 +1300,49 @@ watch(exportDialogVisible, (open) => {
 });
 
 // ─────────────────────── 导航 ───────────────────────
+const safeReturnTo = computed(() => {
+  const raw = route.query.returnTo;
+  if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//")) return "";
+  const path = raw.split(/[?#]/, 1)[0];
+  // 返回位置只接受站内已知入口，防止外部地址或再次跳进编辑器造成返回循环。
+  return ["/project", "/novel", "/scriptAgent", "/script", "/cornerScape", "/production", "/assets", "/canvas", "/aiAssistant", "/director3d", "/square", "/viral-replicate"].includes(path) ? raw : "";
+});
 function goBack() {
-  router.push("/production");
+  if (isStandalone.value) {
+    router.push(safeReturnTo.value || "/project");
+    return;
+  }
+  router.push(editorProductionReturn(route.query.returnTo, String(project.value?.id || route.query.projectId || ""), String(scriptId.value || route.query.episode || "")));
 }
 function goStoryboard() {
-  const q = scriptId.value ? `?episode=${scriptId.value}` : "";
-  router.push(`/production${q}`);
+  if (isStandalone.value) return goBack();
+  router.push({ path: "/production", query: { projectId: String(project.value?.id || route.query.projectId || ""), episode: String(scriptId.value || route.query.episode || ""), stage: "frames" } });
 }
 
 // ─────────────────────── 生命周期 ───────────────────────
 onMounted(async () => {
-  await resolveEpisode();
-  await Promise.all([loadShots(), loadMaterials()]);
+  if (isStandalone.value && typeof route.query.viralDraft === "string") {
+    try {
+      const owner = localStorage.getItem("userId") || "";
+      const draft = await loadReplicateDraft(owner, route.query.viralDraft);
+      if (!draft || !draft.shots.length || draft.shots.some(s => !s.clip)) throw new Error("复刻片段未全部就绪，请返回复刻工作台");
+      replicateRatio.value = draft.settings.ratio;
+      shots.value = draft.shots.map((s, i) => ({ id: i + 1, index: i, prompt: s.scene, duration: s.seconds, thumb: s.board || "", selectedVideoUrl: s.clip!, videos: [{ id: i + 1, url: s.clip! }] }));
+      scriptName.value = draft.title;
+    } catch (error) { MessagePlugin.error(error instanceof Error ? error.message : "复刻任务读取失败"); }
+  }
+  if (!isStandalone.value) {
+    await resolveEpisode();
+    await Promise.all([loadShots(), loadMaterials()]);
+  }
+  await restoreCloudTimeline();
   await initializeTracks();
+  if (timelineSaveMessage.value.startsWith("本机有未同步编辑")) scheduleDraftSave();
+  editorLoading.value = false;
   initTrackInteractions();
+  document.addEventListener('fullscreenchange', previewFullscreenChanged);
+  window.addEventListener('keydown', previewEscape);
+  window.addEventListener("pagehide", persistTimeline);
   window.addEventListener("keydown", onEditorKeydown);
 
   if (previewWrapperRef.value) {
@@ -1117,15 +1357,20 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  stopSplitDrag?.();
   playbackStore.pause();
   resizeObserver?.disconnect();
   if (draftSaveTimer) clearTimeout(draftSaveTimer);
+  window.removeEventListener("pagehide", persistTimeline);
   window.removeEventListener("keydown", onEditorKeydown);
   window.removeEventListener("pointermove", onRangeMove);
   window.removeEventListener("pointerup", onRangeUp);
   const area = document.querySelector(".track-area") as HTMLElement | null;
   area?.removeEventListener("mousedown", onTrackMouseDown);
-  area?.removeEventListener("wheel", onTrackWheel);
+  timelineElement.value?.removeEventListener("wheel", onTrackWheel, true);
+  if (wheelFrame) cancelAnimationFrame(wheelFrame);
+  document.removeEventListener('fullscreenchange', previewFullscreenChanged);
+  window.removeEventListener('keydown', previewEscape);
   document.removeEventListener("mousemove", onDocMouseMove);
   document.removeEventListener("mouseup", onDocMouseUp);
 });
@@ -1147,12 +1392,12 @@ onUnmounted(() => {
 /* ───── 顶栏 ───── */
 .edTop {
   flex: none;
-  height: 54px;
+  min-height: 66px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 14px;
+  padding: 0 18px;
   border: 1px solid var(--td-border-level-1-color);
   border-radius: var(--ed-radius) var(--ed-radius) 0 0;
   background: var(--td-bg-color-container);
@@ -1168,7 +1413,18 @@ onUnmounted(() => {
   &:hover { color: var(--td-brand-color); border-color: var(--td-brand-color); }
 }
 .edMeta { min-width: 0; }
-.edName { font-size: 14px; font-weight: 700; color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.edNameRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.edName { font-size: 17px; font-weight: 720; color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.edModePill {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--td-brand-color) 24%, transparent);
+  border-radius: 999px;
+  background: var(--td-brand-color-light);
+  color: var(--td-brand-color);
+  font-size: 10px;
+  font-weight: 650;
+}
 .edSub {
   display: flex; align-items: center; gap: 8px; margin-top: 2px;
   font-size: 11px; color: var(--td-text-color-placeholder);
@@ -1176,6 +1432,14 @@ onUnmounted(() => {
   .edTime { font-variant-numeric: tabular-nums; }
 }
 .edTopRight { display: flex; align-items: center; gap: 6px; flex: none; }
+.edImport {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 12px; margin-right: 4px;
+  border: 1px solid var(--td-border-level-1-color); border-radius: 8px;
+  background: var(--td-bg-color-container); color: var(--td-text-color-primary);
+  font-size: 12px; font-weight: 650; cursor: pointer;
+  &:hover { border-color: var(--td-brand-color); color: var(--td-brand-color); }
+}
 .edSave {
   display: flex; align-items: center; gap: 6px;
   margin-right: 6px; padding: 4px 10px;
@@ -1211,8 +1475,8 @@ onUnmounted(() => {
   min-width: 0;
   overflow: hidden;
 }
-.edSideLeft { width: 264px; }
-.edSideRight { width: 280px; }
+.edSideLeft { width: clamp(205px, 21vw, 264px); }
+.edSideRight { width: clamp(220px, 22vw, 280px); }
 
 .edRail {
   flex: none;
@@ -1229,6 +1493,7 @@ onUnmounted(() => {
 }
 
 .edStage {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -1239,6 +1504,24 @@ onUnmounted(() => {
   border: 1px solid var(--td-border-level-1-color);
   border-radius: var(--ed-radius);
   background: var(--td-bg-color-secondarycontainer);
+}
+.edStage:fullscreen, .edStage.is-expanded { position:fixed; inset:0; z-index:10000; border:0; border-radius:0; background:#151413; }
+.previewExpand { position:absolute; right:12px; top:12px; z-index:5; padding:7px 11px; border:1px solid #ffffff35; border-radius:8px; background:#24201dc9; color:#fff; cursor:pointer; font-size:12px; }
+.edGestureHint { color:#978a80; font-size:11px; padding:5px 14px; }
+.edMissingShots { padding:6px 14px; background:#fff4e8; color:#a26b3d; font-size:12px; }
+.editorZoomControl { display:flex; align-items:center; gap:10px; font-size:12px; color:#897466; }
+.editorZoomControl button { width:30px; height:30px; border:1px solid #eaded5; border-radius:8px; background:#fff; color:#b75e37; cursor:pointer; }
+.editorZoomControl button:disabled { opacity:.4; cursor:default; }
+.editorZoomControl input { width:110px; accent-color:#c3683d; }.editorZoomControl span { min-width:42px; text-align:center; }
+.editor :deep(.tools-bar__scale-control) { display:none; }
+.editor :deep(.tools-bar__btn--play) { background:#c3683d; }
+.edPreviewEmpty {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: #f7f7f5; color: #a09c95; text-align: center;
+  .edPreviewGlyph { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 4px; border-radius: 18px; background: #fff; color: #f57443; box-shadow: 0 4px 20px rgba(30, 29, 27, .05); }
+  strong { color: #363432; font-size: 15px; font-weight: 670; }
+  span { max-width: 260px; padding: 0 12px; font-size: 12px; line-height: 1.6; }
 }
 
 /* ───── 时间线 ───── */
@@ -1333,25 +1616,15 @@ onUnmounted(() => {
 }
 
 /* ───── 空白态 ───── */
-.edGuide {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: var(--td-bg-color-container);
-  z-index: 3;
+.edTimelineHint {
+  position: absolute; right: 18px; bottom: 20px; z-index: 15;
+  display: flex; align-items: center; gap: 12px; max-width: calc(100% - 210px);
+  padding: 9px 12px; border: 1px solid #e8e5e0; border-radius: 9px;
+  background: rgba(255, 255, 255, .96); box-shadow: 0 5px 18px rgba(27, 27, 27, .06);
+  color: #77736d; font-size: 12px;
+  span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button { flex: none; padding: 0; border: 0; background: transparent; color: #f57443; font: inherit; font-weight: 650; cursor: pointer; }
 }
-.edGuideCard { max-width: 460px; text-align: center; padding: 8px 20px; }
-.edGuideIcon {
-  width: 64px; height: 64px; margin: 0 auto 14px;
-  display: grid; place-items: center;
-  border-radius: 20px;
-  color: var(--td-brand-color);
-  background: var(--td-brand-color-light);
-}
-.edGuideTitle { font-size: 16px; font-weight: 700; color: var(--td-text-color-primary); }
-.edGuideText { margin-top: 8px; font-size: 12.5px; line-height: 1.75; color: var(--td-text-color-secondary); }
-.edGuideActions { margin-top: 18px; display: flex; gap: 10px; justify-content: center; }
 
 /* ───── 自动装配提示 ───── */
 .edAutoNotice {
@@ -1444,9 +1717,12 @@ onUnmounted(() => {
 }
 
 :deep(.video-track) {
+  min-width: 0;
   --color-primary: var(--td-text-color-primary);
-  --color-bg-dark: var(--td-bg-color-component);
-  --color-bg-medium: var(--td-bg-color-secondarycontainer);
+  --color-bg-dark: #f6f5f2;
+  --color-bg-medium: #eeede9;
+  --color-bg-light: #f4f3f0;
+  --color-border: #e0ded9;
   --color-text-primary: var(--td-text-color-primary);
   .ruler {
     background-color: var(--td-bg-color-container);
@@ -1459,7 +1735,13 @@ onUnmounted(() => {
     background-color: var(--td-brand-color-active);
     &:hover { background-color: var(--td-bg-color-container-hover); box-shadow: none; }
   }
-  .tracks__scrollbar { background-color: var(--td-bg-color-container); }
+  .tracks__scrollbar { background-color: #f5f4f1; }
+  .tracks__track { background: #f6f5f2; }
+  .tracks__track--hidden { opacity: 1; }
+  .tracks__track--hidden .track-area { background: repeating-linear-gradient(135deg, #f3f2ef 0, #f3f2ef 12px, #eceae5 12px, #eceae5 13px); }
+  .tracks__track--hidden .track-control__name::after { content: "已隐藏"; margin-left: 7px; color: #99948b; font-size: 10px; font-weight: 500; }
 }
 :deep(.tools-bar__select) { display: none !important; }
 </style>
+
+<style scoped lang="scss" src="./editorWorkspace.scss"></style>

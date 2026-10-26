@@ -1,0 +1,160 @@
+TAP version 13
+# Subtest: announcement edits survive immutable release changes without overwriting legacy content
+ok 1 - announcement edits survive immutable release changes without overwriting legacy content
+  ---
+  duration_ms: 611.75425
+  type: 'test'
+  ...
+# Subtest: all declared generation operations require a billing entry, but reads and local tools do not
+ok 2 - all declared generation operations require a billing entry, but reads and local tools do not
+  ---
+  duration_ms: 33.476958
+  type: 'test'
+  ...
+# Subtest: preview uses yuan times ten and never relabels missing costs as free
+ok 3 - preview uses yuan times ten and never relabels missing costs as free
+  ---
+  duration_ms: 272.2635
+  type: 'test'
+  ...
+# Subtest: preview strips binary data, credentials and actual chapter contents
+ok 4 - preview strips binary data, credentials and actual chapter contents
+  ---
+  duration_ms: 178.427375
+  type: 'test'
+  ...
+# Subtest: receipt context stays account scoped across concurrent asynchronous invocations
+ok 5 - receipt context stays account scoped across concurrent asynchronous invocations
+  ---
+  duration_ms: 20.385709
+  type: 'test'
+  ...
+# Subtest: receipt joins logs by BOTH request id and user, never by balance difference
+ok 6 - receipt joins logs by BOTH request id and user, never by balance difference
+  ---
+  duration_ms: 1.584667
+  type: 'test'
+  ...
+# Subtest: automatic billable POST retries are disabled in shared SDK and inherited image services
+ok 7 - automatic billable POST retries are disabled in shared SDK and inherited image services
+  ---
+  duration_ms: 9.007083
+  type: 'test'
+  ...
+# Subtest: production gate rejects test defaults and unavailable models without mutating local test configuration
+ok 8 - production gate rejects test defaults and unavailable models without mutating local test configuration
+  ---
+  duration_ms: 2.245458
+  type: 'test'
+  ...
+# Subtest: production gate rejects failed/latest or stale price sync, not just a last good snapshot
+ok 9 - production gate rejects failed/latest or stale price sync, not just a last good snapshot
+  ---
+  duration_ms: 1.497208
+  type: 'test'
+  ...
+# Subtest: templates preserve all source content, create only named objects, and frame people in landscape and portrait
+ok 10 - templates preserve all source content, create only named objects, and frame people in landscape and portrait
+  ---
+  duration_ms: 521.036
+  type: 'test'
+  ...
+# Subtest: fresh AI build cannot reference original objects or inherit old animation; shot cap holds
+ok 11 - fresh AI build cannot reference original objects or inherit old animation; shot cap holds
+  ---
+  duration_ms: 1.430875
+  type: 'test'
+  ...
+# Subtest: pending settlement and permission to start a separate attempt are independent, without inventing zero charges
+ok 12 - pending settlement and permission to start a separate attempt are independent, without inventing zero charges
+  ---
+  duration_ms: 0.378542
+  type: 'test'
+  ...
+# Subtest: scene edits do not add shots, keep active identity and other shots, even at the shot limit
+ok 13 - scene edits do not add shots, keep active identity and other shots, even at the shot limit
+  ---
+  duration_ms: 89.846958
+  type: 'test'
+  ...
+# Subtest: canvas handoff has readable controls, exact per-shot time, one prompt source and optional reference; never submits generation
+ok 14 - canvas handoff has readable controls, exact per-shot time, one prompt source and optional reference; never submits generation
+  ---
+  duration_ms: 1.22225
+  type: 'test'
+  ...
+# Subtest: concurrent probes share dependency checks, and stale success is never reused indefinitely
+ok 15 - concurrent probes share dependency checks, and stale success is never reused indefinitely
+  ---
+  duration_ms: 77.602792
+  type: 'test'
+  ...
+# Subtest: XOi uses a separate validated configurable port
+ok 16 - XOi uses a separate validated configurable port
+  ---
+  duration_ms: 1.265167
+  type: 'test'
+  ...
+# Subtest: release identity exposes only a safe public tag
+ok 17 - release identity exposes only a safe public tag
+  ---
+  duration_ms: 2.999541
+  type: 'test'
+  ...
+# Subtest: immutable code and editable user data resolve separately
+ok 18 - immutable code and editable user data resolve separately
+  ---
+  duration_ms: 19.87875
+  type: 'test'
+  ...
+# Subtest: transient module initialization recovers before accepting production traffic
+ok 19 - transient module initialization recovers before accepting production traffic
+  ---
+  duration_ms: 2.433042
+  type: 'test'
+  ...
+# Subtest: permanent failure stays unready and does not leak a database error
+ok 20 - permanent failure stays unready and does not leak a database error
+  ---
+  duration_ms: 21.880542
+  type: 'test'
+  ...
+# Subtest: usage filters survive proxying, without forwarding user IDs or injection
+ok 21 - usage filters survive proxying, without forwarding user IDs or injection
+  ---
+  duration_ms: 1.515709
+  type: 'test'
+  ...
+# Subtest: provenance SQL requires exact user/request/budget links and bounded IDs
+ok 22 - provenance SQL requires exact user/request/budget links and bounded IDs
+  ---
+  duration_ms: 0.607875
+  type: 'test'
+  ...
+# Subtest: gateway page ordinals cannot be used as ledger IDs
+ok 23 - gateway page ordinals cannot be used as ledger IDs
+  ---
+  duration_ms: 5.067708
+  type: 'test'
+  ...
+# Subtest: only one unambiguous server-recorded feature is attributed
+ok 24 - only one unambiguous server-recorded feature is attributed
+  ---
+  duration_ms: 0.641125
+  type: 'test'
+  ...
+# Subtest: zero, refund, legacy and CSV display never invent a charge or feature
+ok 25 - zero, refund, legacy and CSV display never invent a charge or feature
+  ---
+  duration_ms: 0.34825
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8085.093291

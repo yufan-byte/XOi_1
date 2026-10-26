@@ -3,7 +3,7 @@
  * 全部走同源相对路径（dev 由 Vite 代理 /api → 10588，生产同体托管）。
  */
 
-import { getAuthToken } from "@/xoi/owner";
+import { getAuthToken, getVerifiedToken } from "@/xoi/owner";
 
 export class BackendError extends Error {
     status: number;
@@ -16,7 +16,9 @@ export class BackendError extends Error {
 export async function backendFetch(path: string, init: RequestInit = {}): Promise<Response> {
     const headers = new Headers(init.headers || {});
     const token = getAuthToken();
-    if (token) headers.set("Authorization", token);
+    const raw = token.replace(/^(Bearer\s+)+/i, "").trim();
+    if (!raw || raw !== getVerifiedToken()) throw new BackendError(401, "登录账号已切换，请刷新画布");
+    headers.set("Authorization", token);
     return fetch(path, { ...init, headers });
 }
 

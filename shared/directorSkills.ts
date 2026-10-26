@@ -15,15 +15,17 @@ export const DIRECTOR_SKILLS: DirectorSkill[] = [
 export interface DirectorScene {
   projectId: string; activeShotId: string; name: string; fps: number; durationSeconds: number; aspectRatio: string;
   camera: { position: Vec3; rotation: Vec3; focalLength: number };
-  objects: Array<{ id: string; name: string; type: string; position: Vec3; rotation: Vec3; scale: Vec3; pose?: string }>;
+  objects: Array<{ id: string; name: string; type: string; position: Vec3; rotation: Vec3; scale: Vec3; pose?: string; bodyType?:string; rigRoot?:Vec3; visible?:boolean; locked?:boolean }>;
   cameraKeyframes: Array<{ frame: number; position: Vec3; rotation: Vec3; focalLength: number }>;
   lighting: Record<string, number | string>;
   shotNames: string[];
+  objectPaths?:Record<string,Array<{t:number;position:Vec3;pose?:string;rigRoot?:Vec3;interpolation?:string}>>;
 }
 export interface DirectorCameraPoint { t: number; position: Vec3; target: Vec3; focalLength: number }
 export interface DirectorShot {
   name: string; purpose: string; framing: string; movement: string; blocking: string; performance: string;
   lighting: string; transition: string; prompt: string;
+  durationSeconds?: number; subjectId?:string;
   camera?: { keyframes: DirectorCameraPoint[] };
 }
 export interface DirectorPlan {
@@ -54,7 +56,7 @@ export function validateDirectorScene(input: unknown): DirectorScene {
     fps: s.fps, durationSeconds: s.durationSeconds, aspectRatio: text(s.aspectRatio, "画幅", 60),
     camera: { position: directorVec3(s.camera?.position, "相机位置"), rotation: directorVec3(s.camera?.rotation, "相机旋转", 100), focalLength: focal(s.camera?.focalLength) },
     objects: s.objects.map(o => ({ id: text(o.id, "物体 ID", 160), name: text(o.name, "物体名", 150), type: text(o.type, "物体类型", 40),
-      position: directorVec3(o.position, "物体位置"), rotation: directorVec3(o.rotation, "物体旋转", 100), scale: directorVec3(o.scale, "物体缩放", 1000), pose: text(o.pose, "姿态", 100, true) })),
+      position: directorVec3(o.position, "物体位置"), rotation: directorVec3(o.rotation, "物体旋转", 100), scale: directorVec3(o.scale, "物体缩放", 1000), pose: text(o.pose, "姿态", 100, true), bodyType:text(o.bodyType,"体型",30,true), rigRoot:o.rigRoot===undefined?undefined:directorVec3(o.rigRoot,"骨骼偏移",100), visible:o.visible!==false, locked:o.locked===true })),
     cameraKeyframes: s.cameraKeyframes.map(k => {
       if (!Number.isInteger(k.frame) || k.frame < 0 || k.frame > s.fps * s.durationSeconds) throw new DirectorInputError("相机关键帧时间无效");
       return { frame: k.frame, position: directorVec3(k.position, "关键帧位置"), rotation: directorVec3(k.rotation, "关键帧旋转", 100), focalLength: focal(k.focalLength) };
@@ -62,6 +64,14 @@ export function validateDirectorScene(input: unknown): DirectorScene {
     lighting: {}, shotNames: Array.isArray(s.shotNames) ? s.shotNames.slice(0, 30).map(n => text(n, "镜头名称", 100)) : [],
   };
   if (new Set(result.objects.map(o => o.id)).size !== result.objects.length) throw new DirectorInputError("物体 ID 重复");
+  if(s.objectPaths!==undefined){
+    if(!s.objectPaths||typeof s.objectPaths!=='object'||Array.isArray(s.objectPaths)||Object.keys(s.objectPaths).length>120)throw new DirectorInputError("人物路线格式无效");
+    result.objectPaths=Object.create(null);
+    for(const [id,path] of Object.entries(s.objectPaths)){
+      if(!result.objects.some(o=>o.id===id)||!Array.isArray(path)||!path.length||path.length>16)throw new DirectorInputError("人物路线对象或数量无效");
+      let last=-1;result.objectPaths![id]=path.map(p=>{if(!Number.isFinite(p.t)||p.t<0||p.t>1||p.t<=last)throw new DirectorInputError("人物路线时间无效");last=p.t;return {t:p.t,position:directorVec3(p.position,"路线位置"),pose:text(p.pose,"路线姿态",100,true),rigRoot:p.rigRoot===undefined?undefined:directorVec3(p.rigRoot,"路线骨骼偏移",100),interpolation:['hold','linear','smooth'].includes(p.interpolation||'')?p.interpolation:'smooth'};});
+    }
+  }
   for (const [key, value] of Object.entries(s.lighting || {}).slice(0, 20)) {
     if (/^[a-zA-Z]{1,40}$/.test(key) && ((typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= 1000) || (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)))) result.lighting[key] = value;
   }
@@ -85,6 +95,8 @@ export function validateDirectorPlan(input: unknown, skill: DirectorSkill, maxSh
         movement: text(s.movement, "运镜", 1000), blocking: text(s.blocking, "调度", 2000), performance: text(s.performance, "表演", 2000),
         lighting: text(s.lighting, "光影", 1000), transition: text(s.transition, "衔接", 1000), prompt: text(s.prompt, "镜头提示词", 5000),
       };
+      if(s.durationSeconds!==undefined){if(!Number.isInteger(s.durationSeconds)||s.durationSeconds<1||s.durationSeconds>60)throw new DirectorInputError("镜头时长须为 1–60 秒");shot.durationSeconds=s.durationSeconds;}
+      if(s.subjectId!==undefined)shot.subjectId=text(s.subjectId,"主体",160);
       if (s.camera !== undefined) {
         if (!skill.canApplyCamera) throw new DirectorInputError("这个技能须保留原机位，只能输出制作建议");
         const points = s.camera?.keyframes;

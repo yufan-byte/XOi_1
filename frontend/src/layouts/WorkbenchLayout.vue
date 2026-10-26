@@ -1,27 +1,44 @@
 <!-- 应用壳：侧栏 + 顶栏 + router-view + 全局弹窗（从 pages/workbench/index.vue 抽出，零视觉变化） -->
 <template>
-  <div class="main" :class="{ 'menu-collapsed': menuCollapsed, 'canvas-fullscreen': isCanvasFullscreen, 'canvas-nav-open': canvasNavOpen }" style="height: 100vh">
-    <!-- 背景装饰 - 科技感发光线条 -->
-    <div class="bg-decoration">
-      <div class="circle circle-1"></div>
-      <div class="circle circle-2"></div>
-      <div class="circle circle-3"></div>
-      <div class="circle circle-4"></div>
-    </div>
-
-    <div class="menu" :class="{ collapsed: menuCollapsed }">
-      <!-- Logo 区：点击回到工作台首页（项目列表） -->
-      <div class="logoBox" @click.stop="router.push('/project')">
-        <button type="button" class="collapse-btn" @click.stop="toggleSidebar" :aria-label="isCanvasFullscreen ? '关闭工作台导航' : (menuCollapsed ? '展开侧栏' : '收起侧栏')">
-          <t-icon :name="menuCollapsed ? 'chevron-right' : 'chevron-left'" size="16px" />
+  <div class="appShell">
+    <!-- 全站公告横幅：横贯整页顶部（侧栏也在它下面），管理员在控制台发布 -->
+    <Transition name="drop">
+      <div v-if="showSiteBanner && !isEditorWorkspace" class="siteBanner" :class="`theme-${siteBanner?.theme || 'brand'}`" role="region" aria-label="全站公告横幅">
+        <span class="siteBannerText">{{ siteBanner?.text }}</span>
+        <button v-if="siteBanner?.ctaLabel && siteBanner?.link" type="button" class="siteBannerCta" @click="handleBannerCta">
+          {{ siteBanner.ctaLabel }}<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <div class="logo"></div>
-        <div class="brand-name" v-show="!menuCollapsed"><strong>导演工作台</strong><span>XOI STUDIO</span></div>
+        <button type="button" class="siteBannerClose" aria-label="关闭横幅" @click="dismissSiteBanner"><i-close size="14px" /></button>
+      </div>
+    </Transition>
+  <div class="main" :class="{ 'menu-collapsed': menuCollapsed, 'canvas-fullscreen': isCanvasFullscreen, 'canvas-nav-open': canvasNavOpen, 'editor-fullscreen': isEditorWorkspace }" :style="{ height: showSiteBanner && !isEditorWorkspace ? 'calc(100vh - 44px)' : '100vh', '--sidebar-width': menuCollapsed ? '72px' : '272px' }">
+    <!-- 背景装饰 - 纸面质感点阵 -->
+    <div class="bg-decoration"></div>
+
+    <div id="workbench-navigation" class="menu" :class="{ collapsed: menuCollapsed }">
+      <!-- Logo 区：点击回到工作台首页（项目列表） -->
+      <div class="logoBox" role="button" tabindex="0" aria-label="返回智能创作" @click.stop="router.push('/aiAssistant')" @keydown.enter="router.push('/aiAssistant')" @keydown.space.prevent="router.push('/aiAssistant')">
+        <div class="logo" :style="siteBrand.logo ? {backgroundImage: `url(${JSON.stringify(siteBrand.logo)})`} : undefined"></div>
+        <div class="brand-name" v-show="!menuCollapsed"><strong>{{ workbenchBrandName }}</strong><span v-if="!siteBrand.hideSubtitle && siteBrand.subtitle" class="studio-signature"><i aria-hidden="true"></i>{{ siteBrand.subtitle }}</span></div>
+        <!-- 收起/展开：展开时贴 Logo 行右侧；收起后平时隐藏，光标悬停 Logo 区原地浮现（即梦同款交互） -->
+        <button
+          v-if="!isCanvasFullscreen || canvasNavOpen"
+          type="button"
+          class="sidebar-toggle collapse-btn"
+          @click.stop="toggleSidebar"
+          :aria-expanded="!menuCollapsed"
+          aria-controls="workbench-navigation"
+          :aria-label="isCanvasFullscreen ? '关闭工作台导航' : (menuCollapsed ? '展开侧栏' : '收起侧栏')"
+          :title="isCanvasFullscreen ? '关闭工作台导航' : (menuCollapsed ? '展开侧栏' : '收起侧栏')">
+          <!-- 即梦同款收起/展开图标：圆角方框 + 左侧竖条（填充式，hover 只变色不位移） -->
+          <svg width="16" height="16" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" role="presentation" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g><path d="M9 8a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Z" fill="currentColor"></path><path d="M17.5 3A4.5 4.5 0 0 1 22 7.5v9a4.5 4.5 0 0 1-4.5 4.5h-11A4.5 4.5 0 0 1 2 16.5v-9A4.5 4.5 0 0 1 6.5 3h11Zm-11 2A2.5 2.5 0 0 0 4 7.5v9A2.5 2.5 0 0 0 6.5 19h11a2.5 2.5 0 0 0 2.5-2.5v-9A2.5 2.5 0 0 0 17.5 5h-11Z" clip-rule="evenodd" fill-rule="evenodd" fill="currentColor"></path></g></svg>
+        </button>
       </div>
       <!-- 主导航 -->
       <div class="itemBox">
         <template v-for="(menu, index) in menuList" :key="index">
-          <div v-if="menu.type === 'group'" class="nav-group-title" v-show="!menuCollapsed">{{ menu.label }}</div>
+          <div v-if="menu.type === 'group'" class="nav-group-title" v-show="!menuCollapsed"><small aria-hidden="true">{{ menu.label === '创作' ? '01' : '02' }}</small><span>{{ menu.label }}</span><i aria-hidden="true"></i></div>
+          <ScriptCreationMenu v-else-if="menu.scriptCenter" :collapsed="menuCollapsed" />
           <t-tooltip
             v-else
             :content="menuLabel(menu)"
@@ -36,6 +53,9 @@
               :aria-label="menuLabel(menu)"
               :aria-current="activeMenu == menu.path || (menu.canvasCenter && activeMenu.startsWith('/canvas')) ? 'page' : undefined"
               :class="{ active: activeMenu == menu.path || (menu.canvasCenter && activeMenu.startsWith('/canvas')) }"
+              @pointerenter="warmPage(menu.path!)"
+              @focus="warmPage(menu.path!)"
+              @touchstart.passive="warmPage(menu.path!)"
               @click="handleClick(menu)"
               @keydown.enter="handleClick(menu)"
               @keydown.space.prevent="handleClick(menu)">
@@ -52,34 +72,59 @@
           </t-tooltip>
         </template>
       </div>
-      <!-- 底部：余额 + 用户块（积分/会员/支付体系已按造物方案下线，余额来自 new-api quota，单位元） -->
+      <div class="sidebar-tools">
+        <div class="nav-utility-divider" aria-hidden="true"></div>
+        <t-tooltip content="更多工具" placement="right" destroyOnClose :showArrow="false">
+          <button
+            ref="toolsTriggerRef"
+            type="button"
+            class="item tools-trigger"
+            :class="{ active: utilityMenuActive, open: toolsMenuOpen }"
+            aria-label="更多创作工具"
+            :aria-expanded="toolsMenuOpen"
+            @click.stop="toggleToolsMenu">
+            <i-toolkit class="icon" />
+            <span class="item-title" v-show="!menuCollapsed">更多工具</span>
+            <t-icon v-show="!menuCollapsed" class="tools-arrow" name="chevron-right" size="15px" />
+            <span v-if="utilityMenuActive && !menuCollapsed" class="tools-active-dot" aria-hidden="true"></span>
+          </button>
+        </t-tooltip>
+      </div>
+      <!-- 底部账户区：余额是常用信息，账户菜单是独立入口 -->
       <div class="footItem">
-        <t-tooltip content="算力明细" placement="right" :showArrow="false">
-        <div class="member-btn" role="button" tabindex="0" aria-label="查看算力明细" @click="openUsageDetails" @keydown.enter="openUsageDetails">
-          <div class="credits-summary" v-show="!menuCollapsed"><span><b>✦</b> 算力余额</span><span><strong>{{ userBalanceText }}</strong></span></div>
-          <button class="member-btn-inner" type="button" :aria-label="menuCollapsed ? '查看算力明细' : '充值'" @click.stop="menuCollapsed ? openUsageDetails() : goConsoleTopup()">
+        <p v-if="siteBrand.footer && !menuCollapsed" class="site-brand-footer">{{ siteBrand.footer }}</p>
+        <t-tooltip content="积分明细" placement="right" :showArrow="false">
+        <div class="member-btn" role="button" tabindex="0" aria-label="查看积分明细" @click="openUsageDetails" @keydown.enter="openUsageDetails">
+          <div class="credits-summary" v-show="!menuCollapsed"><span>积分余额</span><strong :class="balanceFitClass">{{ sidebarBalanceText }}</strong></div>
+          <button class="member-btn-inner" type="button" :aria-label="menuCollapsed ? '查看积分明细' : '充值积分'" @click.stop="menuCollapsed ? openUsageDetails() : goConsoleTopup()">
             <i-wallet v-if="menuCollapsed" class="wallet-icon" />
-            <span v-else class="member-icon" aria-hidden="true">＋</span><span class="member-text" v-show="!menuCollapsed">充值</span>
+            <span class="member-text" v-show="!menuCollapsed">充值积分</span>
           </button>
         </div>
         </t-tooltip>
-        <!-- 用户块：所有页面常驻（余额只在上方卡片显示一次，这里不再重复） -->
+        <div class="sidebar-account-row">
         <div class="user-foot" ref="userFootRef" role="button" tabindex="0" aria-label="打开账号、团队与余额菜单" @click="toggleFootMenu" @keydown.enter="toggleFootMenu" @keydown.space.prevent="toggleFootMenu">
           <div class="user-avatar">{{ userInitial }}</div>
           <div class="user-meta" v-show="!menuCollapsed">
             <span class="user-name">{{ username }}</span>
-          <span class="user-role">XOi ID · {{ displayId || userId || '—' }}</span>
+            <span class="user-role">XOi ID · {{ displayId || userId || '—' }}</span>
           </div>
+          <t-icon v-show="!menuCollapsed" class="user-menu-chevron" name="chevron-up" size="16px" />
+        </div>
         </div>
       </div>
     </div>
-    <div class="view">
+    <div class="view" :class="{ 'story-workspace': ['/project', '/project/new', '/novel', '/scriptAgent', '/script', '/cornerScape', '/production', '/assets'].includes(route.path) }">
       <div class="topMenu" v-if="!isImmersive && project?.id && isProjectPage">
-        <!-- 面包屑（打开项目后显示） -->
+        <!-- 面包屑（打开项目后显示）：工作台 → 项目列表；项目名 → 该项目首页 -->
         <div class="breadcrumb" v-if="project?.id">
-          <span class="bc-item">工作台</span>
+          <button type="button" class="bc-item bc-link" title="返回项目列表" @click="router.push('/project')">项目列表</button>
           <span class="bc-sep">/</span>
-          <span class="bc-item">{{ project?.name }}</span>
+          <button
+            type="button"
+            class="bc-item bc-link"
+            :title="project.projectType === 'novel' ? '回到项目首页（原文）' : '回到项目首页（剧本整理）'"
+            @click="router.push({ path: project.projectType === 'novel' ? '/novel' : '/script', query: { projectId: String(project.id) } })">{{ project?.name }}</button>
           <span class="bc-sep">/</span>
           <span class="bc-item current">{{ currentPageName }}</span>
         </div>
@@ -100,7 +145,10 @@
                 :class="{ active: activeMenu == menu.path }"
                 :title="menu.description"
                 :aria-label="`${menu.label}：${menu.description}`"
-                @click="handleClick(menu)">
+                @pointerenter="warmPage(menu.path!)"
+              @focus="warmPage(menu.path!)"
+              @touchstart.passive="warmPage(menu.path!)"
+              @click="handleClick(menu)">
                 <component :is="menu.icon" class="icon" />
                 <span class="label">{{ menu.label }}</span>
               </div>
@@ -108,10 +156,14 @@
           </div>
         </div>
       </div>
+      <div id="pipeline-dock" class="pipelineDock" aria-label="创作流程提示"></div>
       <div class="viewBox">
         <router-view v-slot="{ Component }">
-          <component :is="Component" :key="$route.fullPath" />
+          <component :is="Component" v-if="!['/canvas','/script/one-stop'].includes(route.path)" :key="route.path === '/production' ? `${route.path}:${route.query.projectId || ''}` : route.fullPath" />
         </router-view>
+        <CanvasWorkspace v-if="canvasSession" v-show="route.path === '/canvas'" :key="canvasSession" :active="route.path === '/canvas'" @editor-state="canvasEditorOpen = $event" />
+        <OneStopWorkspace v-if="oneStopSession" v-show="route.path === '/script/one-stop'" :key="oneStopSession" />
+        <div v-if="navigationPending" class="route-progress" role="status" aria-label="正在打开页面"><span></span></div>
       </div>
     </div>
   </div>
@@ -130,15 +182,15 @@
             <img class="account-mark" src="@/assets/XOI_logo.png" alt="" aria-hidden="true" />
           </div>
           <div class="credits-row">
-            <button class="credits-detail-link" type="button" @click="openUsageDetails"><span class="credits-label">算力余额</span><strong>{{ userBalanceText }}</strong><small>查看明细</small></button>
-            <button class="recharge-btn" type="button" @click="goConsoleTopup(); footMenuOpen = false">充值</button>
+            <button class="credits-detail-link" type="button" @click="openUsageDetails"><span class="credits-label">积分余额</span><small>查看明细 →</small><strong :class="balanceFitClass">{{ sidebarBalanceText }}</strong></button>
+            <button class="recharge-btn" type="button" @click="goConsoleTopup(); footMenuOpen = false">充值积分</button>
           </div>
         </section>
         <section class="account-menu">
           <button type="button" class="drop-item team-entry" @click="goTeamSpace"><i-people class="d-icon" /><span>{{ teamMenuLabel }}</span><em v-if="teamRole !== 'none'">{{ teamRole === 'owner' ? '主账号' : '成员' }}</em><i-right class="drop-arrow" /></button>
           <div class="drop-divider"></div>
           <button type="button" class="drop-item" @click="notifyMenu('语言设置')"><i-earth class="d-icon" /><span>语言</span><em>简体中文</em><i-right class="drop-arrow" /></button>
-          <button type="button" class="drop-item" @click="notifyMenu('帮助中心')"><i-help class="d-icon" /><span>帮助</span><i-right class="drop-arrow" /></button>
+          <button type="button" class="drop-item" @click="footMenuOpen = false; welcomeOpen = true"><i-help class="d-icon" /><span>平台介绍</span><i-right class="drop-arrow" /></button>
           <a class="drop-item" href="mailto:support@xoi.studio"><i-mail class="d-icon" /><span>联系我们</span><i-right class="drop-arrow" /></a>
           <button type="button" class="drop-item" @click="openNotices"><i-remind class="d-icon" /><span>通知公告</span><span class="notice-dot" v-if="hasUnreadNotices"></span></button>
           <button type="button" class="drop-item" @click="openFeedback"><i-comments class="d-icon" /><span>问题反馈</span><i-right class="drop-arrow" /></button>
@@ -147,6 +199,32 @@
           <button type="button" class="drop-item danger" @click="handleLogout"><i-logout class="d-icon" /><span>登出账号</span></button>
         </section>
       </div>
+    </Transition>
+  </Teleport>
+
+  <!-- 专项能力从一级导航收进这里，新增功能不会继续挤压侧栏。 -->
+  <Teleport to="body">
+    <Transition name="tools-pop">
+      <aside v-show="toolsMenuOpen" class="tools-popover" :style="toolsDropStyle" @click.stop>
+        <header class="tools-popover-head">
+          <strong>更多创作工具</strong>
+          <small>按创作需要选择</small>
+        </header>
+        <div class="tools-popover-list">
+          <button
+            v-for="tool in utilityMenu"
+            :key="tool.path"
+            type="button"
+            class="tools-popover-item"
+            :class="{ active: activeMenu === tool.path }"
+            @click="handleClick(tool)">
+            <span class="tools-popover-icon"><component :is="tool.icon" /></span>
+            <span class="tools-popover-copy"><strong>{{ tool.label }}</strong><small>{{ tool.description }}</small></span>
+            <em>{{ tool.badge }}</em>
+            <t-icon name="chevron-right" size="15px" />
+          </button>
+        </div>
+      </aside>
     </Transition>
   </Teleport>
 
@@ -173,15 +251,15 @@
               <div class="profile-role" :class="{ 'is-admin': isAdmin }">
                 {{ isAdmin ? '管理员' : '普通用户' }}
               </div>
-              <!-- 余额显示（new-api quota 折算元） -->
+              <!-- 底层仍由 NewAPI quota 结算，产品层统一按 1 元 = 10 积分展示。 -->
               <div class="profile-points">
                 <div class="profile-points-num">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
                   </svg>
-                  <span>{{ userBalanceText }}</span>
+                  <span :class="balanceFitClass">{{ sidebarBalanceText }}</span>
                 </div>
-                <button class="profile-points-detail" @click="showUserProfile = false; goConsoleTopup()">充值</button>
+                <button class="profile-points-detail" @click="showUserProfile = false; goConsoleTopup()">充值积分</button>
               </div>
             </div>
 
@@ -212,11 +290,11 @@
     </Transition>
   </Teleport>
 
-  <!-- 算力明细：复用 console 内已对接 NewAPI logs 的 UsageDialog，不在 Vue 再造第二套账单。 -->
+  <!-- 积分明细：复用 console 内已对接 NewAPI logs 的 UsageDialog，不在 Vue 再造第二套账单。 -->
   <Teleport to="body">
     <Transition name="profile-fade" :duration="{ enter: 240, leave: 160 }">
       <div v-if="usageFrameOpen" class="topup-frame-overlay" @click.self="usageFrameOpen = false">
-        <iframe class="topup-frame usage-frame" :src="usageFrameSrc" title="算力与消费明细" />
+        <iframe class="topup-frame usage-frame" :src="usageFrameSrc" title="积分与消费明细" allowtransparency="true" />
       </div>
     </Transition>
   </Teleport>
@@ -266,10 +344,17 @@
     </Transition>
   </Teleport>
 
+  </div>
+
+  <PlatformWelcome v-if="welcomeOpen" v-model="welcomeOpen" @done="completeWelcome" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import ScriptCreationMenu from '@/components/ScriptCreationMenu.vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, defineAsyncComponent, provide } from 'vue';
+import '@/styles/storyWorkspace.scss';
+import { navigationPending, warmPage } from "@/router/pageLoading";
+import {siteBrand,workbenchBrandName} from "@/utils/siteBrand";
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
@@ -277,17 +362,35 @@ import axios from "@/utils/axios";
 import projectStore from "@/stores/project";
 const { project } = storeToRefs(projectStore());
 import userStore from "@/stores/user";
+import { formatPoints, yuanToPoints } from "@/utils/points";
 // aiAssistant 页运行期逃生口：让 isImmersive 白名单对该路由网开一面以显出全局导航（详见 stores/uiPrefs.ts）
 import uiPrefsStore from "@/stores/uiPrefs";
 import settingStore from "@/stores/setting";
 import { resolveThemeMode } from "@/utils/theme";
 import { MessagePlugin } from "tdesign-vue-next";
 import PipelineProgress from "@/components/pipeline/PipelineProgress.vue";
+const CanvasWorkspace = defineAsyncComponent(() => import("@/views/canvas/index.vue"));
+const canvasSession = ref("");
+const OneStopWorkspace=defineAsyncComponent(()=>import('@/views/oneStop/index.vue'));
+const oneStopSession=ref("");
+const scriptQuickDestination = ref('/script/one-stop');
+provide('scriptQuickDestination', scriptQuickDestination);
+const PlatformWelcome = defineAsyncComponent(() => import("@/components/PlatformWelcome.vue"));
+const welcomeOpen = ref(false);
+const welcomeKey = () => `xoi.platform-welcome.v1:${uStore.userId || "current"}`;
+function completeWelcome() { try { localStorage.setItem(welcomeKey(), "done"); } catch {} }
 const uStore = userStore();
 const { username, userId, displayId, isAdmin, balance } = storeToRefs(uStore);
 const userInitial = computed(() => (username.value || "X").trim().charAt(0).toUpperCase());
-/** 余额展示文本：refreshProfile 现在取 new-api quota 折算后的「元」（两位小数） */
-const userBalanceText = computed(() => `¥${Number(balance.value || 0).toFixed(2)}`);
+/** 底层仍保存人民币口径；产品层按 1 元 = 10 积分展示。 */
+const userBalanceText = computed(() => formatPoints(Math.floor(yuanToPoints(Number(balance.value || 0)))));
+// 侧栏积分卡专用：整数显示（不带小数点），并按位数给出缩放档位 —— 长数字自动缩小，不再顶到「充值积分」按钮。
+// balance 存的是人民币口径，这里必须 ×10 换成积分（此前漏乘，侧栏把元数当积分显示，与画布/账单差 10 倍）。
+const sidebarBalanceText = computed(() => formatPoints(Math.floor(yuanToPoints(Number(balance.value || 0)))));
+const balanceFitClass = computed(() => {
+  const len = sidebarBalanceText.value.length - 3; // 去掉「 积分」后的字符数（含千分位逗号）
+  return len >= 9 ? "fit-xs" : len >= 7 ? "fit-sm" : "";
+});
 /** 充值弹窗（站内透明 iframe 内嵌 /console/topup?embed=1，造物 TopupDialog 弹窗体系）：
  *  不再整页跳 console——跳走后背后是空落点页、弹窗还是深色。现在主站就地弹轻遮罩弹窗，
  *  背后主站内容可见；iframe 里的弹窗关闭时 postMessage(xoi:topup:close) 通知本壳收起。
@@ -309,7 +412,7 @@ function closeTopupFrameOnMessage(event: MessageEvent) {
   void uStore.refreshProfile();
 }
 
-// 算力明细与充值共用 console 的账户弹窗体系，数据都来自 NewAPI。
+// 积分明细与充值共用 console 的账户弹窗体系，底层数据都来自 NewAPI。
 const usageFrameOpen = ref(false);
 const usageFrameSrc = computed(() => {
   const theme = resolveThemeMode(settingStore().themeSetting.mode);
@@ -324,21 +427,25 @@ function closeUsageFrameOnMessage(event: MessageEvent) {
   usageFrameOpen.value = false;
 }
 
-// 主导航（范围收敛：只留四个创作模块 + 画布资产库入口；
-// Skill/灵感资料库/创作任务/管理员中心已按造物方案下线）
+// 主导航只承载高频创作路径；专项能力进入「更多工具」，避免功能增长继续挤压侧栏。
+// 2026-10-24 排序与命名（用户拍板）：智能创作置顶并作为首页落地页；导演工作台更名
+// 白模预演（页面内全称「白模预演工作台」）；创作项目更名短剧工坊，挂 New 徽标。
 const baseMenu = [
-  { type: "group", label: "创作工作台" },
-  { type: "btn", path: "/project", label: "剧本一键创作", icon: "i-movie-board" },
+  { type: "group", label: "创作" },
+  { type: "btn", path: "/aiAssistant", label: "智能创作", icon: "i-sparkle" },
   { type: "btn", path: "/canvas", label: "无限画布", icon: "i-edit", canvasCenter: true },
-  { type: "btn", path: "/aiAssistant", label: "Agent 智能创作", icon: "i-magic" },
-  { type: "btn", path: "/director3d", label: "导演工作台", icon: "i-camera-one" },
+  { type: "btn", path: "/director3d", label: "白模预演", icon: "i-reel" },
+  { type: "btn", path: "/project", label: "短剧工坊", icon: "i-movie-board", scriptCenter:true },
+  { type: "group", label: "资源" },
+  { type: "btn", path: "/assets", label: "资产中心", icon: "i-receive" },
   { type: "btn", path: "/square", label: "灵感广场", icon: "i-lightning" },
-  { type: "group", label: "创作资源" },
-  { type: "btn", path: "/assets", label: "项目资产库", icon: "i-receive" },
-  { type: "btn", path: "/viral-replicate", label: "爆款复刻", icon: "i-fire" },
-  { type: "btn", path: "/skills", label: "Skill 市场", icon: "i-toolkit" },
 ];
 const menuList = computed(() => baseMenu);
+const utilityMenu = [
+  { type: "btn", path: "/editor", query: { mode: "standalone" }, label: "独立剪辑", description: "导入本地素材，直接剪辑与导出", icon: "i-cutting-one", badge: "创作" },
+  { type: "btn", path: "/viral-replicate", label: "爆款复刻", description: "拆解视频、反推提示词与复刻节奏", icon: "i-fire", badge: "热门" },
+  { type: "btn", path: "/skills", label: "Skill 市场", description: "发现并管理可复用的创作能力", icon: "i-toolkit", badge: "扩展" },
+];
 
 const rightBtnList = ref([
   { type: "btn", path: "/novel", label: "导入素材", description: "导入小说原文或已有剧本", icon: "i-file-text", nodelOnly: true },
@@ -352,15 +459,35 @@ const rightBtnList = ref([
 
 const router = useRouter();
 const route = useRoute();
+watch(() => route.fullPath, value => { if (route.path === '/script/one-stop') scriptQuickDestination.value = value; }, { immediate: true });
+watch([() => uStore.token, () => uStore.userId], () => { scriptQuickDestination.value = '/script/one-stop'; });
+watch([() => route.path, () => uStore.token, () => uStore.userId], ([path, token, account]) => {
+  if (!token || (oneStopSession.value && oneStopSession.value !== `${account}:${token}`)) oneStopSession.value = "";
+  if (path === "/script/one-stop" && token) oneStopSession.value = `${account}:${token}`;
+  if (!token || (canvasSession.value && canvasSession.value !== `${account}:${token}`)) canvasSession.value = "";
+  if (path === "/canvas" && token) canvasSession.value = `${account}:${token}`;
+}, { immediate: true });
 // 仅用于 aiAssistant 页那道 runtime 逃生口；director3d/canvas 维持硬沉浸不受其影响
 const uiPrefs = uiPrefsStore();
-// 进入业务后收成 72px 图标栏；用户手动选择会被记住，不被后续路由强制覆盖。
-const menuCollapsed = computed(() => uiPrefs.isSidebarCollapsed());
+// 桌面默认展开，仅记住手动选择；手机默认图标栏，点击边缘按钮展开。
+const narrowSidebarQuery = window.matchMedia("(max-width: 700px)");
+const narrowSidebar = ref(narrowSidebarQuery.matches);
+const mobileSidebarOpen = ref(false);
+function updateNarrowSidebar(event: MediaQueryListEvent) {
+  narrowSidebar.value = event.matches;
+  mobileSidebarOpen.value = false;
+}
+onMounted(() => narrowSidebarQuery.addEventListener("change", updateNarrowSidebar));
+onUnmounted(() => narrowSidebarQuery.removeEventListener("change", updateNarrowSidebar));
+watch(() => route.path, () => { mobileSidebarOpen.value = false; });
+const menuCollapsed = computed(() => narrowSidebar.value ? !mobileSidebarOpen.value : uiPrefs.isSidebarCollapsed());
+function expandSidebar(){if(narrowSidebar.value)mobileSidebarOpen.value=true;else if(menuCollapsed.value)uiPrefs.toggleSidebar(true);}
 function toggleSidebar() {
   if (isCanvasFullscreen.value) {
     canvasNavOpen.value = false;
     return;
   }
+  if (narrowSidebar.value) { mobileSidebarOpen.value = !mobileSidebarOpen.value; return; }
   uiPrefs.toggleSidebar(menuCollapsed.value);
 }
 
@@ -370,6 +497,7 @@ function toggleSidebar() {
  * 则临时视作脱离沉浸让顶栏回归——使其能在保有当前对话的同时切往 项目列表/画布/定价 等兄弟模块；
  * director3d/canvas 两路继续硬性强制沉浸不可破例（外溢风险最低）。
  */
+const isEditorWorkspace = computed(() => route.path === "/editor");
 const isImmersive = computed(() =>
   // /editor（剪辑成片）是独立工作台：它自带顶栏，这里压掉面包屑让预览拿到整块高度。
   ['/aiAssistant', '/director3d', '/canvas', '/editor'].includes(route.path)
@@ -382,10 +510,31 @@ const isCanvasFullscreen = computed(() => route.path === '/canvas' && canvasEdit
 const canvasNavOpen = ref(false);
 // 项目内页面：仅在打开项目后的这些页面显示顶栏（面包屑 + 项目快捷入口）
 const projectPages = ['/novel', '/scriptAgent', '/script', '/cornerScape', '/production'];
-const isProjectPage = computed(() => projectPages.includes(route.path));
+const isProjectPage = computed(() => projectPages.includes(route.path) || (route.path === '/assets' && !!route.query.projectId));
 const { t } = useI18n();
 function menuLabel(menu: any) { return menu?.label || (menu?.labelKey ? t(menu.labelKey) : ''); }
 const activeMenu = ref(route.path);
+const toolsMenuOpen = ref(false);
+const toolsTriggerRef = ref<HTMLElement | null>(null);
+const toolsDropStyle = ref({ left: "258px", top: "420px" });
+const utilityMenuActive = computed(() => utilityMenu.some((item) => item.path === activeMenu.value));
+
+function toggleToolsMenu() {
+  if (!toolsMenuOpen.value && toolsTriggerRef.value) {
+    const rect = toolsTriggerRef.value.getBoundingClientRect();
+    const left = Math.min(rect.right + 12, window.innerWidth - 332);
+    const top = Math.max(16, Math.min(rect.top - 18, window.innerHeight - 310));
+    toolsDropStyle.value = { left: `${left}px`, top: `${top}px` };
+  }
+  toolsMenuOpen.value = !toolsMenuOpen.value;
+}
+
+function closeToolsMenuOnOutside(event: PointerEvent) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (target.closest('.tools-trigger') || target.closest('.tools-popover')) return;
+  toolsMenuOpen.value = false;
+}
 
 watch(
   () => route.path,
@@ -398,6 +547,7 @@ watch(
 
 function handleClick(menu: any) {
   if (menu.needProject && !project.value) return;
+  toolsMenuOpen.value = false;
   uiPrefs.collapseSidebarForNavigation();
   if (menu.canvasCenter) {
     router.push({ path: "/canvas" });
@@ -409,7 +559,17 @@ function handleClick(menu: any) {
     activeMenu.value = menu.path;
     return;
   }
-  router.push(menu.path);
+  if (menu.path === "/editor" && menu.query?.mode === "standalone") {
+    router.push({ path: "/editor", query: { mode: "standalone", returnTo: route.fullPath } });
+    activeMenu.value = menu.path;
+    return;
+  }
+  if (projectPages.includes(menu.path) && project.value?.id) {
+    router.push({ path: menu.path, query: { projectId: String(project.value.id), ...(route.query.episode ? { episode: route.query.episode } : {}) } });
+    activeMenu.value = menu.path;
+    return;
+  }
+  router.push(menu.query ? { path: menu.path, query: menu.query } : menu.path);
   activeMenu.value = menu.path;
 }
 
@@ -474,17 +634,44 @@ function toggleCanvasWorkspaceNav(event: MessageEvent) {
   }
 }
 
+const CANVAS_ROUTE_KEY = "xoi.canvas.lastRoute";
+/** 画布内部路由（如 /canvas/35）：白名单校验后落 sessionStorage，刷新后 canvas shell 原地恢复，不再掉回画布列表 */
 function syncCanvasRoute(event: MessageEvent) {
-  if (event.origin !== window.location.origin || event.data?.type !== 'xoi:canvas-route') return;
+  if (event.origin !== window.location.origin || event.data?.type !== 'xoi:canvas-route' || route.path !== '/canvas') return;
   canvasEditorOpen.value = event.data.editor === true;
+  const inner = String(event.data.path ?? "");
+  if (/^\/canvas(?:\/?|\/[A-Za-z0-9_-]+)$/.test(inner)) {
+    try { sessionStorage.setItem(CANVAS_ROUTE_KEY, inner); } catch {}
+    // 同步到外层 hash（#/canvas?id=<id>）：刷新/复制链接都能原位回到该画布。
+    // id 只接受 nanoid 字符集，防止任意 hash 注入。
+    const idMatch = /^\/canvas\/([A-Za-z0-9_-]+)$/.exec(inner);
+    if (window.history?.replaceState) {
+      // 进编辑器带 id；回到列表则摘掉 id，保证外层 URL 与 iframe 状态一致
+      window.history.replaceState({}, "", `${window.location.pathname}#/canvas${idMatch ? `?id=${idMatch[1]}` : ""}`);
+    }
+  }
+}
+function warmCanvasWorkspace(){
+ const token=uStore.token,account=uStore.userId;
+ if(token&&!canvasSession.value)canvasSession.value=`${account}:${token}`;
+}
+function refreshBillingBalance() { void uStore.refreshProfile(); }
+function receiveBillingNotice(event: MessageEvent) {
+  if (event.origin === window.location.origin && event.data?.type === "xoi:billing-updated") refreshBillingBalance();
 }
 
 onMounted(() => {
   document.addEventListener('pointerdown', closeFootMenuOnOutside);
+  document.addEventListener('pointerdown', closeToolsMenuOnOutside);
   window.addEventListener('message', toggleCanvasWorkspaceNav);
   window.addEventListener('message', syncCanvasRoute);
+  window.addEventListener('xoi:canvas-warmup',warmCanvasWorkspace);
   window.addEventListener('message', closeTopupFrameOnMessage);
   window.addEventListener('message', closeUsageFrameOnMessage);
+  window.addEventListener("xoi:billing-updated", refreshBillingBalance);
+  window.addEventListener("message", receiveBillingNotice);
+  // A short platform introduction once per account, without intercepting project deep links.
+  try { welcomeOpen.value = !route.query.projectId && !route.query.new && localStorage.getItem(welcomeKey()) !== "done"; } catch {}
   // 余额来自 new-api quota（/api/login/self 折算元），壳层挂载时拉一次，
   // 生成扣费/充值到账后由相应页面再调 refreshProfile() 即时刷新角标
   void uStore.refreshProfile();
@@ -494,21 +681,22 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', closeFootMenuOnOutside);
+  document.removeEventListener('pointerdown', closeToolsMenuOnOutside);
   window.removeEventListener('message', toggleCanvasWorkspaceNav);
   window.removeEventListener('message', syncCanvasRoute);
+  window.removeEventListener('xoi:canvas-warmup',warmCanvasWorkspace);
   window.removeEventListener('message', closeTopupFrameOnMessage);
   window.removeEventListener('message', closeUsageFrameOnMessage);
+  window.removeEventListener("xoi:billing-updated", refreshBillingBalance);
+  window.removeEventListener("message", receiveBillingNotice);
 });
 
 // 当前页名（顶栏面包屑末级）
 const currentPageName = computed(() => {
-  const menu = [...menuList.value, ...rightBtnList.value].find((item: any) => item.path === route.path);
+  if (route.path === '/assets' && route.query.projectId) return '项目素材';
+  const menu = [...menuList.value, ...utilityMenu, ...rightBtnList.value].find((item: any) => item.path === route.path);
   return menuLabel(menu);
 });
-
-function jumpGithub() {
-  window.open("https://github.com/yufan-byte");
-}
 
 function openFeedback() {
   window.open("https://docs.qq.com/smartsheet/form/EmvmQBrmlPmr%2Fss_vsqk2v%2FvhiGzE?tab=ss_vsqk2v");
@@ -531,6 +719,31 @@ function goConsoleAdmin() {
 // 数据源：/announcements.json（backend/data/web/ 静态托管，站长改完即生效，无需重构建）。
 // 未读逻辑：最新一条的 id 与 localStorage 记录不一致即显示小红点，打开弹窗即标记已读。
 interface NoticeItem { id: string; title: string; content: string; type?: string; published_at?: string; created_at?: string }
+// 全站顶部横幅：控制台「官方公告」页发布，随 /announcements.json 一起下发。
+// 关闭按横幅 id 记忆（管理员换一条新横幅 = 换 id，会重新出现）。
+interface SiteBanner { id?: string; enabled?: boolean; text?: string; ctaLabel?: string; link?: string; theme?: string }
+const siteBanner = ref<SiteBanner | null>(null);
+const BANNER_DISMISS_KEY = "xoi_banner_dismissed_id";
+const bannerDismissedId = ref("");
+try { bannerDismissedId.value = localStorage.getItem(BANNER_DISMISS_KEY) || ""; } catch {}
+const showSiteBanner = computed(() => {
+  const b = siteBanner.value;
+  return !!b && b.enabled === true && !!b.text && bannerDismissedId.value !== (b.id || "banner");
+});
+function dismissSiteBanner() {
+  const b = siteBanner.value;
+  if (!b) return;
+  bannerDismissedId.value = b.id || "banner";
+  try { localStorage.setItem(BANNER_DISMISS_KEY, b.id || "banner"); } catch {}
+}
+/** 横幅跳转：https 外链新窗口（noopener），站内路径走 router（兼容 /#/hash 与纯 path 两种形态） */
+function handleBannerCta() {
+  const link = siteBanner.value?.link || "";
+  if (!link) return;
+  if (/^https:\/\//i.test(link)) { window.open(link, "_blank", "noopener"); return; }
+  if (link.startsWith("/#/")) { router.push(link.slice(2)); return; }
+  router.push(link);
+}
 const notices = ref<NoticeItem[]>([]);
 const noticeIndex = ref(0);
 const noticeOpen = ref(false);
@@ -549,6 +762,7 @@ async function loadNotices() {
     const json: any = await res.json();
     const list: NoticeItem[] = Array.isArray(json) ? json : (json?.data ?? []);
     notices.value = list.filter((n) => n && n.id && n.title);
+    if (json?.banner && typeof json.banner === "object") siteBanner.value = json.banner;
   } catch { /* 静态资源缺失时静默降级为「暂无公告」 */ }
 }
 function openNotices() {
@@ -615,6 +829,7 @@ async function handleUpdateProfile() {
 </script>
 
 <style lang="scss" scoped>
+.site-brand-footer { margin:0 4px 10px; max-height:48px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:10px; line-height:16px; color:#92928a; }
 .main {
   width: 100vw;
   padding: 0;
@@ -624,7 +839,7 @@ async function handleUpdateProfile() {
   transition: all 0.3s ease;
   overflow: hidden;
 
-  /* 背景装饰 - 科技感发光线条 */
+  /* 背景装饰：暖灰纸面点阵，贴合创作工具的纸感基调 */
   .bg-decoration {
     position: fixed;
     top: 0;
@@ -635,7 +850,6 @@ async function handleUpdateProfile() {
     z-index: 0;
     overflow: hidden;
 
-    /* 极淡的纸张纹理：保留科技感，但不形成明显的蓝色背景 */
     &::before {
       content: '';
       position: absolute;
@@ -643,54 +857,9 @@ async function handleUpdateProfile() {
       left: 0;
       width: 100%;
       height: 100%;
-      background-image: radial-gradient(rgba(99, 102, 241, 0.08) 0.7px, transparent 0.7px);
+      background-image: radial-gradient(rgba(163, 134, 104, 0.10) 0.7px, transparent 0.7px);
       background-size: 28px 28px;
-      opacity: 0.22;
-    }
-
-    .circle {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(110px);
-      opacity: 0.12;
-    }
-
-    .circle-1 {
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, #c7d2fe, transparent 68%);
-      top: -150px;
-      left: -150px;
-      animation: float-1 20s ease-in-out infinite;
-    }
-
-    .circle-2 {
-      width: 400px;
-      height: 400px;
-      background: radial-gradient(circle, #bae6fd, transparent 68%);
-      top: 60%;
-      right: -100px;
-      animation: float-2 25s ease-in-out infinite;
-    }
-
-    .circle-3 {
-      width: 350px;
-      height: 350px;
-      background: radial-gradient(circle, #ddd6fe, transparent 68%);
-      bottom: -100px;
-      left: 40%;
-      animation: float-3 22s ease-in-out infinite;
-    }
-
-    /* 额外的光点 */
-    .circle-4 {
-      width: 200px;
-      height: 200px;
-      background: radial-gradient(circle, #ccfbf1, transparent 68%);
-      top: 30%;
-      left: 20%;
-      animation: float-4 18s ease-in-out infinite;
-      opacity: 0.08;
+      opacity: 0.5;
     }
   }
 
@@ -707,25 +876,6 @@ async function handleUpdateProfile() {
     100% { transform: translate(50px, 50px); }
   }
 
-  @keyframes float-1 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(60px, 60px) scale(1.1); }
-  }
-
-  @keyframes float-2 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(-40px, -50px) scale(0.9); }
-  }
-
-  @keyframes float-3 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(50px, -40px) scale(1.05); }
-  }
-
-  @keyframes float-4 {
-    0%, 100% { transform: translate(0, 0); }
-    50% { transform: translate(-30px, 30px); }
-  }
 
   // 折叠按钮
   .collapse-btn {
@@ -750,8 +900,8 @@ async function handleUpdateProfile() {
 
     &:hover {
       width: 28px;
-      background: #f6f8fb;
-      color: #1d5fd1;
+      background: #fdf4ec;
+      color: #c9662a;
     }
 
     &:active {
@@ -922,9 +1072,9 @@ async function handleUpdateProfile() {
           justify-content: center;
           gap: 8px;
           border-radius: 9px;
-          background: #182033;
+          background: linear-gradient(135deg, #f57400, #ff8f3d);
           transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-          box-shadow: none;
+          box-shadow: 0 2px 8px rgba(245, 116, 0, 0.22);
           border: 0;
           padding: 0;
           cursor: pointer;
@@ -942,7 +1092,7 @@ async function handleUpdateProfile() {
           .member-text {
           font-size: 12px;
             font-weight: 600;
-            color: white;
+            color: #ffffff;
             line-height: 1;
           }
         }
@@ -953,8 +1103,8 @@ async function handleUpdateProfile() {
           right: -2px;
           font-size: 9px;
           font-weight: 600;
-          color: #1d5fd1;
-          background: #e8f0ff;
+          color: #c9662a;
+          background: #fdeee1;
           padding: 2px 5px;
           border-radius: 5px;
           line-height: 1.2;
@@ -978,15 +1128,14 @@ async function handleUpdateProfile() {
         align-items: center;
         gap: 10px;
         padding: 9px 8px;
-        border: 1px solid #f0ece5;
+        border: 0;
         border-radius: 12px;
-        background: #fdfcfa;
+        background: transparent;
         cursor: pointer;
         transition: all 0.25s ease;
 
         &:hover {
-          background: #faf8f5;
-          border-color: #e5dfd4;
+          background: #edeee9;
         }
 
         .user-avatar {
@@ -1068,11 +1217,11 @@ async function handleUpdateProfile() {
     }
 
     &:hover {
-      background: #f4f7fb;
+      background: #fdf3ea;
 
       .icon,
       .item-title {
-        color: #1d5fd1;
+        color: #c9662a;
       }
     }
 
@@ -1082,11 +1231,11 @@ async function handleUpdateProfile() {
   }
 
   .active {
-    background: #eaf2ff !important;
+    background: #fdeee1 !important;
 
     .icon,
     .item-title {
-      color: #1d5fd1 !important;
+      color: #d4601f !important;
       font-weight: 700;
     }
   }
@@ -1122,8 +1271,8 @@ async function handleUpdateProfile() {
     margin-left: 0;
     // 苹果风格材质 - 主视图区使用标准材质 + 中等模糊
     background: var(--material-regular);
-    backdrop-filter: var(--blur-medium);
-    -webkit-backdrop-filter: var(--blur-medium);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 0;
     border-radius: 0;
     overflow: hidden;
@@ -1157,6 +1306,29 @@ async function handleUpdateProfile() {
           &.current {
             color: var(--text-primary);
             font-weight: 600;
+          }
+        }
+
+        // 可点击层级：视觉上仍是面包屑，但悬停给暖橙反馈，提示可跳转
+        .bc-link {
+          border: 0;
+          padding: 2px 4px;
+          margin: -2px -4px;
+          border-radius: 7px;
+          background: transparent;
+          font: inherit;
+          color: var(--text-tertiary);
+          cursor: pointer;
+          transition: color .16s ease, background .16s ease;
+
+          &:hover {
+            color: #b4551f;
+            background: #fdf1e7;
+          }
+
+          &:focus-visible {
+            outline: 2px solid #d9865f;
+            outline-offset: 1px;
           }
         }
 
@@ -1255,6 +1427,18 @@ async function handleUpdateProfile() {
 .fade-leave-to {
   opacity: 0;
 }
+
+/* —— 全站横幅壳：横幅横贯整页顶部，侧栏与内容在其下 —— */
+.appShell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.appShell > .main { flex: 1; min-height: 0; }
+.appShell > .siteBanner { flex: none; height: 44px; }
+
+
+/* 下拉积分卡长数字自适应（与侧栏积分卡同档位） */
+.credits-detail-link strong { transition: font-size .15s ease; }
+.credits-detail-link strong.fit-sm { font-size: 17px; }
+.credits-detail-link strong.fit-xs { font-size: 14.5px; }
+
 </style>
 
 <style lang="less">
@@ -1342,13 +1526,13 @@ async function handleUpdateProfile() {
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0052d9 0%, #00d4ff 100%);
+  background: linear-gradient(135deg, #f57400 0%, #ffab5e 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   margin-bottom: 16px;
-  box-shadow: 0 8px 24px rgba(0, 82, 217, 0.25);
+  box-shadow: 0 8px 24px rgba(245, 116, 0, 0.25);
 }
 
 .profile-name {
@@ -1366,8 +1550,8 @@ async function handleUpdateProfile() {
 .profile-role {
   font-size: 12px;
   font-weight: 500;
-  color: #0052d9;
-  background: rgba(0, 82, 217, 0.08);
+  color: #c9662a;
+  background: rgba(245, 116, 0, 0.09);
   padding: 4px 12px;
   border-radius: 20px;
   letter-spacing: 0.5px;
@@ -1421,9 +1605,9 @@ async function handleUpdateProfile() {
   }
 
   &:focus {
-    background: rgba(0, 82, 217, 0.04);
-    border-color: rgba(0, 82, 217, 0.3);
-    box-shadow: 0 0 0 3px rgba(0, 82, 217, 0.1);
+    background: rgba(245, 116, 0, 0.04);
+    border-color: rgba(245, 116, 0, 0.3);
+    box-shadow: 0 0 0 3px rgba(245, 116, 0, 0.1);
   }
 
   [data-theme-mode="dark"] & {
@@ -1436,8 +1620,8 @@ async function handleUpdateProfile() {
     }
 
     &:focus {
-      background: rgba(0, 82, 217, 0.1);
-      border-color: rgba(0, 82, 217, 0.4);
+      background: rgba(245, 116, 0, 0.1);
+      border-color: rgba(245, 116, 0, 0.4);
     }
   }
 }
@@ -1482,18 +1666,18 @@ async function handleUpdateProfile() {
 }
 
 .profile-btn-save {
-  background: linear-gradient(135deg, #0052d9 0%, #0066ff 100%);
+  background: linear-gradient(135deg, #f57400 0%, #ff8f3d 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(0, 82, 217, 0.3);
+  box-shadow: 0 4px 12px rgba(245, 116, 0, 0.3);
 
   &:hover:not(:disabled) {
-    box-shadow: 0 6px 16px rgba(0, 82, 217, 0.4);
+    box-shadow: 0 6px 16px rgba(245, 116, 0, 0.4);
     transform: translateY(-1px);
   }
 
   &:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: 0 2px 8px rgba(0, 82, 217, 0.3);
+    box-shadow: 0 2px 8px rgba(245, 116, 0, 0.3);
   }
 
   &:disabled {
@@ -1544,600 +1728,6 @@ async function handleUpdateProfile() {
   transform: scale(0.95);
 }
 
-// 会员弹窗样式
-.member-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.member-modal {
-  width: 820px;
-  max-height: 90vh;
-  overflow-y: auto;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border-radius: 24px;
-  border: 0.5px solid rgba(255, 255, 255, 0.6);
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.15),
-    0 0 0 0.5px rgba(0, 0, 0, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  padding: 36px;
-  position: relative;
-
-  [data-theme-mode="dark"] & {
-    background: rgba(40, 40, 40, 0.95);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 20px 60px rgba(0, 0, 0, 0.4),
-      0 0 0 0.5px rgba(255, 255, 255, 0.05),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  }
-}
-
-.member-close {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: rgba(0, 0, 0, 0.4);
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.1);
-    color: rgba(0, 0, 0, 0.6);
-  }
-
-  [data-theme-mode="dark"] & {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.4);
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.6);
-    }
-  }
-}
-
-.member-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1a1a1a;
-  text-align: center;
-  margin-bottom: 8px;
-  letter-spacing: -0.5px;
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-  }
-}
-
-.member-subtitle {
-  font-size: 14px;
-  color: rgba(0, 0, 0, 0.45);
-  text-align: center;
-  margin-bottom: 28px;
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.4);
-  }
-}
-
-.member-tabs {
-  display: flex;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 12px;
-  padding: 4px;
-  margin-bottom: 16px;
-
-  [data-theme-mode="dark"] & {
-    background: rgba(255, 255, 255, 0.06);
-  }
-}
-
-.member-tab {
-  flex: 1;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.5);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &.active {
-    background: white;
-    color: #1a1a1a;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-    [data-theme-mode="dark"] & {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-    }
-  }
-
-  .member-tab-tag {
-    font-size: 10px;
-    font-weight: 600;
-    color: #ff3b30;
-    background: rgba(255, 59, 48, 0.1);
-    padding: 1px 5px;
-    border-radius: 4px;
-  }
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.5);
-
-    &.active {
-      color: #fff;
-    }
-  }
-}
-
-.member-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: linear-gradient(135deg, rgba(255, 107, 53, 0.08) 0%, rgba(255, 154, 92, 0.08) 100%);
-  border: 1px solid rgba(255, 107, 53, 0.15);
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 24px;
-
-  .member-banner-tag {
-    font-size: 11px;
-    font-weight: 600;
-    color: white;
-    background: linear-gradient(135deg, #ff6b35, #ff9a5c);
-    padding: 2px 8px;
-    border-radius: 6px;
-    flex-shrink: 0;
-  }
-
-  .member-banner-text {
-    font-size: 13px;
-    color: #ff6b35;
-
-    [data-theme-mode="dark"] & {
-      color: #ff9a5c;
-    }
-  }
-}
-
-.member-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.member-card {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;
-  padding: 24px 20px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  transition: all 0.2s ease;
-
-  [data-theme-mode="dark"] & {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  &.popular {
-    border-color: rgba(0, 82, 217, 0.3);
-    background: linear-gradient(180deg, rgba(0, 82, 217, 0.03) 0%, transparent 100%);
-    box-shadow: 0 4px 16px rgba(0, 82, 217, 0.1);
-  }
-
-  &.premium {
-    border-color: rgba(255, 107, 53, 0.3);
-    background: linear-gradient(180deg, rgba(255, 107, 53, 0.03) 0%, transparent 100%);
-    box-shadow: 0 4px 16px rgba(255, 107, 53, 0.1);
-  }
-}
-
-.member-card-badge {
-  position: absolute;
-  top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 11px;
-  font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #0052d9, #0066ff);
-  padding: 3px 12px;
-  border-radius: 0 0 8px 8px;
-
-  &.premium-badge {
-    background: linear-gradient(135deg, #ff6b35, #ff9a5c);
-  }
-}
-
-.member-card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding-top: 8px;
-}
-
-.member-card-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1a1a1a;
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-  }
-}
-
-.member-card-discount {
-  font-size: 11px;
-  font-weight: 600;
-  color: #ff3b30;
-  background: rgba(255, 59, 48, 0.1);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.member-card-price {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-  margin-bottom: 4px;
-}
-
-.price-num {
-  font-size: 36px;
-  font-weight: 700;
-  color: #1a1a1a;
-  line-height: 1;
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-  }
-}
-
-.price-unit {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.4);
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.4);
-  }
-}
-
-.member-card-duration {
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.35);
-  margin-bottom: 20px;
-
-  .original-price {
-    text-decoration: line-through;
-  }
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.35);
-  }
-}
-
-.member-card-btn {
-  width: 100%;
-  height: 40px;
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #0052d9 0%, #0066ff 100%);
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(0, 82, 217, 0.25);
-
-  &:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 82, 217, 0.35);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  &.disabled {
-    background: rgba(0, 0, 0, 0.08);
-    color: rgba(0, 0, 0, 0.3);
-    cursor: default;
-    box-shadow: none;
-  }
-
-  &.premium-btn {
-    background: linear-gradient(135deg, #ff6b35 0%, #ff9a5c 100%);
-    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
-
-    &:hover:not(:disabled) {
-      box-shadow: 0 6px 16px rgba(255, 107, 53, 0.35);
-    }
-  }
-
-  [data-theme-mode="dark"] & {
-    &.disabled {
-      background: rgba(255, 255, 255, 0.08);
-      color: rgba(255, 255, 255, 0.3);
-    }
-  }
-}
-
-.member-card-features {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  li {
-    font-size: 13px;
-    color: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-
-    [data-theme-mode="dark"] & {
-      color: rgba(255, 255, 255, 0.5);
-    }
-  }
-
-  .feature-highlight {
-    font-weight: 700;
-    color: #0052d9;
-    margin: 0 2px;
-
-    &.cyan {
-      color: #00b4d8;
-    }
-
-    [data-theme-mode="dark"] & {
-      color: #4d9fff;
-
-      &.cyan {
-        color: #00d4ff;
-      }
-    }
-  }
-}
-
-.member-card-benefits {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  padding-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  [data-theme-mode="dark"] & {
-    border-color: rgba(255, 255, 255, 0.06);
-  }
-
-  li {
-    font-size: 12px;
-    color: rgba(0, 0, 0, 0.45);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-
-    &::before {
-      content: '';
-      width: 4px;
-      height: 4px;
-      border-radius: 50%;
-      background: #0052d9;
-      flex-shrink: 0;
-    }
-
-    [data-theme-mode="dark"] & {
-      color: rgba(255, 255, 255, 0.4);
-
-      &::before {
-        background: #4d9fff;
-      }
-    }
-  }
-}
-
-// 会员用户信息头部
-.member-user-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, rgba(0, 82, 217, 0.06) 0%, rgba(0, 180, 216, 0.06) 100%);
-  border-radius: 16px;
-  margin-bottom: 24px;
-}
-
-.member-user-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.member-user-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #0052d9 0%, #00d4ff 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  flex-shrink: 0;
-}
-
-.member-user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.member-user-status {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1a1a1a;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  background: rgba(0, 0, 0, 0.05);
-
-  &.free {
-    color: #666;
-    background: rgba(0, 0, 0, 0.05);
-  }
-
-  &.standard {
-    color: #ff9a5c;
-    background: linear-gradient(135deg, rgba(255, 154, 92, 0.15) 0%, rgba(255, 107, 107, 0.15) 100%);
-    border: 1px solid rgba(255, 154, 92, 0.3);
-  }
-
-  &.premium {
-    color: #ff6b6b;
-    background: linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 107, 107, 0.2) 100%);
-    border: 1px solid rgba(255, 215, 0, 0.4);
-    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.2);
-  }
-
-  .member-crown, .member-star {
-    font-size: 14px;
-  }
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.1);
-
-    &.standard {
-      color: #ff9a5c;
-      background: rgba(255, 154, 92, 0.2);
-      border-color: rgba(255, 154, 92, 0.4);
-    }
-
-    &.premium {
-      color: #ffd700;
-      background: rgba(255, 215, 0, 0.2);
-      border-color: rgba(255, 215, 0, 0.5);
-      box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
-    }
-  }
-}
-
-.member-user-points {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.45);
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    color: #0052d9;
-  }
-
-  .points-icon {
-    color: #ff9a5c;
-  }
-
-  .points-value {
-    font-weight: 600;
-    color: #1a1a1a;
-
-    [data-theme-mode="dark"] & {
-      color: #fff;
-    }
-  }
-
-  .arrow-icon {
-    color: rgba(0, 0, 0, 0.25);
-  }
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.4);
-
-    .arrow-icon {
-      color: rgba(255, 255, 255, 0.25);
-    }
-  }
-}
-
-.member-user-right {
-  display: flex;
-  gap: 10px;
-}
-
-.member-action-btn {
-  height: 36px;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 500;
-  color: white;
-  background: linear-gradient(135deg, #0052d9 0%, #0066ff 100%);
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 82, 217, 0.3);
-  }
-
-  &.secondary {
-    background: rgba(0, 0, 0, 0.06);
-    color: rgba(0, 0, 0, 0.6);
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.1);
-      box-shadow: none;
-    }
-
-    [data-theme-mode="dark"] & {
-      background: rgba(255, 255, 255, 0.08);
-      color: rgba(255, 255, 255, 0.6);
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.12);
-      }
-    }
-  }
-}
-
 // 充值弹窗（透明 iframe 内嵌 console 充值面板）：轻遮罩让背后主站可见，弹窗本体在 iframe 内居中
 .topup-frame-overlay {
   position: fixed;
@@ -2162,557 +1752,10 @@ async function handleUpdateProfile() {
     background: transparent;
     box-shadow: none;
   }
-}
-
-// 积分充值弹窗
-.points-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-}
-
-.points-modal {
-  width: 720px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border-radius: 24px;
-  border: 0.5px solid rgba(255, 255, 255, 0.6);
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.15),
-    0 0 0 0.5px rgba(0, 0, 0, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  position: relative;
-  overflow: hidden;
-
-  [data-theme-mode="dark"] & {
-    background: rgba(40, 40, 40, 0.95);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 20px 60px rgba(0, 0, 0, 0.4),
-      0 0 0 0.5px rgba(255, 255, 255, 0.05),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  }
-}
-
-.points-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: rgba(0, 0, 0, 0.4);
-  z-index: 1;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.1);
-    color: rgba(0, 0, 0, 0.6);
-  }
-
-  [data-theme-mode="dark"] & {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.4);
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.6);
-    }
-  }
-}
-
-.points-content {
-  display: flex;
-  min-height: 420px;
-}
-
-.points-left {
-  width: 280px;
-  padding: 32px;
-  background: linear-gradient(180deg, rgba(0, 82, 217, 0.04) 0%, transparent 100%);
-  border-right: 1px solid rgba(0, 0, 0, 0.06);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  [data-theme-mode="dark"] & {
-    border-right-color: rgba(255, 255, 255, 0.06);
-  }
-}
-
-.points-display {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.points-num {
-  font-size: 48px;
-  font-weight: 700;
-  color: #1a1a1a;
-  line-height: 1;
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-  }
-}
-
-.points-icon-large {
-  color: #ff9a5c;
-}
-
-.points-label {
-  font-size: 14px;
-  color: rgba(0, 0, 0, 0.45);
-  margin-bottom: 32px;
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.4);
-  }
-}
-
-.points-details {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.points-detail-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.detail-label {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.45);
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.4);
-  }
-}
-
-.detail-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a1a1a;
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-  }
-}
-
-.points-right {
-  flex: 1;
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-}
-
-.points-recharge-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 20px;
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-  }
-}
-
-.points-recharge-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.points-package {
-  padding: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: center;
-
-  &.active {
-    border-color: #0052d9;
-    background: rgba(0, 82, 217, 0.04);
-    box-shadow: 0 0 0 1px #0052d9;
-  }
-
-  &:hover:not(.active) {
-    border-color: rgba(0, 82, 217, 0.3);
-  }
-
-  [data-theme-mode="dark"] & {
-    border-color: rgba(255, 255, 255, 0.08);
-
-    &.active {
-      border-color: #4d9fff;
-      background: rgba(77, 159, 255, 0.1);
-      box-shadow: 0 0 0 1px #4d9fff;
-    }
-
-    &:hover:not(.active) {
-      border-color: rgba(77, 159, 255, 0.3);
-    }
-  }
-}
-
-.package-points {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 8px;
-
-  svg {
-    color: #ff9a5c;
-  }
-
-  .package-bonus {
-    font-size: 12px;
-    color: #ff6b6b;
-    font-weight: 500;
-  }
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-
-    .package-bonus {
-      color: #ff8a8a;
-    }
-  }
-}
-
-.package-price {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.45);
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.4);
-  }
-}
-
-.points-payment-preview {
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 24px;
-
-  [data-theme-mode="dark"] & {
-    background: rgba(255, 255, 255, 0.03);
-  }
-}
-
-.payment-method {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.45);
-  margin-bottom: 8px;
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.4);
-  }
-}
-
-.payment-price {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 8px;
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-  }
-}
-
-.payment-gain {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-
-  span {
-    font-weight: 600;
-    color: #0052d9;
-
-    [data-theme-mode="dark"] & {
-      color: #4d9fff;
-    }
-  }
-
-  svg {
-    color: #ff9a5c;
-  }
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.4);
-  }
-}
-
-.points-payment-footer {
-  margin-top: auto;
-}
-
-.payment-agreement {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 16px;
-  font-size: 12px;
-}
-
-.agreement-text {
-  color: rgba(0, 0, 0, 0.35);
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.35);
-  }
-}
-
-.agreement-link {
-  color: #0052d9;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
-
-  [data-theme-mode="dark"] & {
-    color: #4d9fff;
-  }
-}
-
-.payment-btn {
-  width: 100%;
-  height: 44px;
-  font-size: 15px;
-  font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #0052d9 0%, #0066ff 100%);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 82, 217, 0.25);
-
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 82, 217, 0.35);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-}
-
-// 订阅管理弹窗
-.subscription-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-}
-
-.subscription-modal {
-  width: 560px;
-  max-height: 70vh;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border-radius: 24px;
-  border: 0.5px solid rgba(255, 255, 255, 0.6);
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.15),
-    0 0 0 0.5px rgba(0, 0, 0, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-
-  [data-theme-mode="dark"] & {
-    background: rgba(40, 40, 40, 0.95);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 20px 60px rgba(0, 0, 0, 0.4),
-      0 0 0 0.5px rgba(255, 255, 255, 0.05),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  }
-}
-
-.subscription-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 24px 24px 0;
-}
-
-.subscription-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1a1a1a;
-
-  [data-theme-mode="dark"] & {
-    color: #fff;
-  }
-}
-
-.subscription-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: rgba(0, 0, 0, 0.4);
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.1);
-    color: rgba(0, 0, 0, 0.6);
-  }
-
-  [data-theme-mode="dark"] & {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.4);
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.6);
-    }
-  }
-}
-
-.subscription-tabs {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px 0;
-}
-
-.subscription-tab-bar {
-  display: flex;
-  gap: 8px;
-}
-
-.subscription-tab {
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.45);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &.active {
-    color: #1a1a1a;
-    background: rgba(0, 0, 0, 0.04);
-  }
-
-  &:hover:not(.active) {
-    color: rgba(0, 0, 0, 0.6);
-  }
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.45);
-
-    &.active {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.08);
-    }
-
-    &:hover:not(.active) {
-      color: rgba(255, 255, 255, 0.6);
-    }
-  }
-}
-
-.subscription-tools {
-  display: flex;
-  gap: 16px;
-}
-
-.tool-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.45);
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    color: #0052d9;
-  }
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.45);
-
-    &:hover {
-      color: #4d9fff;
-    }
-  }
-}
-
-.subscription-content {
-  flex: 1;
-  padding: 24px;
-  min-height: 300px;
-}
-
-.subscription-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 250px;
-  color: rgba(0, 0, 0, 0.15);
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.15);
-  }
-}
-
-.empty-text {
-  margin-top: 16px;
-  font-size: 14px;
-  color: rgba(0, 0, 0, 0.35);
-
-  [data-theme-mode="dark"] & {
-    color: rgba(255, 255, 255, 0.35);
+  .usage-frame {
+    width: min(640px, calc(100vw - 24px));
+    height: min(860px, calc(100vh - 24px));
+    background: transparent !important;
   }
 }
 
@@ -2723,7 +1766,7 @@ async function handleUpdateProfile() {
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+  background: linear-gradient(135deg, rgba(245, 116, 0, 0.08), rgba(255, 155, 69, 0.10));
   border-radius: 12px;
 }
 
@@ -2733,7 +1776,7 @@ async function handleUpdateProfile() {
   gap: 6px;
   font-size: 18px;
   font-weight: 700;
-  color: #667eea;
+  color: #e0762e;
 
   svg {
     opacity: 0.8;
@@ -2744,234 +1787,20 @@ async function handleUpdateProfile() {
   margin-left: auto;
   padding: 4px 12px;
   font-size: 12px;
-  color: #667eea;
-  background: rgba(102, 126, 234, 0.1);
-  border: 1px solid rgba(102, 126, 234, 0.2);
+  color: #c9662a;
+  background: rgba(245, 116, 0, 0.09);
+  border: 1px solid rgba(245, 116, 0, 0.2);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
-    background: rgba(102, 126, 234, 0.2);
-  }
-}
-
-/* 积分明细弹窗 */
-.points-log-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-
-.points-log-modal {
-  width: 420px;
-  max-height: 70vh;
-  background: var(--material-thick, #fff);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  border: 1px solid var(--material-border-medium, rgba(0, 0, 0, 0.08));
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.points-log-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  cursor: pointer;
-  color: rgba(0, 0, 0, 0.45);
-  transition: all 0.2s;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.06);
-    color: rgba(0, 0, 0, 0.88);
-  }
-}
-
-.points-log-header {
-  padding: 20px 24px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.points-log-title {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.points-log-balance {
-  font-size: 14px;
-  color: #667eea;
-  font-weight: 500;
-}
-
-.points-log-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 24px 20px;
-}
-
-.points-log-empty {
-  text-align: center;
-  padding: 40px 0;
-  color: rgba(0, 0, 0, 0.35);
-  font-size: 14px;
-}
-
-.points-log-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.points-log-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.log-item-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.log-item-type {
-  padding: 2px 8px;
-  font-size: 12px;
-  border-radius: 6px;
-  font-weight: 500;
-
-  &.consume {
-    background: rgba(227, 77, 89, 0.1);
-    color: #e34d59;
-  }
-  &.gift, &.checkin {
-    background: rgba(0, 168, 112, 0.1);
-    color: #00a870;
-  }
-  &.recharge, &.member {
-    background: rgba(102, 126, 234, 0.1);
-    color: #667eea;
-  }
-  &.refund {
-    background: rgba(255, 154, 92, 0.1);
-    color: #ff9a5c;
-  }
-}
-
-.log-item-desc {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.65);
-}
-
-.log-item-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.log-item-amount {
-  font-size: 15px;
-  font-weight: 600;
-
-  &.positive {
-    color: #00a870;
-  }
-  &.negative {
-    color: #e34d59;
-  }
-}
-
-.log-item-time {
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.35);
-}
-
-.points-log-loadmore {
-  text-align: center;
-  padding: 12px;
-  font-size: 13px;
-  color: #667eea;
-  cursor: pointer;
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 0.8;
+    background: rgba(245, 116, 0, 0.18);
   }
 }
 </style>
 
 <style lang="scss">
-/* Miora 式创作侧栏：更宽松的节奏、中性选中态、底部双卡片 */
-.main .menu {
-  width: 248px !important;
-  padding: 22px 14px 14px !important;
-  background: #eeeeee !important;
-  border-right: 1px solid #dedede !important;
-  overflow: hidden;
-}
-.main .menu .logoBox .collapse-btn { position:absolute; top:12px; right:0; left:auto; width:32px; height:34px; transform:none; border:1px solid #d3d3d3; border-radius:9px; background:#e7e7e7; box-shadow:none; color:#3e3e3e; opacity:1; }
-.main .menu .logoBox .collapse-btn:hover { width:36px; background:#dcdcdc; color:#191919; }
-.main .menu.collapsed .logoBox .collapse-btn {
-  top:auto; right:5px; bottom:1px; width:26px; height:26px;
-  opacity:1; pointer-events:auto; border-radius:8px;
-  background:#f7f7f7; box-shadow:0 1px 4px rgba(0,0,0,.08);
-}
-.main .menu.collapsed .logoBox .collapse-btn:hover { width:28px; background:#fff; color:#f57400; }
-.main .menu .logoBox { min-height:64px; padding:4px 14px 28px; gap:14px; }
-.main .menu .logoBox .logo { width:48px; height:48px; border-radius:13px; background-color:#fff; box-shadow:0 0 0 1px #d4d4d4; }
-.main .menu .logoBox .brand-name { font-size:19px; color:#202020; letter-spacing:-.025em; }
-.main .menu .itemBox { min-height:0; height:auto; gap:5px; padding:0 2px 10px 0; overflow-y:auto; }
-.main .menu .item { height:50px; padding:0 16px; gap:14px; border-radius:15px; }
-.main .menu .item .icon { color:#252525; font-size:22px; }
-.main .menu .item .item-title { color:#252525; font-size:16px; font-weight:500; }
-.main .menu .item:hover { background: #e9e9e9; }
-.main .menu .nav-group-title { padding:23px 16px 8px; color:#888; font-size:12px; font-weight:500; letter-spacing:.02em; text-transform:none; }
-.main .menu .footItem { flex-shrink:0; gap:10px; padding:14px 0 0; border-top:0; background:#eee; }
-.main .menu .footItem .member-btn { width:100% !important; height:126px !important; margin:0 !important; padding:18px !important; border-radius:24px !important; background:#fff !important; box-sizing:border-box; box-shadow:0 1px 0 rgba(0,0,0,.02); }
-.main .menu .footItem .member-btn::before { display:none; }
-.main .menu .footItem .member-btn .credits-summary { display:flex; align-items:center; justify-content:space-between; height:28px; margin-bottom:16px; color:#343434; font-size:13px; }
-.main .menu .footItem .member-btn .credits-summary>span { display:flex; align-items:baseline; gap:5px; }
-.main .menu .footItem .member-btn .credits-summary b { font-size:17px; font-weight:500; }
-.main .menu .footItem .member-btn .credits-summary strong { color:#1e1e1e; font-size:17px; }
-.main .menu .footItem .member-btn .credits-summary em { color:#8a8a8a; font-size:12px; font-style:normal; }
-.main .menu .footItem .member-btn .member-btn-inner { width:100% !important; height:46px !important; border-radius:14px !important; background:#202020 !important; }
-.main .menu .footItem .member-btn .member-btn-inner .member-text { font-size:14px; }
-.main .menu .footItem .user-foot { gap:12px; padding:11px 14px; border:0; border-radius:18px; background:transparent; }
-.main .menu .footItem .user-foot:hover { background: #e7e7e7; border-color: transparent; }
-.main .menu .footItem .user-foot .user-avatar { width: 42px; height: 42px; border-radius: 50%; background: #f57400; color: #fff; font-size: 17px; font-weight: 700; }
-.main .menu .footItem .user-foot .user-meta .user-name { color: #222; font-size: 13px; }
-.main .menu .footItem .user-foot .user-meta .user-role { margin-top: 3px; color: #7d7d7d; font-size: 10px; }
-.main .menu .footItem .user-foot .user-points { display: none; }
-.main .menu.collapsed { width:68px !important; padding:14px 10px !important; }
-.main .menu.collapsed .logoBox { padding:4px 3px 30px; }
-.main .menu.collapsed .footItem .member-btn { width:44px !important; height:44px !important; padding:0 !important; border-radius:12px !important; background:transparent !important; }
-.main .menu.collapsed .member-btn .credits-summary { display:none; }
-.main .menu.collapsed .footItem .member-btn .member-btn-inner { width:44px !important; height:44px !important; border-radius:12px !important; }
-
 // 侧栏用户菜单（Teleport 到 body 后脱离 .main，需非 scoped 样式；left/bottom 由 JS 计算）
 // 设计：轻量浅色单卡片——头部（头像/身份/余额+充值）+ 菜单区，与工作台高级灰主题同频。
 .foot-dropdown {
@@ -3002,23 +1831,23 @@ async function handleUpdateProfile() {
   .account-mark { width: 52px; height: 38px; margin-left: auto; flex: none; object-fit: contain; opacity: .9; }
 
   .credits-row {
-    display: flex; align-items: center; gap: 8px;
-    margin-top: 12px; padding: 9px 10px 9px 13px;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px;
+    margin-top: 12px; padding: 11px 12px;
     border-radius: 12px; background: #f4f2ee;
   }
   .credits-detail-link {
-    min-width: 0; flex: 1;
-    display: flex; align-items: center; gap: 8px;
+    min-width: 0;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 8px;
     padding: 0; border: 0; background: transparent;
     font: inherit; text-align: left; cursor: pointer;
   }
   .credits-detail-link small {
-    margin-left: auto; color: #a09b93; font-size: 10.5px; white-space: nowrap;
+    color: #a09b93; font-size: 10.5px; white-space: nowrap;
     transition: color .18s ease;
   }
   .credits-detail-link:hover small { color: #f57400; }
   .credits-label { flex: none; color: #8a867f; font-size: 12px; }
-  .credits-row strong { color: #242321; font-size: 17px; line-height: 1; font-weight: 750; letter-spacing: -.02em; }
+  .credits-row strong { grid-column: 1 / -1; color: #242321; font-size: 18px; line-height: 1.2; font-weight: 750; letter-spacing: -.025em; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .recharge-btn {
     margin-left: auto; flex: none; height: 28px; padding: 0 14px;
     border: 0; border-radius: 999px; background: #f57400; color: #fff;
@@ -3149,109 +1978,6 @@ async function handleUpdateProfile() {
   }
 }
 
-/* 导演工作台：克制的高级灰侧栏与轻量导航反馈 */
-.main .menu {
-  background: #eeeeee !important;
-  border-right-color: #dedede !important;
-}
-
-/* 工作台布局：侧栏保持完整宽度，窗口变窄时悬浮覆盖，不挤压主内容 */
-.main .menu {
-  width: 248px !important;
-  min-width: 248px !important;
-  flex: 0 0 248px !important;
-}
-
-/* 折叠态：窄条 + 图标居中（必须放在展开宽度规则之后才能赢过同等 !important） */
-.main .menu.collapsed {
-  width: 72px !important;
-  min-width: 72px !important;
-  flex: 0 0 72px !important;
-  padding: 14px 8px 14px !important;
-}
-.main .menu.collapsed .item { display: flex; align-items: center; justify-content: center; padding: 0; }
-.main .menu.collapsed .item.active::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  width: 3px;
-  height: 22px;
-  border-radius: 0 999px 999px 0;
-  background: #f57400;
-}
-.main .menu.collapsed .footItem .user-foot { justify-content: center; padding: 4px 0; }
-.main .menu.collapsed .footItem .user-foot .user-meta { display: none; }
-.main .menu.collapsed .footItem .user-foot .user-avatar { width: 40px; height: 40px; }
-.main .menu.collapsed .footItem .member-btn .member-btn-inner {
-  background: #fff !important;
-  color: #252525;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04), inset 0 0 0 1px rgba(0,0,0,.07);
-}
-.main .menu.collapsed .footItem .member-btn .member-btn-inner .wallet-icon { color: #252525; }
-.main .menu.collapsed .footItem .member-btn:hover .member-btn-inner {
-  background: #202020 !important;
-}
-.main .menu.collapsed .footItem .member-btn:hover .member-btn-inner .wallet-icon { color: #fff; }
-
-@media (max-width: 1280px) {
-  .main {
-    overflow: hidden;
-  }
-
-  .main .menu.collapsed {
-    position: absolute;
-    width: 72px !important;
-    min-width: 72px !important;
-  }
-
-  .main .menu {
-    position: absolute;
-    inset: 0 auto 0 0;
-    z-index: 20;
-    width: 248px !important;
-    min-width: 248px !important;
-    height: 100%;
-    flex: none !important;
-    box-shadow: 14px 0 34px rgba(15, 23, 42, .12);
-  }
-
-  .main .view {
-    width: 100%;
-    min-width: 0;
-    flex: 1 1 100%;
-  }
-}
-
-.main .menu .logoBox { padding: 7px 14px 27px; }
-.main .menu .logoBox .logo {
-  width: 48px; height: 48px; border: 0; border-radius: 15px;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, .08), inset 0 0 0 1px rgba(0, 0, 0, .08);
-}
-.main .menu .logoBox .brand-name { display: flex; flex-direction: column; gap: 3px; line-height: 1; letter-spacing: -.02em; }
-.main .menu .logoBox .brand-name strong { color: #202020; font-size: 18px; font-weight: 750; }
-.main .menu .logoBox .brand-name span { color: #8a8a8a; font-size: 10px; font-weight: 600; letter-spacing: .08em; }
-.main .menu .nav-group-title { color: #888; font-weight: 650; letter-spacing: .08em; }
-.main .menu .item { position: relative; overflow: hidden; transition: background .22s ease, transform .22s ease, box-shadow .22s ease; }
-.main .menu .item::after { content: ''; position: absolute; inset: 0; opacity: 0; pointer-events: none; background: linear-gradient(90deg, rgba(255,255,255,.82), transparent 58%); transition: opacity .22s ease; }
-.main .menu .item:hover { background: #e4e4e4 !important; transform: translateX(2px); box-shadow: 0 5px 14px rgba(0, 0, 0, .045); }
-.main .menu .item:hover::after { opacity: 1; }
-.main .menu .item .icon { position: relative; z-index: 1; transition: color .22s ease, transform .22s cubic-bezier(.2,.8,.2,1), filter .22s ease; }
-.main .menu .item .icon svg path { stroke-width: 2.35px; }
-.main .menu .item .item-title { position: relative; z-index: 1; }
-.main .menu .item-action {
-  position: relative; z-index: 2; margin-left: auto; width: 28px; height: 28px;
-  border: 0; border-radius: 9px; background: transparent; color: #888;
-  font-size: 21px; line-height: 26px; cursor: pointer; transition: all .18s ease;
-}
-.main .menu .item-action:hover { background: #202020; color: #fff; transform: scale(1.05); }
-.main .menu .item:hover .icon { color: #111; transform: scale(1.1); filter: drop-shadow(0 0 5px rgba(255,255,255,.82)); }
-.main .menu .active { background: #ffffff !important; box-shadow: 0 2px 8px rgba(0, 0, 0, .07), 0 0 0 1px rgba(0, 0, 0, .05); }
-.main .menu .active .icon { color: #f57400 !important; filter: none; }
-.main .menu .active .item-title { color: #171717 !important; font-weight: 650; }
-.main .menu .footItem .member-icon { font-size: 16px; font-weight: 500; line-height: 1; }
-.main .menu .logoBox .collapse-btn { background: #e7e7e7; border-color: #d3d3d3; color: #3e3e3e; transition: transform .2s ease, background .2s ease, color .2s ease; }
-.main .menu .logoBox .collapse-btn:hover { background: #202020; color: #fff; transform: scale(1.06); }
-
 /* Canvas editor focus mode: the project center keeps the normal XOi workbench shell;
    only the actual node editor owns the full viewport. */
 .main.canvas-fullscreen .menu { display: none; }
@@ -3265,4 +1991,515 @@ async function handleUpdateProfile() {
   box-shadow: 8px 0 24px rgba(15,23,42,.08);
 }
 
+/* 工作台侧栏：清晰的导航层级和安静的账户区 */
+.main .menu {
+  position: relative;
+  width: 272px !important;
+  min-width: 272px !important;
+  flex: 0 0 272px !important;
+  padding: 22px 17px 17px !important;
+  background: linear-gradient(160deg,#fbfaf7 0%,#f6f6f1 65%,#f4f4ef 100%) !important;
+  border-right: 1px solid #e4e3db !important;
+  color: #282927;
+  transition: width .28s cubic-bezier(.22,1,.36,1), min-width .28s cubic-bezier(.22,1,.36,1), flex-basis .28s cubic-bezier(.22,1,.36,1);
+}
+
+.main .menu .logoBox {
+  flex-shrink: 0;
+  min-height: 64px;
+  padding: 4px 8px 12px;
+  gap: 13px;
+  border-bottom: 1px solid #e5e4db;
+  box-sizing: border-box;
+}
+.main .menu .logoBox .logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(30,30,25,.08), inset 0 0 0 1px rgba(30,30,25,.06);
+}
+.main .menu .logoBox .brand-name { line-height: 1.25; gap:7px; }
+.main .menu .logoBox .brand-name strong {
+  color: #232421;
+  font-size: 16px;
+  font-weight: 680;
+  letter-spacing: -.02em;
+}
+.main .menu .logoBox .collapse-btn {
+  position: absolute;
+  left: auto;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e5e5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #797a76;
+  z-index: 3;
+  /* 即梦同款：悬停只变色，按钮绝不位移/缩放 */
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+}
+/* 展开时品牌名给按钮留出空间，避免长名称被压到按钮下面 */
+.main .menu .logoBox .brand-name { padding-right: 36px; }
+.main .menu .logoBox .collapse-btn:hover {
+  width: 30px;
+  height: 30px;
+  transform: translateY(-50%);
+  background: #f0f0ed;
+  color: #252623;
+}
+
+.main .menu .itemBox {
+  min-height: 0;
+  height: auto;
+  gap: 3px;
+  padding: 4px 0 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d6d6d1 transparent;
+}
+.main .menu .nav-group-title {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding: 10px 14px 6px;
+  color: #8c8d80;
+  font-size: 10.5px;
+  font-weight: 520;
+  letter-spacing: .12em;
+}
+.main .menu .nav-group-title small { color:#b2b2a4; font-size:9px; font-weight:400; letter-spacing:.04em; font-variant-numeric:tabular-nums; }
+.main .menu .nav-group-title i { flex:1; height:1px; margin-left:6px; background:linear-gradient(90deg,#e2e3d9,transparent); }
+.main .menu .logoBox .studio-signature { display:flex; align-items:center; gap:7px; margin:0; color:#9c9c8c; font-size:8px; font-weight:500; letter-spacing:.12em; }
+.studio-signature i { display:block; width:19px; height:5px; border-radius:1px; opacity:.65; background:repeating-linear-gradient(125deg,#8e9280 0 3px,transparent 3px 6px); }
+.main .menu .item {
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 13px;
+  gap: 12px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  box-sizing: border-box;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: visible;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+.main .menu .item::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 13px;
+  width: 3px;
+  height: 18px;
+  border-radius: 3px;
+  background: #f0743e;
+  opacity: 0;
+  transform: scaleY(.6);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.main .menu .item::after { display: none; }
+.main .menu .item .icon {
+  width: 20px;
+  min-width: 20px;
+  color: #656760;
+  font-size: 20px;
+  filter: none;
+}
+.main .menu .item .item-title {
+  min-width: 0;
+  color: #444640;
+  font-size: 14px;
+  /* 统一字重：所有导航项同一档（580），选中态靠颜色/底色区分，不再忽粗忽细 */
+  font-weight: 580;
+  white-space: nowrap;
+}
+.main .menu .item:hover {
+  background: #eeefeb !important;
+  border-color: #eeefeb;
+  box-shadow: none;
+  transform: none;
+}
+.main .menu .item:hover .icon,
+.main .menu .item:hover .item-title { color: #252722; transform: none; filter: none; }
+.main .menu .active {
+  background: #fff !important;
+  border-color: #e9e9e5 !important;
+  box-shadow: 0 3px 10px rgba(51,48,30,.035), inset 0 0 0 1px #fff !important;
+}
+.main .menu .active::before { opacity: 1; transform: scaleY(1); }
+.main .menu .active .icon { color: #eb6c34 !important; }
+.main .menu .active .item-title { color: #252722 !important; font-weight: 620; }
+.main .menu .active .item-action { color: #92948e; }
+.main .menu .active .item-action:hover { background: #f4f4f1; color: #e9652e; }
+.main .menu .item-action {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin-left: auto;
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #999b95;
+  font-size: 20px;
+  line-height: 25px;
+}
+.main .menu .item-action:hover { background: #e8e9e5; color: #e9652e; transform: none; }
+.main .menu .nav-utility-divider {
+  height: 1px;
+  margin: 15px 12px 9px;
+  background: #e6e7e2;
+}
+.main .menu .sidebar-tools { flex:none; padding:5px 0 14px; }
+.main .menu .sidebar-tools .nav-utility-divider { margin:0 12px 10px; }
+.main .menu .tools-trigger .tools-arrow { margin-left: auto; color: #a4a69f; transition: transform .18s ease; }
+.main .menu .tools-trigger.open .tools-arrow { transform: rotate(90deg); }
+.main .menu .tools-trigger .tools-active-dot {
+  position: absolute;
+  right: 35px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #eb6c34;
+}
+
+.main .menu .footItem {
+  flex-shrink: 0;
+  gap: 10px;
+  padding: 10px 2px 0;
+  border: 0;
+  border-top: 1px solid #e6e7e2;
+  border-radius: 0;
+  background: transparent;
+}
+.main .menu .footItem .member-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100% !important;
+  height: 60px !important;
+  margin: 0 !important;
+  padding: 9px 10px 9px 12px !important;
+  border: 1px solid #e8e9e4;
+  border-radius: 15px !important;
+  background: #fff !important;
+  box-shadow: 0 1px 3px rgba(32,35,30,.035);
+  box-sizing: border-box;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.main .menu .footItem .member-btn:hover {
+  background: #fff !important;
+  border-color: #d5d8d0;
+  box-shadow: 0 2px 7px rgba(32,35,30,.055);
+}
+.main .menu .footItem .member-btn .credits-summary {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+}
+.main .menu .footItem .member-btn .credits-summary > span {
+  color: #898b84;
+  font-size: 11.5px;
+  font-weight: 550;
+  line-height: 1.2;
+}
+.main .menu .footItem .member-btn .credits-summary strong {
+  overflow: hidden;
+  color: #252722;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  max-width: 100%;
+}
+/* 长数字自适应缩档：7-8 位缩一号，9 位以上再缩一号，保证不顶到「充值积分」按钮 */
+.main .menu .footItem .member-btn .credits-summary strong.fit-sm { font-size: 15px; letter-spacing: -.015em; }
+.main .menu .footItem .member-btn .credits-summary strong.fit-xs { font-size: 13px; letter-spacing: -.01em; }
+.main .menu .footItem .member-btn .member-btn-inner {
+  flex: none;
+  width: auto !important;
+  min-width: 64px;
+  height: 30px !important;
+  padding: 0 13px !important;
+  border: 0;
+  border-radius: 9px !important;
+  /* 修复：之前锁死 44px 宽放不下「充值积分」四个字，文字溢出且浅底橙字几乎不可见；
+     改为自适应宽度的实心橙色按钮（与弹出菜单充值按钮同款），保证字样完整可见 */
+  background: linear-gradient(135deg, #f57400, #ff8f3d) !important;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(245, 116, 0, 0.22);
+}
+.main .menu .footItem .member-btn .member-btn-inner .member-text {
+  display: block;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.sidebar-account-row { display:flex; align-items:center; width:100%; min-width:0; }
+.sidebar-account-row .user-foot { flex:1; min-width:0; }
+.sidebar-toggle { display:grid; place-items:center; width:30px; height:34px; padding:5px; border:1px solid #ddded3; border-radius:11px; background:#fffffc; color:#777c6a; box-shadow:0 2px 8px #393c2212; cursor:pointer; }
+/* 即梦图标是填充式 path（描边样式会把它描粗变形），统一 fill 渲染 */
+.sidebar-toggle svg { width:16px; height:16px; fill:currentColor; stroke:none; }
+.sidebar-toggle:hover { color:#a75f35; background:#fff8f0; border-color:#dcbfa7; box-shadow:0 3px 12px #935b2920; }
+.sidebar-toggle:focus-visible,.main .menu .logoBox:focus-visible,.main .menu .item:focus-visible { outline:2px solid #d9865f; outline-offset:2px; }
+
+/* —— 全站公告横幅（管理员在控制台发布，随 /announcements.json 下发）—— */
+.siteBanner {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 9px 48px 9px 16px;
+  color: #fff;
+}
+.siteBanner .siteBannerText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 550; letter-spacing: .01em; }
+.siteBanner .siteBannerCta { display: inline-flex; align-items: center; gap: 3px; flex: none; height: 26px; padding: 0 12px; border: 0; border-radius: 999px; background: #fff; color: #17181c; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; }
+.siteBanner .siteBannerCta svg { width: 12px; height: 12px; }
+.siteBanner .siteBannerCta:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0, 0, 0, .18); }
+.siteBanner .siteBannerClose { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 8px; background: transparent; color: rgba(255, 255, 255, .75); cursor: pointer; transition: background .15s ease, color .15s ease; }
+.siteBanner .siteBannerClose:hover { background: rgba(255, 255, 255, .16); color: #fff; }
+.siteBanner.theme-brand { background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 55%, #8b5cf6 100%); }
+.siteBanner.theme-dark { background: linear-gradient(90deg, #17181c, #2a2c33); }
+.siteBanner.theme-green { background: linear-gradient(90deg, #059669, #14b8a6); }
+.main .menu .sidebar-account-row .user-menu-chevron { display:block; }
+.main .menu .sidebar-account-row .user-meta { min-width:0; }
+.main .menu .sidebar-account-row .user-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.main .menu .footItem .member-btn:hover .member-btn-inner {
+  transform: none;
+  background: linear-gradient(135deg, #ef6c00, #f97f2e) !important;
+  box-shadow: 0 3px 10px rgba(245, 116, 0, 0.3);
+}
+.main .menu .footItem .user-foot {
+  min-height: 46px;
+  gap: 12px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+}
+.main .menu .footItem .user-foot:hover { background: #edeee9; }
+.main .menu .footItem .user-foot .user-avatar {
+  width: 32px;
+  height: 32px;
+  background: #f47d3d;
+  font-size: 14px;
+  box-shadow: none;
+}
+.main .menu .footItem .user-foot .user-meta .user-name { color: #343630; font-size: 14px; font-weight: 650; }
+.main .menu .footItem .user-foot .user-meta .user-role { margin-top: 3px; color: #92948e; font-size: 11px; }
+.main .menu .footItem .user-menu-chevron { flex: none; margin-left: auto; color: #a0a29b; }
+
+.main .menu.collapsed {
+  width: 72px !important;
+  min-width: 72px !important;
+  flex: 0 0 72px !important;
+  padding: 22px 11px 17px !important;
+}
+.main .menu.collapsed .logoBox {
+  min-height: 64px;
+  padding: 4px 4px 12px;
+  justify-content: center;
+}
+.main .menu.collapsed .logoBox .logo { width: 36px; height: 36px; transition: opacity .18s ease; }
+/* 收起态（即梦同款）：平时只显示 logo；光标移到 Logo 区，logo 淡出、展开按钮原地浮现 */
+.main .menu.collapsed .logoBox .collapse-btn {
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  opacity: 0;
+  pointer-events: none;
+}
+/* 收起态（即梦同款）：平时只显示 logo；光标移到 Logo 区，logo 淡出、展开按钮原地浮现。
+   注意不能用 :focus-within —— 点击 logo 跳转后 logoBox 会保留焦点，按钮就会常驻显示；
+   键盘可达性改由按钮自身的 :focus-visible 承担（Tab 到它时浮现）。 */
+.main .menu.collapsed .logoBox:hover .logo { opacity: 0; }
+.main .menu.collapsed .logoBox:hover .collapse-btn,
+.main .menu.collapsed .logoBox .collapse-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.main .menu.collapsed .nav-utility-divider { margin: 9px 8px 7px; }
+.main .menu.collapsed .item { width: 46px; height: 44px; min-height: 44px; margin: 0 auto; padding: 0; }
+.main .menu.collapsed .item.active::before { left: -4px; top: 13px; height: 18px; }
+.main .menu.collapsed .footItem { gap: 7px; padding: 11px 0 0; }
+.main .menu.collapsed .footItem .member-btn {
+  display: block;
+  width: 44px !important;
+  height: 44px !important;
+  margin: 0 auto !important;
+  padding: 4px !important;
+  border: 1px solid #e8e9e4;
+  background: #fff !important;
+}
+.main .menu.collapsed .footItem .member-btn .member-btn-inner {
+  width: 34px !important;
+  height: 34px !important;
+  /* 覆盖展开态的自适应宽/内边距，否则收起态图标按钮被撑到 64px 宽、钱包图标挤偏 */
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 0;
+  background: transparent !important;
+  box-shadow: none;
+}
+.main .menu.collapsed .footItem .member-btn .member-btn-inner .wallet-icon { color: #60625c; }
+.main .menu.collapsed .footItem .user-foot { min-height: 44px; padding: 4px 0; }
+.main .menu.collapsed .footItem .user-foot .user-avatar { width: 36px; height: 36px; }
+.main .menu.collapsed .sidebar-account-row { justify-content:center; }
+.main .menu.collapsed .sidebar-account-row .user-foot { flex:none; width:44px; justify-content:center; }
+@media (prefers-reduced-motion:reduce) { .main .menu,.sidebar-toggle,.main .menu .item { transition:none!important; } }
+
+@media (max-width: 1040px) {
+  .main .menu {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: 272px !important;
+    min-width: 272px !important;
+    flex: 0 0 272px !important;
+    box-shadow: 10px 0 28px rgba(31,34,29,.08);
+  }
+  .main .menu.collapsed {
+    width: 72px !important;
+    min-width: 72px !important;
+    flex: 0 0 72px !important;
+  }
+  .main .view { width: 100%; min-width: 0; flex: 1 1 100%; padding-left:var(--sidebar-width); box-sizing:border-box; }
+  .main.canvas-fullscreen .view { padding-left:0; }
+}
+
+.tools-popover {
+  position: fixed;
+  z-index: 240;
+  width: 304px;
+  padding: 10px;
+  border: 1px solid rgba(34,32,27,.11);
+  border-radius: 17px;
+  background: rgba(252,251,248,.96);
+  box-shadow: 0 22px 56px rgba(34,31,25,.16), 0 2px 10px rgba(34,31,25,.06);
+  backdrop-filter: blur(22px) saturate(1.12);
+  box-sizing: border-box;
+}
+.tools-popover-head { padding: 8px 9px 12px; display: flex; flex-direction: column; }
+.tools-popover-head > span { color: #e86831; font-size: 9px; font-weight: 760; letter-spacing: .16em; }
+.tools-popover-head > strong { margin-top: 6px; color: #24221e; font-size: 15px; font-weight: 720; }
+.tools-popover-head > small { margin-top: 4px; color: #918c83; font-size: 11px; }
+.tools-popover-list { display: flex; flex-direction: column; gap: 5px; }
+.tools-popover-item {
+  display: grid;
+  grid-template-columns: 38px minmax(0,1fr) auto 15px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #767169;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s ease, transform .18s ease;
+}
+.tools-popover-item:hover { background: #fff; transform: translateX(2px); }
+.tools-popover-item.active { background: #fff6f1; color: #e86831; }
+.tools-popover-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: #f0efeb;
+  color: #35322c;
+  font-size: 19px;
+}
+.tools-popover-item:first-child .tools-popover-icon { background: #fff0e8; color: #e86831; }
+.tools-popover-copy { display: flex; flex-direction: column; min-width: 0; }
+.tools-popover-copy strong { color: #2b2925; font-size: 13px; font-weight: 680; }
+.tools-popover-copy small { margin-top: 3px; overflow: hidden; color: #928d84; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.tools-popover-item em {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #efeee9;
+  color: #928d84;
+  font-size: 9px;
+  font-style: normal;
+  white-space: nowrap;
+}
+.tools-popover-item:first-child em { background: #fff0e8; color: #d95d29; }
+.tools-pop-enter-active, .tools-pop-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2,.8,.2,1); transform-origin: left center; }
+.tools-pop-enter-from, .tools-pop-leave-to { opacity: 0; transform: translateX(-7px) scale(.98); }
+
+</style>
+
+<style lang="scss" scoped>
+@media (max-width: 700px) {
+  .main > .menu { position: absolute !important; z-index: 100; }
+  .main > .view { flex: 1 1 100% !important; width: 100%; padding-left: 72px; box-sizing: border-box; }
+  .main.canvas-fullscreen > .view { padding-left: 0; }
+  .main .view .topMenu { height: auto; min-height: 0; flex-direction: column; align-items: stretch; gap: 8px; padding: 12px; }
+  .main .view .topMenu .breadcrumb { min-width: 0; overflow: hidden; white-space: nowrap; font-size: 11px; }
+  .main .view .topMenu .top-right { width: 100%; min-width: 0; }
+  .main .view .topMenu .shortcuts { max-width: 100%; overflow-x: auto; margin-left: 0; flex-wrap: nowrap; }
+  .main .view .topMenu .shortcut { flex: none; }
+}
+</style>
+
+<style scoped>
+.route-progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 200; overflow: hidden; pointer-events: none; background: rgba(242,100,50,.08); }
+.route-progress span { display: block; width: 35%; height: 100%; border-radius: 2px; background: #f57432; animation: route-progress 1s ease-in-out infinite; }
+@keyframes route-progress { from { transform: translateX(-100%); } to { transform: translateX(390%); } }
+@media (prefers-reduced-motion: reduce) { .route-progress span { animation: none; width: 100%; } }
+</style>
+
+<style scoped>
+.main .view .viewBox { order: 1; min-height: 0; }
+.main .view.story-workspace { background: var(--xoi-workspace-bg,#faf8f6); }
+.main .view.story-workspace .viewBox { background: transparent; }
+.main .view.story-workspace .topMenu { background: #fff; }
+.main .view.story-workspace .topProgress { overflow-x: auto; scrollbar-width: none; }
+.main .view.story-workspace .topProgress::-webkit-scrollbar { display: none; }
+/* 流程提示只在左下角占一小块，页面和聊天面板延伸到视口底部。 */
+.pipelineDock { position:absolute; left:24px; bottom:12px; z-index:20; display:flex; width:fit-content; max-width:calc(100% - 48px); padding:0; pointer-events:none; }
+.pipelineDock :deep(.pipelineNextBar) { pointer-events:auto; }
+.pipelineDock:empty { display:none; }
+.view:has(.cornerScape) .pipelineDock { max-width:clamp(250px,21vw,310px); }
+@media(max-width:1050px) { .view:has(.cornerScape) .pipelineDock { max-width:calc(100% - 48px); } }
+@media(max-width:700px) { .pipelineDock { left:82px; bottom:10px; max-width:calc(100% - 96px); } .view:has(.cornerScape) .pipelineDock { max-width:calc(100% - 96px); } }
+</style>
+
+<style scoped>
+/* The editor owns the viewport. Closing it restores the normal project workspace. */
+.main.editor-fullscreen > .menu { display:none !important; }
+.main.editor-fullscreen > .view { flex:1 1 100% !important; width:100% !important; padding:0 !important; }
+.main.editor-fullscreen > .view > .viewBox { height:100%; overflow:hidden; padding:0; }
+.main.editor-fullscreen .bg-decoration,.main.editor-fullscreen .pipelineDock { display:none; }
 </style>

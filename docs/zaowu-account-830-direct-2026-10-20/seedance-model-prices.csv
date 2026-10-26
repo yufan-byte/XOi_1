@@ -1,0 +1,52 @@
+model_name,display_name_zh,category,provider,catalog_group,catalog_group_item,source_tag,source_label,description,billing_mode,billing_expr,enable_groups,supported_endpoint_types,quota_type,model_ratio,model_price,completion_ratio,cache_ratio,create_cache_ratio,available
+seedance-2-0-manju-special,Seedance 2.0 · 漫剧特价,video,BYT,,,,,可过真人脸：上传真人照片作首帧，人物形象带得住，漫剧 / 短剧首选。Seedance 2.0 快速版，5 / 10 / 15 秒同价，720P 含音轨，可传首尾帧或最多 9 张参考图。特价版稳定性一般，可能出现等待时间较长或上游拥挤报错，请耐心使用；如需稳定办公请选择官方直连。,tiered_expr,"let cost = u(""upstream_cost"") ?? 0; let ours = tier(""default"", 1.82); cost > ours ? tier(""actual"", cost) : ours",default,openai,0,37.5,0,1,,,true
+seedance-2.0-1080p-official,,,,,,p2,,官方火山引擎的，按秒/元计算，稳定933，超级稳定，就是贵！不卡人脸,tiered_expr,"tier(""default"", u(""seconds"") * 3.083333)",default,openai,0,37.5,0,1,,,
+seedance-2.0-480p-discount,,,,,,p2,,按次收费，支持9图片3音频，自行使用！！稳定,tiered_expr,"tier(""default"", 3.676471)",default,openai,0,37.5,0,1,,,
+seedance-2.0-480p-official,,,,,,p2,,官方火山引擎的，按秒/元计算，稳定933，超级稳定，就是贵！不卡人脸,tiered_expr,"tier(""default"", u(""seconds"") * 0.808824)",default,openai,0,37.5,0,1,,,
+seedance-2.0-720p-discount,,,,,,p2,,按次收费，支持9图片3音频，网友反馈画质有点差，自行使用！！稳定,tiered_expr,"tier(""default"", 6.666667)",default,openai,0,37.5,0,1,,,
+seedance-2.0-720p-official,,,,,,p2,,官方火山引擎的，按秒/元计算，稳定933，超级稳定，就是贵！不卡人脸,tiered_expr,"tier(""default"", u(""seconds"") * 1.416667)",default,openai,0,37.5,0,1,,,
+seedance-2.0-900-3,,,,,,p2,,9图mini通道，内置的过人脸，不卡人脸，1.75元一条，支持15秒，失败基本都是卡审核，处理图片失败，重试一下,tiered_expr,"tier(""default"", 1.75)",default,openai,0,37.5,0,1,,,
+seedance-2.0-ad-720p,,,,,,p2,,按次收费，933自己测像满血的。 固定输出 720p，支持 4-15 秒整数、原生人脸和多种画幅，最多 9 张图片与 3 段音频参考。,tiered_expr,"tier(""default"", 6.666667)",default,openai,0,37.5,0,1,,,
+seedance-2.0-fast-2,,,,,,p2,,9 图 / 3 视频 / 3 音频 /支持真人，按条计费，网友反馈像mini，自行斟酌,tiered_expr,"tier(""default"", 4)",default,openai,0,37.5,0,1,,,
+seedance-2.0-lec-720p,,,,,,p2,,按次收费，933满血过人脸,tiered_expr,"tier(""default"", 7.5)",default,openai,0,37.5,0,1,,,
+seedance-2.0-me,,,,,,p2,,9图/3视频/3音频/720p，即梦2.0，支持10秒，15秒，满血,tiered_expr,"tier(""default"", 8.333333)",default,openai,0,37.5,0,1,,,
+seedance-2.0-std,,,,,,p2,,720p 只支持9图 2.0模型 内置的过真人,tiered_expr,"tier(""default"", 2.5)",default,openai,0,37.5,0,1,,,
+seedance-2.0-svip-900-720p,,,,,,p2,,900卡人脸，需要提示词。联系管理，也可以看飞书文档自己写，支持10秒和15秒，提示词里面写出你的秒数,tiered_expr,"tier(""default"", 2.083333)",default,openai,0,37.5,0,1,,,
+seedance-2.0-v3-720p,,,,,,p2,,,tiered_expr,"tier(""default"", 5)",default,openai,0,37.5,0,1,,,
+seedance-2.5-1080p-2,,,,,,p2,,按秒收费，1080p，30图10音频参考，暂不不支持视频参考，不卡人脸,tiered_expr,"tier(""default"", u(""seconds"") * 1.25)",default,openai,0,37.5,0,1,,,
+seedance-2.5-480p-2,,,,,,p2,,"按秒/元收费，480p，30个图，10个音频，暂不支持参考视频。支持 4–30 秒，
+
+",tiered_expr,"tier(""default"", u(""seconds"") * 0.65)",default,openai,0,37.5,0,1,,,
+seedance-2.5-720p-2,,,,,,p2,,按秒/元收费，720P，30个图，10个音频，不支持参考视频。支持 4–30 秒,tiered_expr,"tier(""default"", u(""seconds"") * 0.75)",default,openai,0,37.5,0,1,,,
+seedance-2.5-900,,,,,,p2,,按次收费，不是dola  2.5 9图 ，支持30秒。9图，不卡人脸，禁止涉黄,tiered_expr,"tier(""default"", 7.833333)",default,openai,0,37.5,0,1,,,
+seedance2.0-900-fast,,,,,,p2,,3元/次固定15秒、720P、fast，最多9张参考图。不是dala。总秒数最好不要出现小数点，有时候出问题,tiered_expr,"tier(""default"", 3)",default,openai,0,37.5,0,1,,,
+seedance2.0-903,seedance2.0 · 903,video,BYT,,,,,官渠，官方渠道转发，参考9图片 0视频 3音频 720P ，原生过真人，可生成4-15秒，速度很快，平均生成时间4-10分钟,tiered_expr,"tier(""default"", 6.333333)",default,openai,0,37.5,0,1,,,true
+seedance2.0-full,seedance2.0 · full,video,BYT,,,,,满血 4-15秒 按次收费,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", 11.666667) : ((u(""billing_resolution"") == ""480p"") ? tier(""480p"", 4.411765) : ((u(""billing_resolution"") == ""4k"") ? tier(""4k"", 28.333333) : (tier(""default"", 6.666667))))",default,openai,0,37.5,0,1,,,true
+seedance2.0-full-fast,seedance2.0 · full-fast,video,BYT,,,,,满血 4-15秒 按次收费,tiered_expr,"(u(""billing_resolution"") == ""480p"") ? tier(""480p"", 4.411765) : (tier(""default"", 6.166667))",default,openai,0,37.5,0,1,,,true
+seedance2.0-gz-fast,seedance2.0 · gz-fast,video,BYT,seedance · 官转,2.0 · fast,,,官转线路；返回官方 URL；过真人脸；URL 可溯源,tiered_expr,"(u(""billing_resolution"") == ""480p"") ? tier(""480p"", u(""seconds"") * 0.35302) : (tier(""default"", u(""seconds"") * 0.766667))",default,openai,0,37.5,0,1,,,true
+seedance2.0-gz-mini,seedance2.0 · gz-mini,video,BYT,seedance · 官转,2.0 · mini,,,官转线路；返回官方 URL；过真人脸；URL 可溯源,tiered_expr,"(u(""billing_resolution"") == ""480p"") ? tier(""480p"", u(""seconds"") * 0.21945) : (tier(""default"", u(""seconds"") * 0.466667))",default,openai,0,37.5,0,1,,,true
+seedance2.0-gz-special,seedance2.0 · gz-special,video,BYT,seedance · 官转,2.0 · special,,,超分画质增强！官转稳定特价线路；过真人脸；500秒出,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", u(""seconds"") * 1) : (tier(""default"", u(""seconds"") * 0.9))",default,openai,0,37.5,0,1,,,true
+seedance2.0-line1,seedance2.0 · line1,video,BYT,,,,,长期稳定渠道，推荐使用！2.0模型 支持 480p 720p 9图3视频3音频,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", u(""seconds"") * 1.416667) : ((u(""billing_resolution"") == ""720p"") ? tier(""720p"", u(""seconds"") * 0.75) : (tier(""default"", u(""seconds"") * 0.4389)))",default,openai,0,37.5,0,1,,,true
+seedance2.0-line1-fast,seedance2.0 · line1-fast,video,BYT,,,,,长期稳定渠道，推荐使用！fast模型 支持 480p 720p 9图3视频3音频,tiered_expr,"(u(""billing_resolution"") == ""720p"") ? tier(""720p"", u(""seconds"") * 0.5) : (tier(""default"", u(""seconds"") * 0.338235))",default,openai,0,37.5,0,1,,,true
+seedance2.0-md-720p,,,,,,p2,,720p。933，按次收费,tiered_expr,"tier(""default"", 7)",default,openai,0,37.5,0,1,,,
+seedance2.0-v3-fast-933-720p,,,,,,p2,,500秒左右完全不降智fast质量原生不卡脸4-15秒  不是dola,tiered_expr,"tier(""default"", 4.666667)",default,openai,0,37.5,0,1,,,
+seedance2.0-x97,seedance2.0 · x97,video,BYT,,,,,支持 5- 30 秒 wan3.0 参考：图片·10 · 视频·5 · 音频·5 支持 480p 720p 1080p,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", u(""seconds"") * 1.25) : ((u(""billing_resolution"") == ""720p"") ? tier(""720p"", u(""seconds"") * 0.816667) : (tier(""default"", u(""seconds"") * 0.483333)))",default,openai,0,37.5,0,1,,,true
+seedance2.0-x98,seedance2.0 · x98,video,BYT,,,,,2.0 模型 · 4-15秒 · 最多支持9张图3个音频 支持 480 720 1080,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", 7.166667) : ((u(""billing_resolution"") == ""480p"") ? tier(""480p"", 4.117647) : (tier(""default"", 5)))",default,openai,0,37.5,0,1,,,true
+seedance2.0-z-480p,,,,,,p2,,933 15s，卡人脸。失败就是人脸没有过,tiered_expr,"tier(""default"", 2.647059)",default,openai,0,37.5,0,1,,,
+seedance2.0-z-720p,,,,,,p2,,933 15s，卡人脸。失败就是人脸没有过,tiered_expr,"tier(""default"", 5)",default,openai,0,37.5,0,1,,,
+seedance2.0-z-fast-480p,,,,,,p2,,933 15s，卡人脸。失败就是人脸没有过,tiered_expr,"tier(""default"", 2.205882)",default,openai,0,37.5,0,1,,,
+seedance2.0-z-fast-720p,,,,,,p2,,933 15s，卡人脸。失败就是人脸没有过,tiered_expr,"tier(""default"", 3.333333)",default,openai,0,37.5,0,1,,,
+seedance2.5-720p-ac,,,,,,p2,,按次收费，固定输出 720p，支持10-30  秒、最多 30 张图片、10 段视频和 10 段音频参考，支持原生人脸，有时候就卡住了，可能得个两个小时,tiered_expr,"tier(""default"", 9.166667)",default,openai,0,37.5,0,1,,,
+seedance2.5-dj-480p,,,,,,p2,,低价渠道。按秒/元收费。支持30张图，10音频，不支持视频。,tiered_expr,"tier(""default"", u(""seconds"") * 0.833333)",default,openai,0,37.5,0,1,,,
+seedance2.5-dj-720p,,,,,,p2,,低价渠道。按秒/元收费。支持30张图，10音频，不支持视频。,tiered_expr,"tier(""default"", u(""seconds"") * 1.75)",default,openai,0,37.5,0,1,,,
+seedance2.5-full,seedance2.5 · full,video,BYT,,,,,满血 4-30秒 按次收费,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", 36.666667) : ((u(""billing_resolution"") == ""480p"") ? tier(""480p"", 20) : (tier(""default"", 26.666667)))",default,openai,0,37.5,0,1,,,true
+seedance2.5-gf-720p,,,,,,p2,,官转:720P，按秒收费，30图10音频无法参考视频，平均500秒出视频，稳定，高速。可返即梦链接。,tiered_expr,"tier(""default"", u(""seconds"") * 0.85)",default,openai,0,37.5,0,1,,,
+seedance2.5-gz-special,seedance2.5 · gz-special,video,BYT,seedance · 官转,2.5 · special,,,超分画质增强！官转稳定特价线路；过真人脸；500秒出,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", u(""seconds"") * 1.666667) : (tier(""default"", u(""seconds"") * 1.3))",default,openai,0,37.5,0,1,,,true
+seedance2.5-line1,seedance2.5 · line1,video,BYT,,,,,长期稳定渠道，推荐使用！2.5模型 支持 480p 720p 30图10视频10音频,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", u(""seconds"") * 2.25) : ((u(""billing_resolution"") == ""720p"") ? tier(""720p"", u(""seconds"") * 1.083333) : (tier(""default"", u(""seconds"") * 0.617647)))",default,openai,0,37.5,0,1,,,true
+seedance2.5-lob-720p,,,,,,p2,,它目前支持30个图，10个视频，10个音频，720P的，擦边的基本上过不了,tiered_expr,"tier(""default"", 7.5)",default,openai,0,37.5,0,1,,,
+seedance2.5-md-720p-2,,,,,,p2,,按次收费，固定输出 720p，支持 4–30 秒、最多 30 张图片。不支持视频和音频参考，支持原生人脸,tiered_expr,"tier(""default"", 7)",default,openai,0,37.5,0,1,,,
+seedance2.5-pp-720p,,,,,,p2,,按次收费，支持 30 个图、10 个视频、10 个音频，时长 3-30 秒，不卡真人,tiered_expr,"tier(""default"", 13.166667)",default,openai,0,37.5,0,1,,,
+seedance2.5-wd-480p,,,,,,p2,,稳定渠道。支持10~30秒。按秒/元收费，支持30张图、10个音频，不支持参考视频。量大。,tiered_expr,"tier(""default"", u(""seconds"") * 0.666667)",default,openai,0,37.5,0,1,,,
+seedance2.5-x94,seedance2.5 · x94,video,BYT,,,,,速度稳定500秒出视频 2.5 模型 · 4-30秒 · 最多支持9张图3个音频 支持 480 720 1080,tiered_expr,"(u(""billing_resolution"") == ""1080p"") ? tier(""1080p"", 11.666667) : ((u(""billing_resolution"") == ""480p"") ? tier(""480p"", 8.333333) : (tier(""default"", 9.166667)))",default,openai,0,37.5,0,1,,,true
+seedance2.5-xu-480p-2,,,,,,p2,,按秒收费，支持 30 个图、10 个音频，无法参考视频，支持4~30秒,tiered_expr,"tier(""default"", u(""seconds"") * 0.566667)",default,openai,0,37.5,0,1,,,
+seedance2.5-xu-720p-2,,,,,,p2,,按秒收费，支持30个图、10个音频，无法参考视频，支持4~30秒,tiered_expr,"tier(""default"", u(""seconds"") * 0.666667)",default,openai,0,37.5,0,1,,,

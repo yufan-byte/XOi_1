@@ -1,19 +1,18 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
-import { ArrowUp, Brain, FolderOpen, ImageIcon, Menu, Square, Upload, Video } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { ArrowUp, ChevronDown, FolderOpen, Film, Menu, Square, Upload, SlidersHorizontal } from "lucide-react";
 import { Button, Dropdown } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { plainModelName } from "@/xoi/model-pricing";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAgentSkillSelection, type CanvasAssistantReference } from "../types";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 import { CanvasReferenceAnalysisPopover } from "./canvas-reference-analysis-popover";
 import { CanvasAgentSkillPopover } from "./canvas-agent-skill-popover";
-import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
 import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
-import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 
 export type CanvasAssistantComposerProps = {
     prompt: string;
@@ -24,7 +23,7 @@ export type CanvasAssistantComposerProps = {
     pendingReferences?: CanvasResourceReference[];
     selectedSkills?: CanvasAgentSkillSelection[];
     agentConfig: CanvasAgentConfig;
-    onAgentConfigChange: (patch: Partial<CanvasAgentConfig>) => void;
+    onOpenModels: () => void;
     onPromptChange: (prompt: string) => void;
     onReferenceIdsChange: (ids: string[]) => void;
     onSkillSelect?: (skill: CanvasAgentSkillSelection) => void;
@@ -45,7 +44,7 @@ export function CanvasAssistantComposer({
     pendingReferences,
     selectedSkills,
     agentConfig,
-    onAgentConfigChange,
+    onOpenModels,
     onPromptChange,
     onReferenceIdsChange,
     onSkillSelect,
@@ -58,9 +57,8 @@ export function CanvasAssistantComposer({
 }: CanvasAssistantComposerProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const effectiveConfig = useEffectiveConfig();
-    const reasoningEnabled = agentConfig.textReasoningEnabled === true;
-    const imageConfig = useMemo(() => ({ ...effectiveConfig, quality: agentConfig.imageQuality, size: agentConfig.imageSize }), [agentConfig.imageQuality, agentConfig.imageSize, effectiveConfig]);
-    const videoConfig = useMemo(() => ({ ...effectiveConfig, vquality: agentConfig.videoQuality, size: agentConfig.videoSize }), [agentConfig.videoQuality, agentConfig.videoSize, effectiveConfig]);
+    const textModel = agentConfig.textModel || effectiveConfig.textModel;
+    const [analyzeOpen, setAnalyzeOpen] = useState(false);
     const promptReferences = useMemo(() => {
         const seen = new Set<string>();
         return [...(availableReferences || []), ...references.map(assistantToPromptReference)].filter((reference) => {
@@ -84,11 +82,19 @@ export function CanvasAssistantComposer({
                     onReferenceIdsChange={onReferenceIdsChange}
                     onPasteImage={onPasteImage}
                     onSubmit={submit}
-                    className="thin-scrollbar min-h-20 max-h-[220px] w-full px-1 py-0 text-sm leading-5"
+                    className="thin-scrollbar min-h-24 max-h-[220px] w-full px-1 pb-8 pt-0 text-sm leading-6"
                     style={{ color: theme.node.text }}
                     placeholder="描述创作目标，或让我继续操作画布"
                     placeholderClassName="!left-1 !top-0"
                 />
+                <div className="mt-1 flex items-center justify-between gap-2 border-t px-1 pt-2" style={{ borderColor: theme.node.stroke }}>
+                    <button type="button" onClick={onOpenModels} aria-label="选择画布模型" className="flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-xs opacity-75 transition hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/5">
+                        <SlidersHorizontal className="size-3.5 shrink-0" /><span className="max-w-[160px] truncate">{plainModelName(textModel) || "选择文本模型"}</span><ChevronDown className="size-3 shrink-0 opacity-50" />
+                    </button>
+                    <span aria-live="polite" className="shrink-0 text-[10px]" style={Array.from(prompt).length > CANVAS_AGENT_INPUT_CHAR_LIMIT ? { color: "#ef4444", opacity: 0.9 } : { opacity: 0.45 }}>
+                        {Array.from(prompt).length > CANVAS_AGENT_INPUT_SOFT_HINT ? `${Array.from(prompt).length}/${CANVAS_AGENT_INPUT_CHAR_LIMIT}${Array.from(prompt).length > CANVAS_AGENT_INPUT_CHAR_LIMIT ? " · 超限，发送已锁定" : ""}` : "本画布设置"}
+                    </span>
+                </div>
                 <div className="@container mt-2 flex items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-1 items-center gap-1">
                         <Dropdown
@@ -97,57 +103,27 @@ export function CanvasAssistantComposer({
                                 items: [
                                     { key: "upload", icon: <Upload className="size-4" />, label: "上传文件" },
                                     { key: "assets", icon: <FolderOpen className="size-4" />, label: "我的素材" },
+                                    { type: "divider" },
+                                    { key: "analyze", icon: <Film className="size-4" />, label: "拆解参考视频", disabled: isRunning },
                                 ],
-                                onClick: ({ key }) => (key === "upload" ? onOpenUpload() : onOpenAssets()),
+                                onClick: ({ key }) => {
+                                    if (key === "analyze") { setAnalyzeOpen(true); return; }
+                                    key === "upload" ? onOpenUpload() : onOpenAssets();
+                                },
                             }}
                         >
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Menu className="size-4" />} aria-label="添加素材" />
                         </Dropdown>
                         {onSkillSelect && onSkillRemove ? <CanvasAgentSkillPopover selectedSkills={selectedSkills} onSelect={onSkillSelect} onDeleteSelected={onSkillRemove} onInsertExample={example => onPromptChange([prompt.trim(), example].filter(Boolean).join("\n\n"))} /> : null}
-                        <CanvasReferenceAnalysisPopover references={references} model={effectiveConfig.textModel} skills={selectedSkills} disabled={isRunning} onInsert={report => onPromptChange([prompt.trim(), report].filter(Boolean).join("\n\n"))} />
+                        <CanvasReferenceAnalysisPopover references={references} model={effectiveConfig.textModel} skills={selectedSkills} disabled={isRunning} hideTrigger open={analyzeOpen} onOpenChange={setAnalyzeOpen} onInsert={report => onPromptChange([prompt.trim(), report].filter(Boolean).join("\n\n"))} />
                         {codexControls}
-                        <CanvasImageSettingsPopover
-                            config={imageConfig}
-                            placement="topLeft"
-                            showCount={false}
-                            buttonIcon={<ImageIcon className="size-3.5" />}
-                            buttonClassName="!h-8 !max-w-[116px] !justify-start !rounded-full !px-2.5"
-                            onConfigChange={(key, value) => {
-                                if (key === "quality") onAgentConfigChange({ imageQuality: value });
-                                else if (key === "size") onAgentConfigChange({ imageSize: value });
-                            }}
-                        />
-                        <CanvasVideoSettingsPopover
-                            config={videoConfig}
-                            placement="topLeft"
-                            visualOnly
-                            buttonIcon={<Video className="size-3.5" />}
-                            buttonClassName="!h-8 !max-w-[124px] !justify-start !rounded-full !px-2.5"
-                            onConfigChange={(key, value) => {
-                                if (key === "vquality") onAgentConfigChange({ videoQuality: value });
-                                else if (key === "size") onAgentConfigChange({ videoSize: value });
-                            }}
-                        />
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                        {!codexControls ? (
-                        <Button
-                            type="text"
-                            shape="circle"
-                            className="!h-8 !w-8 !min-w-8"
-                            style={{ color: theme.node.text, background: reasoningEnabled ? theme.toolbar.activeBg : undefined }}
-                            icon={<Brain className="size-4" />}
-                            title={reasoningEnabled ? "推理已开启" : "推理已关闭"}
-                            aria-label={reasoningEnabled ? "关闭推理" : "开启推理"}
-                            aria-pressed={reasoningEnabled}
-                            onClick={() => onAgentConfigChange({ textReasoningEnabled: !reasoningEnabled })}
-                        />
-                        ) : null}
                         <Button
                             type="primary"
                             shape="circle"
                             className="!size-10 !min-w-10"
-                            disabled={!isRunning && !prompt.trim()}
+                            disabled={!isRunning && (!prompt.trim() || Array.from(prompt).length > CANVAS_AGENT_INPUT_CHAR_LIMIT)}
                             onClick={() => (isRunning ? onStop?.() : void submit())}
                             aria-label={isRunning ? "停止" : "发送"}
                             icon={isRunning ? <Square className="size-4 fill-current" /> : <ArrowUp className="size-4" />}
@@ -158,6 +134,10 @@ export function CanvasAssistantComposer({
         </div>
     );
 }
+
+/** Agent 输入上限：与面板发送口同值；计数器超 3800 字开始提示，超 5000 字锁定发送。 */
+const CANVAS_AGENT_INPUT_CHAR_LIMIT = 5_000;
+const CANVAS_AGENT_INPUT_SOFT_HINT = 3_800;
 
 export function assistantToPromptReference(reference: CanvasAssistantReference): CanvasResourceReference {
     const kind = reference.type === CanvasNodeType.Video ? "video" : reference.type === CanvasNodeType.Audio ? "audio" : reference.type === CanvasNodeType.Text ? "text" : "image";

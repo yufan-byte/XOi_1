@@ -699,6 +699,8 @@
         "visualManualPrompt": "视觉手册提示词",
         "modelData": "选择图片模型",
         "videoModelData": "选择视频模型",
+        "textModelData": "文本模型（对话 / 提取资产）",
+        "textModelPh": "默认使用平台文本模型，可选",
         "prompt": {
           "placeholder": "输入提示词",
           "saveSuccess": "更新成功",
@@ -751,6 +753,8 @@
         "enterVideoRatio": "请选择影片比例",
         "enterImageModel": "请选择图片模型",
         "enterVideoModel": "请选择视频模型",
+        "enterTextModel": "请选择文本模型（对话与提取资产都用它）",
+        "completeConfigBeforeOpen": "这个项目还没配完文本模型，请先在项目设置里补全再进入运作",
         "visualManualDeleted": "删除成功",
         "selectMode": "请选择模式",
         "deleteDirectorManualHeader": "删除导演手册",
@@ -1026,7 +1030,11 @@
       "trayEmptyImage": "勾选的素材暂无图片",
       "promptReady": "提示词就绪",
       "promptPending": "补提示词",
-      "stateDone": "已完成"
+      "stateDone": "已完成",
+      "textModel": "文本模型（提示词生成）",
+      "textModelPh": "默认跟随项目，可选",
+      "promptFailed": "提示词生成失败",
+      "promptFailedHint": "可重新生成，或更换文本模型后重试"
     },
     "script": {
       "searchPlaceholder": "搜索剧本名称...",
@@ -1052,7 +1060,12 @@
         "batchDeleteBody": "确定要删除选中的{count}个剧本吗？此操作无法复原",
         "batchDeleteSuccess": "批量删除成功",
         "searchFailed": "搜索剧本失败",
-        "selectsExport": "请选择导出剧本"
+        "selectsExport": "请选择导出剧本",
+        "pollFailed": "剧本状态同步失败，已停止轮询，请刷新页面",
+        "reExtractTitle": "重复提取确认",
+        "reExtractConfirm": "所选剧本中有 {count} 个已经提取过资产。再次提取会重新调用模型、消耗积分，也可能产生重复资产。确定继续吗？",
+        "reExtractOk": "仍然提取",
+        "reExtractCancel": "取消"
       },
       "add": {
         "title": "新增剧本",

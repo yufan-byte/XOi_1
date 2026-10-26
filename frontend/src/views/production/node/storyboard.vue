@@ -1,18 +1,15 @@
 <template>
-  <t-card class="storyboard">
-    <div class="titleBar dragHandle pr">
-      <div>
-        <div class="title">分镜台</div>
-        <div class="titleHint">把剧本拆成可生成的镜头，并确认每个镜头的画面</div>
-      </div>
-      <Handle :id="props.handleIds.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
-      <Handle :id="props.handleIds.source" type="source" :position="Position.Right" style="right: calc(-1 * var(--td-comp-paddingLR-xl))" />
+  <t-card class="storyboard" :class="{ fluid: standalone }">
+    <div class="titleBar" :class="{ dragHandle: !standalone, pr: !standalone }">
+      <DirectorNodeHeading node-id="storyboard" step="05" label="STORYBOARD" :title="standalone ? '分镜图制作' : '分镜台'" description="逐镜确认构图、画面与时长" />
+      <Handle v-if="!standalone" :id="props.handleIds!.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
+      <Handle v-if="!standalone" :id="props.handleIds!.source" type="source" :position="Position.Right" style="right: calc(-1 * var(--td-comp-paddingLR-xl))" />
     </div>
-    <div class="content">
+    <div class="content nowheel nodrag">
       <t-empty v-if="!storyboard.length" style="margin-top: 16px"></t-empty>
       <t-checkbox-group v-model="selectedIds">
         <div class="frameGrid">
-          <template v-for="(item, index) in storyboard" :key="item.id">
+          <template v-for="(item, index) in visibleFrames" :key="item.id">
             <div class="frameItem" @mouseenter="setHoveredFrame(index)" @mouseleave="setHoveredFrame(null)">
               <div class="addBetween addBetween--left" :class="{ expanded: hoveredIndex === index }">
                 <t-button
@@ -39,7 +36,7 @@
                   </div>
 
                   <t-image
-                    v-if="item.src && item.state == '已完成'"
+                    v-if="item.src"
                     :src="item.src"
                     fit="contain"
                     class="frameImg"
@@ -51,15 +48,23 @@
                     </template>
                   </t-image>
                   <div v-else class="generatingPlaceholder" @click="editStoryboaryImage(item, [])">
-                    <t-loading v-if="item.state === '生成中'" size="small" />
+                    <t-loading v-if="item.state === '生成中' || regenerating.has(item.id!)" size="small" />
                     <t-tooltip v-else-if="item.state == '生成失败'" :content="item?.reason">
                       <span style="color: #ff4d4f">生成失败</span>
                     </t-tooltip>
                     <t-empty v-else size="small" :title="$t('workbench.production.node.storyboard.notGenerated')" />
                   </div>
+                  <t-tooltip theme="primary" :content="item?.reason">
+                    <div v-if="item.reason?.startsWith('衔接方案已更新')" class="continuityBadge ac" :style="{ transform: `scale(${styleMaxSize})` }">衔接</div>
+                  </t-tooltip>
                   <t-tooltip theme="primary" :content="$t('workbench.production.node.storyboard.deleteNode')">
                     <div class="remove ac" :style="{ transform: `scale(${styleMaxSize})` }" @click.stop="removeFn(item.id!)">
                       <i-delete theme="outline" size="18" fill="#fff" />
+                    </div>
+                  </t-tooltip>
+                  <t-tooltip theme="primary" content="重画这一镜（沿用该镜提示词与关联资产）">
+                    <div class="regen ac" :style="{ transform: `scale(${styleMaxSize})` }" @click.stop="regenerateOne(item)">
+                      <i-refresh :size="16" fill="#fff" />
                     </div>
                   </t-tooltip>
                   <t-tooltip theme="primary" :content="$t('workbench.production.node.storyboard.editNode')">
@@ -70,8 +75,11 @@
                 </div>
                 <div class="frameMeta">
                   <div class="frameName">S{{ String(index + 1).padStart(2, "0") }} <span>{{ item.duration || 0 }}s</span></div>
+                  <small v-if="item.continuity" style="color:#9a7b64;font-size:11px;line-height:1.7" :title="`${item.continuity.startState} → ${item.continuity.endState} · ${item.continuity.screenDirection}`">{{ ({cut:'同场景切镜',continue:'连续动作 · 末帧接镜',new_scene:'换场景'})[item.continuity.transition] }}<template v-if="item.continuity.sceneId"> · 场景 #{{ item.continuity.sceneId }}</template></small>
                   <div class="frameStatuses">
-                    <span class="statusPill" :class="item.src ? 'done' : item.state === '生成中' ? 'loading' : item.state === '生成失败' ? 'failed' : 'todo'">图 {{ item.src ? '已完成' : item.state === '生成中' ? '生成中' : item.state === '生成失败' ? '失败' : '待生成' }}</span>
+                    <button type="button" class="statusPill todo" @click.stop="openContinuity(item.id!)">衔接检查 / 修正</button>
+                    <span v-if="item.reason?.startsWith('衔接方案已更新')" class="statusPill todo" :title="item.reason">衔接方案待应用</span>
+                    <span class="statusPill" :class="item.state === '生成中' ? 'loading' : item.state === '生成失败' ? 'failed' : item.src ? 'done' : 'todo'">图 {{ item.state === '生成中' ? (item.src ? '重画中 · 保留原图' : '生成中') : item.state === '生成失败' ? (item.src ? '失败 · 保留原图' : '失败') : item.src ? '已完成' : '待生成' }}</span>
                     <span class="statusPill" :class="videoStatusClass(item)">视频 {{ videoStatusLabel(item) }}</span>
                   </div>
                 </div>
@@ -89,13 +97,17 @@
               </div>
             </div>
           </template>
+          <!-- 总览模式截断：分镜多时画布不被撑爆，展开/收起由用户控制 -->
+          <button v-if="!standalone && truncated && storyboard.length > FRAME_PREVIEW" type="button" class="moreCard" @click="truncated = false">
+            <strong>{{ storyboard.length - FRAME_PREVIEW }}+</strong>
+            <span>展开全部 {{ storyboard.length }} 镜</span>
+          </button>
+          <button v-else-if="!standalone && !truncated && storyboard.length > FRAME_PREVIEW" type="button" class="moreCard slim" @click="truncated = true">
+            <span>收起</span>
+          </button>
         </div>
       </t-checkbox-group>
 
-      <div class="scaleControl">
-        <span>{{ $t("workbench.production.node.storyboard.scaleRatio") }}</span>
-        <t-input-number v-model="gridScale" :min="0.1" :max="3" :step="0.1" :decimal-places="1" size="small" style="width: 120px" />
-      </div>
       <div class="ac" style="gap: 6px; margin-bottom: 6px; flex-wrap: wrap">
         <t-tag theme="primary" variant="light">{{ $t("workbench.production.node.storyboard.selectedCount", { count: selectedIds.length }) }}</t-tag>
         <t-button size="small" :disabled="!storyboard.length" theme="default" variant="outline" @click="selectedIds = []">
@@ -107,17 +119,19 @@
         <t-button theme="danger" size="small" :disabled="!storyboard.length || !selectedIds.length" @click="handleDeleteSelected">批量删除</t-button>
       </div>
       <div class="ac" style="gap: 10px">
+        <t-button theme="primary" variant="outline" @click="reviewVisible = true" :disabled="!storyboard.length">
+          <template #icon><i-video-camera /></template>
+          联审分镜
+        </t-button>
         <t-button block @click="previewAll" :disabled="!storyboard.length">预览分镜</t-button>
-        <t-button block @click="batchGenerateImage" :disabled="!storyboard.length || !selectedIds.length" :loading="generateLoading">
+        <t-button block theme="primary" @click="batchGenerateImage" :disabled="!storyboard.length || !selectedIds.length" :loading="generateLoading">
           生成选中镜头
         </t-button>
-
-        <!-- <t-button block @click="batchGenerateImage" :disabled="!storyboard.length" :loading="generateLoading">
-          {{ $t("workbench.production.node.storyboard.batchGenerateImage") }}
-        </t-button> -->
       </div>
     </div>
     <editImage v-model="visible" v-if="visible" :flowData="currentRow" type="storyboard" @save="save" />
+    <storyboardReview v-model:visible="reviewVisible" :storyboard="storyboard" />
+    <ContinuityInspector v-model:visible="continuityVisible" :storyboard-id="continuityFrameId" />
     <t-image-viewer
       v-model:visible="previewVisible"
       v-if="previewVisible"
@@ -129,6 +143,8 @@
 </template>
 
 <script setup lang="ts">
+import DirectorNodeHeading from "./DirectorNodeHeading.vue";
+import storyboardReview from "./storyboardReview.vue";
 import { useLocalStorage } from "@vueuse/core";
 import editImage from "../components/editImage/index.vue";
 import { LoadingPlugin } from "tdesign-vue-next";
@@ -137,16 +153,20 @@ import axios from "@/utils/axios";
 import type { AssetItem, Storyboard } from "../utils/flowBuilder";
 import projectStore from "@/stores/project";
 import productionAgentStore from "@/stores/productionAgent";
+import ContinuityInspector from '../components/ContinuityInspector.vue';
+const continuityVisible = ref(false), continuityFrameId = ref<number>();
+function openContinuity(id: number) { continuityFrameId.value = id; continuityVisible.value = true; }
 const { project } = storeToRefs(projectStore());
 const { episodesId } = storeToRefs(productionAgentStore());
 
 const props = defineProps<{
-  id: string;
-  handleIds: {
+  id?: string;
+  handleIds?: {
     target: string;
     source: string;
   };
   assetsData: AssetItem[];
+  standalone?: boolean;
 }>();
 
 const storyboard = defineModel<Storyboard[]>({ required: true });
@@ -158,6 +178,29 @@ const gridScale = useLocalStorage("storyboardGridScale", 1);
 
 const hoveredIndex = ref<number | null>(null);
 const selectedIds = ref<number[]>([]);
+
+/* 总览画布的减噪：默认只铺前几帧，其余收进「展开」尾卡；分镜再多画布也不被撑爆 */
+const FRAME_PREVIEW = 4;
+const truncated = ref(true);
+const reviewVisible = ref(false);
+const regenerating = ref<Set<number>>(new Set());
+const visibleFrames = computed<Storyboard[]>(() =>
+  !props.standalone && truncated.value ? storyboard.value.slice(0, FRAME_PREVIEW) : storyboard.value,
+);
+
+/** 单镜重画：沿用该镜提示词与关联资产重新生图，不满意就换一张 */
+async function regenerateOne(item: Storyboard) {
+  if (!item.id || regenerating.value.has(item.id)) return;
+  regenerating.value.add(item.id);
+  try {
+    await productionAgentStore().batchGenerateStoryboard([item.id], true);
+    window.$message?.success("已提交重画，生成完成后这里会自动更新");
+  } catch (e: any) {
+    window.$message?.error(e?.message || "重画提交失败，请稍后再试");
+  } finally {
+    regenerating.value.delete(item.id);
+  }
+}
 
 function videoStatus(item: Storyboard) {
   return (item as Storyboard & { videoState?: string }).videoState;
@@ -421,10 +464,15 @@ function editInfo(item: Storyboard) {
   const formData = reactive({
     prompt: item.prompt ?? "",
     videoDesc: item?.videoDesc ?? "",
+    duration: Number(item.duration) || 0,
   });
 
   const bodyVNode = () =>
     h("div", { class: "editInfoForm" }, [
+      h("div", { class: "editInfoField" }, [
+        h("label", { class: "editInfoLabel" }, "镜头时长（秒）"),
+        h(resolveComponent("t-input-number"), { value: formData.duration, min: 0.1, max: 3600, step: 1, "onUpdate:value": (v: number) => (formData.duration = v) }),
+      ]),
       h("div", { class: "editInfoField" }, [
         h("label", { class: "editInfoLabel" }, $t("workbench.production.node.storyboard.prompt")),
         h(resolveComponent("t-textarea"), {
@@ -455,25 +503,29 @@ function editInfo(item: Storyboard) {
       loading: false,
     },
     onConfirm: async () => {
+      if (!(formData.duration > 0) || !Number.isFinite(formData.duration)) { window.$message.warning("请填写大于 0 的镜头时长"); return; }
       confirmDialog.update({ confirmBtn: { content: $t("common.submitting"), loading: true } });
       try {
         await axios.post("/production/storyboard/editStoryboardInfo", {
           id: item.id,
           prompt: formData.prompt,
           videoDesc: formData.videoDesc,
+          duration: formData.duration,
         });
+        item.duration = formData.duration;
         item.prompt = formData.prompt;
         item.videoDesc = formData.videoDesc;
         window.$message.success($t("common.editSuccess"));
+        confirmDialog.destroy();
       } catch (e) {
         window.$message.error((e as any)?.message || $t("common.editFailed"));
       } finally {
         confirmDialog.update({ confirmBtn: { content: $t("common.submit"), loading: false } });
-        confirmDialog.destroy();
       }
     },
   });
 }
+defineExpose({ editFrame: (id: number) => { const item = storyboard.value.find(frame => frame.id === id); if (item) editInfo(item); } });
 </script>
 
 <style lang="scss" scoped>
@@ -482,6 +534,11 @@ function editInfo(item: Storyboard) {
   max-width: 100vw;
   user-select: text;
   cursor: default;
+
+  &.fluid {
+    width: 100%;
+    min-width: 0;
+  }
 
   .titleBar {
     display: flex;
@@ -569,6 +626,7 @@ function editInfo(item: Storyboard) {
     transition: opacity 0.2s ease;
     &:hover {
       .remove,
+      .regen,
       .editNode {
         opacity: 1;
       }
@@ -588,6 +646,33 @@ function editInfo(item: Storyboard) {
         background-color: rgba(220, 50, 50, 1);
       }
     }
+    /* 重画：右上第二颗，橙色，和删除拉开语义距离 */
+    .regen {
+      position: absolute;
+      top: 3px;
+      right: 38px;
+      z-index: 9999;
+      padding: 6px;
+      border-radius: 10px;
+      background-color: rgba(224, 100, 31, 0.82);
+      cursor: pointer;
+      opacity: 0;
+      transform-origin: top right;
+      &:hover {
+        background-color: rgba(224, 100, 31, 1);
+      }
+    }
+    .continuityBadge {
+      position: absolute;
+      left: 3px;
+      bottom: 3px;
+      z-index: 9998;
+      padding: 3px 7px;
+      border-radius: 7px;
+      background: rgba(181, 113, 60, 0.85);
+      color: #fff;
+      font-size: 10px;
+    }
     .editNode {
       position: absolute;
       bottom: 3px;
@@ -603,6 +688,29 @@ function editInfo(item: Storyboard) {
         background-color: rgba(24, 144, 255, 1);
       }
     }
+  }
+
+  /* 展开尾卡：分镜截断时的入口，尺寸对齐帧图 */
+  .moreCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin: 4px;
+    width: 144px;
+    height: 144px;
+    border: 1.5px dashed #e3c6ac;
+    border-radius: 10px;
+    background: #fffaf5;
+    color: #c07a4c;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s;
+    strong { font-size: 22px; font-weight: 750; line-height: 1; }
+    span { font-size: 11px; }
+    &:hover { border-color: #e6a97e; background: #fff3e9; }
+    &.slim { width: auto; height: 32px; padding: 0 14px; margin-top: 8px; flex-direction: row; align-self: flex-start; }
   }
 
   .generatingPlaceholder {

@@ -1,15 +1,34 @@
 <template>
   <div class="scriptAgent">
-    <section class="studioHeader"><div><span>XOi STORY WORKSPACE · 02 · 可选</span><h1>AI 改编</h1><p>只有需要改变原故事、重组为短剧时才使用。已有剧本或不想改写内容，请去“剧本整理”。</p><button type="button" class="skipAdaptationLink" @click="goToScript">不做 AI 改编？去剧本整理（可用 AI 分集） →</button></div><div class="studioHeaderArt" aria-hidden="true"><i>AI</i><b>SCRIPT</b></div></section>
+    <StoryWorkspaceHeader current="scriptAgent" :project-type="project?.projectType" title="AI 改编" description="可选工作区：先形成故事骨架，再确定改编策略，最后生成可采用的分集草稿。">
+      <template #meta><span>草稿不会覆盖正式剧本</span></template>
+      <template #actions>
+        <button type="button" :class="{ active: assistantOpen }" @click="assistantOpen = !assistantOpen">{{ assistantOpen ? "收起创作助手" : "打开创作助手" }}</button>
+        <button type="button" @click="goToScript">跳过改编，去剧本整理 →</button>
+      </template>
+    </StoryWorkspaceHeader>
 
-    <Splitpanes class="default-theme data f">
+    <section class="adaptationFlow" aria-label="AI 改编步骤">
+      <div class="adaptationPurpose">
+        <span>怎么用</span>
+        <p><strong>右侧文档才是成果。</strong>创作助手只负责起草、诊断和按要求修改；满意后仍需你编辑确认，最后手动采用到正式剧本。</p>
+      </div>
+      <nav>
+        <button v-for="step in adaptationSteps" :key="step.value" type="button" :class="{ active: currentTable === step.value, done: step.done }" @click="currentTable = step.value">
+          <b>{{ step.value }}</b><span><strong>{{ step.title }}</strong><small>{{ step.desc }}</small></span>
+        </button>
+      </nav>
+      <button type="button" class="assistantCall" @click="assistantOpen = true">{{ assistantOpen ? "助手已展开" : "需要起草或修改？打开助手" }} →</button>
+    </section>
+
+    <Splitpanes class="default-theme data f scriptWorkspace" :class="{ 'assistant-collapsed': !assistantOpen }">
       <Pane :size="38" :min-size="28" class="operate">
         <div class="box pr">
           <header class="scriptChatHeader">
             <div class="scriptChatIdentity"><span class="miniMascot"><img :src="ipBodyUrl" alt="" /></span><div><small class="agentEyebrow">STORY INTELLIGENCE</small><strong>剧本创作助手</strong></div></div>
-            <span class="agentLive" :class="{ busy: isGenerating }"><i></i>{{ isGenerating ? '创作中' : connected ? '已就绪' : '未连接' }}</span>
+            <div class="assistantHeaderActions"><span class="agentLive" :class="{ busy: isGenerating }"><i></i>{{ isGenerating ? '创作中' : connected ? '已就绪' : '未连接' }}</span><button type="button" aria-label="收起剧本创作助手" title="收起助手" @click="assistantOpen = false">×</button></div>
           </header>
-          <div class="scriptChatSubhead"><strong>故事构思 <span>→</span> 改编策划 <span>→</span> 剧本成稿</strong><button type="button" title="重新连接" :disabled="isGenerating" @click="handleReconnect"><i-api size="17" /></button></div>
+          <div class="scriptChatSubhead"><strong>按你的要求起草或修改当前文档</strong><button type="button" title="重新连接" :disabled="isGenerating" @click="handleReconnect"><i-api size="17" /></button></div>
           <section v-if="isWelcomeState" class="scriptWelcome">
             <div class="scriptMascot" aria-label="XOi 剧本助手" role="img">
               <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
@@ -23,13 +42,14 @@
             </svg>
             </div>
             <h2>XOi</h2>
-            <p>你的专业剧本创作搭档<br />从故事骨架开始，一起完成精彩剧本。</p>
+            <p>助手不会自动采用内容。<br />先选任务、补充要求，再由你点击发送。</p>
             <div class="scriptQuickStarts">
               <button v-for="item in scriptQuickStarts" :key="item.title" type="button" @click="startScriptFlow(item.prompt)">{{ item.title }}</button>
             </div>
             <small>内容由 AI 生成，仅供参考</small>
           </section>
-          <t-chat-list v-show="!isWelcomeState" :clear-history="false">
+          <div v-show="!isWelcomeState" class="scriptChatHistory">
+          <t-chat-list :clear-history="false">
             <t-chat-message
               v-for="message in messages"
               :key="message.id"
@@ -41,6 +61,7 @@
               :status="message.status"
               allowContentSegmentCustom></t-chat-message>
           </t-chat-list>
+          </div>
           <div v-if="chatError" class="chatErrorCard" role="alert">
             <div class="chatErrorIcon">!</div>
             <div class="chatErrorBody">
@@ -51,6 +72,7 @@
           </div>
           <t-chat-sender
             class="inputBox"
+            :textarea-props="{ autosize: { minRows: 3, maxRows: 7 }, placeholder: selectedSkills.length ? '已加载剧本创作能力，描述你想创作的故事…' : '描述故事灵感，Enter 发送，Shift + Enter 换行…' }"
             :disabled="status === 'pending' || status === 'streaming'"
             v-model="inputValue"
             :loading="status === 'pending' || status === 'streaming'"
@@ -129,8 +151,10 @@
               </button>
             </template>
           </t-chat-sender>
-          <div v-if="agentModelName" class="costHintRow">
-            <ModelCostHint :model="agentModelName" type="text" :input-length="inputValue.length" />
+          <div class="costHintRow">
+            <ModelSelect v-model="selectedModel" type="text" size="small" placeholder="选择剧本创作模型" />
+            <ModelCostHint :model="selectedModel || agentModelName" type="text" :input-length="inputValue.length" />
+            <small>剧本创作可能调用多次模型，预计积分为单次用量参考。</small>
           </div>
           <!-- 连接状态胶囊：取代原本悬浮左上角的 i-dot，落到底部发送栏之下 -->
           <div class="connStatus" :class="{ on: connected, off: !connected }">
@@ -157,6 +181,10 @@
               </div>
               <div class="ac" v-else-if="currentTable == 2">
                 <t-button @click="editMdPreview">{{ $t("workbench.scriptAgent.edit") }}</t-button>
+              </div>
+              <div class="ac" v-else-if="currentTable == 3 && planData.script?.length">
+                <span class="draftNotice">改编草稿，不会自动覆盖正式剧本</span>
+                <t-button theme="primary" :loading="adoptingScripts" :disabled="isGenerating" @click="adoptDraftScripts">采用到剧本整理</t-button>
               </div>
             </template>
             <!-- <t-tab-panel :value="1" :label="$t('workbench.scriptAgent.chapterEvents')">
@@ -230,7 +258,7 @@
         </div>
       </Pane>
     </Splitpanes>
-    <editMdPreivew v-model="dialogVisible" @save="onConfirm" :content="editContent" />
+    <editMdPreivew v-if="dialogVisible" v-model="dialogVisible" @save="onConfirm" :content="editContent" />
 
     <!-- 剧本编辑对话框 -->
     <t-dialog
@@ -248,7 +276,7 @@
         </div>
         <div class="scriptEditField">
           <label>{{ $t("workbench.scriptAgent.content") }}</label>
-          <MdEditor
+          <MdEditor v-if="scriptEditVisible"
             v-model="scriptEditData.content"
             :theme="themeSetting.mode === 'auto' ? undefined : themeSetting.mode"
             :toolbars="toolbars"
@@ -261,31 +289,49 @@
     </t-dialog>
 
     <!-- 流水线下一步：AI 改编（可选站）→ 剧本整理。改编完成、或不想改写，都从这里往前走。 -->
-    <NextStepBar current="scriptAgent" :status="pipelineStatus" status-tone="idle" next-label="下一步：剧本整理" />
+    <NextStepBar current="scriptAgent" :status="pipelineStatus" status-tone="idle" :next-label="planData.script?.length ? '暂不采用，去剧本整理' : '去剧本整理'" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { MdEditor } from "md-editor-v3";
+import StoryWorkspaceHeader from "@/components/pipeline/StoryWorkspaceHeader.vue";
+import { defineAsyncComponent } from "vue";
+const MdEditor = defineAsyncComponent(() => import("@/utils/markdown").then(module => module.MdEditor));
 import type { ToolbarNames } from "md-editor-v3";
-import { MdPreview } from "md-editor-v3";
+const MdPreview = defineAsyncComponent(() => import("@/utils/markdown").then(module => module.MdPreview));
 import settingStore from "@/stores/setting";
 import NextStepBar from "@/components/pipeline/NextStepBar.vue";
 import ModelCostHint from "@/components/ModelCostHint.vue";
+import ModelSelect from "@/components/modelSelect.vue";
 const { themeSetting } = storeToRefs(settingStore());
 import { Splitpanes, Pane } from "splitpanes";
 import axios from "@/utils/axios";
 import type { ChatMessagesData } from "@tdesign-vue-next/chat";
 import projectStore from "@/stores/project";
 const { project } = storeToRefs(projectStore());
-import editMdPreivew from "@/components/editMdPreivew.vue";
+const editMdPreivew = defineAsyncComponent(() => import("@/components/editMdPreivew.vue"));
 import scriptAgentStore from "@/stores/scriptAgent";
 import ipBodyUrl from "@/assets/photosynthesis-effect-mark.png";
 const router = useRouter();
-const { connected, messages, status, lastError, planData, thinkLevel, selectedSkills } = storeToRefs(scriptAgentStore());
+const { connected, messages, status, lastError, planData, thinkLevel, selectedSkills, selectedModel } = storeToRefs(scriptAgentStore());
 import userStore from "@/stores/user";
 import { guardProjectType } from "@/utils/pipelineGuard";
 const isGenerating = computed(() => status.value === 'pending' || status.value === 'streaming');
+const adoptingScripts = ref(false);
+async function adoptDraftScripts() {
+  if (!project.value?.id || !planData.value.script?.length || adoptingScripts.value) return;
+  adoptingScripts.value = true;
+  try {
+    await scriptAgentStore().setPlanData();
+    const response = await axios.post("/scriptAgent/adoptScripts", { projectId: Number(project.value.id) });
+    window.$message.success(`已将 ${response.data.count} 个改编草稿加入剧本整理`);
+    goToScript();
+  } catch (error: any) {
+    window.$message.error(error?.message || "采用失败，请检查分集名称后重试");
+  } finally {
+    adoptingScripts.value = false;
+  }
+}
 const chatError = computed(() => {
   const latest = messages.value[messages.value.length - 1] as any;
   if (latest?.role !== "assistant" || latest?.status !== "error") return lastError.value;
@@ -338,6 +384,12 @@ const thinkLevelOptions = [
   { label: $t("workbench.scriptAgent.thinkLevel.extreme"), value: 3 },
 ];
 const currentTable = ref(1);
+const assistantOpen = ref(false);
+const adaptationSteps = computed(() => [
+  { value: 1, title: "故事骨架", desc: "人物欲望、核心冲突与剧情主线", done: Boolean(planData.value.storySkeleton) },
+  { value: 2, title: "改编策略", desc: "取舍原著，确定节奏与短剧化方式", done: Boolean(planData.value.adaptationStrategy) },
+  { value: 3, title: "分集草稿", desc: "形成可编辑、可选择采用的剧本", done: Boolean(planData.value.script?.length) },
+]);
 const inputValue = ref("");
 const agentModelName = ref("");
 const toolbars: ToolbarNames[] = [
@@ -386,7 +438,8 @@ const scriptQuickStarts = [
   { title: "完善人物与冲突", prompt: "请检查主要人物、核心欲望与冲突，并提出可直接执行的完善方案。" },
 ];
 function startScriptFlow(prompt: string) {
-  scriptAgentStore().chat(prompt);
+  inputValue.value = prompt;
+  assistantOpen.value = true;
 }
 
 onMounted(() => {
@@ -415,19 +468,18 @@ const handleActions = {
   },
 };
 
-function handleSend(text: string) {
-  scriptAgentStore().chat(text);
-  inputValue.value = "";
+async function handleSend(text: string) {
+  if (await scriptAgentStore().chat(text)) inputValue.value = "";
 }
 
 function goToScript() {
-  router.push({ path: "/script", query: { entry: "organize" } });
+  router.push({ path: "/script", query: { projectId: String(project.value?.id || ""), entry: "organize" } });
 }
 
 /** 吸底条状态：右侧剧本卡（分集）已产出多少 */
 const pipelineStatus = computed(() => {
   const count = planData.value?.script?.length ?? 0;
-  return count ? `已产出 ${count} 个剧本卡 · 前往剧本整理` : "改编完成或不想改写，都从这里去剧本整理";
+  return count ? `${count} 个改编草稿 · 点击“采用”后进入正式剧本` : "改编完成或不想改写，都可以去剧本整理";
 });
 
 function handleStop() {
@@ -553,23 +605,17 @@ async function delScript(index: number) {
     },
   });
 }
-function onConfirm(value: string) {
-  axios
-    .post("/scriptAgent/updateData", {
-      id: agentWorkDataId.value,
-      data: {
-        storySkeleton: currentTable.value == 1 ? value : planData.value.storySkeleton,
-        adaptationStrategy: currentTable.value == 2 ? value : planData.value.adaptationStrategy,
-        script: planData.value.script,
-      },
-    })
-    .then(() => {
-      window.$message.success($t("workbench.scriptAgent.msg.updated"));
-      getPlanData();
-    })
-    .catch((err) => {
-      window.$message.error(err?.message ?? $t("workbench.scriptAgent.msg.error"));
-    });
+async function onConfirm(value: string) {
+  if (currentTable.value === 1) planData.value.storySkeleton = value;
+  else if (currentTable.value === 2) planData.value.adaptationStrategy = value;
+  try {
+    // Always save by the current, owner-scoped project instead of trusting a stale global row id.
+    await scriptAgentStore().setPlanData();
+    await getPlanData();
+    window.$message.success($t("workbench.scriptAgent.msg.updated"));
+  } catch (err: any) {
+    window.$message.error(err?.message ?? $t("workbench.scriptAgent.msg.error"));
+  }
 }
 
 const showThink = ref(false);
@@ -577,6 +623,7 @@ onMounted(async () => {
   try {
     const { data } = await axios.post(`/project/getModelDetails`, { key: "scriptAgent" });
     agentModelName.value = data?.modelName || data?.name || "";
+    if (!selectedModel.value && agentModelName.value) selectedModel.value = agentModelName.value.startsWith("newapi:") ? agentModelName.value : `newapi:${agentModelName.value}`;
     if (data && data.think) showThink.value = true;
   } catch {
     // 未配置 Agent 模型时仍允许用户查看项目内容，发送时由聊天错误卡提示具体原因。
@@ -641,6 +688,11 @@ function toggleAllCards() {
 </script>
 
 <style lang="scss" scoped>
+.draftNotice {
+  margin-right: 10px;
+  color: #817b76;
+  font-size: 12px;
+}
 .scriptAgent {
   height: calc(100% - 16px);
   display: flex;
@@ -1585,12 +1637,39 @@ function toggleAllCards() {
 .scriptAgent > .data :deep(.splitpanes__pane) { min-height: 0; overflow: hidden; }
 .scriptAgent .operate { min-height: 0; }
 .scriptAgent .operate .box { min-height: 0; }
-.scriptAgent .costHintRow { display:flex; align-items:center; min-height:24px; padding:0 16px 5px; background:#fffdfb; }
+.scriptAgent .costHintRow { display:flex; flex-wrap:wrap; align-items:center; gap:7px; min-height:24px; padding:5px 16px 9px; background:#fffdfb; }
+.scriptAgent .costHintRow > :first-child { width:100%; }
+.scriptAgent .costHintRow > small { width:100%; font-size:10px; color:#99919d; }
 .scriptAgent .chatErrorCard { display:flex; align-items:center; gap:9px; margin:0 12px 8px; padding:9px 11px; border:1px solid #f0c8bd; border-radius:11px; background:#fff6f3; color:#8c4330; font-size:11px; }
 .scriptAgent .chatErrorIcon { display:grid; place-items:center; width:18px; height:18px; flex:none; border-radius:50%; background:#e87551; color:#fff; font-weight:700; }
 .scriptAgent .chatErrorBody { display:flex; flex:1; min-width:0; flex-direction:column; gap:2px; }
 .scriptAgent .chatErrorBody span { overflow:hidden; color:#a36e60; text-overflow:ellipsis; white-space:nowrap; }
 .scriptAgent .chatErrorCard button { flex:none; padding:4px 9px; border:1px solid #e3a18e; border-radius:7px; background:#fff; color:#b74d2f; cursor:pointer; }
+.adaptationFlow { flex:none; display:flex; align-items:center; gap:14px; margin:10px 0 12px; padding:12px 14px; border:1px solid #e6ddd6; border-radius:14px; background:#fff; box-shadow:0 8px 24px rgba(64,45,31,.04); }
+.adaptationPurpose { width:min(300px,27%); min-width:220px; }
+.adaptationPurpose > span { color:#bf4d28; font-size:10px; font-weight:700; letter-spacing:.12em; }
+.adaptationPurpose p { margin:5px 0 0; color:#7a7068; font-size:10px; line-height:1.55; }
+.adaptationPurpose p strong { color:#403a35; }
+.adaptationFlow nav { display:grid; grid-template-columns:repeat(3,minmax(145px,1fr)); flex:1; gap:7px; }
+.adaptationFlow nav button { display:flex; align-items:flex-start; gap:8px; min-width:0; padding:9px 10px; border:1px solid #e7e1dc; border-radius:10px; background:#faf9f7; color:#766d66; text-align:left; cursor:pointer; }
+.adaptationFlow nav button.active { border-color:#d37a58; background:#fff2e8; color:#7e351d; }
+.adaptationFlow nav button.done > b { background:#4f9675; color:#fff; }
+.adaptationFlow nav b { display:grid; place-items:center; width:21px; height:21px; flex:none; border-radius:6px; background:#eae6e2; font-size:9px; }
+.adaptationFlow nav span { display:flex; min-width:0; flex-direction:column; gap:2px; }
+.adaptationFlow nav strong { font-size:11px; }
+.adaptationFlow nav small { overflow:hidden; color:#938a83; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.assistantCall { flex:none; padding:9px 11px; border:1px solid #dfc7b8; border-radius:9px; background:#fffaf6; color:#a34325; font-size:10px; cursor:pointer; }
+.scriptAgent > .scriptWorkspace { display:grid !important; grid-template-columns:minmax(0,1fr) 380px; gap:12px; }
+.scriptAgent > .scriptWorkspace.assistant-collapsed { grid-template-columns:minmax(0,1fr); }
+.scriptWorkspace :deep(.splitpanes__splitter) { display:none !important; }
+.scriptWorkspace :deep(.splitpanes__pane) { width:auto !important; min-width:0; }
+.scriptWorkspace :deep(.data) { grid-column:1; grid-row:1; }
+.scriptWorkspace :deep(.operate) { grid-column:2; grid-row:1; }
+.scriptWorkspace.assistant-collapsed :deep(.operate) { display:none !important; }
+.assistantHeaderActions { display:flex; align-items:center; gap:8px; }
+.assistantHeaderActions > button { display:grid; place-items:center; width:28px; height:28px; border:1px solid #eadfd8; border-radius:8px; background:#fff; color:#766b64; font-size:19px; cursor:pointer; }
+@media(max-width:1080px){.adaptationPurpose{display:none}.scriptAgent > .scriptWorkspace{grid-template-columns:minmax(0,1fr) 340px}.adaptationFlow nav{grid-template-columns:repeat(3,minmax(115px,1fr))}}
+@media(max-width:800px){.adaptationFlow{align-items:stretch;flex-direction:column}.adaptationFlow nav{width:100%}.assistantCall{align-self:flex-end}.scriptAgent > .scriptWorkspace{grid-template-columns:1fr}.scriptWorkspace :deep(.operate){position:absolute;inset:120px 12px 50px;z-index:30;grid-column:1;width:auto!important;box-shadow:0 18px 50px rgba(44,31,22,.2)}}
 </style>
 
 <style>
@@ -1726,7 +1805,7 @@ body .t-popup__content > .settingMenu .settingMenuItem.active {
     box-shadow: 0 8px 22px rgba(43,38,52,.07);
   }
   .inputBox .t-chat-sender__textarea__wrapper { min-height:70px!important;border:0!important;border-radius:15px 15px 0 0!important;background:#fff!important;box-shadow:none!important;backdrop-filter:none!important; }
-  .inputBox .t-textarea__inner { min-height:70px!important;height:70px!important;padding:13px 14px!important;color:#37323b!important;font-size:13px!important;line-height:1.6!important; }
+  .inputBox .t-textarea__inner { min-height:64px!important;max-height:180px!important;padding:13px 14px!important;color:#37323b!important;font-size:13px!important;line-height:1.6!important; }
   .inputBox .t-chat-sender__footer { min-height:50px;padding:7px 10px 7px 12px;border-top:1px solid #f0edef;align-items:center; }
   .inputBox .t-chat-sender__mode { display:flex!important;align-items:center!important;gap:6px!important;width:auto!important;min-width:0!important;line-height:1; }
   .inputBox .t-chat-sender__footer-prefix { display:flex;align-items:center;gap:4px;min-width:0;flex-wrap:wrap; }
@@ -1815,4 +1894,88 @@ body .t-popup__content > .settingMenu .settingMenuItem.active {
   .operate .box .inputBox { border:1px solid #e7c8ad!important; border-radius:15px!important; box-shadow:0 4px 20px #c9853410!important; background:#fffdfb!important; }
   .operate .box .inputBox:focus-within { border-color:#de9259!important; box-shadow:0 0 0 3px #ee985319!important; }
 }
+</style>
+
+<style lang="scss">
+.scriptAgent {
+  padding: 18px 24px 24px !important;
+  .studioHeader { min-height: 0; padding: 18px 24px; border-radius: 20px; }
+  .studioHeader > div:first-child { max-width: calc(100% - 180px); }
+  .studioHeader h1 { font-size: 27px; }
+  .studioHeader p { line-height: 1.6; }
+  .studioHeaderArt { right: 28px; }
+  .studioHeaderArt i,.studioHeaderArt b { width: 64px; height: 64px; font-size: 14px; }
+  .operate .box { padding: 0 !important; display: flex; flex-direction: column; min-height: 0; }
+  .operate .box .scriptChatHeader { height: 62px; padding: 0 14px; }
+  .operate .box .scriptChatSubhead { height: 32px; padding: 0 14px; }
+  .operate .box .scriptWelcome { padding: 18px 16px 12px; background: #fffdfb; }
+  .operate .box .scriptMascot { width: 64px; height: 64px; }
+  .operate .box .scriptWelcome h2 { margin: 2px 0 8px; font-size: 25px; }
+  .operate .box .scriptQuickStarts { margin-top: 16px; gap: 8px; }
+  .operate .box .scriptQuickStarts button { min-height: 40px; padding: 9px 11px; background: #f7f4f1; }
+  .operate .box .t-chat__list { flex: 1; min-height: 0; overflow: auto; }
+  .operate .box .inputBox { flex: none; margin: 8px 12px; }
+  // The visible outline belongs to __textarea rather than its inner wrapper.
+  .operate .box .inputBox .t-chat-sender__textarea { border: 0 !important; border-radius: 14px; padding: 0 !important; box-shadow: none !important; background: transparent; }
+  .operate .box .inputBox .t-chat-sender__textarea__wrapper { min-height: 0 !important; padding: 0 !important; }
+  .operate .box .inputBox .t-textarea__inner { padding: 12px 14px !important; resize: none; line-height: 1.5 !important; }
+  .operate .box .inputBox .t-chat-sender__footer { min-height: 46px; padding: 7px 10px; }
+  .operate .box .costHintRow { flex: none; padding: 0 14px 8px; gap: 5px; }
+  .pipelineNextBar { order: 2; position: static; flex: none; max-width: none; margin-top: 12px; justify-content: space-between; box-shadow: 0 4px 16px rgba(42,39,58,.05); }
+  .operate .box .connStatus { flex: none; margin-bottom: 8px !important; }
+}
+@media (max-width: 1100px) {
+  .scriptAgent { overflow-y: auto; padding: 14px !important; }
+  .scriptAgent .studioHeader > div:first-child { max-width: 100%; }
+  .scriptAgent .studioHeaderArt { display: none; }
+  .scriptAgent > .data { flex: none !important; display: flex; flex-direction: column !important; overflow: visible; height: auto !important; gap: 14px; }
+  .scriptAgent > .data > .splitpanes__pane { width: 100% !important; flex: none !important; }
+  .scriptAgent > .data > .splitpanes__pane.operate { height: 630px !important; min-width: 0; }
+  .scriptAgent > .data > .splitpanes__pane:not(.operate) { height: 400px !important; }
+  .scriptAgent > .data > .splitpanes__splitter { display: none; }
+  .scriptAgent .operate .box .scriptQuickStarts { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 600px) {
+  .scriptAgent .studioHeader { padding: 16px; }
+  .scriptAgent .scriptChatIdentity strong { font-size: 15px; }
+  .scriptAgent .scriptChatIdentity .agentEyebrow { font-size: 8px; }
+  .scriptAgent .operate .box .scriptQuickStarts { grid-template-columns: 1fr; }
+}
+
+.scriptAgent {
+  overflow-y: auto;
+  .studioHeader { order: 0; }
+  > .data { order: 1; flex: 1 0 560px !important; min-height: 560px !important; }
+  .operate .box { box-sizing: border-box; }
+  .scriptChatHistory { flex: 1; min-height: 160px; overflow: hidden; position: relative; }
+  .scriptChatHistory > .t-chat { height: 100%; max-height: 100%; min-height: 0; }
+  .scriptChatHistory .t-chat__list { box-sizing: border-box; height: 100%; max-height: 100%; overflow-y: auto; }
+  .operate .box .scriptWelcome { min-height: 160px; overflow-y: auto; }
+  .operate .box .inputBox { flex-shrink: 0; z-index: 2; }
+  .operate .box .chatErrorCard { flex-shrink: 0; }
+  .operate .box .scriptChatHeader,.operate .box .scriptChatSubhead { flex-shrink: 0; }
+}
+@media(max-width:1100px) {
+  .scriptAgent > .data { min-height: 0 !important; flex: none !important; }
+  .scriptAgent > .data > .splitpanes__pane.operate { height: 720px !important; }
+}
+</style>
+
+<style lang="scss">
+.scriptAgent { box-sizing:border-box; padding:20px 24px !important; background:var(--xoi-workspace-bg,#faf8f6) !important; }
+.scriptAgent .tabsWrapper,.scriptAgent .operate .box { border-color:var(--xoi-workspace-border,#eee7e2) !important; border-radius:14px !important; box-shadow:0 4px 14px #9c633808 !important; }
+@media(max-width:700px) { .scriptAgent { padding:14px !important; } }
+</style>
+
+<style lang="scss">
+/* 左侧文稿为小浮层留位置，右侧助手不被整行底栏挤压。 */
+@media(min-width:1101px) {
+  .scriptAgent > .data { flex:1 1 0 !important; min-height:0 !important; }
+  .scriptAgent .tabsWrapper { box-sizing:border-box; padding-bottom:var(--pipeline-hint-space,64px) !important; }
+}
+@media(min-width:1101px) and (max-height:820px) {
+  .scriptAgent > .data { min-height:520px !important; }
+  .scriptAgent .scriptChatHistory,.scriptAgent .operate .box .scriptWelcome { min-height:80px; }
+}
+@media(max-width:1100px) { .scriptAgent { padding-bottom:var(--pipeline-hint-space,64px) !important; } }
 </style>

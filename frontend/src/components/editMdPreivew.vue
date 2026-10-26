@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { MdEditor } from "md-editor-v3";
+import { MdEditor } from "@/utils/markdown";
 import type { ToolbarNames } from "md-editor-v3";
 import { resolveThemeMode } from "@/utils/theme";
 import settingStore from "@/stores/setting";
@@ -65,6 +65,7 @@ watch(
   () => {
     editContent.value = props.content;
   },
+  { immediate: true },
 );
 const emit = defineEmits<{
   save: [string];

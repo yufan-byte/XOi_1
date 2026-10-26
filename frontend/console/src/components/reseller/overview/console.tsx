@@ -21,7 +21,7 @@ export interface OverviewData {
 const RANGES = [{ v: "today", l: "今日" }, { v: "yesterday", l: "昨天" }, { v: "week", l: "一周" }, { v: "30d", l: "近30日" }] as const;
 const EMPTY_PREFIX: Record<string, string> = { today: "今日", yesterday: "昨天", week: "本周", "30d": "近30日" };
 
-/** 与参考站一致：分润收益=品牌紫、客户消耗=绿、客户充值=琥珀 */
+/** 收益使用品牌强调色，消耗与充值保留独立语义色。 */
 const SERIES = [{ key: "income", label: "分润收益", color: "var(--primary)" }, { key: "consume", label: "客户消耗", color: "var(--success)" }, { key: "topup", label: "客户充值", color: "var(--warning)" }] as const;
 
 const card = "rounded-2xl border border-border/60 bg-card p-5 shadow-[var(--shadow-soft)]";
@@ -49,17 +49,15 @@ function TrendChart({ data, empty }: { data: OverviewData["series"]; empty: stri
   );
 }
 
-/** 概览 KPI 卡。视觉与 legacy/frame 的 Kpi 保持一致（顶部淡品牌渐变 + 强调项实心图标 + 柔和投影），
- *  否则概览页会显得比后台其它页"轻"一档，整体不成体系。 */
+/** 中性指标卡，只在关键操作的图标上使用品牌色。 */
 function KpiCard({ label, icon, value, children, accent }: { label: string; icon: React.ReactNode; value: React.ReactNode; children?: React.ReactNode; accent?: boolean }) {
   return (
-    <div className={cn(card, "relative h-full overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30")}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--primary)_7%,transparent),transparent)]" aria-hidden />
+    <div className={cn(card, "relative h-full overflow-hidden")}>
       <div className="relative flex items-start justify-between gap-3">
         <p className="pt-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
         <span className={cn(
           "inline-flex size-9 shrink-0 items-center justify-center rounded-xl [&_svg]:size-4",
-          accent ? "bg-primary text-primary-foreground shadow-[0_8px_20px_-10px_color-mix(in_srgb,var(--primary)_85%,transparent)]" : "bg-muted/70 text-muted-foreground ring-1 ring-inset ring-border/60",
+          accent ? "bg-primary-tint text-accent-foreground" : "bg-muted/70 text-muted-foreground",
         )}>{icon}</span>
       </div>
       <p className="relative mt-3.5 text-[1.75rem] font-bold leading-none tracking-[-0.02em] text-foreground tabular-nums">{value}</p>
@@ -94,6 +92,12 @@ export function OverviewConsole() {
   const steps = [{ k: "注册", n: reg, rate: null as number | null, tone: "bg-primary/20" }, { k: "充值", n: f?.paid ?? 0, rate: f?.topupRate ?? 0, tone: "bg-primary/12" }, { k: "复购", n: f?.repeat ?? 0, rate: null, tone: "bg-primary/[0.07]" }];
   return (
     <div className={cn("w-full space-y-4", q.isFetching && !d && "opacity-60")}>
+      <header className="flex flex-wrap items-center justify-between gap-3 pb-1">
+        <div><h1 className="text-2xl font-semibold tracking-tight">管理概览</h1><p className="mt-1 text-sm text-muted-foreground">收入、客户与模型使用，一目了然。</p></div>
+        <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-card p-1" role="tablist" aria-label="统计区间">
+          {RANGES.map((r) => <button key={r.v} role="tab" aria-selected={range === r.v} onClick={() => setRange(r.v)} className={cn("min-h-9 rounded-lg px-3 text-xs font-medium transition-colors", range === r.v ? "bg-primary-tint text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>{r.l}</button>)}
+        </div>
+      </header>
       {q.isError && <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">加载失败：{(q.error as Error).message} <button className="ml-2 text-primary underline" onClick={() => q.refetch()}>重试</button></div>}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="累计收入" icon={<Link2 size={16} />} value={<Zap v={d?.totals.income.total ?? 0} />}><span className="text-muted-foreground">直接 <Zap v={d?.totals.income.direct ?? 0} /> · 间接 <Zap v={d?.totals.income.indirect ?? 0} /></span></KpiCard>
@@ -107,12 +111,6 @@ export function OverviewConsole() {
           <div key={String(k)} className="flex min-w-[9rem] flex-col"><span className="text-xs text-muted-foreground">{k}</span><span className="mt-1 text-lg font-semibold tabular-nums text-foreground">{v}</span><span className="mt-1"><span className="text-[11px] text-muted-foreground">{s}</span></span></div>
         ))}
       </section>
-
-      <div className="flex justify-end">
-        <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-card/40 p-0.5" role="tablist" aria-label="统计区间">
-          {RANGES.map((r) => <button key={r.v} role="tab" aria-selected={range === r.v} onClick={() => setRange(r.v)} className={cn("rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150", range === r.v ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground")}>{r.l}</button>)}
-        </div>
-      </div>
 
       <section className={card} aria-label="经营走势">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-sm font-semibold text-foreground">经营走势</h2></div>
@@ -161,8 +159,8 @@ export function OverviewConsole() {
         </section>
       </div>
 
-      <div className="fixed right-5 top-36 z-[80]">
-        <button type="button" onClick={() => setAgree(true)} aria-label="协议" title="协议" className="flex h-11 items-center gap-2 rounded-full border border-border bg-card px-4 text-foreground shadow-[0_8px_22px_-6px_rgba(0,0,0,0.35)] ring-1 ring-border/60 transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-6px_rgba(0,0,0,0.42)]"><ScrollText size={18} className="shrink-0 text-primary" /><span className="whitespace-nowrap text-xs font-semibold">协议</span></button>
+      <div className="flex justify-end border-t border-border pt-3">
+        <button type="button" onClick={() => setAgree(true)} aria-label="协议" className="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><ScrollText size={14} />平台服务协议</button>
       </div>
       <AgreementDialog open={agree} onOpenChange={setAgree} />
     </div>

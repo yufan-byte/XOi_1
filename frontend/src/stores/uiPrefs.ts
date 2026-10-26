@@ -23,24 +23,16 @@ function readSidebarPreference(): SidebarPreference {
   }
 }
 
-function readAutoCollapsed(): boolean {
-  try {
-    return localStorage.getItem(SIDEBAR_AUTO_COLLAPSED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export default defineStore("uiPrefs", () => {
   /** 当 true 表示用户身处 /aiAssistant 时主动要求短暂恢复外围 chrome 以便横跳它页 */
   const aiAssistantChromeVisible = ref(false);
 
   /**
-   * auto：首次进入保持展开，第一次点业务入口后收成图标栏。
-   * expanded / compact：用户手动选择，后续切换业务不再自动覆盖。
+   * auto：桌面默认展开，不再因进入业务自动收窄。
+   * expanded / compact：只记住用户通过展开/收起按钮做出的选择。
    */
   const sidebarPreference = ref<SidebarPreference>(readSidebarPreference());
-  const sidebarAutoCollapsed = ref(readAutoCollapsed());
+  const sidebarAutoCollapsed = ref(false);
 
   function persistSidebar(): void {
     try {
@@ -53,9 +45,7 @@ export default defineStore("uiPrefs", () => {
   }
 
   function collapseSidebarForNavigation(): void {
-    if (sidebarPreference.value !== "auto") return;
-    sidebarAutoCollapsed.value = true;
-    persistSidebar();
+    // Retain the legacy call surface; route navigation no longer changes sidebar width.
   }
 
   function toggleSidebar(currentlyCollapsed: boolean): void {
@@ -66,7 +56,7 @@ export default defineStore("uiPrefs", () => {
   function isSidebarCollapsed(): boolean {
     if (sidebarPreference.value === "compact") return true;
     if (sidebarPreference.value === "expanded") return false;
-    return sidebarAutoCollapsed.value;
+    return false;
   }
 
   /** 翻转上述标志位 —— 由创作者台内的入口按钮调用,触发 WorkbenchLayout 与本地面板双双响应 */

@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import { build } from '../atelier/node_modules/esbuild/lib/main.js';
+async function compile(entry,stub){const out=await build({entryPoints:[entry],absWorkingDir:new URL('..',import.meta.url).pathname,bundle:true,format:'esm',platform:'node',write:false,plugins:[{name:'fixture',setup(b){b.onResolve({filter:/^@\//},()=>({path:'fixture',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:stub,loader:'js'}));}}]});return import('data:text/javascript;base64,'+Buffer.from(out.outputFiles[0].text).toString('base64'));}
+const {fetchCurrentUser}=await compile('atelier/upstream/src/services/api/auth.ts','export const apiGet=()=>{};export const apiPost=()=>{};');
+const user={id:'7',role:'user',credits:123};
+globalThis.fetch=async()=>new Response(JSON.stringify(user));
+assert.deepEqual(await fetchCurrentUser('fixture'),user);
+globalThis.fetch=async()=>new Response(JSON.stringify({code:0,data:user}));
+assert.deepEqual(await fetchCurrentUser('fixture'),user);
+globalThis.fetch=async()=>new Response(JSON.stringify({message:'expired'}),{status:401});
+await assert.rejects(fetchCurrentUser('fixture'),e=>e.status===401);
+const {useUserStore}=await compile('atelier/upstream/src/stores/use-user-store.ts',`export const AUTH_TOKEN_KEY='fixture';export const fetchCurrentUser=(...a)=>globalThis.authFixture(...a);export const login=()=>{};export const register=()=>{};`);
+useUserStore.setState({token:'current',user});
+globalThis.authFixture=async()=>{throw Object.assign(new Error('temporary'),{status:503});};
+await useUserStore.getState().hydrateUser();assert.equal(useUserStore.getState().token,'current');
+let resolveOld;globalThis.authFixture=()=>new Promise(r=>resolveOld=r);
+const old=useUserStore.getState().hydrateUser();useUserStore.setState({token:'new',user:{id:'8'}});resolveOld(user);await old;
+assert.equal(useUserStore.getState().user.id,'8');
+globalThis.authFixture=async()=>{throw Object.assign(new Error('expired'),{status:401});};
+await useUserStore.getState().hydrateUser();assert.equal(useUserStore.getState().token,'');
+console.log('PASS: flat/enveloped identity; transient errors preserve login; stale refresh cannot overwrite switched account; 401 signs out');

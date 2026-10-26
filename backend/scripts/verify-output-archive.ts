@@ -9,7 +9,7 @@ import os from "node:os";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 
-const base = "http://localhost:10588";
+const base = "http://localhost:12121";
 const database = new pg.Client({ connectionString: process.env.NEWAPI_DATABASE_URL || process.env.NEWAPI_PG_URL, connectionTimeoutMillis: 10000 });
 const name = "__归档验收__" + randomUUID();
 let projectId: number | undefined, uploadedUrl = "", token = "", temp = "";

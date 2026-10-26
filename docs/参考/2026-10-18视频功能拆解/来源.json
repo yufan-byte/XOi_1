@@ -1,0 +1,12 @@
+{
+  "source": "/Users/zhaochenyu/Desktop/13436784201843140.mp4",
+  "durationSeconds": 91.091882,
+  "resolution": [
+    1024,
+    576
+  ],
+  "sha256": "0470c8aea7e1bc0dc0da0ae614ebbbe0980bf71ba1791f0703904fff434b40cf",
+  "method": "每5秒总览、每秒字幕条、每3秒全帧复核，并定点抽取示例；未对原音轨另做转写，功能解读依据画面与嵌入字幕。",
+  "claimBoundary": "演示视频不是代码或可复现实测，不能证实所有画面由同一模型或同一输入直接生成。",
+  "reviewDate": "2026-10-18"
+}

@@ -1,0 +1,45 @@
+# 2核2G 低内存部署变体（叠加在 compose.prod.yml 之上）
+# 用法：docker compose -f compose.prod.yml -f compose.2c2g.override.yml up -d
+#
+# 原则：2G 内存跑三个进程（PostgreSQL + new-api + XOi Node）必须各给硬顶，
+# 系统留 ~400MB；构建（npm ci/vite）绝不在服务器上做 —— 镜像在本地/CI 构建后推送，
+# 服务器只 docker pull + up -d（版本更新走发布中心显示的镜像标签流程）。
+services:
+  postgres:
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - effective_cache_size=384MB
+      - -c
+      - max_connections=40
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=48MB
+    mem_limit: 640m
+    memswap_limit: 800m
+
+  new-api:
+    environment:
+      # 网关是 Go 单进程，默认缓存已关；压低连接数与批量缓冲
+      SQL_MAX_OPEN_CONNS: "12"
+      SQL_MAX_IDLE_CONNS: "3"
+      BATCH_UPDATE_ENABLED: "false"
+      MEMORY_CACHE_ENABLED: "false"
+    mem_limit: 320m
+    memswap_limit: 400m
+
+  xoi:
+    environment:
+      NODE_OPTIONS: --max-old-space-size=512
+      XOI_DB_POOL_MAX: "6"
+      XOI_AGENT_DB_POOL_MAX: "6"
+      XOI_MODEL_GLOBAL_CONCURRENCY: "16"
+      XOI_MODEL_USER_CONCURRENCY: "2"
+      XOI_MEDIA_WORKERS: "2"
+      XOI_MEDIA_QUEUE_GLOBAL_LIMIT: "48"
+      XOI_MEDIA_QUEUE_USER_LIMIT: "4"
+    mem_limit: 700m
+    memswap_limit: 850m

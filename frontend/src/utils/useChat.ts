@@ -1,6 +1,8 @@
 // useChat.ts
-import { ref, shallowRef, onMounted, onUnmounted, computed } from "vue";
+import { ref, shallowRef, onMounted, onUnmounted, computed, onScopeDispose } from "vue";
+import { accountBoundary } from './accountBoundary';
 import { io, Socket } from "socket.io-client";
+import { authorizeModelCall, modelCallSubmitted } from "./billingGate";
 import type { ChatMessagesData, AIMessage, UserMessage, AIMessageContent, ChatMessageStatus } from "@tdesign-vue-next/chat";
 
 // Socket 事件类型定义
@@ -58,7 +60,7 @@ export interface XmlTagOption {
 
 export interface ChatSocketEvents {
   // 发送事件
-  chat: { content: string; attachments?: any[]; skills?: string[] };
+  chat: { content: string; attachments?: any[]; skills?: string[]; model?: string; billingId?: string };
   stop: { messageId: string };
   regenerate: { messageId: string };
 
@@ -84,6 +86,7 @@ export interface UseChatOptions {
 }
 
 export function useChat(options: UseChatOptions) {
+  const owner = accountBoundary.capture();
   const {
     url,
     auth,
@@ -574,6 +577,7 @@ export function useChat(options: UseChatOptions) {
 
   // 连接管理
   const connect = () => {
+    if (!accountBoundary.current(owner)) return;
     if (socket.value?.connected || connecting.value) return;
 
     connecting.value = true;
@@ -586,9 +590,13 @@ export function useChat(options: UseChatOptions) {
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 10000,
-        auth: { token: localStorage.getItem("token"), ...(typeof auth === "function" ? auth() : auth) },
+        auth: { token: owner.token, ...(typeof auth === "function" ? auth() : auth) },
       });
-
+      socket.value.onAny(() => {
+        if(!accountBoundary.current(owner)){
+          socket.value?.disconnect();socket.value?.removeAllListeners();socket.value=null;
+        }
+      });
       setupHandlers();
     } else {
       socket.value.connect();
@@ -608,6 +616,7 @@ export function useChat(options: UseChatOptions) {
 
   // 发送方法
   const emit = <E extends keyof ChatSocketEvents & string>(event: E, data?: ChatSocketEvents[E]) => {
+    if (!accountBoundary.current(owner)) return false;
     if (!socket.value?.connected) {
       console.warn("[Chat] Socket not connected");
       return false;
@@ -631,8 +640,17 @@ export function useChat(options: UseChatOptions) {
   };
 
   // 业务方法
-  const chat = (content: string, attachments?: any[], skills?: string[]) => {
+  let confirming = false;
+  const chat = async (content: string, attachments?: any[], skills?: string[], model?: string) => {
+    if (!accountBoundary.current(owner)) return false;
     if (!content.trim() && !attachments?.length) return false;
+    if (!socket.value?.connected || confirming || status.value !== "idle") return false;
+    confirming = true;
+    let ticket;
+    try { ticket = await authorizeModelCall(new URL(url, window.location.href).pathname, { content, model }); }
+    catch (error) { lastError.value = (error as Error).message; return false; }
+    finally { confirming = false; }
+    if (!accountBoundary.current(owner) || !socket.value?.connected) return false;
 
     const userMessage: UserMessage = {
       id: `user_${Date.now()}`,
@@ -666,7 +684,8 @@ export function useChat(options: UseChatOptions) {
     }
 
     lastError.value = "";
-    const sent = emit("chat", { content, attachments, skills });
+    const sent = emit("chat", { content, attachments, skills, model, billingId: ticket?.id });
+    if (sent) { status.value = "pending"; modelCallSubmitted(ticket); }
     if (!sent) {
       lastError.value = "消息发送失败，请点击“重连”后重试";
     }
@@ -688,8 +707,9 @@ export function useChat(options: UseChatOptions) {
     return emit("stop", { messageId: id });
   };
 
-  const regenerate = (messageId: string) => {
-    return emit("regenerate", { messageId });
+  const regenerate = (_messageId: string) => {
+    lastError.value = "重新生成会再次产生用量，请编辑内容并确认费用后发送";
+    return false;
   };
 
   // 消息管理
@@ -739,6 +759,11 @@ export function useChat(options: UseChatOptions) {
   };
 
   // 生命周期
+  const detach = accountBoundary.subscribe(() => {
+    disconnect(); socket.value?.removeAllListeners(); socket.value = null;
+    clearMessages();
+  });
+  onScopeDispose(detach);
   if (manageLifecycle) {
     onMounted(() => {
       if (autoConnect) connect();

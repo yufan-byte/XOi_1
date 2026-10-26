@@ -4,9 +4,10 @@ import { success, error } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { z } from "zod";
 import { v4 as uuid } from "uuid";
+import { extFromDataUrl, MediaWriteError, saveBase64Media } from "@/utils/mediaWrite";
 const router = express.Router();
 
-// 文件上传（支持图片、音频、视频）
+// 文件上传（图片流程内使用，只收位图）
 export default router.post(
   "/",
   validateFields({
@@ -16,31 +17,23 @@ export default router.post(
   }),
   async (req, res) => {
     const { base64Data, projectId, scriptId } = req.body;
-    function getExtFromBase64(base64Data: string): string {
-      const mime = base64Data.match(/^data:([^;]+);base64,/)?.[1] ?? "";
-      const mimeMap: Record<string, string> = {
-        // 图片
-        "image/jpeg": "jpeg",
-        "image/jpg": "jpg",
-        "image/png": "png",
-        // 音频
-        "audio/mpeg": "mp3",
-        "audio/mp3": "mp3",
-        "audio/wav": "wav",
-        // 视频
-        "video/mp4": "mp4",
-        "video/webm": "webm",
-      };
-      return mimeMap[mime] ?? "bin";
-    }
-    const ext = getExtFromBase64(base64Data);
+    const userId = Number((req as any).user?.id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(401).send(error("未登录"));
+
+    const ext = extFromDataUrl(base64Data);
     if (!["jpeg", "jpg", "png"].includes(ext)) {
       return res.status(400).send(error("不支持的文件类型"));
     }
     const savePath = `/${projectId}/imageFlow/${scriptId}/${uuid()}.${ext}`;
 
-    await u.oss.writeFile(savePath, Buffer.from(base64Data.match(/base64,([A-Za-z0-9+/=]+)/)[1] ?? "", "base64"));
-    const url = await u.oss.getSmallImageUrl(savePath);
-    res.status(200).send(success(url));
+    try {
+      // 统一收口：魔数校验 + 大小上限 + 磁盘水位 + 按项目域记账
+      await saveBase64Media({ userId, scope: "project", relPath: savePath, base64: base64Data, ext });
+    } catch (e) {
+      if (e instanceof MediaWriteError) return res.status(e.status).send(error(e.message));
+      throw e;
+    }
+
+    res.status(200).send(success(await u.oss.getSmallImageUrl(savePath)));
   },
 );

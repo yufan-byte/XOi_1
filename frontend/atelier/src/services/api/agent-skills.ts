@@ -29,31 +29,31 @@ export type AgentSkill = {
     files?: AgentSkillFile[];
 };
 
-function frontmatter(content: string) {
-    const block = content.match(/^\uFEFF?---\s*\r?\n([\s\S]*?)\r?\n---/)?.[1] || "";
-    return {
-        name: block.match(/^name:\s*["']?(.+?)["']?\s*$/m)?.[1],
-        description: block.match(/^description:\s*["']?(.+?)["']?\s*$/m)?.[1],
-    };
-}
+type SystemSkillMetadata = { path: string; name?: string; description?: string; hasFiles?: boolean };
 
 export async function fetchSystemAgentSkills() {
     try {
-        const paths = await apiPost<string[]>("/api/setting/skillManagement/getSkillList");
-        const selected = (paths || []).filter((path) => /(?:^|\/)SKILL\.md$/i.test(path) || /^community\/[^/]+\.md$/i.test(path));
-        const results = await Promise.allSettled(selected.map(async (path, sort): Promise<AgentSkill> => {
-            const content = await apiPost<string>("/api/setting/skillManagement/getSkillContent", { path });
-            const meta = frontmatter(content);
-            const director = DIRECTOR_SKILLS.find((skill) => path === `purchased/director/${skill.id}/SKILL.md`);
+        const catalog = await apiPost<Array<string | SystemSkillMetadata>>("/api/setting/skillManagement/getSkillList", { metadataOnly: true });
+        const remote = catalog.flatMap((entry, sort): AgentSkill[] => {
+            // Older servers can return path-only lists without causing N content requests.
+            const metadata = typeof entry === "string" ? { path: entry } : entry;
+            const path = metadata?.path || "";
+            if (!/(?:^|\/)SKILL\.md$/i.test(path) && !/^community\/[^/]+\.md$/i.test(path)) return [];
+            const director = DIRECTOR_SKILLS.find(skill => path === `purchased/director/${skill.id}/SKILL.md`);
             const fallback = /(?:^|\/)SKILL\.md$/i.test(path) ? path.split("/").at(-2) || "系统技能" : path.split("/").pop()?.replace(/\.md$/i, "") || path;
-            return { id: path, ownerUserId: "", source: "system", name: director?.name || meta.name || fallback, description: director?.description || meta.description || "系统创作工作流", coverUrl: "", coverStorageKey: "", content, enabled: true, sort, createdAt: "", updatedAt: "", hasFiles: /\/SKILL\.md$/i.test(path) };
-        }));
-        const remote = results.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
-        if (remote.length) return [...BUILTIN_SAFE_SKILLS, ...remote];
-    } catch {
-        // 本地宿主未部署系统 Skill 接口时使用安全内置库。
-    }
-    return BUILTIN_SAFE_SKILLS;
+            return [{ id: path, ownerUserId: "", source: "system", name: director?.name || metadata.name || fallback, description: director?.description || metadata.description || "选用后读取工作流", coverUrl: "", coverStorageKey: "", content: "", enabled: true, sort, createdAt: "", updatedAt: "", hasFiles: metadata.hasFiles ?? /\/SKILL\.md$/i.test(path) }];
+        });
+        return [...BUILTIN_SAFE_SKILLS, ...remote];
+    } catch { return BUILTIN_SAFE_SKILLS; }
+}
+
+/** Only the current selection is resolved; user-imported text never becomes a server path. */
+export async function resolveAgentSkillContent(skill: AgentSkill): Promise<AgentSkill> {
+    if (skill.content.trim()) return skill;
+    if (skill.source !== "system" || (!/(?:^|\/)SKILL\.md$/i.test(skill.id) && !/^community\/[^/]+\.md$/i.test(skill.id))) throw new Error(`技能「${skill.name}」没有可用正文`);
+    const content = await apiPost<string>("/api/setting/skillManagement/getSkillContent", { path: skill.id });
+    if (typeof content !== "string" || !content.trim()) throw new Error(`技能「${skill.name}」正文为空`);
+    return { ...skill, content };
 }
 
 const BUILTIN_SAFE_SKILLS: AgentSkill[] = [

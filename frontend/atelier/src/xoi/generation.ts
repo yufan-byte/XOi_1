@@ -15,7 +15,7 @@ import type { ReferenceImage } from "@/types/image";
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
 
 export type ServerTaskSubmit = { task_id: string; pointsDeducted?: number | null; balance?: number | null };
-export type ServerTaskState = { status: "running" | "succeeded" | "failed"; result?: Record<string, any>; error?: string };
+export type ServerTaskState = { status: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "unknown"; result?: Record<string, any>; error?: string };
 
 /** 提示器默认走 antd 静态方法；宿主组件可用 setPointsNotifier 注入 App.useApp() 实例以获得主题上下文。 */
 let notifyText = (text: string): unknown => staticMessage.info(text);
@@ -57,15 +57,17 @@ export async function pollServerTaskUntilDone(
     options?: { signal?: AbortSignal; intervalMs?: number; maxAttempts?: number },
 ): Promise<Record<string, any>> {
     const intervalMs = options?.intervalMs ?? 2000;
-    const maxAttempts = options?.maxAttempts ?? 300;
+    const maxAttempts = options?.maxAttempts ?? 900;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
         const state = await getServerTaskState(path, taskId, options?.signal);
         if (state.status === "succeeded") return state.result || {};
         if (state.status === "failed") throw new Error(state.error || apiText("requestFailed"));
+        if (state.status === "cancelled") throw new Error(state.error || "任务已取消，未提交上游");
+        if (state.status === "unknown") throw new Error(state.error || "任务结果待核实，请查询原任务，勿重复生成");
         await delay(intervalMs, options?.signal);
     }
-    throw new Error(i18n.t("apiErrors.serverTaskTimeout"));
+    throw new Error("等待结果超时，不代表上游任务已取消；请查询原任务，勿重复生成");
 }
 
 /** 生成参考图载荷：dataUrl 已被上游水合（后端 URL 或 dataURL），storageKey 兜底 */
@@ -107,14 +109,8 @@ export function delay(ms: number, signal?: AbortSignal) {
             reject(new DOMException("Aborted", "AbortError"));
             return;
         }
-        const timer = setTimeout(resolve, ms);
-        signal?.addEventListener(
-            "abort",
-            () => {
-                clearTimeout(timer);
-                reject(new DOMException("Aborted", "AbortError"));
-            },
-            { once: true },
-        );
+        const onAbort=()=>{clearTimeout(timer);reject(new DOMException("Aborted","AbortError"));};
+        const timer=setTimeout(()=>{signal?.removeEventListener("abort",onAbort);resolve();},ms);
+        signal?.addEventListener("abort",onAbort,{once:true});
     });
 }

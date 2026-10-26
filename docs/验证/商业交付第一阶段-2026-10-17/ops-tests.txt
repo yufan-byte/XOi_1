@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: container and proxy defaults follow the independent XOi port and include clean-build dependencies
+ok 1 - container and proxy defaults follow the independent XOi port and include clean-build dependencies
+  ---
+  duration_ms: 28.134875
+  type: 'test'
+  ...
+# Subtest: new release never overwrites code or customer data inside a legacy volume
+ok 2 - new release never overwrites code or customer data inside a legacy volume
+  ---
+  duration_ms: 934.967833
+  type: 'test'
+  ...
+# Subtest: missing releases and symlink data roots cannot modify arbitrary directories
+ok 3 - missing releases and symlink data roots cannot modify arbitrary directories
+  ---
+  duration_ms: 61.009834
+  type: 'test'
+  ...
+# Subtest: preflight only reads and refuses a different app or release
+ok 4 - preflight only reads and refuses a different app or release
+  ---
+  duration_ms: 665.958459
+  type: 'test'
+  ...
+# Subtest: separate default port, explicit override and invalid values
+ok 5 - separate default port, explicit override and invalid values
+  ---
+  duration_ms: 1.278875
+  type: 'test'
+  ...
+# Subtest: foreign or mismatched health replies are never adopted
+ok 6 - foreign or mismatched health replies are never adopted
+  ---
+  duration_ms: 0.160083
+  type: 'test'
+  ...
+# Subtest: never kill self, invalid PID, or an unrelated process
+ok 7 - never kill self, invalid PID, or an unrelated process
+  ---
+  duration_ms: 0.182292
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2455.393125

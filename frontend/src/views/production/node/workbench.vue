@@ -1,12 +1,9 @@
 <template>
-  <t-card class="workbench">
-    <div class="titleBar dragHandle pr">
-      <div>
-        <div class="title">视频工作台</div>
-        <div class="titleHint">预览 → 生成 → 剪辑成片</div>
-      </div>
-      <Handle :id="props.handleIds.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
-      <!-- <Handle :id="props.handleIds.source" type="source" :position="Position.Right" /> -->
+  <t-card class="workbench" :class="{ fluid: standalone }">
+    <div class="titleBar" :class="{ dragHandle: !standalone, pr: !standalone }">
+      <DirectorNodeHeading node-id="workbench" step="06" label="EDITING" title="分镜与视频" description="先预览本集画面，再自主选择方式生成视频" />
+      <Handle v-if="!standalone" :id="props.handleIds!.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
+      <Handle v-if="!standalone" :id="props.handleIds!.source" type="source" :position="Position.Right" style="right: calc(-1 * var(--td-comp-paddingLR-xl))" />
     </div>
     <div class="videoPreview" @click.stop="openWorkbench('preview')">
       <div class="videoPlaceholder" :style="{ background: workbenchData?.gradient }">
@@ -36,15 +33,17 @@
 </template>
 
 <script setup lang="ts">
+import DirectorNodeHeading from "./DirectorNodeHeading.vue";
 import workbench from "../components/workbench/index.vue";
 import { Handle, Position } from "@vue-flow/core";
+import productionAgentStore from "@/stores/productionAgent";
 
 const visible = ref(false);
+watch(visible, (open, wasOpen) => { if (!open && wasOpen) void productionAgentStore().getFlowData(); });
 const workbenchRef = ref<{ setActiveMenu?: (menu: string) => void }>();
 
-function openWorkbench(tab = "preview") {
-  visible.value = true;
-  nextTick(() => workbenchRef.value?.setActiveMenu?.(tab));
+function openWorkbench(tab = "generate") {
+  window.dispatchEvent(new CustomEvent("production:open-studio", {detail:{tab}}));
 }
 
 function focusWorkbench(event: Event) {
@@ -67,11 +66,12 @@ interface WorkbenchData {
 }
 
 const props = defineProps<{
-  id: string;
-  handleIds: {
+  id?: string;
+  handleIds?: {
     target: string;
     source: string;
   };
+  standalone?: boolean;
 }>();
 
 const workbenchData = defineModel<WorkbenchData>({ required: true });
@@ -83,6 +83,11 @@ const workbenchData = defineModel<WorkbenchData>({ required: true });
   min-width: 280px;
   user-select: text;
   transition: filter 0.1s;
+
+  &.fluid {
+    width: 100%;
+    min-width: 0;
+  }
   &:hover {
     .playButton {
       transform: scale(1.1);

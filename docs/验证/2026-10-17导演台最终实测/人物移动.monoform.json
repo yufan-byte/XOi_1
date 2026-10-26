@@ -1,0 +1,5721 @@
+{
+  "version": 16,
+  "settings": {
+    "name": "未命名场景",
+    "fps": 24,
+    "durationSeconds": 4,
+    "loopPlayback": false
+  },
+  "activeShotId": "shot-scene-cbeb9413-7062-4b1d-a2fa-698a9fdd6e1b",
+  "shots": [
+    {
+      "id": "shot-01",
+      "name": "镜头 01",
+      "thumbnail": "",
+      "fps": 24,
+      "durationSeconds": 15,
+      "loopPlayback": false,
+      "objects": [
+        {
+          "id": "actor-lead",
+          "name": "人物 · 主角",
+          "type": "person",
+          "bodyType": "standard",
+          "pose": "walk",
+          "poseTime": 0.24,
+          "continuousMotion": false,
+          "position": [
+            -1.25,
+            0,
+            0.3
+          ],
+          "rotation": [
+            0,
+            0.25,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#e8e3d8",
+          "joints": {
+            "mixamorigHips": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigNeck": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHead": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHeadTop_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "rigRoot": [
+            0,
+            0,
+            0
+          ],
+          "footLock": false
+        },
+        {
+          "id": "block-stage",
+          "name": "平台",
+          "type": "box",
+          "position": [
+            1.4,
+            0.45,
+            -0.8
+          ],
+          "rotation": [
+            0,
+            -0.18,
+            0
+          ],
+          "scale": [
+            2.8,
+            0.9,
+            2.1
+          ],
+          "color": "#9a968c"
+        },
+        {
+          "id": "block-step",
+          "name": "台阶",
+          "type": "box",
+          "position": [
+            2.9,
+            0.18,
+            0.55
+          ],
+          "rotation": [
+            0,
+            -0.18,
+            0
+          ],
+          "scale": [
+            1.7,
+            0.36,
+            1.1
+          ],
+          "color": "#77746d"
+        }
+      ],
+      "camera": {
+        "position": [
+          7.4,
+          4.6,
+          8.2
+        ],
+        "rotation": [
+          -0.30203991498414945,
+          0.7205541358442417,
+          0
+        ],
+        "focalLength": 42,
+        "aspectRatio": "16:9"
+      },
+      "lighting": {
+        "ambientIntensity": 1.35,
+        "keyIntensity": 2.8,
+        "fillIntensity": 1.1,
+        "keyAzimuth": 39,
+        "keyElevation": 51,
+        "exposure": 0.9,
+        "ambientColor": "#f7f1e6",
+        "keyColor": "#fff6e8",
+        "fillColor": "#a9c2c6"
+      },
+      "reference": {
+        "image": "",
+        "name": "",
+        "opacity": 0.45,
+        "scale": 1,
+        "x": 0,
+        "y": 0,
+        "visible": true,
+        "includeInExport": false
+      },
+      "keyframes": [],
+      "objectKeyframes": {}
+    },
+    {
+      "id": "shot-scene-1b12900d-79c2-46da-8a50-9e3a86f5f6e8",
+      "name": "白模桌边对话搭建",
+      "thumbnail": "",
+      "fps": 24,
+      "durationSeconds": 15,
+      "loopPlayback": false,
+      "objects": [
+        {
+          "id": "actor-lead",
+          "name": "人物 · 主角",
+          "type": "person",
+          "bodyType": "standard",
+          "pose": "walk",
+          "poseTime": 0.24,
+          "continuousMotion": false,
+          "position": [
+            -1.25,
+            0,
+            0.3
+          ],
+          "rotation": [
+            0,
+            0.25,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#e8e3d8",
+          "joints": {
+            "mixamorigHips": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigNeck": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHead": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHeadTop_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "rigRoot": [
+            0,
+            0,
+            0
+          ],
+          "footLock": false
+        },
+        {
+          "id": "block-stage",
+          "name": "平台",
+          "type": "box",
+          "position": [
+            1.4,
+            0.45,
+            -0.8
+          ],
+          "rotation": [
+            0,
+            -0.18,
+            0
+          ],
+          "scale": [
+            2.8,
+            0.9,
+            2.1
+          ],
+          "color": "#9a968c"
+        },
+        {
+          "id": "block-step",
+          "name": "台阶",
+          "type": "box",
+          "position": [
+            2.9,
+            0.18,
+            0.55
+          ],
+          "rotation": [
+            0,
+            -0.18,
+            0
+          ],
+          "scale": [
+            1.7,
+            0.36,
+            1.1
+          ],
+          "color": "#77746d"
+        },
+        {
+          "id": "object-assistant-4fd70a4c-d24d-42d1-a00e-f88ad417ae3f",
+          "name": "桌子",
+          "type": "table",
+          "position": [
+            0,
+            0.44,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "object-assistant-c2933fff-fac8-4bcb-89da-0e85346603aa",
+          "name": "椅子A",
+          "type": "chair",
+          "position": [
+            -1.2,
+            0.51,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "object-assistant-40e398a7-aa1e-414e-a7f8-94c7822dafa0",
+          "name": "椅子B",
+          "type": "chair",
+          "position": [
+            1.2,
+            0.51,
+            0
+          ],
+          "rotation": [
+            0,
+            3.141592653589793,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+          "name": "记者",
+          "type": "person",
+          "position": [
+            -1.2,
+            -0.0050000000000000044,
+            0
+          ],
+          "rotation": [
+            0,
+            3.141592653589793,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false,
+          "bodyType": "standard",
+          "pose": "sit",
+          "poseTime": 1,
+          "rigRoot": [
+            0,
+            0,
+            0
+          ],
+          "joints": {
+            "mixamorigHips": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigNeck": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHead": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHeadTop_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "continuousMotion": false,
+          "footLock": false
+        },
+        {
+          "id": "object-assistant-5a272745-2d14-4e57-939f-58f001348cae",
+          "name": "受访者",
+          "type": "person",
+          "position": [
+            1.2,
+            -0.0050000000000000044,
+            0
+          ],
+          "rotation": [
+            0,
+            -2.4492935982947064e-16,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false,
+          "bodyType": "standard",
+          "pose": "sit",
+          "poseTime": 1,
+          "rigRoot": [
+            0,
+            0,
+            0
+          ],
+          "joints": {
+            "mixamorigHips": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigNeck": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHead": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHeadTop_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "continuousMotion": false,
+          "footLock": false
+        }
+      ],
+      "camera": {
+        "position": [
+          0,
+          2.5,
+          5
+        ],
+        "rotation": [
+          -0.30288486837497136,
+          0,
+          0
+        ],
+        "focalLength": 35,
+        "aspectRatio": "16:9"
+      },
+      "lighting": {
+        "ambientIntensity": 1.35,
+        "keyIntensity": 2.8,
+        "fillIntensity": 1.1,
+        "keyAzimuth": 39,
+        "keyElevation": 51,
+        "exposure": 0.9,
+        "ambientColor": "#f7f1e6",
+        "keyColor": "#fff6e8",
+        "fillColor": "#a9c2c6"
+      },
+      "reference": {
+        "image": "",
+        "name": "",
+        "opacity": 0.45,
+        "scale": 1,
+        "x": 0,
+        "y": 0,
+        "visible": true,
+        "includeInExport": false
+      },
+      "keyframes": [],
+      "objectKeyframes": {}
+    },
+    {
+      "id": "shot-scene-cbeb9413-7062-4b1d-a2fa-698a9fdd6e1b",
+      "name": "记者向右行走",
+      "thumbnail": "",
+      "fps": 24,
+      "durationSeconds": 4,
+      "loopPlayback": false,
+      "objects": [
+        {
+          "id": "actor-lead",
+          "name": "人物 · 主角",
+          "type": "person",
+          "bodyType": "standard",
+          "pose": "walk",
+          "poseTime": 0.24,
+          "continuousMotion": false,
+          "position": [
+            -1.25,
+            0,
+            0.3
+          ],
+          "rotation": [
+            0,
+            0.25,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#e8e3d8",
+          "joints": {
+            "mixamorigHips": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigNeck": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHead": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHeadTop_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "rigRoot": [
+            0,
+            0,
+            0
+          ],
+          "footLock": false
+        },
+        {
+          "id": "block-stage",
+          "name": "平台",
+          "type": "box",
+          "position": [
+            1.4,
+            0.45,
+            -0.8
+          ],
+          "rotation": [
+            0,
+            -0.18,
+            0
+          ],
+          "scale": [
+            2.8,
+            0.9,
+            2.1
+          ],
+          "color": "#9a968c"
+        },
+        {
+          "id": "block-step",
+          "name": "台阶",
+          "type": "box",
+          "position": [
+            2.9,
+            0.18,
+            0.55
+          ],
+          "rotation": [
+            0,
+            -0.18,
+            0
+          ],
+          "scale": [
+            1.7,
+            0.36,
+            1.1
+          ],
+          "color": "#77746d"
+        },
+        {
+          "id": "object-assistant-4fd70a4c-d24d-42d1-a00e-f88ad417ae3f",
+          "name": "桌子",
+          "type": "table",
+          "position": [
+            0,
+            0.44,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "object-assistant-c2933fff-fac8-4bcb-89da-0e85346603aa",
+          "name": "椅子A",
+          "type": "chair",
+          "position": [
+            -1.2,
+            0.51,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "object-assistant-40e398a7-aa1e-414e-a7f8-94c7822dafa0",
+          "name": "椅子B",
+          "type": "chair",
+          "position": [
+            1.2,
+            0.51,
+            0
+          ],
+          "rotation": [
+            0,
+            3.141592653589793,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+          "name": "记者",
+          "type": "person",
+          "position": [
+            -1.2,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            3.141592653589793,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false,
+          "bodyType": "standard",
+          "pose": "walk",
+          "poseTime": 0.24,
+          "rigRoot": [
+            0,
+            0,
+            0
+          ],
+          "joints": {
+            "mixamorigHips": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigNeck": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHead": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHeadTop_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "continuousMotion": true,
+          "footLock": false
+        },
+        {
+          "id": "object-assistant-5a272745-2d14-4e57-939f-58f001348cae",
+          "name": "受访者",
+          "type": "person",
+          "position": [
+            1.2,
+            -0.0050000000000000044,
+            0
+          ],
+          "rotation": [
+            0,
+            -2.4492935982947064e-16,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#d8d1c5",
+          "visible": true,
+          "locked": false,
+          "bodyType": "standard",
+          "pose": "sit",
+          "poseTime": 1,
+          "rigRoot": [
+            0,
+            0,
+            0
+          ],
+          "joints": {
+            "mixamorigHips": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigSpine2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigNeck": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHead": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigHeadTop_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightEye": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightShoulder": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightForeArm": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHand": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightUpLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightLeg": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightFoot": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToeBase": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightToe_End": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigLeftHandPinky4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandThumb4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandIndex4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandMiddle4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandRing4": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky1": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky2": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky3": [
+              0,
+              0,
+              0
+            ],
+            "mixamorigRightHandPinky4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "continuousMotion": false,
+          "footLock": false
+        }
+      ],
+      "camera": {
+        "position": [
+          0,
+          2.5,
+          5
+        ],
+        "rotation": [
+          -0.30288486837497136,
+          0,
+          0
+        ],
+        "focalLength": 35,
+        "aspectRatio": "16:9"
+      },
+      "lighting": {
+        "ambientIntensity": 1.35,
+        "keyIntensity": 2.8,
+        "fillIntensity": 1.1,
+        "keyAzimuth": 39,
+        "keyElevation": 51,
+        "exposure": 0.9,
+        "ambientColor": "#f7f1e6",
+        "keyColor": "#fff6e8",
+        "fillColor": "#a9c2c6"
+      },
+      "reference": {
+        "image": "",
+        "name": "",
+        "opacity": 0.45,
+        "scale": 1,
+        "x": 0,
+        "y": 0,
+        "visible": true,
+        "includeInExport": false
+      },
+      "keyframes": [],
+      "objectKeyframes": {
+        "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8": [
+          {
+            "frame": 0,
+            "interpolation": "linear",
+            "position": [
+              -1.2,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              3.141592653589793,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "pose": "walk",
+            "poseTime": 0.24,
+            "continuousMotion": true,
+            "rigRoot": [
+              0,
+              0,
+              0
+            ],
+            "joints": {
+              "mixamorigHips": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigNeck": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigHead": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigHeadTop_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftEye": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightEye": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftShoulder": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftForeArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHand": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightShoulder": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightForeArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHand": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftUpLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftFoot": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftToeBase": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftToe_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightUpLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightFoot": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightToeBase": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightToe_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky4": [
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "frame": 95,
+            "interpolation": "linear",
+            "position": [
+              0.8,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              3.141592653589793,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "pose": "walk",
+            "poseTime": 0.24,
+            "continuousMotion": true,
+            "rigRoot": [
+              0,
+              0,
+              0
+            ],
+            "joints": {
+              "mixamorigHips": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigNeck": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigHead": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigHeadTop_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftEye": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightEye": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftShoulder": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftForeArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHand": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightShoulder": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightForeArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHand": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftUpLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftFoot": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftToeBase": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftToe_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightUpLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightFoot": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightToeBase": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightToe_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky4": [
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "objects": [
+    {
+      "id": "actor-lead",
+      "name": "人物 · 主角",
+      "type": "person",
+      "bodyType": "standard",
+      "pose": "walk",
+      "poseTime": 0.24,
+      "continuousMotion": false,
+      "position": [
+        -1.25,
+        0,
+        0.3
+      ],
+      "rotation": [
+        0,
+        0.25,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "color": "#e8e3d8",
+      "joints": {
+        "mixamorigHips": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigNeck": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigHead": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigHeadTop_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftEye": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightEye": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftShoulder": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftForeArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHand": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightShoulder": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightForeArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHand": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftFoot": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftToeBase": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftToe_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightFoot": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightToeBase": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightToe_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky4": [
+          0,
+          0,
+          0
+        ]
+      },
+      "rigRoot": [
+        0,
+        0,
+        0
+      ],
+      "footLock": false
+    },
+    {
+      "id": "block-stage",
+      "name": "平台",
+      "type": "box",
+      "position": [
+        1.4,
+        0.45,
+        -0.8
+      ],
+      "rotation": [
+        0,
+        -0.18,
+        0
+      ],
+      "scale": [
+        2.8,
+        0.9,
+        2.1
+      ],
+      "color": "#9a968c"
+    },
+    {
+      "id": "block-step",
+      "name": "台阶",
+      "type": "box",
+      "position": [
+        2.9,
+        0.18,
+        0.55
+      ],
+      "rotation": [
+        0,
+        -0.18,
+        0
+      ],
+      "scale": [
+        1.7,
+        0.36,
+        1.1
+      ],
+      "color": "#77746d"
+    },
+    {
+      "id": "object-assistant-4fd70a4c-d24d-42d1-a00e-f88ad417ae3f",
+      "name": "桌子",
+      "type": "table",
+      "position": [
+        0,
+        0.44,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "color": "#d8d1c5",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "id": "object-assistant-c2933fff-fac8-4bcb-89da-0e85346603aa",
+      "name": "椅子A",
+      "type": "chair",
+      "position": [
+        -1.2,
+        0.51,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "color": "#d8d1c5",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "id": "object-assistant-40e398a7-aa1e-414e-a7f8-94c7822dafa0",
+      "name": "椅子B",
+      "type": "chair",
+      "position": [
+        1.2,
+        0.51,
+        0
+      ],
+      "rotation": [
+        0,
+        3.141592653589793,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "color": "#d8d1c5",
+      "visible": true,
+      "locked": false
+    },
+    {
+      "id": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+      "name": "记者",
+      "type": "person",
+      "position": [
+        -1.2,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        3.141592653589793,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "color": "#d8d1c5",
+      "visible": true,
+      "locked": false,
+      "bodyType": "standard",
+      "pose": "walk",
+      "poseTime": 0.24,
+      "rigRoot": [
+        0,
+        0,
+        0
+      ],
+      "joints": {
+        "mixamorigHips": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigNeck": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigHead": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigHeadTop_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftEye": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightEye": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftShoulder": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftForeArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHand": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightShoulder": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightForeArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHand": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftFoot": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftToeBase": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftToe_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightFoot": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightToeBase": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightToe_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky4": [
+          0,
+          0,
+          0
+        ]
+      },
+      "continuousMotion": true,
+      "footLock": false
+    },
+    {
+      "id": "object-assistant-5a272745-2d14-4e57-939f-58f001348cae",
+      "name": "受访者",
+      "type": "person",
+      "position": [
+        1.2,
+        -0.0050000000000000044,
+        0
+      ],
+      "rotation": [
+        0,
+        -2.4492935982947064e-16,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "color": "#d8d1c5",
+      "visible": true,
+      "locked": false,
+      "bodyType": "standard",
+      "pose": "sit",
+      "poseTime": 1,
+      "rigRoot": [
+        0,
+        0,
+        0
+      ],
+      "joints": {
+        "mixamorigHips": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigSpine2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigNeck": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigHead": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigHeadTop_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftEye": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightEye": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftShoulder": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftForeArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHand": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightShoulder": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightForeArm": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHand": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftFoot": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftToeBase": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftToe_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightLeg": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightFoot": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightToeBase": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightToe_End": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandThumb4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandIndex4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandMiddle4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandRing4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigLeftHandPinky4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandThumb4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandIndex4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandMiddle4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandRing4": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky1": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky2": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky3": [
+          0,
+          0,
+          0
+        ],
+        "mixamorigRightHandPinky4": [
+          0,
+          0,
+          0
+        ]
+      },
+      "continuousMotion": false,
+      "footLock": false
+    }
+  ],
+  "camera": {
+    "position": [
+      0,
+      2.5,
+      5
+    ],
+    "rotation": [
+      -0.30288486837497136,
+      0,
+      0
+    ],
+    "focalLength": 35,
+    "aspectRatio": "16:9"
+  },
+  "lighting": {
+    "ambientIntensity": 1.35,
+    "keyIntensity": 2.8,
+    "fillIntensity": 1.1,
+    "keyAzimuth": 39,
+    "keyElevation": 51,
+    "exposure": 0.9,
+    "ambientColor": "#f7f1e6",
+    "keyColor": "#fff6e8",
+    "fillColor": "#a9c2c6"
+  },
+  "reference": {
+    "image": "",
+    "name": "",
+    "opacity": 0.45,
+    "scale": 1,
+    "x": 0,
+    "y": 0,
+    "visible": true,
+    "includeInExport": false
+  },
+  "keyframes": [],
+  "objectKeyframes": {
+    "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8": [
+      {
+        "frame": 0,
+        "interpolation": "linear",
+        "position": [
+          -1.2,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          3.141592653589793,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "pose": "walk",
+        "poseTime": 0.24,
+        "continuousMotion": true,
+        "rigRoot": [
+          0,
+          0,
+          0
+        ],
+        "joints": {
+          "mixamorigHips": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigSpine": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigSpine1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigSpine2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigNeck": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigHead": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigHeadTop_End": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftEye": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightEye": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftShoulder": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftArm": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftForeArm": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHand": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightShoulder": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightArm": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightForeArm": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHand": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftUpLeg": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftLeg": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftFoot": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftToeBase": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftToe_End": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightUpLeg": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightLeg": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightFoot": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightToeBase": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightToe_End": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandThumb1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandThumb2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandThumb3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandThumb4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandIndex1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandIndex2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandIndex3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandIndex4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandMiddle1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandMiddle2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandMiddle3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandMiddle4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandRing1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandRing2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandRing3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandRing4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandPinky1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandPinky2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandPinky3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandPinky4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandThumb1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandThumb2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandThumb3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandThumb4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandIndex1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandIndex2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandIndex3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandIndex4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandMiddle1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandMiddle2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandMiddle3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandMiddle4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandRing1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandRing2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandRing3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandRing4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandPinky1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandPinky2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandPinky3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandPinky4": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "frame": 95,
+        "interpolation": "linear",
+        "position": [
+          0.8,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          3.141592653589793,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "pose": "walk",
+        "poseTime": 0.24,
+        "continuousMotion": true,
+        "rigRoot": [
+          0,
+          0,
+          0
+        ],
+        "joints": {
+          "mixamorigHips": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigSpine": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigSpine1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigSpine2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigNeck": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigHead": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigHeadTop_End": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftEye": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightEye": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftShoulder": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftArm": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftForeArm": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHand": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightShoulder": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightArm": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightForeArm": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHand": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftUpLeg": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftLeg": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftFoot": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftToeBase": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftToe_End": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightUpLeg": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightLeg": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightFoot": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightToeBase": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightToe_End": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandThumb1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandThumb2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandThumb3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandThumb4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandIndex1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandIndex2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandIndex3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandIndex4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandMiddle1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandMiddle2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandMiddle3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandMiddle4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandRing1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandRing2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandRing3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandRing4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandPinky1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandPinky2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandPinky3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigLeftHandPinky4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandThumb1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandThumb2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandThumb3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandThumb4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandIndex1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandIndex2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandIndex3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandIndex4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandMiddle1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandMiddle2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandMiddle3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandMiddle4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandRing1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandRing2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandRing3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandRing4": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandPinky1": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandPinky2": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandPinky3": [
+            0,
+            0,
+            0
+          ],
+          "mixamorigRightHandPinky4": [
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    ]
+  }
+}

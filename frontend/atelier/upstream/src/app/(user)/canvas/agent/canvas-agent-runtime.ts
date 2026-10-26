@@ -1,7 +1,6 @@
 import {
     CANVAS_AGENT_JSON_FALLBACK_SIGNAL,
     canvasAgentSystemPrompt,
-    canvasAgentTokenCalibrationKey,
     isCanvasAgentContextLimitError,
     requestCanvasAgentCheckpoint,
     requestCanvasAgentTurn,
@@ -17,11 +16,14 @@ import type {
     CanvasAssistantReference,
 } from "../types";
 import type { CanvasAgentContext } from "./canvas-agent-context";
-import { buildCanvasAgentSkillPrompt } from "./canvas-agent-skills";
+import { buildCanvasAgentSkillPrompt, buildCompactCanvasAgentPrompt, canvasAgentForbidsMediaGeneration } from "./canvas-agent-skills";
 import {
     compactCanvasAgentHistory,
-    estimateCanvasAgentInputTokens,
+    MAX_AGENT_INPUT_BYTES,
     MAX_AGENT_INPUT_TOKENS,
+    estimateCanvasAgentInputTokens,
+    measureCanvasAgentInputBytes,
+    slimCanvasAgentMessages,
     serializeCanvasAgentMessagesForCheckpoint,
 } from "./canvas-agent-memory";
 import {
@@ -33,10 +35,13 @@ import {
     parseCanvasAgentJson,
     userLikelyRequestedCanvasAction,
     type CanvasAgentAction,
+    type CanvasAgentToolDefinition,
     type CanvasAgentToolResult,
 } from "./canvas-agent-tools";
 
 const MAX_AGENT_STEPS = 12;
+/** 整轮运行总时长上限：单步已有 150s 硬超时，这里再兜一层，防止 12 步叠加成半小时。 */
+const MAX_AGENT_RUN_MS = 6 * 60_000;
 
 export type CanvasAgentRuntimeEvent = {
     status: CanvasAssistantMessageStatus;
@@ -84,19 +89,49 @@ export function createCanvasAgentState(): CanvasAgentState {
 
 export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCanvasAgentResult> {
     let state = input.initialState;
-    let toolMode: CanvasAgentToolMode = input.preferredJsonMode || "native";
+    // Budget the same text model/channel that transport actually uses, rather than the image default.
+    const textConfig = { ...input.config, model: input.config.textModel || input.config.model, activeChannelId: input.config.textChannelId || input.config.activeChannelId };
+    // DeepSeek 兼容线路对多轮原生 tool 消息的回包不稳定，统一使用可校验的 JSON 指令。
+    let toolMode: CanvasAgentToolMode = input.preferredJsonMode || (/deepseek/i.test(input.config.textModel || input.config.model) ? "structured-json" : "native");
     let usedJsonFallbackMode = input.preferredJsonMode;
     let hasExecutedActions = false;
+    let lastActionReply = "";
     let protocolError: string | undefined;
+    let protocolErrorCount = 0;
     let expectedAction = false;
     let protocolMessages: CanvasAgentProtocolMessage[] = [
         ...input.protocolMessages,
         { role: "user" as const, content: buildUserContent(input.userText, input.references, input.config.textModel || input.config.model) },
     ];
     let contextCheckpoint = input.contextCheckpoint;
-    const activeSkillContents = input.activeSkillContents?.map((skill, index) => `【完整 Skill ${index + 1}：${skill.name}（${skill.source === "system" ? `系统 Skill ID：${skill.id}` : "用户 Skill"}）】\n${skill.content}`).join("\n\n");
+    // Skill 全文曾把 system prompt 撑到 40KB+（单份 4 万字的 Skill 也照塞），是请求体超网关 80KB 红线的主因。
+    // 这里每份只注入前 6000 字、总量 16000 字封顶，剩余内容按需再取。
+    const SKILL_CONTENT_CHAR_LIMIT = 6_000;
+    const SKILL_TOTAL_CHAR_BUDGET = 16_000;
+    const activeSkillContents = (() => {
+        if (!input.activeSkillContents?.length) return undefined;
+        let total = 0;
+        const parts: string[] = [];
+        input.activeSkillContents.forEach((skill, index) => {
+            if (total >= SKILL_TOTAL_CHAR_BUDGET) return;
+            let content = String(skill.content || "");
+            if (content.length > SKILL_CONTENT_CHAR_LIMIT) content = `${content.slice(0, SKILL_CONTENT_CHAR_LIMIT)}…（${skill.name} 其余 ${content.length - SKILL_CONTENT_CHAR_LIMIT} 字已省略）`;
+            total += content.length;
+            parts.push(`【Skill ${index + 1}：${skill.name}（${skill.source === "system" ? `系统 Skill ID：${skill.id}` : "用户 Skill"}）】\n${content}`);
+        });
+        return parts.length ? parts.join("\n\n") : undefined;
+    })();
     const skillFileToolAvailable = Boolean(input.activeSkillContents?.some((skill) => skill.source === "system" && skill.hasFiles));
-    const agentTools = skillFileToolAvailable ? [...CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL] : CANVAS_AGENT_TOOLS;
+    const mediaGenerationForbidden = canvasAgentForbidsMediaGeneration(input.userText);
+    const mediaToolNames = new Set(["generate_image", "edit_image", "generate_video", "generate_audio", "get_media_task_status"]);
+    const mediaFilteredTools = mediaGenerationForbidden
+        ? CANVAS_AGENT_TOOLS.filter((tool) => !mediaToolNames.has(tool.function.name))
+        : CANVAS_AGENT_TOOLS;
+    // “继续制作”不授权模型为了整理或重试而删用户节点。
+    const deletionRequested = /(?:删除|删掉|清空|移除)/.test(input.userText) && !/(?:不|别|不要|禁止)(?:再|自动)?(?:删除|删掉|清空|移除)/.test(input.userText);
+    const availableTools = deletionRequested ? mediaFilteredTools : mediaFilteredTools.filter(tool => !["delete_node", "delete_connection"].includes(tool.function.name));
+    const scopedTools = scopeCanvasAgentTools(availableTools, input.userText);
+    const agentTools = skillFileToolAvailable ? [...scopedTools, CANVAS_AGENT_SKILL_FILE_TOOL] : scopedTools;
 
     const emitCheckpoint = () => input.onCheckpoint?.({
         state,
@@ -105,12 +140,13 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         jsonFallbackMode: usedJsonFallbackMode,
     });
 
-    const compactHistory = async () => {
+    const compactHistory = async (recentTokenBudget?: number) => {
         const compacted = await compactCanvasAgentHistory({
             protocolMessages,
             contextCheckpoint,
+            recentTokenBudget,
             createCheckpoint: (previousCheckpoint, messages) => requestCanvasAgentCheckpoint({
-                config: input.config,
+                config: textConfig,
                 previousCheckpoint,
                 messages: serializeCanvasAgentMessagesForCheckpoint(messages),
                 signal: input.signal,
@@ -123,32 +159,82 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         return true;
     };
 
+    const runStartedAt = Date.now();
+    // 当前 DeepSeek 兼容线路在约 11K 输入时偶发只返回 usage、choices 为空。
+    // 画布历史先在 9K 前瘦身/压缩，给工具 JSON 和最终回执留下可靠余量。
+    const inputTokenLimit = /deepseek/i.test(input.config.textModel || input.config.model) ? 9_000 : MAX_AGENT_INPUT_TOKENS;
     for (let step = 0; step < MAX_AGENT_STEPS; step++) {
         throwIfAborted(input.signal);
+        if (Date.now() - runStartedAt > MAX_AGENT_RUN_MS) {
+            return {
+                reply: "本轮执行超过 6 分钟已自动停止；已经完成的操作保留在画布上，可以直接继续或重试。",
+                state,
+                protocolMessages: persistCanvasAgentProtocolMessages(protocolMessages),
+                contextCheckpoint,
+                jsonFallbackMode: usedJsonFallbackMode,
+            };
+        }
         input.onEvent?.({ status: "thinking", label: step ? "正在根据画布结果继续" : "正在理解画布和创作目标" });
         const context = input.getContext(state);
         let systemPrompt = buildCanvasAgentSkillPrompt(state.phase, input.userText, context, activeSkillContents, contextCheckpoint, skillFileToolAvailable);
+        const compactPrompt = () => buildCompactCanvasAgentPrompt(context, activeSkillContents, contextCheckpoint, /deepseek/i.test(textConfig.model) ? 4_000 : 6_000);
         const nativeTools = toolMode === "native";
         const tools = nativeTools ? agentTools : [];
-        if (estimateCanvasAgentInputTokens({ systemPrompt: canvasAgentSystemPrompt(input.config, systemPrompt, nativeTools ? [] : agentTools, nativeTools), messages: protocolMessages, tools }, canvasAgentTokenCalibrationKey(input.config)) >= MAX_AGENT_INPUT_TOKENS) {
-            if (await compactHistory()) systemPrompt = buildCanvasAgentSkillPrompt(state.phase, input.userText, context, activeSkillContents, contextCheckpoint, skillFileToolAvailable);
+        const buildFullPrompt = () => canvasAgentSystemPrompt(textConfig, systemPrompt, nativeTools ? [] : agentTools, nativeTools);
+        const overBudget = () => {
+            const request = { systemPrompt: buildFullPrompt(), messages: protocolMessages, tools };
+            return measureCanvasAgentInputBytes(request) >= MAX_AGENT_INPUT_BYTES || estimateCanvasAgentInputTokens(request) >= inputTokenLimit;
+        };
+        if (overBudget()) {
+            // ① 无损瘦身：截断工具结果、历史图片换占位。不调模型、不花钱，绝大多数情况到这就够了。
+            protocolMessages = slimCanvasAgentMessages(protocolMessages);
+            emitCheckpoint();
+            // ② 先免费压缩本轮手册；不能先购买摘要，随后才发现手册本身仍占满预算。
+            if (overBudget()) systemPrompt = compactPrompt();
+            // ③ 小上下文线路不能固定留下 3K 历史，还需为工具定义、画布快照和检查点留空间。
+            if (overBudget() && await compactHistory(/deepseek/i.test(textConfig.model) ? 1_000 : undefined)) {
+                systemPrompt = compactPrompt();
+            }
         }
+        // The built-in manuals themselves can exceed a small model's context even with zero history.
+        // Switch to a complete concise contract instead of repeatedly summarizing an empty history.
+        if (overBudget()) systemPrompt = compactPrompt();
 
-        const requestTurn = () => requestCanvasAgentTurn({
-            config: input.config,
-            systemPrompt,
-            messages: protocolMessages,
-            tools: agentTools,
-            toolMode,
-            signal: input.signal,
-        });
+        const requestTurn = () => {
+            if (overBudget()) {
+                console.warn("[canvas-agent] 输入预算不足", { model: textConfig.model, limit: inputTokenLimit, promptBytes: new TextEncoder().encode(buildFullPrompt()).length, historyBytes: new TextEncoder().encode(JSON.stringify(protocolMessages)).length, inputTokens: estimateCanvasAgentInputTokens({ systemPrompt: buildFullPrompt(), messages: protocolMessages, tools }) });
+                throw new Error("本轮内容仍超过模型输入上限，已在调用前停止。画布内容已保留，请把长稿放入文字节点后引用，或减少本轮引用的节点。");
+            }
+            return requestCanvasAgentTurn({
+                config: textConfig,
+                systemPrompt,
+                messages: protocolMessages,
+                tools: agentTools,
+                toolMode,
+                signal: input.signal,
+            });
+        };
         let turn: Awaited<ReturnType<typeof requestCanvasAgentTurn>>;
         try {
             turn = await requestTurn();
         } catch (error) {
+            if (hasExecutedActions && isEmptyCanvasAgentFollowupError(error)) {
+                const reply = lastActionReply || "本轮画布操作已经完成，结果已保留。";
+                protocolMessages = [...protocolMessages, { role: "assistant" as const, content: reply }];
+                return { reply, state, protocolMessages: persistCanvasAgentProtocolMessages(protocolMessages), contextCheckpoint, jsonFallbackMode: usedJsonFallbackMode };
+            }
             if (!isCanvasAgentContextLimitError(error) || !(await compactHistory())) throw error;
             systemPrompt = buildCanvasAgentSkillPrompt(state.phase, input.userText, context, activeSkillContents, contextCheckpoint, skillFileToolAvailable);
-            turn = await requestTurn();
+            try {
+                turn = await requestTurn();
+            } catch (retryError) {
+                if (hasExecutedActions && isEmptyCanvasAgentFollowupError(retryError)) {
+                    const reply = lastActionReply || "本轮画布操作已经完成，结果已保留。";
+                    protocolMessages = [...protocolMessages, { role: "assistant" as const, content: reply }];
+                    return { reply, state, protocolMessages: persistCanvasAgentProtocolMessages(protocolMessages), contextCheckpoint, jsonFallbackMode: usedJsonFallbackMode };
+                }
+                throw retryError;
+            }
         }
         toolMode = turn.toolMode;
         if (!protocolError && !turn.toolError && toolMode === "native" && !turn.toolCalls.length && turn.content.trim() === CANVAS_AGENT_JSON_FALLBACK_SIGNAL) {
@@ -158,7 +244,15 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
             continue;
         }
 
-        const parsedJson = await parseCanvasAgentJson(turn.content, { allowRepair: toolMode !== "native" });
+        // 截断/非法 JSON 不再让整轮直接崩掉：转成本轮反馈，让模型拆小批次重发（造物同款容错）
+        let parsedJson: Awaited<ReturnType<typeof parseCanvasAgentJson>>;
+        let parseError: string | undefined;
+        try {
+            parsedJson = await parseCanvasAgentJson(turn.content, { allowRepair: toolMode !== "native" });
+        } catch (error) {
+            parsedJson = { parsed: false, actions: [], reply: turn.content.trim() } as Awaited<ReturnType<typeof parseCanvasAgentJson>>;
+            parseError = (error instanceof Error ? error.message : "JSON 解析失败") + "。请把本轮操作拆成更小的批次：最多 3 个 action，arguments 只保留必填字段后重发。";
+        }
         if (toolMode !== "native" && parsedJson.parsed) usedJsonFallbackMode = toolMode;
         const assistantToolMessage: CanvasAgentProtocolMessage = {
             role: "assistant",
@@ -170,7 +264,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         let nativeActions: CanvasAgentAction[] = [];
         let actionError = turn.toolError || (turn.toolCalls.length
             ? turn.toolCalls.find((toolCall) => toolCall.argumentsError)?.argumentsError
-            : parsedJson.error);
+            : parseError || parsedJson.error);
         if (!actionError) {
             try {
                 nativeActions = turn.toolCalls.map((toolCall) => normalizeCanvasAgentAction(toolCall.name, toolCall.arguments, toolCall.id));
@@ -182,7 +276,21 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
             actionError = "本轮必须返回可执行的画布工具指令";
         }
         if (actionError) {
-            if (protocolError) throw new Error("工具指令仍无效，本批操作未执行：" + actionError);
+            // 造物同款稳健性：兼容线路的原生 tool calling 首次出错，本轮即降级为
+            // structured-json 重试；面板会按渠道把降级记进会话，后续轮次不再先撞墙。
+            if (toolMode === "native") {
+                toolMode = "structured-json";
+                usedJsonFallbackMode = "structured-json";
+            }
+            // 长稿（分镜/宣传片类）在小上下文线路上容易连续产出非法工具指令：
+            // 允许两轮纠错，最终失败时给出可操作建议（换模型/拆小批次），不再裸报协议错误。
+            if (protocolErrorCount >= 2) {
+                const deepseekLine = /deepseek/i.test(textConfig.model || textConfig.textModel || "");
+                throw new Error(
+                    `工具指令仍无效，本批操作未执行：${actionError}。${deepseekLine ? "当前文本模型（DeepSeek 线路）在长稿上稳定性不足，建议在 Agent 设置里换用更强的文本模型（如 GPT / Claude / Gemini 系）后重试；" : "建议在 Agent 设置里切换 Chat / Responses 或更换支持 Tool Calling 的文本模型；"}也可以把长稿拆成更小的批次（每次 3–5 个分镜）继续，画布内容已全部保留。`,
+                );
+            }
+            protocolErrorCount += 1;
             protocolError = actionError;
             const feedback = JSON.stringify({
                 ok: false,
@@ -202,6 +310,13 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         }
         const arrangeRequested = canvasAgentAllowsArrangement(input.userText);
         const requestedActions = nativeActions.length ? nativeActions : parsedJson.actions;
+        const allowedNames = new Set(agentTools.map(tool => tool.function.name));
+        if (requestedActions.some(action => !allowedNames.has(action.name))) {
+            throw new Error("模型返回了本轮未开放的工具，本批操作未执行；画布与已有任务已保留");
+        }
+        if (!deletionRequested && requestedActions.some(action => action.name === "delete_node" || action.name === "delete_connection")) {
+            throw new Error("本轮未要求删除，已保留所有节点与连线；请直接在现有节点继续制作");
+        }
         const actions = requestedActions.filter((action) => action.name !== "arrange_nodes" || arrangeRequested);
         const rejectedToolMessages: CanvasAgentProtocolMessage[] = nativeActions.filter((action) => action.name === "arrange_nodes" && !arrangeRequested).map((action) => ({
             role: "tool",
@@ -211,7 +326,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         }));
 
         if (!actions.length && protocolError) {
-            throw new Error("修正后仍未返回可执行的工具指令，本批操作未执行：" + protocolError);
+            throw new Error("修正后仍未返回可执行的工具指令，本批操作未执行：" + protocolError + "。建议在 Agent 设置里更换更强的文本模型（GPT / Claude / Gemini 系对长稿更稳），或把本轮需求拆成更小的批次；画布内容已保留。");
         }
 
         if (!actions.length && rejectedToolMessages.length) {
@@ -243,6 +358,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         const results = await executeActions(actions, state, input.executeAction, input.signal, input.onEvent);
         hasExecutedActions = true;
         state = results.state;
+        lastActionReply = summarizeCanvasAgentToolResults(results.items);
 
         if (nativeActions.length && toolMode === "native") {
             protocolMessages = [
@@ -272,6 +388,50 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
     const reply = "本轮已达到安全操作步数上限，当前已完成的节点和任务都已保存。你可以让我继续下一步。";
     protocolMessages = [...protocolMessages, { role: "assistant" as const, content: reply }];
     return { reply, state, protocolMessages: persistCanvasAgentProtocolMessages(protocolMessages), contextCheckpoint, jsonFallbackMode: usedJsonFallbackMode };
+}
+
+function scopeCanvasAgentTools(tools: CanvasAgentToolDefinition[], userText: string): CanvasAgentToolDefinition[] {
+    if (/只读/.test(userText)) return tools.filter(tool => /^(?:get_|query_)/.test(tool.function.name));
+    const asksVideo = /视频|成片/.test(userText);
+    const asksImage = /图片|图像|分镜图|海报|封面/.test(userText);
+    const onlyVideo = asksVideo && /(?:只|仅).{0,12}(?:制作|生成|做).{0,8}(?:[^，。；]*视频)|不要.{0,12}(?:生成|制作|重做).{0,6}(?:图片|分镜图)/.test(userText);
+    const onlyImage = asksImage && /(?:只|仅).{0,12}(?:制作|生成|做).{0,8}(?:[^，。；]*(?:图片|分镜图))|不要.{0,12}(?:生成|制作).{0,6}(?:视频|成片)/.test(userText);
+    if (!onlyVideo && !onlyImage) return tools;
+    const common = new Set([
+        "get_canvas_summary",
+        "get_selected_nodes",
+        "query_canvas_nodes",
+        "get_node",
+        "get_upstream_nodes",
+        "get_downstream_nodes",
+        "get_connected_nodes",
+        "get_generation_config",
+        "get_generation_task",
+        "get_media_task_status",
+        "set_agent_state",
+        "create_connection",
+        "update_node",
+    ]);
+    common.add(onlyVideo ? "generate_video" : "generate_image");
+    if (onlyImage && /修改|编辑|改图/.test(userText)) common.add("edit_image");
+    return tools.filter((tool) => common.has(tool.function.name));
+}
+
+function isEmptyCanvasAgentFollowupError(error: unknown) {
+    return error instanceof Error && /文本模型已响应，但没有返回可识别的正文或工具指令/.test(error.message);
+}
+
+function summarizeCanvasAgentToolResults(items: Array<{ action: CanvasAgentAction; result: CanvasAgentToolResult }>) {
+    const succeeded = items.filter(({ result }) => result.ok);
+    const failed = items.filter(({ result }) => !result.ok);
+    const actionNames = [...new Set(succeeded.map(({ action }) => canvasAgentActionLabel(action)))];
+    const completedText = succeeded.length
+        ? `已完成${actionNames.length ? `：${actionNames.join("、")}` : ` ${succeeded.length} 项画布操作`}。`
+        : "";
+    const failedText = failed.length
+        ? `另有 ${failed.length} 项未完成：${failed.map(({ result }) => result.message || result.code || "未知错误").join("；")}。`
+        : "";
+    return `${completedText}${failedText}`.trim() || "本轮画布操作已经执行，结果已保留。";
 }
 
 export function canvasAgentAllowsArrangement(userText: string) {

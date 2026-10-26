@@ -1093,6 +1093,22 @@
     --prompt-art-a: #ee5a36;
     --prompt-art-b: #178a98;
 }
+.prompt-artwork-social {
+    --prompt-art-a: #f57400;
+    --prompt-art-b: #f2b36b;
+}
+.prompt-artwork-comic {
+    --prompt-art-a: #e5543f;
+    --prompt-art-b: #2f2a26;
+}
+.prompt-artwork-film {
+    --prompt-art-a: #8a4a1f;
+    --prompt-art-b: #f57400;
+}
+.prompt-artwork-motion {
+    --prompt-art-a: #ff9b45;
+    --prompt-art-b: #f26432;
+}
 
 .prompt-artwork-grid {
     position: absolute;

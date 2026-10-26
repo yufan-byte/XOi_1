@@ -1,0 +1,9 @@
+PASS Project decoration removed; create action remains on right
+PASS Script assistant messages, input, costs and step placement 1440 900
+PASS Script assistant messages, input, costs and step placement 1440 720
+PASS Script assistant messages, input, costs and step placement 390 844
+PASS Script step hint stays compact on left, expands and collapses without covering workspace
+PASS Director board: seven numbered nodes, two rows, no overlap, six connections, long content scrolls
+PASS Script editing dialog remains available
+PASS No uncaught UI errors or generation / saving requests
+PASS Expanded navigation keeps project context, role page folds, production has no empty dock or unintended generation requests

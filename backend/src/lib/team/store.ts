@@ -85,8 +85,8 @@ export async function membershipOf(userId: number): Promise<{ team: Team; member
   return result.rows[0] ? { team: teamRow(result.rows[0].team), member: memberRow(result.rows[0]) } : null;
 }
 
-export async function membersOf(teamId: number): Promise<Member[]> {
-  const result = await db()!.query("SELECT * FROM mc_team_members WHERE team_id = $1 AND status <> 'deleted' ORDER BY id", [teamId]);
+export async function membersOf(teamId: number, onlyUserId?: number): Promise<Member[]> {
+  const result = await db()!.query(`SELECT * FROM mc_team_members WHERE team_id = $1 AND status <> 'deleted' ${onlyUserId ? "AND user_id = $2" : ""} ORDER BY id`, onlyUserId ? [teamId, onlyUserId] : [teamId]);
   return result.rows.map(memberRow);
 }
 
@@ -283,7 +283,12 @@ export async function memberAction(team: Team, memberId: number, action: MemberA
     await settleTeam(team.id, team.owner_id);
     if (action.action === "delete") {
       await pool.query("UPDATE mc_team_members SET status = 'deleted' WHERE id = $1", [member.id]);
-      await adminDeleteUser(member.user_id).catch((error) => console.error("[team] delete user:", (error as Error).message));
+      try {
+        await adminDeleteUser(member.user_id);
+      } catch {
+        await flushUsers([member.user_id]);
+        throw new TeamError("成员已停用并移出团队，网关账号删除结果待核对；请联系管理员，不要重复提交", 502);
+      }
     }
     await flushUsers([member.user_id]);
     return;
@@ -339,9 +344,20 @@ function categoryOf(other: string): string {
   return "other";
 }
 
-export async function dashboard(team: Team, month: string) {
+/** Lightweight shell summary: do not scan consumption logs just to show team membership. */
+export async function teamSummary(team: Team) {
+  const result = await db()!.query<{ used: string; active: string; disabled: string }>(
+    `SELECT count(*) AS used, count(*) FILTER (WHERE status = 'active') AS active,
+      count(*) FILTER (WHERE status = 'disabled') AS disabled
+     FROM mc_team_members WHERE team_id = $1 AND status <> 'deleted'`, [team.id],
+  );
+  const row = result.rows[0];
+  return { team: { id: team.id, name: team.name }, seats: { used: Number(row?.used ?? 0), max: MAX_SEATS, active: Number(row?.active ?? 0), disabled: Number(row?.disabled ?? 0) } };
+}
+
+export async function dashboard(team: Team, month: string, onlyUserId?: number) {
   const pool = db()!;
-  const members = await membersOf(team.id);
+  const members = await membersOf(team.id, onlyUserId);
   const ids = members.map((member) => member.user_id);
   const { start, end } = monthRange(month);
   const byMember = new Map<number, number>();
@@ -360,14 +376,23 @@ export async function dashboard(team: Team, month: string) {
   const periodUsed = new Map<number, number>();
   const quotas = new Map<number, number>();
   if (ids.length) {
-    const client = await pool.connect();
-    try {
-      for (const member of members) periodUsed.set(member.user_id, await spentInPeriod(client, member));
-      const balances = await client.query<{ id: number; quota: string }>("SELECT id, quota FROM users WHERE id = ANY($1::int[])", [ids]);
-      for (const row of balances.rows) quotas.set(Number(row.id), Number(row.quota));
-    } finally {
-      client.release();
-    }
+    // Aggregate all members in one read; 2000 members must not cause 2000 serial log scans.
+    // Current-period usage intentionally remains independent from the selected historical month.
+    const [usage, balances] = await Promise.all([
+      pool.query<{ user_id: number; sum: string }>(
+        `SELECT m.user_id, COALESCE(SUM(l.quota), 0) AS sum
+         FROM mc_team_members m LEFT JOIN logs l ON l.user_id = m.user_id AND l.type = 2
+           AND l.created_at >= CASE m.period
+             WHEN 'total' THEN floor(m.joined_at / 1000.0)
+             WHEN 'day' THEN extract(epoch from date_trunc('day', now() AT TIME ZONE '${TZ}') AT TIME ZONE '${TZ}')
+             ELSE extract(epoch from date_trunc('month', now() AT TIME ZONE '${TZ}') AT TIME ZONE '${TZ}') END
+         WHERE m.team_id = $1 AND m.status <> 'deleted' AND m.user_id = ANY($2::int[]) GROUP BY m.user_id`,
+        [team.id, ids],
+      ),
+      pool.query<{ id: number; quota: string }>("SELECT id, quota FROM users WHERE id = ANY($1::int[])", [ids]),
+    ]);
+    for (const row of usage.rows) periodUsed.set(Number(row.user_id), Number(row.sum));
+    for (const row of balances.rows) quotas.set(Number(row.id), Number(row.quota));
   }
   const monthTotal = [...byMember.values()].reduce((sum, value) => sum + value, 0);
   const days: { day: string; quota: number }[] = [];
@@ -393,7 +418,8 @@ export async function dashboard(team: Team, month: string) {
 }
 
 export async function records(team: Team, month: string, category: string, page: number, onlyUserId?: number) {
-  const ids = onlyUserId ? [onlyUserId] : (await membersOf(team.id)).map((member) => member.user_id);
+  const members = await membersOf(team.id, onlyUserId);
+  const ids = members.map(member => member.user_id);
   if (!ids.length) return { items: [], total: 0 };
   const { start, end } = monthRange(month);
   const condition = CATEGORY_SQL[category];
@@ -405,7 +431,7 @@ export async function records(team: Team, month: string, category: string, page:
      ORDER BY l.id DESC LIMIT ${size} OFFSET ${offset}`,
     [ids, start, end],
   );
-  const names = new Map((await membersOf(team.id)).map((member) => [member.user_id, member.nickname]));
+  const names = new Map(members.map(member => [member.user_id, member.nickname]));
   return {
     total: Number(result.rows[0]?.total ?? 0),
     items: result.rows.map((row) => ({

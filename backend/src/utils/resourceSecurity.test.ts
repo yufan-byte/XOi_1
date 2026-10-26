@@ -49,6 +49,10 @@ test("resource authorization follows persisted ownership and relationships", asy
     for (const route of ["assets/updateAssets", "assets/delImage", "novel/updateNovel", "script/updateScript", "production/storyboard/editStoryboardInfo", "production/workbench/delVideo"]) await check(route, { id: 201 }, 403);
     await check("task/taskDetails", { taskId: 201 }, 403);
     await check("assets/updateAssets", { id: 101 }, 0);
+    await check('general/getSingleProject',{id:10},0);
+    await check('general/getSingleProject',{id:20},403);
+    await check('works/history',{},0,{projectId:'10'});
+    await check('works/history',{},403,{projectId:'20'});
   });
   await t.test("own project cannot disguise foreign/missing/nested resources", async () => {
     await check("assets/updateAssets", { projectId: 10, id: 201 }, 403);

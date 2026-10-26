@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import { o_novel } from "@/types/database";
 import u from "@/utils";
 import { stripThink } from "@/utils/stripThink";
+import { resolveTextModelKey } from "@/utils/textModel";
 export interface EventType {
   id: number;
   event: string;
@@ -24,7 +25,7 @@ class CleanNovel {
     this.concurrency = concurrency;
   }
 
-  private async processChapter(novel: o_novel): Promise<EventType | null> {
+  private async processChapter(novel: o_novel, projectId: number): Promise<EventType | null> {
     try {
       const prompt = await u.getPrompts("event");
       const promptData = await u.db("o_prompt").where("type", "eventExtraction").first();
@@ -34,7 +35,8 @@ class CleanNovel {
       } else {
         eventExtraction = promptData?.data ?? undefined;
       }
-      const resData = await u.Ai.Text("universalAi").invoke({
+      const textKey = await resolveTextModelKey({ projectId });
+      const resData = await u.Ai.Text(textKey).invoke({
         system: eventExtraction ? JSON.stringify(eventExtraction) : (prompt as string),
         messages: [
           {
@@ -73,7 +75,7 @@ class CleanNovel {
       const novel = allChapters[index++];
       running++;
 
-      return this.processChapter(novel).then((result) => {
+      return this.processChapter(novel, projectId).then((result) => {
         if (result) totalEvent.push(result);
         running--;
         return runNext();

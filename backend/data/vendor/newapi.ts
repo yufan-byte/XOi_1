@@ -93,7 +93,7 @@ interface VendorConfig {
   models: (TextModel | ImageModel | VideoModel | TTSModel)[];
 }
 
-type RefItem = { type: "image" | "audio" | "video"; base64: string };
+type RefItem = { type: "image" | "audio" | "video"; base64: string; url?: string };
 
 interface ImageConfig {
   prompt: string;
@@ -105,6 +105,8 @@ interface ImageConfig {
 }
 
 interface VideoConfig {
+  frameMode?: 'first-frame' | 'reference';
+  sendInputMode?: boolean;
   duration: number;
   resolution: string;
   aspectRatio: string;
@@ -210,6 +212,12 @@ function headers() {
  * 但错误信封是造物那套 `{code, message, data}`（见造物 api-docs 的说明），
  * 所以这里两者都认，抛错时优先用 message。
  */
+/** 上游报错翻成人话：new-api 把 agnes 免费额度限流包装成「负载已饱和」，用户完全看不出该等多久 */
+function friendlyUpstreamError(message: string): string {
+  if (/负载已饱和|rate_limit|限流/i.test(message)) return "上游模型限流（agnes 免费额度有速率限制），请等 1 分钟左右再试，或升级 agnes 套餐";
+  return message;
+}
+
 function unwrap(res: any): any {
   const body = res && res.data;
   if (body && typeof body === "object") {
@@ -221,7 +229,7 @@ function unwrap(res: any): any {
     if ("code" in body && "message" in body && !("id" in body) && !("data" in body && Array.isArray(body.data))) {
       const code = (body as any).code;
       const okCode = code === 200 || code === "200" || code === 0 || code === "0" || code === "success";
-      if (!okCode) throw new Error(String(body.message || code));
+      if (!okCode) throw new Error(friendlyUpstreamError(String(body.message || code)));
     }
     if ("success" in body && body.success === false) throw new Error(String(body.message || "网关返回失败"));
   }
@@ -229,6 +237,25 @@ function unwrap(res: any): any {
 }
 
 /** 取参考图（兼容 referenceList 与老版 imageBase64） */
+declare const zipImage: (completeBase64: string, size: number) => Promise<string>;
+
+/**
+ * 参考图内联压缩（照造物 lib/image-compress 的 fitInlineAll 思路）：
+ * data URL 超过 800KB 就交给沙箱的 zipImage（sharp 降质）压到预算内，
+ * 避免几 MB base64 拖慢上传、拖慢上游出图。http(s) 地址原样透传，压不动就原样发。
+ */
+const REF_IMAGE_MAX_BYTES = 800 * 1024;
+async function fitRefImages(images: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const item of images) {
+    if (!/^data:image\//i.test(item)) { out.push(item); continue; }
+    const bytes = Buffer.byteLength(item.split(",")[1] || "", "base64");
+    if (bytes <= REF_IMAGE_MAX_BYTES) { out.push(item); continue; }
+    try { out.push(await zipImage(item, REF_IMAGE_MAX_BYTES)); } catch { out.push(item); }
+  }
+  return out;
+}
+
 function refImages(config: ImageConfig | VideoConfig): string[] {
   if (Array.isArray(config.referenceList) && config.referenceList.length) {
     return config.referenceList.filter((r) => r && r.type === "image" && r.base64).map((r) => r.base64);
@@ -309,10 +336,22 @@ const imageRequest = async (config: ImageConfig, model: ImageModel): Promise<str
   const resTier = String(config.size || "").toUpperCase();
   if (resTier === "2K" || resTier === "4K") body.resolution = resTier;
 
-  const images = refImages(config);
+  const images = await fitRefImages(refImages(config));
   if (images.length) body.images = images; // 图生图 / 多图融合
 
-  const res = await axios.post(`${baseUrl()}/images/generations`, body, { headers: headers(), timeout: 180000 });
+  let res;
+  try {
+    // 300s：与造物对齐（其 genImage 默认 timeoutMs = 300_000）。gpt-image-2 实测最长 221s，
+    // 90s/240s 都可能在上游已经出图并计费之后才放弃——钱花了、图丢掉。
+    res = await axios.post(`${baseUrl()}/images/generations`, body, { headers: headers(), timeout: 300000 });
+  } catch (err: any) {
+    // 上游生图 90 秒不返回，基本都是模型侧挂死（实测 doubao-seedream-5-0 会永久无响应），
+    // 快速失败 + 人话提示，别让用户在画布上干等三分钟。
+    if (/timeout of \d+ms exceeded/i.test(String(err?.message || ""))) {
+      throw new Error(`图片模型 ${model.modelName} 等待 5 分钟仍未返回：上游可能仍在生成并已计费，请稍后到画布/资产库确认，不要立刻重复提交`);
+    }
+    throw err;
+  }
   const payload = unwrap(res) || {};
   const first = Array.isArray(payload.data) ? payload.data[0] : payload;
   const url = first && (first.url || first.b64_json);
@@ -330,7 +369,8 @@ const imageRequest = async (config: ImageConfig, model: ImageModel): Promise<str
 // 造物明确**不发** size / mode / input_reference 之外的私有字段。
 // ============================================================
 const videoRequest = async (config: VideoConfig, model: VideoModel): Promise<string> => {
-  const images = refImages(config);
+  if ((config.referenceList || []).length > 32) throw new Error("一次最多使用 32 个参考素材，未提交视频请求");
+  const images = await fitRefImages(refImages(config));
   const mode = Array.isArray(config.mode) ? config.mode[0] : config.mode;
 
   const body: Record<string, any> = {
@@ -347,22 +387,52 @@ const videoRequest = async (config: VideoConfig, model: VideoModel): Promise<str
   if (config.aspectRatio) body.aspect_ratio = config.aspectRatio;
   if (config.resolution) body.resolution = config.resolution;
 
-  // 首帧 / 首尾帧 / 多图参考的分派，与造物 video/page.tsx 一致
-  if (images.length) {
-    const isFirstLast = mode === "startEndRequired" || mode === "endFrameOptional";
+  if (/^seedance2\.[05]-(line1(?:-fast)?|full(?:-fast)?)(?:-xoi)?$/.test(model.modelName)) {
+    // Zaowu /v1/videos hosts inline image data before forwarding to URL-only lanes
+    // (api-uploads.hostInlineMedia). Local projects must not need a public tunnel.
+    // Video/audio still require explicit public URLs; never silently drop a reference.
+    delete body.mode;
+    body.seconds = Number(config.duration);
+    for (const [type, key] of [["image", "images"], ["video", "videos"], ["audio", "audios"]] as const) {
+      const refs = (config.referenceList || []).filter(ref => ref.type === type);
+      if(type === 'image') {
+        const values=await fitRefImages(refs.map(ref=>ref.url||ref.base64));
+        let inlineBytes=0;
+        for(const value of values){
+          if(/^https?:\/\//i.test(value||''))continue;
+          if(!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value||''))throw new Error('参考图片必须是有效图片或公网地址，未提交到上游');
+          const bytes=Buffer.byteLength(value.split(',')[1],'base64');inlineBytes+=bytes;
+          if(bytes>8*1024*1024||inlineBytes>24*1024*1024)throw new Error('参考图片过大，请减少数量或压缩后重试；未提交到上游');
+        }
+        if(values.length)body[key]=values;
+      }else{
+        if (refs.some(ref => !ref.url || !/^https?:\/\//i.test(ref.url))) throw new Error("该线路参考素材需要公网地址；未提交到上游");
+        if (refs.length) body[key] = refs.map(ref => ref.url);
+      }
+    }
+  }
+
+  // 首帧 / 首尾帧 / 多图参考的分派
+  // ⚠️ 实测 2026-10-20：agnes 线路 reference 模式校验的是 **images 数组**
+  //   （发 input_reference 会被上游判「reference 模式需要 images、audios 或 videos」），
+  //   所以单图参考也必须发 images 数组；input_reference / end_image_url 保留给
+  //   首尾帧（keyframe）模型（agnes-video 系列没有 keyframe 档，不受影响）。
+  if (images.length && !/^seedance2\.[05]-(line1(?:-fast)?|full(?:-fast)?)(?:-xoi)?$/.test(model.modelName)) {
+    const isFirstLast = mode === "startEndRequired" || mode === "endFrameOptional" || config.frameMode==='first-frame';
     if (isFirstLast) {
       body.input_reference = images[0];
+      if(config.frameMode==='first-frame' && config.sendInputMode)body.mode='first-frame';
       if (images[1]) body.end_image_url = images[1];
-    } else if (mode === "singleImage" || mode === "startFrameOptional") {
-      body.input_reference = images[0];
     } else {
-      body.images = images;
+      body.images = images; // 单图（singleImage/startFrameOptional）与多图参考统一走 images 数组
     }
   }
 
   const submitted = unwrap(await axios.post(`${baseUrl()}/videos`, body, { headers: headers(), timeout: 120000 })) || {};
   const taskId = submitted.id || submitted.task_id;
   if (!taskId) throw new Error("提交视频任务后没有拿到 id");
+  // Persist the remote identity before polling. Function is injected server-side, never from HTTP JSON.
+  if (typeof (config as any).onSubmitted === "function") await (config as any).onSubmitted(String(taskId));
 
   // 造物文档：长视频 / 高峰期可达十几分钟，轮询总时长要 ≥ 20 分钟
   const polled = await pollTask(

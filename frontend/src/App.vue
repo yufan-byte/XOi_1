@@ -6,11 +6,13 @@
     <t-config-provider :global-config="globalConfig">
       <router-view></router-view>
     </t-config-provider>
+    <ZoomTip />
   </template>
 </template>
 
 <script setup lang="ts">
 import { merge } from "lodash";
+import ZoomTip from "@/components/ZoomTip.vue";
 import zhConfig from "tdesign-vue-next/es/locale/zh_CN";
 import enConfig from "tdesign-vue-next/es/locale/en_US";
 import { cachedLocale, languageList } from "@/locales";
@@ -20,9 +22,8 @@ import { type GlobalConfigProvider } from "tdesign-vue-next";
 import { useI18n } from "vue-i18n";
 
 const { locale } = useI18n();
-import { config } from "md-editor-v3";
 
-const loading = ref(true);
+const loading = ref(false);
 
 onBeforeMount(() => {
   document.addEventListener("keydown", function (event) {
@@ -52,40 +53,6 @@ onMounted(() => {
 });
 
 async function getPort() {
-  await nextTick();
-  await nextTick();
-  await nextTick();
-  await nextTick();
-
-  loading.value = false;
-
-  config({
-    markdownItConfig(md) {
-      // 自定义链接渲染
-      const defaultRender =
-        md.renderer.rules.link_open ||
-        function (tokens, idx, options, env, self) {
-          return self.renderToken(tokens, idx, options);
-        };
-      md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
-        const token = tokens[idx];
-        const href = token.attrGet("href");
-
-        if (href) {
-          // 添加 target="_blank" 在新窗口打开
-          token.attrSet("target", "_blank");
-          token.attrSet("rel", "noopener noreferrer");
-
-          // 或者添加自定义点击事件的标识
-          token.attrSet("data-link", href);
-          token.attrSet("onclick", "return handleLinkClick(event)");
-        }
-
-        return defaultRender(tokens, idx, options, env, self);
-      };
-    },
-  });
-
   try {
     const language = navigator.language;
     if (language && languageList.some((item) => item.value === language)) {

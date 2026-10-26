@@ -1,7 +1,7 @@
 <template>
   <div class="imageUploadBox ac">
     <!-- 单图模式 -->
-    <template v-if="mode == 'singleImage' || Array.isArray(parseMode(mode as string))">
+    <template v-if="mode == 'singleImage' || mode === 'multiReference' || Array.isArray(parseMode(mode as string))">
       <div class="uploadBtn c fc" v-for="(item, index) in mode == 'singleImage' ? imageList.slice(0, 1) : imageList" :key="index">
         <template v-if="item.src">
           <t-image v-if="item.fileType == 'image'" :src="item.src" fit="contain" class="uploadPreview">
@@ -83,9 +83,28 @@
     </template>
     <div class="uploadBtn c fc" v-if="isShowAddImage" @click="handleMixedAdd()">
       <i-plus size="24"></i-plus>
-      {{ $t("workbench.generate.addReference") }}
+      {{ mode === "singleImage" && imageList.length ? "更换参考" : $t("workbench.generate.addReference") }}
     </div>
 
+    <t-dialog v-model:visible="sourceOpen" header="选择本次参考来源" :footer="false" width="460px" attach="body">
+      <div class="referenceSources">
+        <button
+          type="button"
+          @click="
+            sourceOpen = false;
+            storyboardDialogVisible = true;
+          ">
+          <i-pic size="22" />
+          <strong>从本集分镜选择</strong>
+          <span>使用已经生成的分镜画面</span>
+        </button>
+        <button type="button" @click="chooseAssets">
+          <i-folder-open size="22" />
+          <strong>从素材库选择</strong>
+          <span>角色、场景和已上传的素材</span>
+        </button>
+      </div>
+    </t-dialog>
     <!-- 分镜选择弹窗 -->
     <t-dialog
       v-model:visible="storyboardDialogVisible"
@@ -114,17 +133,24 @@
 import { ref } from "vue";
 import "@/views/production/components/workbench/type/type";
 import assetsCheck, { type AssetType, type ClipMediaType } from "@/utils/assetsCheck";
+import type { StudioReferenceAllowance } from "@/utils/studioVideoInput";
 import axios from "@/utils/axios";
 
 const props = defineProps<{
   mode: VideoMode;
   storyboardList: StoryboardItem[];
+  allowance: StudioReferenceAllowance;
 }>();
 const imageList = defineModel<UploadItem[]>({
   default: () => [],
 });
 //分镜选择弹窗
 const storyboardDialogVisible = ref(false);
+const sourceOpen = ref(false);
+let alive = true;
+onBeforeUnmount(() => {
+  alive = false;
+});
 
 /** 空占位项，用于首尾帧模式中未设置的槽位 */
 const EMPTY_SLOT: UploadItem = { fileType: "image", id: null, src: "" } as any;
@@ -170,9 +196,7 @@ function parseMode(value: string): VideoMode | null {
 //判断是否显示添加参考图
 const isShowAddImage = computed(() => {
   const mode = props.mode;
-  if (mode == "singleImage" && imageList.value.length >= 1) {
-    return false;
-  }
+  if (mode == "singleImage") return true;
   if (mode == "endFrameOptional" || mode == "startEndRequired" || mode == "startFrameOptional") {
     return false;
   }
@@ -183,75 +207,90 @@ const isShowAddImage = computed(() => {
 
 /** 根据文件扩展名推断媒体类型 */
 function getFileTypeByExt(src: string | undefined): "image" | "video" | "audio" {
-  const ext = src?.split(".").pop()?.toLowerCase() ?? "";
+  const ext = src?.split(/[?#]/)[0].split(".").pop()?.toLowerCase() ?? "";
   if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
   if (["mp3", "wav", "ogg", "aac", "flac", "m4a"].includes(ext)) return "audio";
   return "image";
 }
 /** 根据混合模式推导当前允许的 clip 媒体类型 */
 const mixedClipMediaTypes = computed<ClipMediaType[]>(() => {
-  const mode = props.mode;
-  if (!Array.isArray(mode)) return [];
-  const map: Record<string, ClipMediaType> = { audioReference: "audio", imageReference: "image", videoReference: "video" };
-  return mode.filter((m) => m in map).map((m) => map[m]);
+  return (["image", "video", "audio"] as ClipMediaType[]).filter((kind) => props.allowance[kind] > 0);
 });
+function appendWithinAllowance(base: UploadItem[], additions: UploadItem[]) {
+  const result = [...base];
+  const count = { image: 0, video: 0, audio: 0 };
+  for (const item of result) count[item.fileType === "video" ? "video" : item.fileType === "audio" ? "audio" : "image"]++;
+  let skipped = 0;
+  for (const item of additions) {
+    if (result.some((old) => old.id === item.id && old.sources === item.sources)) continue;
+    const kind = item.fileType === "video" ? "video" : item.fileType === "audio" ? "audio" : "image";
+    if (count[kind] >= props.allowance[kind] || result.length >= props.allowance.total) {
+      skipped++;
+      continue;
+    }
+    result.push(item);
+    count[kind]++;
+  }
+  if (skipped) window.$message.warning(`当前模型的${skipped}项素材已达上限，未加入本次参考`);
+  return result;
+}
 let currentSlot: "start" | "end" | "" = "";
 function handleMixedAdd(slot: "start" | "end" | "" = "") {
-  if (!props.mode) return window.$message.error($t("workbench.generate.notSelectMode"));
+  if (!props.mode) return;
   currentSlot = slot;
-  const multiple = Array.isArray(parseMode(props.mode as string));
-  const dlg = DialogPlugin.confirm({
-    header: $t("workbench.generate.selectSource"),
-    confirmBtn: $t("workbench.generate.confirm"),
-    cancelBtn: $t("workbench.generate.cancel"),
-    onConfirm: async () => {
-      dlg.destroy();
-      const assets = await assetsCheck({ types: ["role", "tool", "scene", "clip", "audio"], clipMediaTypes: mixedClipMediaTypes.value, multiple });
-
-      if (!assets.length) return;
-
-      const newItems: UploadItem[] = assets.flatMap((asset) => {
-        if (asset.type === "audio" && asset?.sonAssets?.length) {
-          return asset.sonAssets.map((sub: any) => {
-            const fileType = getFileTypeByExt(sub.src);
-            return {
-              fileType,
-              sources: "assets",
-              src: sub.src,
-              id: sub.id,
-              prompt: sub.prompt,
-            } as UploadItem;
-          });
-        }
-        const fileType = getFileTypeByExt(asset.src);
-        return [
-          {
-            fileType,
-            sources: "assets",
-            src: asset.src,
-            id: asset.id,
-            prompt: asset.prompt,
-          } as UploadItem,
-        ];
-      });
-      if (slot === "start" || slot === "end") {
-        setFrameSlot(slot, newItems[0]);
-      } else if (props.mode === "singleImage") {
-        imageList.value = [newItems[0]];
-      } else {
-        const assetsNotAudioIds = newItems.filter((i) => i.fileType !== "audio");
-        const { data } = await axios.post("/production/workbench/getAudioBindAssetsList", {
-          assetsIds: assetsNotAudioIds.map((i) => i.id),
-        });
-        imageList.value = [...imageList.value, ...newItems, ...(data ?? [])];
-      }
-    },
-    onCancel: () => {
-      dlg.destroy();
-      storyboardDialogVisible.value = true;
-    },
-  });
+  sourceOpen.value = true;
 }
+async function chooseAssets() {
+  sourceOpen.value = false;
+  const slot = currentSlot;
+  const multiple = props.mode === "multiReference" || Array.isArray(parseMode(props.mode as string));
+  const assets = await assetsCheck({
+    types: multiple
+      ? (["role", "tool", "scene", "clip", ...(props.allowance.audio ? ["audio"] : [])] as AssetType[])
+      : ["role", "tool", "scene", "clip"],
+    clipMediaTypes: multiple ? mixedClipMediaTypes.value : ["image"],
+    multiple,
+  });
+
+  if (!alive || !assets.length) return;
+
+  const newItems: UploadItem[] = assets.flatMap((asset) => {
+    if (asset.type === "audio" && asset?.sonAssets?.length) {
+      return asset.sonAssets.map((sub: any) => {
+        const fileType = getFileTypeByExt(sub.src);
+        return {
+          fileType,
+          sources: "assets",
+          src: sub.src,
+          id: sub.id,
+          prompt: sub.prompt,
+        } as UploadItem;
+      });
+    }
+    const fileType = getFileTypeByExt(asset.src);
+    return [
+      {
+        fileType,
+        sources: "assets",
+        src: asset.src,
+        id: asset.id,
+        prompt: asset.prompt,
+      } as UploadItem,
+    ];
+  });
+  if (slot === "start" || slot === "end") {
+    setFrameSlot(slot, newItems[0]);
+  } else if (props.mode === "singleImage") {
+    imageList.value = [newItems[0]];
+  } else {
+    const assetsNotAudioIds = newItems.filter((i) => i.fileType !== "audio");
+    const { data } = await axios.post("/production/workbench/getAudioBindAssetsList", {
+      assetsIds: assetsNotAudioIds.map((i) => i.id),
+    });
+    imageList.value = appendWithinAllowance(imageList.value, [...newItems, ...(data ?? [])]);
+  }
+}
+
 function clearImage(index: number) {
   const list = ensureFrameSlots();
   list[index] = { ...EMPTY_SLOT };
@@ -272,8 +311,10 @@ function pickStoryboard(sb: StoryboardItem) {
 
   if (currentSlot === "start" || currentSlot === "end") {
     setFrameSlot(currentSlot, newItem);
+  } else if (props.mode === "singleImage") {
+    imageList.value = [newItem];
   } else {
-    imageList.value = [...imageList.value, newItem];
+    imageList.value = appendWithinAllowance(imageList.value, [newItem]);
   }
 }
 function splitImage(index: number) {
@@ -284,6 +325,35 @@ function splitImage(index: number) {
 </script>
 
 <style lang="scss" scoped>
+.referenceSources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.referenceSources button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px;
+  text-align: left;
+  background: var(--td-bg-color-container);
+  color: var(--td-text-color-primary);
+  border: 1px solid var(--td-border-level-1-color);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.referenceSources button:hover {
+  border-color: #bd4c22;
+}
+.referenceSources strong {
+  font-size: 13px;
+}
+.referenceSources span {
+  font-size: 11px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
+}
 .imageUploadBox {
   gap: 8px;
   overflow-x: auto;

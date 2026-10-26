@@ -12,7 +12,7 @@
  * │ 老语义          │ 新语义                                        │
  * ├────────────────┼──────────────────────────────────────────────┤
  * │ 调用前预扣积分   │ 网关在转发那一刻「后扣」额度（按模型倍率）      │
- * │ 失败退款         │ 不再需要：调用没成功就不会扣费                 │
+ * │ 失败退款         │ 由网关账单决定；失败、超时也可能已有用量       │
  * │ 本地定价表       │ 作废：价格由 new-api 的渠道倍率决定            │
  * │ 会员等级         │ 退役：造物体系里没有会员，只有额度             │
  * └────────────────┴──────────────────────────────────────────────┘
@@ -20,14 +20,14 @@
  * 后续清理（P1.5）：把 20 个文件的 import 从 `@/utils/points` 改成 `@/utils/quota`，
  * 然后删掉本文件与 `o_points_*` 七张表。零残留门禁见 `ops/check-points-residue.sh`。
  */
-import { getQuota, creditYuan, applyQuotaChange, QUOTA_PER_UNIT, yuanToQuota } from "@/utils/quota";
+import { getQuota, creditYuan, applyQuotaChange, yuanToQuota } from "@/utils/quota";
+import { QUOTA_PER_POINT, quotaToPoints, pointsToQuota } from "@/utils/creditUnits";
 
 /**
  * 1 个「展示积分」= 多少 quota。
- * 默认与 QUOTA_PER_UNIT 相同 ⇒ 1 积分 = 1 元，UI 上的「积分」就成了「余额（元）」。
- * 想让数字看起来更大（比如 1 元 = 100 积分），把它设成 5000 即可。
+ * 产品固定为 1 元 = 10 积分，即 50000 quota = 1 积分。
+ * 不能用单独的环境倍率覆盖，否则余额与模型报价会使用不同单位。
  */
-const QUOTA_PER_POINT = Number(process.env.QUOTA_PER_POINT || QUOTA_PER_UNIT) || QUOTA_PER_UNIT;
 
 /** 差异化计费上下文。**已废弃**：价格由网关倍率决定，这里只为了不改调用点签名。 */
 export interface PricingCtx {
@@ -38,7 +38,7 @@ export interface PricingCtx {
 /** 用户余额（以展示积分计） */
 export async function getUserPoints(userId: number): Promise<number> {
   const quota = await getQuota(userId);
-  return Math.floor(quota / QUOTA_PER_POINT);
+  return quotaToPoints(quota);
 }
 
 /** 是否管理员 */
@@ -75,7 +75,7 @@ export async function getActionPoints(_action: string, _ctx?: PricingCtx | null)
  * 扣除积分。
  *
  * 【已废弃 · 空操作】返回 true 表示「无本地扣费，可以继续」。
- * 真实扣费由 new-api 在转发时完成；调用失败根本不会扣，因此也不需要退款。
+ * 真实扣费由 NewAPI 决定。流式中断、异步失败可能已有用量，不能保证失败不扣。
  */
 export async function deductPoints(_userId: number, _action: string, _description?: string, _ctx?: PricingCtx | null): Promise<boolean> {
   return true;
@@ -88,7 +88,7 @@ export async function deductPoints(_userId: number, _action: string, _descriptio
  *   · 老：余额不足直接拒绝，并在本地扣掉
  *   · 新：余额为 0 才拒绝；能过就让调用发出去，由网关按实际用量扣
  *
- * 这样并发扣款、冻结、退款这一整套正确性问题都消失了。
+ * 这只避免应用层重复扣减；并发、异步、退款正确性仍需核对网关账单。
  */
 export async function checkAndDeductPoints(
   userId: number,
@@ -102,22 +102,20 @@ export async function checkAndDeductPoints(
   try {
     quota = await getQuota(userId);
   } catch (e) {
-    // 读不到额度时**放行**：宁可让少数请求漏过一次软校验，也不能因为网关抖动
-    // 把全站用户挡在门外（真实扣费在网关侧，漏不掉）。
-    console.warn("[points] 额度读取失败，放行本次调用：", e instanceof Error ? e.message : e);
-    return { success: true, deducted: 0 };
+    console.warn("[points] 额度读取失败，阻止本次调用：", e instanceof Error ? e.message : e);
+    return { success: false, deducted: 0, message: "积分安全校验暂不可用，本次未提交模型请求，请稍后重试" };
   }
 
   if (quota <= 0) {
     return { success: false, current: 0, required: 0, message: "账户余额不足，请先充值后再试" };
   }
-  return { success: true, deducted: 0, current: Math.floor(quota / QUOTA_PER_POINT) };
+  return { success: true, deducted: 0, current: quotaToPoints(quota) };
 }
 
 /**
  * 退还积分。
  *
- * 【已废弃 · 空操作】后扣模式下，只有真正产生用量才扣费；调用失败不扣，故无需退款。
+ * 【已废弃 · 空操作】退款须核对网关日志及上游政策；本函数不能证明已退款。
  * 保留函数是为了不改 20 个调用点。
  */
 export async function refundPoints(_userId: number, points: number, _relatedId: string, _description?: string, _ctx?: PricingCtx | null): Promise<void> {
@@ -135,7 +133,7 @@ export async function giftPoints(userId: number, points: number, operatorId: num
   if (!(points > 0)) throw new Error("赠送积分必须为正数");
   await applyQuotaChange({
     userId,
-    delta: Math.round(points * QUOTA_PER_POINT),
+    delta: pointsToQuota(points),
     type: "gift",
     description: description ?? "管理员赠送",
     operatorId,
@@ -162,7 +160,7 @@ export async function rechargePoints(
   const desc = packageId ? `额度充值(套餐#${packageId})` : "额度充值";
   await applyQuotaChange({
     userId,
-    delta: Math.round(points * QUOTA_PER_POINT),
+    delta: pointsToQuota(points),
     type: "recharge",
     description: desc,
     operatorId,

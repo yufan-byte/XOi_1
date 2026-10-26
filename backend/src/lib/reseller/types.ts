@@ -1,6 +1,5 @@
 /**
- * 代理商中心（站长后台）配置模型：持久化在服务器 DATA_DIR/reseller.json
- * 移植自造物引擎 src/lib/reseller/types.ts（逐字保留，XOi 侧未做改动）。
+ * 平台与代理配置模型：PostgreSQL xoi_reseller_config；旧 JSON 仅作首次导入。
  */
 export interface SiteBrand { name: string; subtitle: string; hideSubtitle: boolean; logo: string; footer: string; icp?: string; police?: string; policeCode?: string; supportPhone?: string; supportEmail?: string; company?: string }
 export interface SiteDomain { subdomain: string; subdomainReason: string; subdomainStatus: "none" | "pending" | "approved" | "rejected"; customDomains: { domain: string; audience: "global" | "cn"; status: "pending" | "active" | "rejected"; createdAt: number }[] }

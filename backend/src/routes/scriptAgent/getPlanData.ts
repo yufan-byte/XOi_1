@@ -13,6 +13,10 @@ export default router.post(
   }),
   async (req, res) => {
     const { projectId, agentType } = req.body;
+    const userId = (req as any).user?.id;
+    if (!await u.db("o_project").where({ id: projectId, userId }).first()) {
+      return res.status(404).send({ message: "项目不存在" });
+    }
     const row = await u.db("o_agentWorkData").where({ projectId: projectId, key: agentType }).first();
 
     if (!row) {
@@ -22,6 +26,7 @@ export default router.post(
         data: JSON.stringify({
           storySkeleton: "",
           adaptationStrategy: "",
+          script: [],
         }),
       });
       return res.status(200).send(
@@ -29,13 +34,15 @@ export default router.post(
           data: {
             storySkeleton: "",
             adaptationStrategy: "",
+            script: [],
           },
           id
         }),
       );
     }
     const data = JSON.parse(row.data ?? "{}");
-    data.script = await u.db("o_script").where({ projectId }).select("id", "name", "content");
+    // 改编稿保留在工作区；正式剧本只在用户明确「采用」后才写入 o_script。
+    data.script = Array.isArray(data.script) ? data.script : [];
 
     res.status(200).send(success({ data, id: row.id }));
   },

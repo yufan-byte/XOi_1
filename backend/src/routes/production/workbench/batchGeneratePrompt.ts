@@ -1,4 +1,5 @@
 import express from "express";
+import { resolveTextModelKey } from "@/utils/textModel";
 import u from "@/utils";
 import pLimit from "p-limit";
 import { z } from "zod";
@@ -126,7 +127,7 @@ export default router.post(
                   .select("videoDesc", "prompt", "track", "duration", "shouldGenerateImage")
                   .first();
                 // 查询分镜关联的资产ID
-                const assetRows = await u.db("o_assets2Storyboard").where("storyboardId", item.id).orderBy("rowid").select("assetId");
+                const assetRows = await u.db("o_assets2Storyboard").where("storyboardId", item.id).orderBy("sortOrder", "asc", "last").orderBy("assetId").select("assetId");
                 const associateAssetsIds = assetRows.map((row: any) => row.assetId);
                 return {
                   ...storyboard,
@@ -188,7 +189,7 @@ export default router.post(
           `;
 
           try {
-            const { text } = await u.Ai.Text("universalAi").invoke({
+            const { text } = await u.Ai.Text(await resolveTextModelKey({ projectId })).invoke({
               system: videoPromptGeneration,
               messages: [
                 {

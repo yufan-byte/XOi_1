@@ -1,0 +1,39 @@
+{
+  "report": [
+    {
+      "name": "focus warms one canvas; send reuses it and opens the editor before model config responds",
+      "elapsedMs": 2756,
+      "indexRequests": 1
+    },
+    {
+      "name": "unavailable model leaves an editable draft without fallback calls or authorization"
+    },
+    {
+      "name": "second handoff opens a separate project in the same iframe and preserves the new draft"
+    },
+    {
+      "name": "legacy inspiration nodes resize and reflow; text, media placeholders and generation controls remain intact"
+    },
+    {
+      "name": "model recovery uses selected model and asks once; cancel sends no authorization or generation"
+    }
+  ],
+  "traffic": {
+    "index": 1,
+    "model": 0,
+    "authorize": 0,
+    "config": 5,
+    "projects": 0,
+    "lastPreview": {
+      "path": "/workflow/canvas-text",
+      "body": {
+        "model": "fixture-text",
+        "inputLength": 18880,
+        "hasReferenceVideo": false,
+        "hasReferenceImage": false
+      }
+    },
+    "previews": 1
+  },
+  "errors": []
+}

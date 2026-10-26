@@ -9,7 +9,7 @@ import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/im
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
 import { fetchUserAssetData, syncUserAssetData } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
-import { ownerKey } from "@/xoi/owner";
+import { ownerDbName, ownerKey } from "@/xoi/owner";
 
 export type AssetKind = "text" | "image" | "video" | "audio";
 export type TextAsset = AssetBase<"text"> & { data: { content: string } };
@@ -42,8 +42,8 @@ type AssetStore = {
     cleanupImages: (extra?: unknown, storageKeys?: ReadonlyMap<string, string>, ownerToken?: string) => void;
 };
 
-const ASSET_STORE_KEY = ownerKey("infinite-canvas:asset_store");
-const LEGACY_ASSET_STORE_KEY = "infinite-canvas:asset_store";
+// v2 隔离旧版本可能从公共库自动复制进来的素材；旧数据原样保留待确认归属。
+const ASSET_STORE_KEY = ownerKey("infinite-canvas:asset_store:v2");
 let activeAssetSyncToken = "";
 let accountAssetSyncEnabled = false;
 let isHydratingAccountAssets = false;
@@ -71,19 +71,7 @@ const assetStorage: PersistStorage<AssetStore> = {
         const value = await localForageStorage.getItem(name);
         let parsed: StorageValue<AssetStore> | null = value ? JSON.parse(value) as StorageValue<AssetStore> : null;
 
-        // 一次性接管旧版未分桶素材，避免用户升级后“我的素材”凭空消失。
-        if (!parsed) {
-            try {
-                const legacyStore = localforage.createInstance({ name: "infinite-canvas", storeName: "app_state" });
-                const legacyValue = await legacyStore.getItem<string>(LEGACY_ASSET_STORE_KEY);
-                if (legacyValue) {
-                    parsed = JSON.parse(legacyValue) as StorageValue<AssetStore>;
-                    await localForageStorage.setItem(name, JSON.stringify(parsed));
-                }
-            } catch {
-                // 旧仓不存在或数据损坏时按空库启动，不阻断画布。
-            }
-        }
+        // 未分桶旧素材的归属无法证明，不得自动赠给任意当前登录用户。
         if (!parsed) return null;
         parsed.state.assets = Array.isArray(parsed.state.assets) ? parsed.state.assets : [];
         parsed.state.assets = await Promise.all(parsed.state.assets.map(resolveStoredAsset));
@@ -134,7 +122,7 @@ export const useAssetStore = create<AssetStore>()(
                             // 收集本地/云端生图历史与视频历史中的 storageKey，避免生成结果卡片失效
                             try {
                                 const localforage = (await import("localforage")).default;
-                                const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
+                                const imageLogStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "image_generation_logs" });
                                 await imageLogStore.iterate((log: any) => {
                                     if (log) {
                                         if (Array.isArray(log.images)) {
@@ -155,7 +143,7 @@ export const useAssetStore = create<AssetStore>()(
 
                             try {
                                 const localforage = (await import("localforage")).default;
-                                const videoLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+                                const videoLogStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "video_generation_logs" });
                                 await videoLogStore.iterate((log: any) => {
                                     if (log) {
                                         if (log.video && log.video.storageKey) {
@@ -229,7 +217,7 @@ export const useAssetStore = create<AssetStore>()(
                     const logKeys: string[] = [];
                     try {
                         const localforage = (await import("localforage")).default;
-                        const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
+                        const imageLogStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "image_generation_logs" });
                         await imageLogStore.iterate((log: any) => {
                             if (log) {
                                 if (Array.isArray(log.images)) {
@@ -244,7 +232,7 @@ export const useAssetStore = create<AssetStore>()(
                                 }
                             }
                         });
-                        const videoLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+                        const videoLogStore = localforage.createInstance({ name: ownerDbName("state"), storeName: "video_generation_logs" });
                         await videoLogStore.iterate((log: any) => {
                             if (log) {
                                 if (log.video && log.video.storageKey) {

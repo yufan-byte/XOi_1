@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import isPathInside from "is-path-inside";
 import { AssistantError, runAssistantChat, validateAssistantInput } from "@/utils/aiAssistant/videoAnalysis";
+import { trackedGatewayFetch } from "@/lib/gateway/receipts";
 
 const router = express.Router();
 
@@ -79,7 +80,7 @@ router.post("/stream", async (req, res) => {
     emit({ tool: { name: video ? "analyze_video" : "assistant", state: "running", message: video ? "抽帧校验完成，正在准备视觉分析" : "正在分析创作需求" } });
     const heartbeat = setInterval(() => { if (!res.destroyed && !signal.aborted) res.write(": heartbeat\n\n"); }, 15_000);
     try {
-      await runAssistantChat({ config: aiConfig, messages: apiMessages, video, images, signal, emit });
+      await runAssistantChat({ config: aiConfig, messages: apiMessages, video, images, signal, emit, fetcher: trackedGatewayFetch });
       if (!res.destroyed && !signal.aborted) res.write("data: [DONE]\n\n");
     } finally { clearInterval(heartbeat); }
     res.end();
@@ -117,7 +118,7 @@ router.post("/", async (req, res) => {
   ];
 
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await trackedGatewayFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

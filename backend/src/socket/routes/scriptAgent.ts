@@ -3,6 +3,8 @@ import u from "@/utils";
 import { Namespace, Socket } from "socket.io";
 import * as agent from "@/agents/scriptAgent/index";
 import ResTool from "@/socket/resTool";
+import { resolveUserCatalogModel } from "@/lib/model-catalog";
+import {releaseLifecycle} from "@/utils/releaseLifecycle";
 
 async function verifyToken(rawToken: string): Promise<Boolean> {
   const setting = await u.db("o_setting").where("key", "tokenKey").select("value").first();
@@ -45,7 +47,7 @@ export default (nsp: Namespace) => {
       thinlLevel: 0,
     };
 
-    socket.on("chat", async (data: { content: string; skills?: unknown }) => {
+    socket.on("chat", releaseLifecycle.socketHandler(async (data: { content: string; skills?: unknown; model?: unknown }) => {
       const { content } = data;
       abortController?.abort();
       abortController = new AbortController();
@@ -65,6 +67,12 @@ export default (nsp: Namespace) => {
       };
 
       try {
+        if (data.model) {
+          if (typeof data.model !== "string" || !data.model.startsWith("newapi:")) throw new Error("请选择平台文字模型");
+          const name = data.model.slice(7);
+          const actual = (await resolveUserCatalogModel(Number(socket.data.user.id), name, "text")).model.modelName;
+          ctx.selectedModel = `newapi:${actual}`;
+        }
         await agent.runDecisionAI(ctx);
       } catch (err: any) {
         if (err.name !== "AbortError" && !currentController.signal.aborted) {
@@ -76,7 +84,7 @@ export default (nsp: Namespace) => {
           abortController = null;
         }
       }
-    });
+    },message=>socket.emit("error",{message})));
 
     socket.on("updateThinkConfig", (data: { think: boolean; thinlLevel: 0 | 1 | 2 | 3 }) => {
       thinkConfig.think = data.think;

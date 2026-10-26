@@ -1,37 +1,48 @@
 /**
- * 把 Vite 生产产物同步到 Express 在 10588 实际托管的 data/web。
- *
- * 不删除目标目录：backend/data/web 还可能放站长热更的公告等运营文件；
- * Vite 资源自带内容哈希，旧 assets 留存不会被新 index.html 引用。
+ * Asset-first, entry-last publishing for the local single-origin service.
+ * Retain old hashed assets and preserve editable announcements.
  */
-import { access, cp, mkdir, readdir } from "node:fs/promises";
+import { access, cp, copyFile, mkdir, readdir, rename } from "node:fs/promises";
+import { constants } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const distDir = process.env.XOI_FRONTEND_DIST_DIR ? resolve(process.env.XOI_FRONTEND_DIST_DIR) : join(scriptsDir, "..", "dist");
 const publicDir = join(scriptsDir, "..", "public");
 const webDir = join(scriptsDir, "..", "..", "backend", "data", "web");
-
-await access(join(distDir, "index.html"));
+const consoleOnly=process.argv.includes("--console-only");
+const oneStopOnly=process.argv.includes("--one-stop-only");
+if([consoleOnly,oneStopOnly,process.argv.includes("--main-only")].filter(Boolean).length>1)throw Error("只能选择一个独立发布范围");
+await access(join(consoleOnly?join(publicDir,"console"):oneStopOnly?join(publicDir,"one-stop"):distDir, "index.html"));
 await mkdir(webDir, { recursive: true });
 
-for (const entry of await readdir(distDir)) {
-  await cp(join(distDir, entry), join(webDir, entry), {
-    recursive: true,
-    force: true,
-  });
+// Preserve pre-upgrade operator content without overwriting a newer edit.
+try { await copyFile(join(webDir, "announcements.json"), join(webDir, "..", "announcements.json"), constants.COPYFILE_EXCL); }
+catch (error) { if (!["ENOENT", "EEXIST"].includes(error.code)) throw error; }
+
+async function publish(source, target, excluded = []) {
+  await access(join(source, "index.html"));
+  await mkdir(target, { recursive: true });
+  for (const entry of await readdir(source)) {
+    if (entry === "index.html" || excluded.includes(entry)) continue;
+    await cp(join(source, entry), join(target, entry), { recursive: true, force: true });
+  }
+  const temporary = join(target, "index.html." + crypto.randomUUID() + ".next");
+  await copyFile(join(source, "index.html"), temporary);
+  await rename(temporary, join(target, "index.html"));
 }
 
-// Atelier 和 React 控制台各自是独立 Vite 应用，产物直接写入 frontend/public/。
-// 主站随后构建时不会可靠地把 public/ 下这两个嵌套应用重新搬进 dist/，
-// 同时同步 MONOFORM 的账号启动校验；避免 10588 使用旧控制台、画布或白模入口。
-for (const entry of ["atelier-canvas", "console", "monoform"]) {
-  await access(join(publicDir, entry, "index.html"));
-  await cp(join(publicDir, entry), join(webDir, entry), {
-    recursive: true,
-    force: true,
-  });
+// Independent bundles must come from their own latest builds, not stale dist snapshots.
+if(oneStopOnly){
+  await publish(join(publicDir,"one-stop"),join(webDir,"one-stop"));
+}else if(consoleOnly){
+  await publish(join(publicDir,"console"),join(webDir,"console"));
+}else{
+if (!process.argv.includes("--main-only")) {
+  for (const app of ["atelier-canvas", "console", "monoform", "one-stop"]) await publish(join(publicDir, app), join(webDir, app));
 }
-
-console.log(`✅ 10588 静态站已更新：${webDir}`);
+await publish(distDir, webDir, ["atelier-canvas", "console", "monoform", "one-stop", "announcements.json"]);
+}
+console.log("XOi 静态页面已发布（保留旧哈希资源与公告）：" + webDir);

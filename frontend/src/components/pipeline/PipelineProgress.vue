@@ -62,6 +62,8 @@ function countText(id: ProgressSegmentId): string {
 
 .ppSeg {
   display: inline-flex;
+  flex-shrink: 0;
+  white-space: nowrap;
   align-items: center;
   gap: 6px;
   padding: 5px 11px;
@@ -99,7 +101,8 @@ function countText(id: ProgressSegmentId): string {
 }
 
 .ppSeg.state-doing .ppDot {
-  background: linear-gradient(135deg, #ff9b61, #f26432);
+  box-sizing:border-box; border:1px solid #f5a477;
+  background: #fff;
 }
 
 .ppSeg.state-doing .ppCount {
@@ -108,17 +111,17 @@ function countText(id: ProgressSegmentId): string {
 
 /* 已完成 */
 .ppSeg.state-done {
-  border-color: rgba(43, 164, 113, 0.28);
-  background: rgba(43, 164, 113, 0.08);
-  color: #24835b;
+  border-color: #efd8c6;
+  background: #fff6ee;
+  color: #a8704b;
 }
 
 .ppSeg.state-done .ppDot {
-  background: #2ba471;
+  background: #d68a58;
 }
 
 .ppSeg.state-done .ppCount {
-  color: #3e9a74;
+  color: #b98662;
 }
 
 /* 项目卡里的紧凑形态：更小的胶囊、无数字 */

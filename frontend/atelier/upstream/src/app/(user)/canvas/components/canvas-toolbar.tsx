@@ -1,41 +1,12 @@
-import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
-import { useRef, useState } from "react";
-import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, FolderOpen, Globe2, Grid2x2, Hand, Image as ImageIcon, Info, Layers3, Library, Moon, MousePointer2, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
+import type { ReactNode } from "react";
+import { Button, Dropdown, Popover, Segmented, Switch, Tooltip } from "antd";
+import { Clapperboard, Eraser, FolderOpen, Globe2, Image as ImageIcon, Library, MoreHorizontal, Music2, Palette, Settings2, Trash2, Type, Upload, Video } from "lucide-react";
 
-import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
+import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 
-export function CanvasToolbar({
-    selectedCount,
-    canvasTool,
-    canUndo,
-    canRedo,
-    backgroundMode,
-    showImageInfo,
-    onAddImage,
-    onAddVideo,
-    onAddAudio,
-    onAddText,
-    onAddPanorama,
-    onAddDirector,
-    onAddConfig,
-    onUndo,
-    onRedo,
-    onUpload,
-    onDelete,
-    onClear,
-    onCanvasToolChange,
-    onBackgroundModeChange,
-    onShowImageInfoChange,
-    onOpenAssetLibrary,
-    onOpenMyAssets,
-}: {
+type Props = {
     selectedCount: number;
-    canvasTool: "select" | "pan";
-    canUndo: boolean;
-    canRedo: boolean;
     backgroundMode: CanvasBackgroundMode;
     showImageInfo: boolean;
     onAddImage: () => void;
@@ -45,274 +16,61 @@ export function CanvasToolbar({
     onAddPanorama: () => void;
     onAddDirector: () => void;
     onAddConfig: () => void;
-    onUndo: () => void;
-    onRedo: () => void;
     onUpload: () => void;
     onDelete: () => void;
     onClear: () => void;
-    onCanvasToolChange: (tool: "select" | "pan") => void;
     onBackgroundModeChange: (mode: CanvasBackgroundMode) => void;
     onShowImageInfoChange: (show: boolean) => void;
     onOpenAssetLibrary: () => void;
     onOpenMyAssets: () => void;
-}) {
-    const wrapRef = useRef<HTMLDivElement>(null);
-    const colorTheme = useThemeStore((state) => state.theme);
-    const setTheme = useThemeStore((state) => state.setTheme);
+};
+
+/** 常用创作工具常驻；扩展能力集中在更多菜单，仍复用原来的画布操作。 */
+export function CanvasToolbar(props: Props) {
+    const colorTheme = useThemeStore(state => state.theme);
+    const setTheme = useThemeStore(state => state.setTheme);
     const theme = canvasThemes[colorTheme];
-    const [hovered, setHovered] = useState<string | null>(null);
-    const [tipX, setTipX] = useState(0);
-    const [appearanceOpen, setAppearanceOpen] = useState(false);
-    const [panelX, setPanelX] = useState(0);
-    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)" };
-    const hoverStyle = { background: theme.toolbar.itemHover, color: theme.toolbar.activeText };
-    const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
-    const tip = hovered ? toolLabel(hovered) : "";
+    const appearance = <div className="w-60 space-y-4 p-1" style={{ color: theme.node.text }}>
+        <div className="text-sm font-medium">画布外观</div>
+        <label className="block space-y-2"><span className="text-xs" style={{ color: theme.node.muted }}>主题</span>
+            <Segmented block value={colorTheme} onChange={value => setTheme(value as "light" | "dark")} options={[{ label: "浅色", value: "light" }, { label: "深色", value: "dark" }]} />
+        </label>
+        <label className="block space-y-2"><span className="text-xs" style={{ color: theme.node.muted }}>背景</span>
+            <Segmented block value={props.backgroundMode} onChange={value => props.onBackgroundModeChange(value as CanvasBackgroundMode)} options={[{ label: "点阵", value: "dots" }, { label: "网格", value: "lines" }, { label: "纯色", value: "blank" }]} />
+        </label>
+        <div className="flex items-center justify-between text-xs"><span>显示图片信息</span><Switch size="small" checked={props.showImageInfo} onChange={props.onShowImageInfoChange} /></div>
+    </div>;
 
-    return (
-        <div className="pointer-events-none absolute bottom-5 z-50 flex justify-center" style={{ left: 300, right: 16 }}>
-            {tip ? <DockTip label={tip} x={tipX} theme={theme} /> : null}
-            <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 shadow-lg backdrop-blur [&>*]:shrink-0" style={dockStyle}>
-                <ToolbarButton id={`tool-${canvasTool}`} label={canvasTool === "select" ? "选择" : "移动"} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>
-                    {canvasTool === "select" ? <MousePointer2 className="size-4.5" /> : <Hand className="size-4.5" />}
-                </ToolbarButton>
-                <ToolbarButton id="tool-undo" label="撤销" disabled={!canUndo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUndo}>
-                    <Undo2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-redo" label="重做" disabled={!canRedo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onRedo}>
-                    <Redo2 className="size-4.5" />
-                </ToolbarButton>
-                <Divider theme={theme} />
-                <ToolbarButton id="tool-text" label="文本" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddText}>
-                    <Type className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-image" label="图片" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddImage}>
-                    <ImageIcon className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-video" label="视频" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddVideo}>
-                    <Video className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-audio" label="音频" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddAudio}>
-                    <Music2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-panorama" label="全景图" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddPanorama}>
-                    <Globe2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-director" label="导演台" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddDirector}>
-                    <Layers3 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-config" label="生成配置" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddConfig}>
-                    <Settings2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-upload" label="上传素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
-                    <Upload className="size-4.5" />
-                </ToolbarButton>
-                <Divider theme={theme} />
-                <ToolbarButton id="tool-library" label="素材库" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenAssetLibrary}>
-                    <Library className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-assets" label="我的素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenMyAssets}>
-                    <FolderOpen className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton
-                    id="tool-style"
-                    label="画布外观"
-                    active={appearanceOpen}
-                    hovered={hovered}
-                    activeStyle={activeStyle}
-                    hoverStyle={hoverStyle}
-                    wrapRef={wrapRef}
-                    onTipX={setTipX}
-                    onHover={setHovered}
-                    onClick={(event) => {
-                        setPanelX(getTipX(wrapRef.current, event.currentTarget));
-                        setAppearanceOpen((value) => !value);
-                    }}
-                >
-                    <Palette className="size-4.5" />
-                </ToolbarButton>
-                {selectedCount ? (
-                    <>
-                        <Divider theme={theme} />
-                        <ToolbarButton id="tool-delete" label="删除选中" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onDelete} danger>
-                            <Trash2 className="size-4.5" />
-                        </ToolbarButton>
-                    </>
-                ) : null}
-                <Divider theme={theme} />
-                <ToolbarButton id="tool-clear" label="清空画布" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onClear} danger>
-                    <Eraser className="size-4.5" />
-                </ToolbarButton>
-            </div>
-
-            {appearanceOpen ? (
-                <div
-                    className="pointer-events-auto absolute bottom-[72px] z-30 w-[248px] -translate-x-1/2 rounded-xl border p-2.5 shadow-xl backdrop-blur"
-                    style={{ left: panelX || "50%", background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
-                >
-                    <div className="px-1 pb-2 text-sm font-medium opacity-65">画布外观</div>
-                    <div className="px-1 pb-1.5 text-[11px] font-medium opacity-50">主题模式</div>
-                    <div className="grid grid-cols-2 gap-1 rounded-lg p-1" style={{ background: theme.toolbar.itemHover }}>
-                        <CanvasThemeButton colorTheme={colorTheme} targetTheme="light" onThemeChange={setTheme}>
-                            <Sun className="size-4" />
-                            浅色
-                        </CanvasThemeButton>
-                        <CanvasThemeButton colorTheme={colorTheme} targetTheme="dark" onThemeChange={setTheme}>
-                            <Moon className="size-4" />
-                            深色
-                        </CanvasThemeButton>
-                    </div>
-                    <div className="mt-3 px-1 pb-1.5 text-[11px] font-medium opacity-50">网格样式</div>
-                    <Segmented
-                        className="w-full !p-1 [&_.ant-segmented-group]:!flex [&_.ant-segmented-item]:!min-h-8 [&_.ant-segmented-item]:!flex-1 [&_.ant-segmented-item-label]:!min-h-8 [&_.ant-segmented-item-label]:!leading-8"
-                        value={backgroundMode}
-                        onChange={(value) => onBackgroundModeChange(value as CanvasBackgroundMode)}
-                        options={[
-                            {
-                                value: "dots",
-                                label: (
-                                    <span className="inline-flex items-center gap-1.5">
-                                        <CircleDot className="size-4" />点
-                                    </span>
-                                ),
-                            },
-                            {
-                                value: "lines",
-                                label: (
-                                    <span className="inline-flex items-center gap-1.5">
-                                        <Grid2x2 className="size-4" />线
-                                    </span>
-                                ),
-                            },
-                            {
-                                value: "blank",
-                                label: (
-                                    <span className="inline-flex items-center gap-1.5">
-                                        <Square className="size-4" />
-                                        空白
-                                    </span>
-                                ),
-                            },
-                        ]}
-                    />
-                    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
-                        <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium opacity-65">
-                            <Info className="size-3.5" />
-                            图片信息
-                        </span>
-                        <Switch size="small" checked={showImageInfo} onChange={onShowImageInfoChange} />
-                    </div>
-                </div>
-            ) : null}
+    return <nav aria-label="画布创作工具" className="absolute left-4 top-1/2 z-50 -translate-y-1/2" onPointerDown={event => event.stopPropagation()}>
+        <div className="thin-scrollbar flex max-h-[calc(100dvh-168px)] flex-col items-center gap-1 overflow-y-auto rounded-2xl border p-1.5 backdrop-blur-xl [&>*]:shrink-0" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, boxShadow: colorTheme === "dark" ? "0 4px 24px #0003" : "0 4px 24px #20293808" }}>
+            <Tool label="文本" onClick={props.onAddText}><Type /></Tool>
+            <Tool label="图片" onClick={props.onAddImage}><ImageIcon /></Tool>
+            <Tool label="视频" onClick={props.onAddVideo}><Video /></Tool>
+            <Tool label="音频" onClick={props.onAddAudio}><Music2 /></Tool>
+            <Tool label="导演台" onClick={props.onAddDirector}><Clapperboard /></Tool>
+            <div className="my-1 h-px w-6" style={{ background: theme.toolbar.border }} />
+            <Tool label="我的素材" onClick={props.onOpenMyAssets}><FolderOpen /></Tool>
+            <Tool label="上传素材" onClick={props.onUpload}><Upload /></Tool>
+            <Popover trigger="click" placement="rightBottom" arrow={false} content={appearance} styles={{ container: { background: theme.node.panel, border: `1px solid ${theme.toolbar.border}`, borderRadius: 16 } }}>
+                <span><Tool label="画布外观"><Palette /></Tool></span>
+            </Popover>
+            <Dropdown trigger={["click"]} placement="bottomLeft" menu={{ items: [
+                { key: "config", icon: <Settings2 size={16} />, label: "生成配置", onClick: props.onAddConfig },
+                { key: "panorama", icon: <Globe2 size={16} />, label: "全景图", onClick: props.onAddPanorama },
+                { key: "library", icon: <Library size={16} />, label: "素材库", onClick: props.onOpenAssetLibrary },
+                { type: "divider" },
+                { key: "delete", icon: <Trash2 size={16} />, label: "删除选中", disabled: !props.selectedCount, danger: true, onClick: props.onDelete },
+                { key: "clear", icon: <Eraser size={16} />, label: "清空画布", danger: true, onClick: props.onClear },
+            ] }}>
+                <span><Tool label="更多工具"><MoreHorizontal /></Tool></span>
+            </Dropdown>
         </div>
-    );
+    </nav>;
 }
 
-function ToolbarButton({
-    id,
-    label,
-    active,
-    hovered,
-    activeStyle,
-    hoverStyle,
-    wrapRef,
-    onTipX,
-    onHover,
-    onClick,
-    disabled = false,
-    danger = false,
-    children,
-}: {
-    id: string;
-    label: string;
-    active?: boolean;
-    hovered: string | null;
-    activeStyle?: CSSProperties;
-    hoverStyle: CSSProperties;
-    wrapRef: RefObject<HTMLDivElement | null>;
-    onTipX: (x: number) => void;
-    onHover: (id: string | null) => void;
-    onClick?: (event: ReactMouseEvent<HTMLElement>) => void;
-    disabled?: boolean;
-    danger?: boolean;
-    children: ReactNode;
-}) {
-    const theme = canvasThemes[useThemeStore((state) => state.theme)];
-
-    return (
-        <Button
-            type="text"
-            aria-label={label}
-            className="!h-8 !w-8 !min-w-8 !p-0"
-            disabled={disabled}
-            style={active ? activeStyle : hovered === id && !disabled ? hoverStyle : { color: danger ? "#f87171" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}
-            icon={children}
-            onMouseEnter={(event) => {
-                onHover(id);
-                onTipX(getTipX(wrapRef.current, event.currentTarget));
-            }}
-            onMouseLeave={() => onHover(null)}
-            onClick={onClick}
-        />
-    );
-}
-
-function Divider({ theme }: { theme: CanvasTheme }) {
-    return <div className="mx-1 h-6 w-px" style={{ background: theme.toolbar.border }} />;
-}
-
-function CanvasThemeButton({ colorTheme, targetTheme, onThemeChange, children }: { colorTheme: CanvasColorTheme; targetTheme: CanvasColorTheme; onThemeChange: (theme: CanvasColorTheme) => void; children: ReactNode }) {
-    const theme = canvasThemes[colorTheme];
-    const active = colorTheme === targetTheme;
-    const activeStyle = colorTheme === "light" ? { background: "#111111", color: "#ffffff" } : { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
-
-    return (
-        <AnimatedThemeToggler
-            theme={colorTheme}
-            targetTheme={targetTheme}
-            onThemeChange={onThemeChange}
-            className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition"
-            style={active ? activeStyle : { color: theme.toolbar.item }}
-            aria-label={`切换到${targetTheme === "dark" ? "深色" : "浅色"}主题`}
-            title={`切换到${targetTheme === "dark" ? "深色" : "浅色"}主题`}
-        >
-            {children}
-        </AnimatedThemeToggler>
-    );
-}
-
-function DockTip({ label, x, theme }: { label: string; x: number; theme: CanvasTheme }) {
-    return (
-        <span className="absolute bottom-[calc(100%+8px)] -translate-x-1/2 rounded-md px-2 py-1 text-xs shadow-lg" style={{ left: x, background: theme.node.text, color: theme.node.panel }}>
-            {label}
-        </span>
-    );
-}
-
-function toolLabel(id: string) {
-    if (id === "tool-select") return "选择";
-    if (id === "tool-pan") return "移动";
-    if (id === "tool-undo") return "撤销";
-    if (id === "tool-redo") return "重做";
-    if (id === "tool-text") return "文本";
-    if (id === "tool-image") return "图片";
-    if (id === "tool-video") return "视频";
-    if (id === "tool-audio") return "音频";
-    if (id === "tool-panorama") return "全景图";
-    if (id === "tool-director") return "导演台";
-    if (id === "tool-config") return "生成配置";
-    if (id === "tool-upload") return "上传素材";
-    if (id === "tool-library") return "素材库";
-    if (id === "tool-assets") return "我的素材";
-    if (id === "tool-style") return "画布外观";
-    if (id === "tool-delete") return "删除选中";
-    if (id === "tool-clear") return "清空画布";
-    return "";
-}
-
-function getTipX(wrap: HTMLDivElement | null, target: HTMLElement) {
-    if (!wrap) return 0;
-    const wrapBox = wrap.parentElement?.getBoundingClientRect() || wrap.getBoundingClientRect();
-    const box = target.getBoundingClientRect();
-    return box.left - wrapBox.left + box.width / 2;
+function Tool({ label, onClick, children }: { label: string; onClick?: () => void; children: ReactNode }) {
+    const theme = canvasThemes[useThemeStore(state => state.theme)];
+    return <Tooltip title={label} placement="right" mouseEnterDelay={0.25}>
+        <Button type="text" aria-label={label} className="!flex !size-10 !min-w-10 !items-center !justify-center !rounded-xl !p-0 [&_svg]:size-5 [&_svg]:stroke-[1.7]" style={{ color: theme.node.text }} onClick={onClick} icon={children} />
+    </Tooltip>;
 }

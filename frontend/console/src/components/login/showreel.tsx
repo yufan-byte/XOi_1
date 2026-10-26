@@ -119,7 +119,7 @@ export function Showreel({ index, onNext, onPrev, reduced, media3d = false }: { 
             <div key={index} className="pop-in relative aspect-video w-full overflow-hidden rounded-[24px] border border-white/15 bg-black shadow-[0_40px_120px_rgba(0,0,0,0.75)]" onClick={onNext} role="button" tabIndex={0} aria-label={`${cur.title}，点击查看下一件`} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNext(); } }}>
               <Media i={index} active />
               {fadeFrom !== null && fadeFrom !== index && <div key={`fade-${index}`} aria-hidden className="reel-crossfade pointer-events-none absolute inset-0"><Media i={fadeFrom} active={false} /></div>}
-              <span aria-hidden className="absolute left-4 top-4 h-3.5 w-3.5 rounded-[4px] bg-[#8b6dff] shadow-[0_0_18px_rgba(139,109,255,0.9)]" />
+              <span aria-hidden className="absolute left-4 top-4 h-3.5 w-3.5 rounded-[4px] bg-[#b9f0ec] shadow-[0_0_18px_rgba(185,240,236,0.9)]" />
               <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
             </div>
           </div>

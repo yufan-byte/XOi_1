@@ -50,6 +50,10 @@ export const ROUTE_WHITELIST: string[] = [
   "modelSelect",
   "agents",
   "aiAssistant",
+  // 独立 AI 一站式文档；所有读写仍位于全局账号鉴权之后。
+  "one-stop",
+  "one-stop-uploads",
+  "model-health",
   // 画布（atelier 后端）
   "canvas",
   "canvas-files",

@@ -29,6 +29,15 @@ function upstreamAliasPlugin(): Plugin {
             if (importer?.startsWith(upstreamWebDir) && source === "@/xoi/owner") {
                 return resolve(webDir, "src/xoi/owner.ts");
             }
+            if (importer?.startsWith(upstreamWebDir) && source === "@/xoi/model-pricing") {
+                return resolve(webDir, "src/xoi/model-pricing.ts");
+            }
+            if (importer?.startsWith(upstreamWebDir) && source === "@/xoi/model-quote") {
+                return resolve(webDir, "src/xoi/model-quote.tsx");
+            }
+            if (importer?.startsWith(upstreamWebDir) && ["@/xoi/quote-params", "@/xoi/video-input"].includes(source)) {
+                return resolve(webDir, "src", source.slice(2) + ".ts");
+            }
             if (importer?.startsWith(upstreamWebDir) && source.startsWith("@/")) {
                 // 注：配置弹窗的 XOi 化直接改上游文件（infinite-canvas-main/.../app-config-modal.tsx），
                 // 因为这层 resolveId 拦不到它的真实解析链（实测 0 命中），别再在这里做单文件覆盖。

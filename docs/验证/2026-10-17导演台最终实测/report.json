@@ -1,0 +1,1767 @@
+{
+  "startedAt": "2026-10-16T16:23:16.168Z",
+  "model": "newapi:agnes-2.5-flash",
+  "projectId": "director3d-u1-refine-live-20261017",
+  "realRequests": true,
+  "fixtures": false,
+  "cases": [
+    {
+      "mode": "调整场景",
+      "intent": "让记者用4秒沿地面向右走2米，保留其他人物和桌椅。",
+      "seconds": 6.04,
+      "error": [],
+      "text": "记者向右行走\n\n将记者姿态由坐改为站立，并设置2秒内向右移动2米的动画，保留其他物体不动。\n\n本镜 4 秒 · 操作清单确认后应用\n\n调整 记者 的姿势\n为 记者 记录 2 个移动点，配合行走动作\n\n应用到新版本镜头；原镜头、素材和动作保留，可撤销。精细材质、服装与表情需后续制作。\n\n应用为新版本镜头",
+      "success": true,
+      "application": {
+        "shotAdded": true,
+        "previewVerified": true,
+        "objects": 8,
+        "durationSeconds": 4
+      },
+      "objectKeyframes": {
+        "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8": [
+          {
+            "frame": 0,
+            "interpolation": "linear",
+            "position": [
+              -1.2,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              3.141592653589793,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "pose": "walk",
+            "poseTime": 0.24,
+            "continuousMotion": true,
+            "rigRoot": [
+              0,
+              0,
+              0
+            ],
+            "joints": {
+              "mixamorigHips": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigNeck": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigHead": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigHeadTop_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftEye": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightEye": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftShoulder": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftForeArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHand": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightShoulder": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightForeArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHand": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftUpLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftFoot": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftToeBase": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftToe_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightUpLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightFoot": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightToeBase": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightToe_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky4": [
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "frame": 95,
+            "interpolation": "linear",
+            "position": [
+              0.8,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              3.141592653589793,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "pose": "walk",
+            "poseTime": 0.24,
+            "continuousMotion": true,
+            "rigRoot": [
+              0,
+              0,
+              0
+            ],
+            "joints": {
+              "mixamorigHips": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigSpine2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigNeck": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigHead": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigHeadTop_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftEye": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightEye": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftShoulder": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftForeArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHand": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightShoulder": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightForeArm": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHand": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftUpLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftFoot": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftToeBase": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftToe_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightUpLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightLeg": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightFoot": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightToeBase": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightToe_End": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandThumb4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandIndex4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandMiddle4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandRing4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigLeftHandPinky4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandThumb4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandIndex4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandMiddle4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandRing4": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky1": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky2": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky3": [
+                0,
+                0,
+                0
+              ],
+              "mixamorigRightHandPinky4": [
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "undoVerified": true
+    },
+    {
+      "mode": "设计镜头",
+      "intent": "设计一个4秒缓慢推进镜头，从桌边两人中景推进到记者近景。必须提供起点和终点的可应用相机路径，始终对准记者。只要1个镜头，保留人物和场景。",
+      "seconds": 9.34,
+      "error": [],
+      "text": "镜头方案\n电影镜头设计\n\n缓慢推轨推进，从双人中景过渡至记者近景，视线始终锁定受访者。\n\n假设：场景坐标以桌子中心为原点，人物头部高度约1.1米。\n假设：相机目标点随推进锁定记者面部，保持主体居中。\n“人物 · 主角”可能遮挡主体，请在3D预演中检查\n已按“记者”的白模范围校准取景，必要时拉远机位；应用后请预演确认\n白模预演截图/录像仍需用户导出并作为参考上传，无法仅凭文字复现轨迹。\n\n预演只添加相机路径；演员调度、微表情、灯光精修和转场仍是制作建议。\n\n4 秒 · 24 FPS\n\n构图检查 · 4 秒 · 96 帧\n人物 · 主角\n记者\n受访者\n起点 · 主体范围在画幅内\n人物 · 主角\n记者\n受访者\n终点 · 主体范围在画幅内\n按白模范围估算起点与终点，细节、遮挡及运动过程请在应用后的 3D 预演中确认。\n01 · 镜头 01\n\n从双人全景渐进聚焦到记者个人近景，强化对话主体。\n\n构图 / 运镜\n起始为中景双人同框，终局为记者胸部以上近景特写。 · 推轨推进，匀速缓慢向前移动，无横摇或俯仰。\n调度 / 表演\n两位演员保持坐姿不动，镜头物理前移压缩空间纵深。 · 记者保持静坐倾听或轻微点头，姿态放松自然。\n光影 / 衔接\n保持现有暖白主光与冷色补光，推进后记者面部光影层次更丰富。 · 镜头结束时画面稳定在记者近景，便于后续剪辑衔接。\n查看镜头提示词\n添加为预演镜头（不扣积分）\n成片 / 精修提示词\n复制完整方案\n带入画布制作 →\n带入画布会创建文字与视频配置节点；点击生成后才执行媒体制作。精修请另导出白模截图或录像作为参考。",
+      "success": true,
+      "application": {
+        "shotAdded": true,
+        "previewVerified": true,
+        "objects": 8,
+        "durationSeconds": 4,
+        "lastCameraFrame": 95
+      },
+      "cameraKeys": [
+        {
+          "frame": 0,
+          "interpolation": "smooth",
+          "position": [
+            0,
+            1.2,
+            3.5
+          ],
+          "rotation": [
+            -0.008243056538485463,
+            0.33029735482925365,
+            0
+          ],
+          "focalLength": 35
+        },
+        {
+          "frame": 95,
+          "interpolation": "smooth",
+          "position": [
+            0,
+            1.2,
+            2.2
+          ],
+          "rotation": [
+            -0.012170224090902465,
+            0.49934672168013006,
+            0
+          ],
+          "focalLength": 35
+        }
+      ],
+      "undoVerified": true
+    }
+  ],
+  "traffic": [
+    {
+      "path": "/api/billing/preview",
+      "status": 200,
+      "data": {
+        "data": {
+          "label": "AI 场景搭建与调整",
+          "kind": "text",
+          "agent": "universalAi",
+          "model": "agnes-2.5-flash",
+          "modelId": "agnes-2.5-flash",
+          "free": true,
+          "count": 1,
+          "quote": {
+            "yuan": 0,
+            "points": 0,
+            "pointsPerYuan": 10,
+            "estimated": true,
+            "referenceVideoAdjustment": null,
+            "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+            "pricingVersion": "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+          },
+          "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+          "unknown": false,
+          "budget": {
+            "defaultPoints": 0.001,
+            "maxPoints": 1000,
+            "maxCalls": 1,
+            "maxOutputTokens": 4096,
+            "minutes": 30
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/authorize",
+      "status": 200,
+      "data": {
+        "data": {
+          "id": "3d539f06-7458-419e-a4ac-ce714cd3b14e",
+          "limitPoints": 0.001,
+          "maxCalls": 1,
+          "expiresAt": "2026-10-16T16:53:31.763Z",
+          "freeOnly": true
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/3d539f06-7458-419e-a4ac-ce714cd3b14e",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "3d539f06-7458-419e-a4ac-ce714cd3b14e",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T16:53:31.763Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/aiAssistant/director/compose",
+      "status": 200,
+      "data": {
+        "code": 200,
+        "data": {
+          "plan": {
+            "name": "记者向右行走",
+            "summary": "将记者姿态由坐改为站立，并设置2秒内向右移动2米的动画，保留其他物体不动。",
+            "warnings": [],
+            "actions": [
+              {
+                "kind": "pose",
+                "objectId": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+                "pose": "stand_relaxed"
+              },
+              {
+                "kind": "animate",
+                "objectId": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+                "points": [
+                  {
+                    "t": 0,
+                    "position": [
+                      -1.2,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "t": 1,
+                    "position": [
+                      0.8,
+                      0,
+                      0
+                    ]
+                  }
+                ],
+                "pose": "walk"
+              }
+            ],
+            "durationSeconds": 4
+          },
+          "projectId": "director3d-u1-refine-live-20261017",
+          "activeShotId": "shot-scene-1b12900d-79c2-46da-8a50-9e3a86f5f6e8"
+        },
+        "message": "成功"
+      },
+      "input": {
+        "task": "adjust",
+        "intent": "让记者用4秒沿地面向右走2米，保留其他人物和桌椅。",
+        "durationSeconds": 4,
+        "groundNewObjects": true,
+        "scene": {
+          "projectId": "director3d-u1-refine-live-20261017",
+          "activeShotId": "shot-scene-1b12900d-79c2-46da-8a50-9e3a86f5f6e8",
+          "name": "Agnes 免费实测 · 桌边对话",
+          "fps": 24,
+          "durationSeconds": 15,
+          "aspectRatio": "16:9",
+          "camera": {
+            "position": [
+              0,
+              2.5,
+              5
+            ],
+            "rotation": [
+              -0.30288486837497136,
+              0,
+              0
+            ],
+            "focalLength": 35
+          },
+          "objects": [
+            {
+              "id": "actor-lead",
+              "name": "人物 · 主角",
+              "type": "person",
+              "position": [
+                -1.25,
+                0,
+                0.3
+              ],
+              "rotation": [
+                0,
+                0.25,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "walk",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "block-stage",
+              "name": "平台",
+              "type": "box",
+              "position": [
+                1.4,
+                0.45,
+                -0.8
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                2.8,
+                0.9,
+                2.1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "block-step",
+              "name": "台阶",
+              "type": "box",
+              "position": [
+                2.9,
+                0.18,
+                0.55
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                1.7,
+                0.36,
+                1.1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-4fd70a4c-d24d-42d1-a00e-f88ad417ae3f",
+              "name": "桌子",
+              "type": "table",
+              "position": [
+                0,
+                0.44,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-c2933fff-fac8-4bcb-89da-0e85346603aa",
+              "name": "椅子A",
+              "type": "chair",
+              "position": [
+                -1.2,
+                0.51,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-40e398a7-aa1e-414e-a7f8-94c7822dafa0",
+              "name": "椅子B",
+              "type": "chair",
+              "position": [
+                1.2,
+                0.51,
+                0
+              ],
+              "rotation": [
+                0,
+                3.141592653589793,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+              "name": "记者",
+              "type": "person",
+              "position": [
+                -1.2,
+                -0.0050000000000000044,
+                0
+              ],
+              "rotation": [
+                0,
+                3.141592653589793,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "sit",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-5a272745-2d14-4e57-939f-58f001348cae",
+              "name": "受访者",
+              "type": "person",
+              "position": [
+                1.2,
+                -0.0050000000000000044,
+                0
+              ],
+              "rotation": [
+                0,
+                -2.4492935982947064e-16,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "sit",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "visible": true,
+              "locked": false
+            }
+          ],
+          "cameraKeyframes": [],
+          "lighting": {
+            "ambientIntensity": 1.35,
+            "keyIntensity": 2.8,
+            "fillIntensity": 1.1,
+            "keyAzimuth": 39,
+            "keyElevation": 51,
+            "exposure": 0.9,
+            "ambientColor": "#f7f1e6",
+            "keyColor": "#fff6e8",
+            "fillColor": "#a9c2c6"
+          },
+          "shotNames": [
+            "镜头 01",
+            "白模桌边对话搭建"
+          ],
+          "objectPaths": {}
+        },
+        "history": [],
+        "model": "newapi:agnes-2.5-flash"
+      }
+    },
+    {
+      "path": "/api/billing/receipt/3d539f06-7458-419e-a4ac-ce714cd3b14e",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "3d539f06-7458-419e-a4ac-ce714cd3b14e",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "75",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792167816
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T16:53:31.763Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/preview",
+      "status": 200,
+      "data": {
+        "data": {
+          "label": "AI 导演方案",
+          "kind": "text",
+          "agent": "universalAi",
+          "model": "agnes-2.5-flash",
+          "modelId": "agnes-2.5-flash",
+          "free": true,
+          "count": 1,
+          "quote": {
+            "yuan": 0,
+            "points": 0,
+            "pointsPerYuan": 10,
+            "estimated": true,
+            "referenceVideoAdjustment": null,
+            "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+            "pricingVersion": "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+          },
+          "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+          "unknown": false,
+          "budget": {
+            "defaultPoints": 0.001,
+            "maxPoints": 1000,
+            "maxCalls": 1,
+            "maxOutputTokens": 4096,
+            "minutes": 30
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/authorize",
+      "status": 200,
+      "data": {
+        "data": {
+          "id": "5a930619-3361-4d64-acd7-fb53a4539cab",
+          "limitPoints": 0.001,
+          "maxCalls": 1,
+          "expiresAt": "2026-10-16T16:53:43.826Z",
+          "freeOnly": true
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5a930619-3361-4d64-acd7-fb53a4539cab",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5a930619-3361-4d64-acd7-fb53a4539cab",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T16:53:43.826Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/3d539f06-7458-419e-a4ac-ce714cd3b14e",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "3d539f06-7458-419e-a4ac-ce714cd3b14e",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "75",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792167816
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T16:53:31.763Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5a930619-3361-4d64-acd7-fb53a4539cab",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5a930619-3361-4d64-acd7-fb53a4539cab",
+          "status": "pending",
+          "quota": 0,
+          "entries": [],
+          "points": 0,
+          "budget": {
+            "state": "active",
+            "reason": null,
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T16:53:43.826Z"
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/aiAssistant/director/plan",
+      "status": 200,
+      "data": {
+        "code": 200,
+        "data": {
+          "plan": {
+            "summary": "缓慢推轨推进，从双人中景过渡至记者近景，视线始终锁定受访者。",
+            "assumptions": [
+              "场景坐标以桌子中心为原点，人物头部高度约1.1米。",
+              "相机目标点随推进锁定记者面部，保持主体居中。"
+            ],
+            "warnings": [
+              "“人物 · 主角”可能遮挡主体，请在3D预演中检查",
+              "已按“记者”的白模范围校准取景，必要时拉远机位；应用后请预演确认",
+              "白模预演截图/录像仍需用户导出并作为参考上传，无法仅凭文字复现轨迹。"
+            ],
+            "renderPrompt": "写实新闻访谈场景，暖调室内光。推轨镜头缓慢向前推进，画面从桌边两人中景平滑过渡至坐着的记者近景特写。背景人物保留原有坐姿，焦点清晰锁定前景记者，电影级景深。禁止任何文字水印。",
+            "shots": [
+              {
+                "name": "镜头 01",
+                "purpose": "从双人全景渐进聚焦到记者个人近景，强化对话主体。",
+                "framing": "起始为中景双人同框，终局为记者胸部以上近景特写。",
+                "movement": "推轨推进，匀速缓慢向前移动，无横摇或俯仰。",
+                "blocking": "两位演员保持坐姿不动，镜头物理前移压缩空间纵深。",
+                "performance": "记者保持静坐倾听或轻微点头，姿态放松自然。",
+                "lighting": "保持现有暖白主光与冷色补光，推进后记者面部光影层次更丰富。",
+                "transition": "镜头结束时画面稳定在记者近景，便于后续剪辑衔接。",
+                "prompt": "写实新闻访谈场景，推轨镜头缓慢推进。从桌边两人中景平滑过渡至坐着记者的近景特写。暖调室内光，电影级景深，焦点清晰锁定记者。",
+                "camera": {
+                  "keyframes": [
+                    {
+                      "t": 0,
+                      "position": [
+                        0,
+                        1.2,
+                        3.5
+                      ],
+                      "target": [
+                        -1.2,
+                        1.1695,
+                        0
+                      ],
+                      "focalLength": 35
+                    },
+                    {
+                      "t": 1,
+                      "position": [
+                        0,
+                        1.2,
+                        2.2
+                      ],
+                      "target": [
+                        -1.2,
+                        1.1695,
+                        0
+                      ],
+                      "focalLength": 35
+                    }
+                  ]
+                },
+                "durationSeconds": 4,
+                "subjectId": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8"
+              }
+            ]
+          },
+          "skill": {
+            "id": "seedance-shot-design",
+            "name": "电影镜头设计",
+            "category": "镜头",
+            "description": "把创意转成景别、构图、焦距、光影与运镜方案",
+            "canApplyCamera": true
+          },
+          "referenceFiles": [
+            "SKILL.md",
+            "references/cinematography.md",
+            "references/quality-anchors.md"
+          ],
+          "projectId": "director3d-u1-refine-live-20261017",
+          "activeShotId": "shot-scene-1b12900d-79c2-46da-8a50-9e3a86f5f6e8"
+        },
+        "message": "成功"
+      },
+      "input": {
+        "skillId": "seedance-shot-design",
+        "intent": "设计一个4秒缓慢推进镜头，从桌边两人中景推进到记者近景。必须提供起点和终点的可应用相机路径，始终对准记者。只要1个镜头，保留人物和场景。",
+        "shotCount": 1,
+        "durationSeconds": 4,
+        "model": "newapi:agnes-2.5-flash",
+        "scene": {
+          "projectId": "director3d-u1-refine-live-20261017",
+          "activeShotId": "shot-scene-1b12900d-79c2-46da-8a50-9e3a86f5f6e8",
+          "name": "Agnes 免费实测 · 桌边对话",
+          "fps": 24,
+          "durationSeconds": 15,
+          "aspectRatio": "16:9",
+          "camera": {
+            "position": [
+              0,
+              2.5,
+              5
+            ],
+            "rotation": [
+              -0.30288486837497136,
+              0,
+              0
+            ],
+            "focalLength": 35
+          },
+          "objects": [
+            {
+              "id": "actor-lead",
+              "name": "人物 · 主角",
+              "type": "person",
+              "position": [
+                -1.25,
+                0,
+                0.3
+              ],
+              "rotation": [
+                0,
+                0.25,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "walk",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "block-stage",
+              "name": "平台",
+              "type": "box",
+              "position": [
+                1.4,
+                0.45,
+                -0.8
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                2.8,
+                0.9,
+                2.1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "block-step",
+              "name": "台阶",
+              "type": "box",
+              "position": [
+                2.9,
+                0.18,
+                0.55
+              ],
+              "rotation": [
+                0,
+                -0.18,
+                0
+              ],
+              "scale": [
+                1.7,
+                0.36,
+                1.1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-4fd70a4c-d24d-42d1-a00e-f88ad417ae3f",
+              "name": "桌子",
+              "type": "table",
+              "position": [
+                0,
+                0.44,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-c2933fff-fac8-4bcb-89da-0e85346603aa",
+              "name": "椅子A",
+              "type": "chair",
+              "position": [
+                -1.2,
+                0.51,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-40e398a7-aa1e-414e-a7f8-94c7822dafa0",
+              "name": "椅子B",
+              "type": "chair",
+              "position": [
+                1.2,
+                0.51,
+                0
+              ],
+              "rotation": [
+                0,
+                3.141592653589793,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "",
+              "bodyType": "",
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-a0c73502-46fb-45cc-91fa-47f289c5b0e8",
+              "name": "记者",
+              "type": "person",
+              "position": [
+                -1.2,
+                -0.0050000000000000044,
+                0
+              ],
+              "rotation": [
+                0,
+                3.141592653589793,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "sit",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "visible": true,
+              "locked": false
+            },
+            {
+              "id": "object-assistant-5a272745-2d14-4e57-939f-58f001348cae",
+              "name": "受访者",
+              "type": "person",
+              "position": [
+                1.2,
+                -0.0050000000000000044,
+                0
+              ],
+              "rotation": [
+                0,
+                -2.4492935982947064e-16,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "pose": "sit",
+              "bodyType": "standard",
+              "rigRoot": [
+                0,
+                0,
+                0
+              ],
+              "visible": true,
+              "locked": false
+            }
+          ],
+          "cameraKeyframes": [],
+          "lighting": {
+            "ambientIntensity": 1.35,
+            "keyIntensity": 2.8,
+            "fillIntensity": 1.1,
+            "keyAzimuth": 39,
+            "keyElevation": 51,
+            "exposure": 0.9,
+            "ambientColor": "#f7f1e6",
+            "keyColor": "#fff6e8",
+            "fillColor": "#a9c2c6"
+          },
+          "shotNames": [
+            "镜头 01",
+            "白模桌边对话搭建"
+          ],
+          "objectPaths": {}
+        }
+      }
+    },
+    {
+      "path": "/api/billing/receipt/5a930619-3361-4d64-acd7-fb53a4539cab",
+      "status": 200,
+      "data": {
+        "data": {
+          "billingId": "5a930619-3361-4d64-acd7-fb53a4539cab",
+          "status": "recorded",
+          "quota": 0,
+          "entries": [
+            {
+              "id": "76",
+              "quota": 0,
+              "model": "agnes-2.5-flash",
+              "at": 1792167832
+            }
+          ],
+          "points": 0,
+          "budget": {
+            "state": "stopped",
+            "reason": "本次导演方案请求已结束；已提交用量按积分明细结算",
+            "limitPoints": 0.001,
+            "reservedPoints": 0,
+            "remainingPoints": 0.001,
+            "calls": 1,
+            "maxCalls": 1,
+            "expiresAt": "2026-10-16T16:53:43.826Z"
+          }
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "preflight": {
+    "data": {
+      "label": "AI 场景搭建与调整",
+      "kind": "text",
+      "agent": "universalAi",
+      "model": "agnes-2.5-flash",
+      "modelId": "agnes-2.5-flash",
+      "free": true,
+      "count": 1,
+      "quote": {
+        "yuan": 0,
+        "points": 0,
+        "pointsPerYuan": 10,
+        "estimated": true,
+        "referenceVideoAdjustment": null,
+        "note": "包括本轮输入与预计输出；历史上下文和多次工具调用会增加实际用量",
+        "pricingVersion": "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+      },
+      "basis": "按当前输入估算；历史上下文、参考素材及工具调用可能增加费用。",
+      "unknown": false,
+      "budget": {
+        "defaultPoints": 0.001,
+        "maxPoints": 1000,
+        "maxCalls": 1,
+        "maxOutputTokens": 4096,
+        "minutes": 30
+      }
+    }
+  },
+  "quotaBefore": "5103444130",
+  "budgets": [
+    {
+      "billing_id": "3d539f06-7458-419e-a4ac-ce714cd3b14e",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true
+    },
+    {
+      "billing_id": "5a930619-3361-4d64-acd7-fb53a4539cab",
+      "operation_path": "/aiassistant/director/plan",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true
+    }
+  ],
+  "logs": [
+    {
+      "request_id": "202610161623328359514588268d9d6oEZfzOSd",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    },
+    {
+      "request_id": "202610161623448479875898268d9d63BEJV5od",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    }
+  ],
+  "quotaAfter": "5103444130",
+  "completedAt": "2026-10-16T16:23:59.731Z"
+}

@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: six relative presets, all styles and frame rates keep source and actor routes
+ok 1 - six relative presets, all styles and frame rates keep source and actor routes
+  ---
+  duration_ms: 8.673125
+  type: 'test'
+  ...
+# Subtest: following and endpoint edits retain target tracking and continuous geometry
+ok 2 - following and endpoint edits retain target tracking and continuous geometry
+  ---
+  duration_ms: 0.252792
+  type: 'test'
+  ...
+# Subtest: playback camera evaluation is reversible while manual camera edits invalidate drafts
+ok 3 - playback camera evaluation is reversible while manual camera edits invalidate drafts
+  ---
+  duration_ms: 4.637875
+  type: 'test'
+  ...
+# Subtest: clear undo validation accepts one track only and rejects unrelated scene changes
+ok 4 - clear undo validation accepts one track only and rejects unrelated scene changes
+  ---
+  duration_ms: 0.625625
+  type: 'test'
+  ...
+# Subtest: AI actions produce an additive version with native pose phase and original reference preserved
+ok 5 - AI actions produce an additive version with native pose phase and original reference preserved
+  ---
+  duration_ms: 0.803333
+  type: 'test'
+  ...
+# Subtest: reject unsupported actions, lock edits, nonfinite coordinates and nonexistent references
+ok 6 - reject unsupported actions, lock edits, nonfinite coordinates and nonexistent references
+  ---
+  duration_ms: 0.225459
+  type: 'test'
+  ...
+# Subtest: composer returns validated plans without execution tools or private scene resources
+ok 7 - composer returns validated plans without execution tools or private scene resources
+  ---
+  duration_ms: 15.358458
+  type: 'test'
+  ...
+# Subtest: scene adjustment leaves camera design to its own workflow, without silently changing camera
+ok 8 - scene adjustment leaves camera design to its own workflow, without silently changing camera
+  ---
+  duration_ms: 0.847542
+  type: 'test'
+  ...
+# Subtest: follow refuses stationary / pose-only subjects; demo creates one additive shot with actor and camera travel
+ok 9 - follow refuses stationary / pose-only subjects; demo creates one additive shot with actor and camera travel
+  ---
+  duration_ms: 35.998625
+  type: 'test'
+  ...
+# Subtest: templates preserve all source content, create only named objects, and frame people in landscape and portrait
+ok 10 - templates preserve all source content, create only named objects, and frame people in landscape and portrait
+  ---
+  duration_ms: 12.017583
+  type: 'test'
+  ...
+# Subtest: fresh AI build cannot reference original objects or inherit old animation; shot cap holds
+ok 11 - fresh AI build cannot reference original objects or inherit old animation; shot cap holds
+  ---
+  duration_ms: 0.535791
+  type: 'test'
+  ...
+# Subtest: pending settlement and permission to start a separate attempt are independent, without inventing zero charges
+ok 12 - pending settlement and permission to start a separate attempt are independent, without inventing zero charges
+  ---
+  duration_ms: 0.155958
+  type: 'test'
+  ...
+# Subtest: scene edits do not add shots, keep active identity and other shots, even at the shot limit
+ok 13 - scene edits do not add shots, keep active identity and other shots, even at the shot limit
+  ---
+  duration_ms: 1.418959
+  type: 'test'
+  ...
+# Subtest: canvas handoff has readable controls, exact per-shot time, one prompt source and optional reference; never submits generation
+ok 14 - canvas handoff has readable controls, exact per-shot time, one prompt source and optional reference; never submits generation
+  ---
+  duration_ms: 0.709667
+  type: 'test'
+  ...
+# Subtest: switching the subject changes the camera framing and updates only the active shot
+ok 15 - switching the subject changes the camera framing and updates only the active shot
+  ---
+  duration_ms: 5.830667
+  type: 'test'
+  ...
+# Subtest: blocking moves only the selected actor and preserves the camera and other actors
+ok 16 - blocking moves only the selected actor and preserves the camera and other actors
+  ---
+  duration_ms: 1.122625
+  type: 'test'
+  ...
+# Subtest: stationary follow creates actor travel and camera travel in the same current shot
+ok 17 - stationary follow creates actor travel and camera travel in the same current shot
+  ---
+  duration_ms: 2.023375
+  type: 'test'
+  ...
+# Subtest: locked actors and invalid travel do not change the scene
+ok 18 - locked actors and invalid travel do not change the scene
+  ---
+  duration_ms: 0.280792
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 362.978125

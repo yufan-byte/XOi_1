@@ -1,0 +1,2 @@
+import {Dialog,DialogContent} from "@/components/ui/dialog";
+export function Drawer({open,onOpenChange,title,description,children,className=''}:{open:boolean;onOpenChange:(open:boolean)=>void;title:string;description?:string;children:React.ReactNode;className?:string}){return open?<Dialog open onOpenChange={onOpenChange}><DialogContent title={title} description={description} className={`max-h-[90dvh] overflow-y-auto ${className}`}>{children}</DialogContent></Dialog>:null;}

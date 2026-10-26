@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import * as D from "@radix-ui/react-dialog";
 import { flatMenu } from "@/components/reseller-menu";
 import { cn } from "@/lib/utils";
+import {useResellerMe} from "@/lib/reseller/client";
 
 type Item = { id: string; group: "后台页面" | "操作"; label: string; desc?: string; meta?: string; run: () => void };
 const GROUPS: Item["group"][] = ["后台页面", "操作"];
@@ -19,6 +20,7 @@ const GROUPS: Item["group"][] = ["后台页面", "操作"];
  * 现在改用 components/reseller-menu.ts（与侧栏同一份数据源），只列真实挂载的页面。
  */
 export function CommandPalette({ open, onOpenChange, onTopup }: { open: boolean; onOpenChange: (v: boolean) => void; onTopup: () => void }) {
+  const access=useResellerMe().data;
   const router = useRouter(); const { theme, setTheme } = useTheme();
   const [q, setQ] = useState(""); const [idx, setIdx] = useState(0); const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => { const h = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); onOpenChange(true); } }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [onOpenChange]);
@@ -28,7 +30,7 @@ export function CommandPalette({ open, onOpenChange, onTopup }: { open: boolean;
   useLayoutEffect(() => { if (!open) return; const measure = () => { const r = document.querySelector("main")?.getBoundingClientRect(); setArea(r && r.width > 0 ? { left: r.left, top: r.top, width: r.width, height: Math.min(r.height, window.innerHeight - r.top) } : null); }; measure(); window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure); }, [open]);
   const go = (href: string) => { onOpenChange(false); router.push(href); };
   const items = useMemo<Item[]>(() => {
-    const pages: Item[] = flatMenu().map((n) => ({
+    const pages: Item[] = flatMenu({scope:access?.scope??null,root:access?.root}).map((n) => ({
       id: `p-${n.href}`, group: "后台页面" as const, label: n.label,
       desc: n.group === "后台" ? n.href : `${n.group} · ${n.href}`,
       run: () => go(n.href),
@@ -41,7 +43,7 @@ export function CommandPalette({ open, onOpenChange, onTopup }: { open: boolean;
     const match = (i: Item) => !s || [i.label, i.desc, i.meta, i.id].join(" ").toLowerCase().includes(s);
     return [...pages.filter(match), ...actions.filter(match)];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, theme]);
+  }, [q, theme,access?.scope,access?.root]);
   useEffect(() => setIdx(0), [q]);
   useEffect(() => { listRef.current?.querySelector(`[data-idx="${idx}"]`)?.scrollIntoView({ block: "nearest" }); }, [idx]);
   const row = (it: Item) => {

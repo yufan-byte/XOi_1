@@ -2,6 +2,7 @@ import axios from "@/utils/axios";
 import projectStore from "@/stores/project";
 import settingStore from "@/stores/setting";
 import { useChat } from "@/utils/useChat";
+import {accountBoundary} from '@/utils/accountBoundary';
 
 interface PlanData {
   storySkeleton: string;
@@ -9,8 +10,9 @@ interface PlanData {
   script: { id?: number; name: string; content: string }[];
 }
 
-function makeScriptAgentStore(projectId: string) {
-  return defineStore(`scriptAgent-${projectId}`, () => {
+function makeScriptAgentStore(projectId: string, scope: number) {
+  return defineStore(`scriptAgent-${scope}-${projectId}`, () => {
+        const owner=accountBoundary.capture();
         const planData = ref<PlanData>({
           storySkeleton: "",
           adaptationStrategy: "",
@@ -18,6 +20,10 @@ function makeScriptAgentStore(projectId: string) {
         });
 
         const selectedSkills = ref<string[]>([]);
+        const selectedModel = ref("");
+        // 项目级文本模型作为对话默认模型（新建/编辑项目时选择）；用户在页面手动切换后仍以手动选择为准
+        const projectTextModel = String(projectStore().project?.textModel || "");
+        if (projectTextModel) selectedModel.value = projectTextModel;
         const { connected, messages, chat: sendChat, stopGenerate, socket, status, lastError, disconnect, connect, reconnect } = useChat({
           url: `${settingStore().baseUrl}/socket/scriptAgent`,
           auth: () => ({
@@ -68,6 +74,7 @@ function makeScriptAgentStore(projectId: string) {
         );
 
         async function setPlanData() {
+          accountBoundary.assert(owner);
           await axios.post("/scriptAgent/setPlanData", { projectId: projectId, agentType: "scriptAgent", data: planData.value });
         }
 
@@ -80,19 +87,21 @@ function makeScriptAgentStore(projectId: string) {
           }
         }
 
-        const chat = (content: string) => sendChat(content, undefined, [...selectedSkills.value]);
-        return { connected, messages, chat, selectedSkills, stopGenerate, socket, status, lastError, planData, setPlanData, connect, reconnect, disconnect, thinkLevel, updateThinkConfig };
+        const chat = (content: string) => sendChat(content, undefined, [...selectedSkills.value], selectedModel.value || undefined);
+        return { connected, messages, chat, selectedSkills, selectedModel, stopGenerate, socket, status, lastError, planData, setPlanData, connect, reconnect, disconnect, thinkLevel, updateThinkConfig };
       });
 }
 
 const storeMap = new Map<string, ReturnType<typeof makeScriptAgentStore>>();
 
 function createScriptAgentStore(projectId: string) {
-  if (!storeMap.has(projectId)) {
-    storeMap.set(projectId, makeScriptAgentStore(projectId));
+  const scope=accountBoundary.capture().generation,key=`${scope}:${projectId}`;
+  if (!storeMap.has(key)) {
+    storeMap.set(key, makeScriptAgentStore(projectId,scope));
   }
-  return storeMap.get(projectId)!;
+  return storeMap.get(key)!;
 }
+accountBoundary.subscribe(()=>storeMap.clear());
 
 export default function useScriptAgentStore() {
   const id = projectStore().project?.id;

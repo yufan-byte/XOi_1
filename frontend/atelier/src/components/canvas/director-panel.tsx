@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Modal } from "antd";
 import { useTranslation } from "react-i18next";
+import { getOwnerTag } from "@/xoi/owner";
 
 type DirectorPanelProps = {
     nodeId: string;
@@ -19,6 +20,7 @@ export function DirectorPanel({ nodeId, open, onClose, onExport }: DirectorPanel
     useEffect(() => {
         if (!open) return;
         const handler = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) return;
             const data = event.data as { source?: string; type?: string; kind?: "image" | "video"; blob?: Blob } | undefined;
             if (!data || data.source !== "monoform" || data.type !== "export") return;
             if ((data.kind === "image" || data.kind === "video") && data.blob) onExportRef.current(data.kind, data.blob);
@@ -39,7 +41,7 @@ export function DirectorPanel({ nodeId, open, onClose, onExport }: DirectorPanel
             styles={{ body: { height: "min(84vh, 820px)", padding: 0, overflow: "hidden" } }}
         >
             {/* monoform 由宿主项目挂在根路径 /monoform/（与画布产物分目录伺服） */}
-            <iframe src={`/monoform/index.html?key=${nodeId}`} title="MONOFORM" className="h-full w-full border-0" allow="camera; microphone; clipboard-write; download; fullscreen" />
+            <iframe src={`/monoform/index.html?key=${encodeURIComponent(`${getOwnerTag()}-canvas-${nodeId}`)}`} title="MONOFORM" className="h-full w-full border-0" allow="camera; microphone; clipboard-write; download; fullscreen" />
         </Modal>
     );
 }

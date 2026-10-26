@@ -1,0 +1,81 @@
+// Isolated loopback fixture only. All mutation requests are rejected by the fixture.
+import assert from "node:assert/strict";
+import {spawn} from "node:child_process";
+import {mkdtemp} from "node:fs/promises";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+import {fileURLToPath} from "node:url";
+const proxy=process.env.CDP_PROXY||"http://localhost:3456";
+const fixture=spawn(process.execPath,[fileURLToPath(new URL("./preview-console-appearance.mjs",import.meta.url))],{stdio:["ignore","pipe","inherit"]});
+const shots=await mkdtemp(join(tmpdir(),"xoi-team-workspace-"));const tabs=new Set();
+async function cmd(path,body){const r=await fetch(proxy+path,{method:body===undefined?"GET":"POST",...(body===undefined?{}:{body}),signal:AbortSignal.timeout(15000)});const j=await r.json();if(j.error)throw Error(j.error);return j;}
+const evaluate=async(tab,js)=>(await cmd(`/eval?target=${tab}`,js)).value;
+async function until(tab,code){for(let i=0;i<60;i++){if(await evaluate(tab,code))return;await new Promise(r=>setTimeout(r,150));}throw Error("UI assertion timed out: "+code);}
+async function open(url){const {targetId}=await cmd("/new",url);tabs.add(targetId);return targetId;}
+const screenshot=(tab,name)=>cmd(`/screenshot?target=${tab}&file=${encodeURIComponent(join(shots,name+".png"))}`);
+try{
+  const url=await new Promise((resolve,reject)=>{let out="";const t=setTimeout(()=>reject(Error("Fixture startup timed out")),10000);fixture.stdout.on("data",c=>{out+=c;if(out.includes("\n")){clearTimeout(t);resolve(JSON.parse(out.split("\n")[0]).url);}});fixture.once("error",reject);});
+  const base=new URL(url).origin,admin=await open(base+"/console/reseller/team-space");
+  await until(admin,"!!document.querySelector('.xoi-team-workspace')");
+  assert.equal(await evaluate(admin,"document.querySelectorAll('.xoi-admin-shell').length"),1);
+  assert.equal(await evaluate(admin,"document.querySelectorAll('.xoi-team-shell').length"),0);
+  assert.equal(await evaluate(admin,"[...document.querySelectorAll('[aria-current=page]')].some(e=>e.textContent.includes('团队空间'))"),true);
+  assert.equal(await evaluate(admin,"document.querySelector('#management-content').textContent.includes('2,000 积分')"),true);
+  assert.equal(await evaluate(admin,"document.documentElement.scrollWidth<=innerWidth"),true);
+  await screenshot(admin,"team-overview");
+  await evaluate(admin,"[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent==='成员与额度').click()");
+  assert.equal(await evaluate(admin,"document.querySelector('#management-content').textContent.includes('团队成员')"),true);
+  await evaluate(admin,"[...document.querySelectorAll('button')].find(e=>e.textContent==='添加成员').click()");
+  await until(admin,"!!document.querySelector('[role=dialog]')");
+  const limitInput="[...document.querySelectorAll('[role=dialog] label')].find(e=>e.textContent.includes('消费上限')).querySelector('input')";
+  assert.equal(await evaluate(admin,limitInput+".value"),"");
+  await evaluate(admin,"[...document.querySelectorAll('[role=dialog] button')].find(e=>e.textContent==='取消').click()");
+  await evaluate(admin,"document.querySelector('[aria-label=编辑]').click()");
+  await until(admin,"!!document.querySelector('[role=dialog]')");
+  assert.equal(await evaluate(admin,limitInput+".value"),"1000");
+  await screenshot(admin,"team-member-limit-points");
+  await evaluate(admin,"[...document.querySelectorAll('[role=dialog] button')].find(e=>e.textContent==='取消').click()");
+  await evaluate(admin,"[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent==='消费明细').click()");
+  await until(admin,"document.querySelector('#management-content').textContent.includes('模型示例')");
+  assert.equal(await evaluate(admin,"document.querySelector('tbody').textContent.includes('20 积分')"),true);
+  await evaluate(admin,"[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent==='管理记录').click()");
+  await until(admin,"document.body.textContent.includes('个人划入团队')");
+  assert.equal(await evaluate(admin,"document.querySelector('tbody').textContent.includes('+10 积分')"),true);
+  await screenshot(admin,"team-ledger");
+  await evaluate(admin,"[...document.querySelectorAll('button')].find(e=>e.textContent==='成员与设置操作').click()");
+  await until(admin,"document.body.textContent.includes('修改团队名称')");
+  for(const status of ["已完成","结果待核对","处理中 / 结果未确认"])assert.equal(await evaluate(admin,`document.querySelector('tbody').textContent.includes(${JSON.stringify(status)})`),true);
+  await screenshot(admin,"team-operations");
+  await evaluate(admin,"[...document.querySelectorAll('button')].find(e=>e.textContent==='团队名称').click()");
+  await until(admin,"!!document.querySelector('[role=dialog]')");
+  assert.equal(await evaluate(admin,"document.querySelector('[aria-label=\"新的团队名称\"]').value"),"演示协作团队");
+  await screenshot(admin,"team-rename");
+  await evaluate(admin,"[...document.querySelectorAll('[role=dialog] button')].find(e=>e.textContent==='取消').click()");
+  const old=await open(base+"/console/team");
+  await until(old,"location.pathname==='/console/reseller/team-space'&&!!document.querySelector('.xoi-team-workspace')");
+  const member=await open(base+"/console/team?fixtureTeam=member&fixtureRole=user");
+  await until(member,"!!document.querySelector('.xoi-team-shell')&&document.body.textContent.includes('演示协作团队')");
+  assert.equal(await evaluate(member,"document.querySelectorAll('.xoi-admin-shell').length"),0);
+  assert.equal(await evaluate(member,"[...document.querySelectorAll('button')].some(e=>e.textContent==='添加成员')"),false);
+  await screenshot(member,"team-member-personal");
+  const viewer=await open(base+"/console/team?fixtureTeam=member&fixtureRole=user&fixtureViewer=1");
+  await until(viewer,"document.body.textContent.includes('消费查看者')");
+  for(const label of ["管理记录","团队名称"])assert.equal(await evaluate(viewer,`[...document.querySelectorAll('button')].some(e=>e.textContent===${JSON.stringify(label)})`),false);
+  const broken=await open(base+"/console/reseller/team-space?fixtureHistoryError=1");
+  await until(broken,"!!document.querySelector('.xoi-team-workspace')");
+  await evaluate(broken,"[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent==='管理记录').click()");
+  await until(broken,"document.body.textContent.includes('管理记录暂时未能加载')");
+  assert.equal(await evaluate(broken,"document.body.textContent.includes('暂无此类记录')"),false);
+  const mobile=await open(base+"/__test/mobile?page=team-workspace");
+  await until(mobile,"!!document.querySelector('iframe')?.contentDocument?.querySelector('.xoi-team-workspace')");
+  assert.equal(await evaluate(mobile,"(()=>{const f=document.querySelector('iframe');return f.contentWindow.innerWidth===390&&f.contentDocument.documentElement.scrollWidth<=390})()"),true);
+  const empty=await open(base+"/console/reseller/team-space?fixtureTeam=none");
+  await until(empty,"!!document.querySelector('.xoi-admin-shell')&&document.body.textContent.includes('创建团队空间')");
+  const requests=await (await fetch(base+"/__test/requests")).json();
+  assert.equal(requests.some(r=>r.method!=="GET"),false);
+  assert.equal(requests.some(r=>/chat\/completions|generations|\/pay/.test(r.path)),false);
+  console.log(JSON.stringify({passed:true,fixtureOnly:true,scenarios:["embedded-owner","new-member-explicit-limit","existing-limit-conversion","records-points","legacy-admin-redirect","ordinary-member-boundary","empty-team","ledger-points","operation-statuses","rename-form","viewer-no-management","history-failure","390px-owner"],writes:0,modelRequests:0,screenshots:shots}));
+}finally{
+  for(const tab of tabs)await cmd(`/close?target=${tab}`).catch(()=>{});
+  fixture.kill("SIGTERM");
+}

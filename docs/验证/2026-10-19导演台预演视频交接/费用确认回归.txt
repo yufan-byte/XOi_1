@@ -1,0 +1,6 @@
+PASS Cancel before confirmation never authorizes or submits a model request
+PASS Cancellation after authorization closes the unused budget and never submits a model request
+PASS A formerly free model cannot silently become a paid request
+PASS Confirmed zero-call ledger is displayed as not submitted
+PASS Unknown transport result stays pending without retry or false refund
+{"passed":true,"realModelRequests":0,"chargedRequests":0}

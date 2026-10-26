@@ -3,12 +3,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { Image } from "antd";
+import { Image, message } from "antd";
 import { FileText, Image as ImageIcon, Music2, Video, Wrench } from "lucide-react";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasAgentSkillSelection } from "../types";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
+
+/** 单次粘贴上限：超过直接截断，避免超长内容把会话/请求撑爆（后端 350KB 上限 ≈ 11.6 万字） */
+export const CANVAS_PROMPT_MAX_CHARS = 20_000;
 
 type CanvasPromptChipInputProps = {
     value: string;
@@ -46,6 +49,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
     const [mention, setMention] = useState<MentionState | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [isEditorFocused, setIsEditorFocused] = useState(false);
     const activeReferences = useMemo(() => references.filter((reference) => reference.active), [references]);
     const referenceByLabel = useMemo(() => new Map(activeReferences.map((reference) => [reference.label, reference])), [activeReferences]);
     const activeLabels = useMemo(() => Array.from(new Set(activeReferences.map((reference) => reference.label))).sort((left, right) => right.length - left.length), [activeReferences]);
@@ -157,7 +161,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
         emitChange(serializePromptEditor(editor));
     };
 
-    const showPlaceholder = !value.trim() && !pendingReferences?.length && !skills?.length;
+    const showPlaceholder = !isEditorFocused && !value.trim() && !pendingReferences?.length && !skills?.length;
 
     return (
         <div className="relative w-full">
@@ -178,7 +182,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
                 aria-label={placeholder}
                 className={`${className || ""} overflow-y-auto whitespace-pre-wrap break-words outline-none [&_[data-pending-reference=true]]:opacity-50`}
                 style={{ ...style, cursor: "text" }}
-                onFocus={commitPendingReferences}
+                onFocus={() => { setIsEditorFocused(true); commitPendingReferences(); }}
                 onPointerDown={commitPendingReferences}
                 onInput={(event) => {
                     if (composingRef.current) return;
@@ -195,10 +199,16 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
                         onPasteImage(image);
                         return;
                     }
-                    const text = event.clipboardData.getData("text/plain");
-                    if (!text) return;
+                    const raw = event.clipboardData.getData("text/plain");
+                    if (!raw) return;
 
                     event.preventDefault();
+
+                    // 粘贴就限制长度：不让超大段文本进入输入框，也就不会带进会话和请求
+                    const text = raw.length > CANVAS_PROMPT_MAX_CHARS ? raw.slice(0, CANVAS_PROMPT_MAX_CHARS) : raw;
+                    if (text.length !== raw.length) {
+                        message.warning(`粘贴内容 ${raw.length} 字，超过单次上限，已截断为前 ${CANVAS_PROMPT_MAX_CHARS} 字`);
+                    }
 
                     const selection = window.getSelection();
                     const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
@@ -275,6 +285,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
                     requestAnimationFrame(syncMention);
                 }}
                 onBlur={() => {
+                    setIsEditorFocused(false);
                     window.setTimeout(closeMention, 120);
                 }}
             />

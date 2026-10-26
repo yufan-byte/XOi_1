@@ -12,32 +12,21 @@
  * - 嵌入态 ?embed=1：被主站用透明 iframe 内弹（WorkbenchLayout 的充值入口）。
  *   遮罩交给宿主画（overlayClassName 透明化），本页只渲染弹窗本身；
  *   弹窗关闭 postMessage {type:"xoi:topup:close"} 通知宿主收起 iframe。
- *   ?theme=light|dark 跟随主站当前主题（写 localStorage("theme") 供 shims/next-themes 生效）。
+ *   ?theme=light|dark 只覆盖当前嵌入文档，不改写全局主题偏好。
  */
 import { useEffect } from "react";
+import { createLoginUrl } from "../../../../../shared/loginNavigation";
 import { TopupDialog } from "./dialogs/topup-dialog";
 import { hasSession } from "@/lib/api";
 
 const APP_HOME = import.meta.env.VITE_APP_HOME || "/";
 const CLOSE_MSG = "xoi:topup:close";
 
-/** 嵌入态下把宿主主题写进本页：必须在首帧渲染前跑（TopupDialog 的语义类依赖 html.dark） */
-function applyQueryTheme() {
-    try {
-        const t = new URLSearchParams(window.location.search).get("theme");
-        if (t === "light" || t === "dark") {
-            localStorage.setItem("theme", t);
-            document.documentElement.classList.toggle("dark", t === "dark");
-        }
-    } catch { /* 忽略 */ }
-}
-
 export function TopupStandalone() {
     const logged = hasSession();
     const embed = new URLSearchParams(window.location.search).get("embed") === "1";
     useEffect(() => {
-        applyQueryTheme();
-        if (!logged) window.location.replace(`/login?next=${encodeURIComponent("/topup")}`);
+        if (!logged) window.location.replace(createLoginUrl("/console/topup"));
     }, [logged]);
     if (!logged) return <div className="grid h-dvh w-full place-items-center bg-background text-sm text-muted-foreground">正在前往登录…</div>;
     if (embed) {
@@ -45,6 +34,7 @@ export function TopupStandalone() {
             <div className="grid min-h-dvh w-full place-items-center bg-transparent">
                 <TopupDialog
                     open
+                    transparentShell
                     overlayClassName="bg-transparent backdrop-blur-0"
                     contentClassName="bg-transparent p-0 shadow-none dark:bg-transparent"
                     onOpenChange={(v) => { if (!v && window.parent !== window) window.parent.postMessage({ type: CLOSE_MSG }, "*"); }}
@@ -56,7 +46,7 @@ export function TopupStandalone() {
         <div className="grid min-h-dvh w-full place-items-center bg-background">
             {/* 背景放品牌名 + 提示，弹窗关闭即回主站，不留悬空页 */}
             <div className="flex flex-col items-center gap-3 text-center">
-                <span className="text-[15px] font-[660] tracking-tight text-foreground">XOi · 算力充值</span>
+                <span className="text-[15px] font-[660] tracking-tight text-foreground">XOi · 积分充值</span>
                 <span className="max-w-[320px] text-[12px] leading-[19px] text-muted-foreground">正在打开充值面板…关闭面板后将返回创作平台。</span>
                 <a href={APP_HOME} className="text-[12px] font-[560] text-primary underline-offset-4 hover:underline">返回创作平台</a>
             </div>

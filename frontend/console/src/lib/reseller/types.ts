@@ -1,4 +1,4 @@
-/** 代理商中心（站长后台）配置模型：持久化在服务器 DATA_DIR/reseller.json */
+/** 平台与代理配置模型：服务端共享数据库持久化，客户端不保存凭据或配置真源。 */
 export interface SiteBrand { name: string; subtitle: string; hideSubtitle: boolean; logo: string; footer: string; icp?: string; police?: string; policeCode?: string; supportPhone?: string; supportEmail?: string; company?: string }
 export interface SiteDomain { subdomain: string; subdomainReason: string; subdomainStatus: "none" | "pending" | "approved" | "rejected"; customDomains: { domain: string; audience: "global" | "cn"; status: "pending" | "active" | "rejected"; createdAt: number }[] }
 export interface SiteTheme { skin: string; loginVideo: string; customBackground: string; customTemplate: string }

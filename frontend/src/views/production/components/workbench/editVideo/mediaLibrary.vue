@@ -1,27 +1,40 @@
 <template>
   <div class="mediaLibrary">
     <div class="mediaLibraryHeader">
-      <div class="headerTitle jb ac">
-        <h3 class="mediaLibraryTitle">{{ $t("workbench.production.editVideo.clipMaterials") }}</h3>
-        <span style="font-size: 12px">单击加入主轨，拖拽决定位置</span>
+      <div class="headerTitle">
+        <div>
+          <h3 class="mediaLibraryTitle">素材库</h3>
+          <span class="mediaLibraryHint">{{ mediaCount }} 项素材 · 单击加入时间线</span>
+        </div>
+      </div>
+      <div class="mediaLibraryActions">
+        <input ref="fileInputRef" class="nativeFileInput" type="file" accept="video/*,audio/*,image/*" multiple @change="handleLocalFiles" />
+        <button type="button" class="mediaImportBtn" @click="openFilePicker"><i-upload size="16" />导入本地素材</button>
+      </div>
+      <div class="mediaLibraryGroups" aria-label="素材库分组">
+        <button type="button" :class="{ active: activeGroup === 'media' }" @click="selectGroup('media')">素材</button>
+        <button type="button" :class="{ active: activeGroup === 'tools' }" @click="selectGroup('tools')">字幕与效果</button>
       </div>
       <div class="mediaLibraryTabs">
-        <t-button
-          v-for="tab in tabs"
+        <button
+          v-for="tab in visibleTabs"
           :key="tab.id"
-          :theme="activeTab === tab.id ? 'primary' : 'default'"
-          :variant="activeTab === tab.id ? 'base' : 'text'"
-          size="small"
+          type="button"
+          :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id">
-          <template #icon>
-            <component :is="tab.icon" theme="outline" size="18" style="margin-right: 4px" />
-          </template>
-          {{ tab.label }}
-        </t-button>
+          <component :is="tab.icon" theme="outline" size="15" />
+          <span>{{ tab.id === 'video' ? '分镜视频' : tab.id === 'media' ? '本地视频' : tab.label }}</span>
+        </button>
       </div>
     </div>
 
     <div class="mediaLibraryContent">
+      <div v-if="emptyTab" class="mediaLibraryEmpty">
+        <span class="mediaEmptyIcon"><i-upload theme="outline" size="22" /></span>
+        <strong>{{ emptyTabTitle }}</strong>
+        <p>{{ activeTab === 'video' ? '分镜视频会自动出现在这里；也可以直接导入自己的素材开始剪辑。' : '从电脑导入素材后，单击卡片即可加入时间线。' }}</p>
+        <button type="button" @click="openFilePicker">导入素材 <span>→</span></button>
+      </div>
       <!-- 分镜视频 -->
       <div v-if="activeTab === 'video'" class="mediaList">
         <div
@@ -29,7 +42,7 @@
           :key="item.id"
           class="mediaItem"
           draggable="true"
-          @click="handlePick(item)"
+          @click="handlePick(item)" role="button" tabindex="0" :aria-label="'添加 ' + item.name + ' 到时间线'" @keydown.enter.stop="handlePick(item)" @keydown.space.stop.prevent="handlePick(item)"
           @dragstart="handleDragStart($event, item)"
           @dragend="handleDragEnd">
           <div class="mediaItemPreview">
@@ -59,7 +72,7 @@
           :key="item.id"
           class="mediaItem"
           draggable="true"
-          @click="handlePick(item)"
+          @click="handlePick(item)" role="button" tabindex="0" :aria-label="'添加 ' + item.name + ' 到时间线'" @keydown.enter.stop="handlePick(item)" @keydown.space.stop.prevent="handlePick(item)"
           @dragstart="handleDragStart($event, item)"
           @dragend="handleDragEnd">
           <div class="mediaItemPreview">
@@ -87,7 +100,7 @@
           :key="item.id"
           class="mediaItem"
           draggable="true"
-          @click="handlePick(item)"
+          @click="handlePick(item)" role="button" tabindex="0" :aria-label="'添加 ' + item.name + ' 到时间线'" @keydown.enter.stop="handlePick(item)" @keydown.space.stop.prevent="handlePick(item)"
           @dragstart="handleDragStart($event, item)"
           @dragend="handleDragEnd">
           <div class="mediaItemPreview">
@@ -114,7 +127,7 @@
           :key="transition.id"
           class="transitionItem"
           draggable="true"
-          @dragstart="handleDragStart($event, transition)"
+          @click="handlePick(transition)" role="button" tabindex="0" :aria-label="'添加 ' + transition.name + ' 到时间线'" @keydown.enter.stop="handlePick(transition)" @keydown.space.stop.prevent="handlePick(transition)" @dragstart="handleDragStart($event, transition)"
           @dragend="handleDragEnd">
           <div class="transitionItemPreview">
             <span class="transitionItemIcon"><component :is="transition.icon" theme="outline" size="18" /></span>
@@ -134,7 +147,7 @@
           :key="effect.id"
           class="effectItem"
           draggable="true"
-          @dragstart="handleDragStart($event, effect)"
+          @click="handlePick(effect)" role="button" tabindex="0" :aria-label="'添加 ' + effect.name + ' 到时间线'" @keydown.enter.stop="handlePick(effect)" @keydown.space.stop.prevent="handlePick(effect)" @dragstart="handleDragStart($event, effect)"
           @dragend="handleDragEnd">
           <div class="effectItemPreview">
             <component :is="effect.icon" theme="outline" size="18" />
@@ -154,7 +167,7 @@
           :key="filter.id"
           class="filterItem"
           draggable="true"
-          @dragstart="handleDragStart($event, filter)"
+          @click="handlePick(filter)" role="button" tabindex="0" :aria-label="'添加 ' + filter.name + ' 到时间线'" @keydown.enter.stop="handlePick(filter)" @keydown.space.stop.prevent="handlePick(filter)" @dragstart="handleDragStart($event, filter)"
           @dragend="handleDragEnd">
           <div class="filterItemPreview">
             <component :is="filter.icon" theme="outline" size="18" />
@@ -174,7 +187,7 @@
           :key="audio.id"
           class="audioItem"
           draggable="true"
-          @click="handlePick(audio)"
+          @click="handlePick(audio)" role="button" tabindex="0" :aria-label="'添加 ' + audio.name + ' 到时间线'" @keydown.enter.stop="handlePick(audio)" @keydown.space.stop.prevent="handlePick(audio)"
           @dragstart="handleDragStart($event, audio)"
           @dragend="handleDragEnd">
           <div class="audioItemPreview">
@@ -201,7 +214,7 @@
           :key="text.id"
           class="textItem"
           draggable="true"
-          @dragstart="handleDragStart($event, text)"
+          @click="handlePick(text)" role="button" tabindex="0" :aria-label="'添加 ' + text.name + ' 到时间线'" @keydown.enter.stop="handlePick(text)" @keydown.space.stop.prevent="handlePick(text)" @dragstart="handleDragStart($event, text)"
           @dragend="handleDragEnd">
           <div class="textItemPreview">
             <span class="textItemContent">{{ text.preview }}</span>
@@ -246,6 +259,14 @@ const props = withDefaults(
 );
 
 const activeTab = ref("video");
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const localUrls = new Set<string>();
+
+/** 让剪辑台空状态也能直接唤起同一个导入器，避免用户先猜“素材库”在哪。 */
+function openFilePicker() {
+  fileInputRef.value?.click();
+}
+defineExpose({ openFilePicker });
 
 /** 单击 = 追加到主轨末尾。剪辑台里"能点就上轨"比"必须拖"顺手得多（拖拽仍保留，用来定位置） */
 const emit = defineEmits<{ (e: "pick", item: any): void }>();
@@ -254,12 +275,24 @@ function handlePick(item: any) {
 }
 
 const tabs = getLibraryTabs();
+const mediaTabIds = new Set(["video", "media", "image", "audio"]);
+const activeGroup = computed(() => mediaTabIds.has(activeTab.value) ? "media" : "tools");
+const visibleTabs = computed(() => tabs.filter((tab) => activeGroup.value === "media" ? mediaTabIds.has(tab.id) : !mediaTabIds.has(tab.id)));
+function selectGroup(group: "media" | "tools") {
+  activeTab.value = group === "media" ? "video" : "text";
+}
 
 const videoItems = ref<MediaItem[]>([...props.initialVideoItems]);
 const mediaItems = ref<MediaItem[]>([...props.initialMediaItems]);
 const audioItems = ref<AudioItem[]>([...props.initialAudioItems]);
 const imageItems = ref<MediaItem[]>([...props.initialImageItems]);
 const textItems = ref(getTextItems());
+const mediaCount = computed(() => videoItems.value.length + mediaItems.value.length + imageItems.value.length + audioItems.value.length);
+const emptyTab = computed(() => (activeTab.value === "video" && !videoItems.value.length)
+  || (activeTab.value === "media" && !mediaItems.value.length)
+  || (activeTab.value === "image" && !imageItems.value.length)
+  || (activeTab.value === "audio" && !audioItems.value.length));
+const emptyTabTitle = computed(() => activeTab.value === "video" ? "还没有分镜视频" : "这里还没有素材");
 
 // 监听 props 变化，同步更新本地数据并加载缩略图/波形
 watch(
@@ -304,6 +337,39 @@ watch(
 const transitionItems = ref(getTransitionItems());
 const effectItems = ref(getEffectItems());
 const filterItems = ref(getFilterItems());
+
+/**
+ * 本地素材先进入浏览器素材箱，不依赖 AI 生成，也不上传服务器。
+ * 用户确认需要协作或跨设备时，再通过项目素材的上传链路持久化。
+ */
+async function handleLocalFiles(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  for (const file of files) {
+    const url = URL.createObjectURL(file);
+    localUrls.add(url);
+    const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    if (file.type.startsWith("video/")) {
+      mediaItems.value.unshift({ id, type: "video", name: file.name, duration: 0, icon: "i-video", color: "#7559d6", url, loading: true });
+      activeTab.value = "media";
+    } else if (file.type.startsWith("audio/")) {
+      audioItems.value.unshift({ id, type: "audio", name: file.name, duration: 0, url, loading: true });
+      activeTab.value = "audio";
+    } else if (file.type.startsWith("image/")) {
+      imageItems.value.unshift({ id, type: "image", name: file.name, duration: 5, icon: "i-pic", color: "#e97945", url, loading: true });
+      activeTab.value = "image";
+    }
+  }
+  await Promise.all([loadVideoThumbnails(), loadAudioWaveforms(), loadImageThumbnails()]);
+  input.value = "";
+  window.$message.success(`已导入 ${files.length} 个本地素材，可单击加入时间线`);
+}
+
+onBeforeUnmount(() => {
+  localUrls.forEach((url) => URL.revokeObjectURL(url));
+  localUrls.clear();
+});
 
 // 加载视频缩略图和时长
 async function loadVideoThumbnails() {
@@ -419,43 +485,90 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--td-bg-color-secondarycontainer);
+  background: #fff;
   border: 1px solid var(--td-border-level-1-color);
   border-radius: 10px;
   overflow: hidden;
 
   .mediaLibraryHeader {
     flex-shrink: 0;
-    padding: 16px 12px 12px;
+    padding: 16px 14px 12px;
     border-bottom: 1px solid var(--td-border-level-1-color);
     background: var(--td-bg-color-container);
 
     .headerTitle {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
 
       .mediaLibraryTitle {
         margin: 0;
-        font-size: 14px;
-        font-weight: 600;
+        font-size: 16px;
+        font-weight: 700;
         color: var(--td-text-color-primary);
         letter-spacing: -0.01em;
+      }
+
+      .mediaLibraryHint {
+        display: block;
+        margin-top: 3px;
+        color: var(--td-text-color-placeholder);
+        font-size: 11px;
+        line-height: 17px;
+      }
+    }
+
+    .nativeFileInput { display: none; }
+    .mediaImportBtn {
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      width: 100%; height: 38px; border: 1px solid #f4c7b6; border-radius: 8px;
+      background: #fff6f2; color: #df6842; font-size: 12px; font-weight: 650;
+      cursor: pointer; transition: background .16s ease, border-color .16s ease;
+      &:hover { background: #ffece5; border-color: #ec986f; }
+    }
+
+    .mediaLibraryGroups {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px;
+      margin-top: 15px; padding: 3px; border-radius: 9px; background: #f3f2ef;
+      button {
+        height: 31px; border: 0; border-radius: 7px; background: transparent;
+        color: #8a867f; font-size: 12px; font-weight: 600; cursor: pointer;
+        &.active { background: #fff; color: #262522; box-shadow: 0 1px 4px rgba(26, 24, 20, .08); }
       }
     }
 
     .mediaLibraryTabs {
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+      margin-top: 11px;
+      button {
+        display: flex; align-items: center; gap: 6px; min-width: 0; height: 32px;
+        padding: 0 8px; border: 1px solid transparent; border-radius: 7px;
+        background: transparent; color: #67645f; font-size: 11px; font-weight: 550;
+        cursor: pointer; text-align: left; white-space: nowrap;
+        span { overflow: hidden; text-overflow: ellipsis; }
+        &:hover { background: #f7f5f2; }
+        &.active { border-color: #ffded0; background: #fff2eb; color: #e56637; font-weight: 680; }
+      }
     }
   }
 
   .mediaLibraryContent {
     flex: 1;
     overflow-y: auto;
-    padding: 12px 8px;
+    padding: 14px;
+    background: #fff;
+
+    .mediaLibraryEmpty {
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      margin-top: clamp(24px, 12vh, 80px); padding: 0 8px;
+      .mediaEmptyIcon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 12px; border-radius: 13px; background: #f8f6f3; color: #a9a29a; }
+      strong { font-size: 13px; font-weight: 660; color: #57534e; }
+      p { margin: 7px 0 12px; color: #9b968e; font-size: 11px; line-height: 1.65; }
+      button { padding: 0; border: 0; background: transparent; color: #e66e43; font-size: 11px; font-weight: 660; cursor: pointer; }
+      button span { margin-left: 3px; }
+    }
 
     &::-webkit-scrollbar {
       width: 4px;
@@ -468,7 +581,7 @@ onMounted(() => {
     // 媒体/图片列表
     .mediaList {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(0, 150px));
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
 
       .mediaItem {
@@ -550,7 +663,7 @@ onMounted(() => {
     // 转场列表
     .transitionList {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(0, 150px));
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
 
       .transitionItem {
@@ -598,7 +711,7 @@ onMounted(() => {
     // 特效列表
     .effectList {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(0, 150px));
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
 
       .effectItem {
@@ -645,7 +758,7 @@ onMounted(() => {
     // 滤镜列表
     .filterList {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(0, 150px));
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
 
       .filterItem {
@@ -692,7 +805,7 @@ onMounted(() => {
     // 音频列表
     .audioList {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(0, 150px));
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
 
       .audioItem {
@@ -756,7 +869,7 @@ onMounted(() => {
     // 文本列表
     .textList {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(0, 150px));
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
       .textItem {
         display: flex;

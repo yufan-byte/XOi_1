@@ -11,7 +11,7 @@
  * ─────────────────────────────────────────────────────────────
  * · 读（高频，34 处调用）：优先直连 PostgreSQL 读 `users.quota`。
  *   改造后 XOi 的业务库与 new-api 同库（决策 D2），一条 SELECT 就能拿到，
- *   既不额外打网关、也不会有缓存不一致。没配 NEWAPI_PG_URL 时退化为
+ *   复用业务连接池，兼容 NEWAPI_DATABASE_URL / NEWAPI_PG_URL。未配置数据库连接时退化为
  *   「内存缓存 + 网关反查」。
  *
  * · 写（低频，入账/管理员调配）：必须走 new-api 的管理接口。
@@ -25,36 +25,17 @@
  * 用户侧的额度由网关在转发时按倍率扣减（成本），XOi 侧只做展示与软校验（收入）。
  */
 import u from "@/utils";
+import { db } from "@/utils/db";
 import { NewApiError, adjustQuota as newApiAdjustQuota, newApiSelfByAdmin } from "@/utils/newapi";
+import { QUOTA_PER_YUAN } from "@/utils/creditUnits";
+import { QuotaOperations } from "./quotaOperations";
 
 /** 500000 quota = ¥1，与造物引擎保持一致 */
-export const QUOTA_PER_UNIT = 500000;
+export const QUOTA_PER_UNIT = QUOTA_PER_YUAN;
 
 /** 余额读取缓存（仅在没有直连 PG 时启用），避免每次 getActionPoints 都打网关 */
 const TTL_MS = Number(process.env.QUOTA_CACHE_TTL_MS || 5000);
 const cache = new Map<number, { quota: number; at: number }>();
-
-let pgPool: unknown = null;
-
-function pgUrl(): string {
-  return (process.env.NEWAPI_PG_URL || "").trim();
-}
-
-/** 尽力而为地拿一个 PG 连接池；没装 pg 或没配 URL 时返回 null */
-async function pool(): Promise<{ query: (q: string, v: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> } | null> {
-  if (!pgUrl()) return null;
-  try {
-    if (!pgPool) {
-      const mod = (await import(/* webpackIgnore: true */ "pg")) as unknown as {
-        Pool: new (c: { connectionString: string; max?: number }) => { query: (q: string, v: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> };
-      };
-      pgPool = new mod.Pool({ connectionString: pgUrl(), max: 4 });
-    }
-    return pgPool as { query: (q: string, v: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> };
-  } catch {
-    return null;
-  }
-}
 
 /* ------------------------------------------------------------------ */
 /* 读                                                                  */
@@ -72,16 +53,15 @@ export async function getQuota(userId: number, opts: { fresh?: boolean } = {}): 
   if (!opts.fresh && hit && Date.now() - hit.at < TTL_MS) return hit.quota;
 
   // 1) 直连 PG（同库，最准）
-  const p = await pool();
-  if (p) {
+  if ((process.env.NEWAPI_DATABASE_URL || process.env.NEWAPI_PG_URL || "").trim()) {
     try {
-      const r = await p.query("SELECT quota FROM users WHERE id = $1", [userId]);
-      if (r.rows.length) {
-        const quota = Number(r.rows[0].quota ?? 0);
+      // Use the same connection and pool as identity/project queries, for either supported URL name.
+      const row = await db("users").where("id", userId).whereNull("deleted_at").select("quota").first();
+      if (row) {
+        const quota = Number(row.quota ?? 0);
         cache.set(userId, { quota, at: Date.now() });
         return quota;
       }
-      // 库里没这个人：说明镜像与网关不同步，交给下面走网关确认
     } catch (e) {
       console.warn("[quota] PG 直读失败，回落到网关：", e instanceof Error ? e.message : e);
     }
@@ -94,7 +74,7 @@ export async function getQuota(userId: number, opts: { fresh?: boolean } = {}): 
     cache.set(userId, { quota, at: Date.now() });
     return quota;
   } catch (e) {
-    if (hit) {
+    if (hit && !opts.fresh) {
       // 网关抖了，但手里有旧值：用它兜底总比直接失败强，同时明确告警
       console.warn(`[quota] 网关不可用，暂用 ${Math.round((Date.now() - hit.at) / 1000)}s 前的缓存值`);
       return hit.quota;
@@ -138,44 +118,13 @@ export interface QuotaChangeInput {
 /**
  * 调整额度。正数入账、负数扣减。
  *
- * 幂等：调用前先查 o_quota_ledger 有没有同 key 的流水；有就直接返回，
- * 不再打网关。这是支付回调防重放的最后一道闸（网关侧还有一层）。
+ * 先持久化唯一操作编号再调用网关；重复／并发编号不能重复发放。
+ * 网络或审计结果不明时保持待核对，禁止自动重试，不声称跨系统事务原子性。
  */
+const operations=new QuotaOperations(db,newApiAdjustQuota);
+export const ensureQuotaOperations=()=>operations.ensure();
 export async function applyQuotaChange(input: QuotaChangeInput): Promise<{ applied: boolean; quotaAfter: number | null }> {
-  const { userId, delta } = input;
-  if (!Number.isFinite(delta) || delta === 0) return { applied: false, quotaAfter: await getQuota(userId).catch(() => null) };
-
-  if (input.idempotencyKey) {
-    const dup = await u.db("o_quota_ledger").where("idempotency_key", input.idempotencyKey).first();
-    if (dup) return { applied: false, quotaAfter: Number(dup.quota_after ?? 0) };
-  }
-
-  const before = await getQuota(userId, { fresh: true }).catch(() => null);
-  const after = await newApiAdjustQuota(userId, delta);
-
-  cache.delete(userId);
-  const quotaAfter = after ?? (before === null ? null : before + delta);
-
-  try {
-    await u.db("o_quota_ledger").insert({
-      user_id: userId,
-      delta,
-      quota_after: quotaAfter,
-      type: input.type,
-      description: input.description ?? null,
-      operator_id: input.operatorId ?? null,
-      reference_type: input.referenceType ?? null,
-      reference_id: input.referenceId ?? null,
-      idempotency_key: input.idempotencyKey ?? null,
-      created_at: new Date().toISOString(),
-    });
-  } catch (e) {
-    // 审计写失败不能把已经生效的额度变更回滚掉（额度在网关侧已经动了），
-    // 但必须留下明显的错误日志，否则对账时会对不上。
-    console.error("[quota] 流水写入失败（额度已变更，请人工核对）:", e instanceof Error ? e.message : e);
-  }
-
-  return { applied: true, quotaAfter };
+  try{return await operations.apply(input);}finally{cache.delete(input.userId);}
 }
 
 /** 入账（充值 / 赠送 / 返现）。yuan 以元计，内部换算成 quota。 */

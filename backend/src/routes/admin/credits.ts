@@ -21,6 +21,8 @@ import { success, error } from "@/lib/responseFormat";
 import u from "@/utils";
 import { db } from "@/lib/agent/db";
 import { applyQuotaChange, getBalanceYuan } from "@/utils/quota";
+import { QuotaOperationError } from "@/utils/quotaOperations";
+import { BILLING_ID_PATTERN } from "../../../../shared/billableOperations";
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -108,6 +110,8 @@ router.post("/", async (req, res) => {
   const amount = Math.round((Number(b.amount) || 0) * 100) / 100;
   const reason = String(b.reason ?? "").trim();
   const direction: Direction = b.direction === "revoke" ? "revoke" : "grant";
+  const requestId=String(req.headers["idempotency-key"]||"");
+  if(!BILLING_ID_PATTERN.test(requestId))return res.status(400).send(error("请刷新额度发放页面，提交时必须携带唯一操作编号"));
 
   if (!target) return res.status(400).send(error("请填写目标用户（用户 ID 或用户名）"));
   if (!(amount > 0)) return res.status(400).send(error("金额需大于 0"));
@@ -135,6 +139,7 @@ router.post("/", async (req, res) => {
       operatorId: me.id,
       referenceType: "manual",
       referenceId: String(me.id),
+      idempotencyKey: `admin:${me.id}:${requestId}`,
     });
 
     res.send(success({
@@ -146,7 +151,7 @@ router.post("/", async (req, res) => {
     }));
   } catch (e) {
     console.error("[admin/credits] 发放失败:", (e as Error).message);
-    res.status(500).send(error(`发放失败：${(e as Error).message}`));
+    res.status(e instanceof QuotaOperationError?e.status:500).send(error(e instanceof QuotaOperationError?e.message:"额度发放失败，请联系站长核对流水"));
   }
 });
 

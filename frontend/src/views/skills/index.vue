@@ -115,7 +115,7 @@
 
 <script setup lang="ts">
 import axios from "@/utils/axios";
-import { MdPreview } from "md-editor-v3";
+import { MdPreview } from "@/utils/markdown";
 import "md-editor-v3/lib/preview.css";
 import { computed, ref, watch } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";

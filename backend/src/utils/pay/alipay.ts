@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import axios from "axios";
 import qs from "node:querystring";
+import {paymentNotifyUrl,paymentIdentityMatches} from "./guards";
 import type {
   AckKind,
   ChannelId,
@@ -34,8 +35,7 @@ export class AlipayChannel implements PayChannel {
   }
 
   private notifyUrl(): string | undefined {
-    const host = process.env.XOI_PAY_NOTIFY_HOST;
-    return host ? `${host}/api/pay/callback/alipay` : undefined;
+    return paymentNotifyUrl("alipay");
   }
 
   async createOrder(ctx: CreateOrderContext): Promise<CreateOrderResult> {
@@ -84,6 +84,7 @@ export class AlipayChannel implements PayChannel {
 
     const verified = rsaVerify(buildSignData(b), String(b.sign), pubKey);
     if (!verified) return { ok: false, paid: false, reason: "签名校验失败" };
+    if(!paymentIdentityMatches(b.app_id,this.cfg.appId||this.cfg.appid) || (this.cfg.sellerId && !paymentIdentityMatches(b.seller_id,this.cfg.sellerId)))return {ok:false,paid:false,reason:"支付应用或商户身份不匹配"};
 
     const ts = b.trade_status;
     const paid = ts === "TRADE_SUCCESS" || ts === "TRADE_FINISHED";

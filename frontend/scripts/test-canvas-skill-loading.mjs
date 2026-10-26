@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { build } from '../atelier/node_modules/esbuild/lib/main.js';
+const root = new URL('..', import.meta.url).pathname;
+globalThis.__skillRequests = [];
+const built = await build({ entryPoints: ['atelier/src/services/api/agent-skills.ts'], absWorkingDir: root, bundle: true, format: 'esm', platform: 'node', write: false, plugins: [{ name: 'no-network-skill-fixture', setup(b) {
+  b.onResolve({ filter: /^@\/xoi\/(backend|owner)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+  b.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: args.path.endsWith('/owner') ? 'export const getOwnerTag=()=>"user-A";export const ownerDbName=x=>x;' : `export async function backendJson(path,init){globalThis.__skillRequests.push({path,body:init.json});return {code:0,data:path.endsWith('getSkillList')?[{path:'safe/SKILL.md',name:'Safe',description:'metadata only',hasFiles:true},{path:'safe/helper.md'}]:'FULL_SELECTED_BODY'};}` }));
+} }] });
+const { fetchSystemAgentSkills, resolveAgentSkillContent } = await import('data:text/javascript;base64,' + Buffer.from(built.outputFiles[0].text).toString('base64'));
+const skills = await fetchSystemAgentSkills();
+assert.equal(__skillRequests.length, 1, 'Opening the library must not fetch every body');
+assert.deepEqual(__skillRequests[0].body, { metadataOnly: true });
+const remote = skills.find(s => s.id === 'safe/SKILL.md');
+assert.equal(remote.content, '');
+assert.ok(!skills.some(s => s.id === 'safe/helper.md'));
+const full = await resolveAgentSkillContent(remote);
+assert.equal(full.content, 'FULL_SELECTED_BODY');
+assert.equal(__skillRequests.length, 2);
+assert.equal(__skillRequests[1].body.path, remote.id);
+await resolveAgentSkillContent(skills.find(s => s.id.startsWith('builtin-')));
+assert.equal(__skillRequests.length, 2, 'Local curated skills require no content request');
+await assert.rejects(resolveAgentSkillContent({ ...remote, source: 'user', id: '../server/.env' }), /没有可用正文/);
+assert.equal(__skillRequests.length, 2, 'User content cannot become an arbitrary server read');
+console.log('PASS: metadata-only library, selected-body loading, no per-template requests and no user-path escalation');

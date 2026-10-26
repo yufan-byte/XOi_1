@@ -28,12 +28,14 @@ export type ServerProvider = {
     image_models?: unknown[];
     chat_models?: unknown[];
     video_models?: unknown[];
+    audio_models?: unknown[];
 };
 
 export type ServerModelConfig = {
     image_models?: unknown[];
     video_models?: unknown[];
     chat_models?: unknown[];
+    audio_models?: unknown[];
     api_providers?: ServerProvider[];
 };
 
@@ -49,7 +51,7 @@ function modelListOf(list: unknown[] | undefined, capability: ModelCapability) {
 /** 供应商分组优先（与 XOi 后台"模型服务"一致），缺失时退回平铺三列表 */
 export function buildServerChannels(config: ServerModelConfig): ModelChannel[] {
     const providers = (config.api_providers || []).filter((provider) =>
-        modelListOf(provider.image_models, "image").length + modelListOf(provider.video_models, "video").length + modelListOf(provider.chat_models, "text").length >
+        modelListOf(provider.image_models, "image").length + modelListOf(provider.video_models, "video").length + modelListOf(provider.chat_models, "text").length + modelListOf(provider.audio_models, "audio").length >
         0,
     );
     if (providers.length) {
@@ -63,6 +65,7 @@ export function buildServerChannels(config: ServerModelConfig): ModelChannel[] {
                 ...modelListOf(provider.image_models, "image"),
                 ...modelListOf(provider.video_models, "video"),
                 ...modelListOf(provider.chat_models, "text"),
+                ...modelListOf(provider.audio_models, "audio"),
             ]),
         }));
     }
@@ -70,6 +73,7 @@ export function buildServerChannels(config: ServerModelConfig): ModelChannel[] {
         ...modelListOf(config.image_models, "image"),
         ...modelListOf(config.video_models, "video"),
         ...modelListOf(config.chat_models, "text"),
+        ...modelListOf(config.audio_models, "audio"),
     ];
     if (!models.length) return [];
     return [
@@ -104,22 +108,34 @@ export function applyServerModels(config: ServerModelConfig) {
         imageModel: normalizeModelOptionValue(previous.imageModel, channels) || firstModelOfCapability(channels, "image"),
         videoModel: normalizeModelOptionValue(previous.videoModel, channels) || firstModelOfCapability(channels, "video"),
         textModel: normalizeModelOptionValue(previous.textModel, channels) || firstModelOfCapability(channels, "text"),
-        // 服务端不下发音频模型（TTS 非管理员纳管范围），保留已选值仅在命中时生效
-        audioModel: normalizeModelOptionValue(previous.audioModel, channels),
+        audioModel: normalizeModelOptionValue(previous.audioModel, channels) || firstModelOfCapability(channels, "audio"),
     };
     useConfigStore.setState({ config: next });
 }
 
-export async function syncServerModels(): Promise<boolean> {
-    try {
-        const data = await backendJson<ServerModelConfig>("/api/config");
-        applyServerModels(data);
-        applyUpstreamServerModels(buildServerChannels(data));
-        return modelOptionsFromChannels(useConfigStore.getState().config.channels).length > 0;
-    } catch (error) {
-        console.warn("[xoi] 服务端模型同步失败:", error);
-        return true; // 拉取失败不打扰用户，保留现状
-    }
+let serverModelSync: Promise<boolean> | null = null;
+
+export function syncServerModels(): Promise<boolean> {
+    if (serverModelSync) return serverModelSync;
+    serverModelSync = (async () => {
+        try {
+            // Async account-scoped hydration must finish before server defaults are merged.
+            await Promise.all([useConfigStore, useUpstreamConfigStore].map(store => store.persist.hasHydrated() ? Promise.resolve() : new Promise<void>(resolve => {
+                const off = store.persist.onFinishHydration(() => { off(); resolve(); });
+                if (store.persist.hasHydrated()) { off(); resolve(); }
+            })));
+            const data = await backendJson<ServerModelConfig>("/api/config",{signal:AbortSignal.timeout(10000)});
+            applyServerModels(data);
+            applyUpstreamServerModels(buildServerChannels(data));
+            return modelOptionsFromChannels(useConfigStore.getState().config.channels).length > 0;
+        } catch (error) {
+            console.warn("[xoi] 服务端模型同步失败:", error);
+            return false;
+        }
+    })();
+    const pending=serverModelSync;
+    void pending.then(ready=>{if(!ready&&serverModelSync===pending)serverModelSync=null;});
+    return pending;
 }
 
 /* ============================================================
@@ -138,6 +154,7 @@ function applyUpstreamServerModels(channels: ModelChannel[]) {
     const image = byCapability("image");
     const video = byCapability("video");
     const text = byCapability("text");
+    const audio = byCapability("audio");
     const channelName = String(i18n.t("config.serverChannelName") || "new-api 统一网关");
     const localChannel = {
         id: SERVER_CHANNEL_PREFIX,
@@ -157,11 +174,11 @@ function applyUpstreamServerModels(channels: ModelChannel[]) {
             imageModels: image,
             videoModels: video,
             textModels: text,
-            audioModels: [],
+            audioModels: audio,
             imageModel: image.includes(prev.imageModel) ? prev.imageModel : image[0] || "",
             videoModel: video.includes(prev.videoModel) ? prev.videoModel : video[0] || "",
             textModel: text.includes(prev.textModel) ? prev.textModel : text[0] || "",
-            audioModel: prev.audioModel,
+            audioModel: audio.includes(prev.audioModel) ? prev.audioModel : audio[0] || "",
             imageChannelId: localChannel.id,
             videoChannelId: localChannel.id,
             textChannelId: localChannel.id,

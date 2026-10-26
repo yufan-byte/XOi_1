@@ -482,6 +482,8 @@
         "visualManualPrompt": "視覺手冊提示詞",
         "modelData": "選擇圖片模型",
         "videoModelData": "選擇視訊模型",
+        "textModelData": "文字模型（對話 / 提取資產）",
+        "textModelPh": "預設使用平台文字模型，可選",
         "prompt": {
           "placeholder": "輸入提示詞",
           "saveSuccess": "更新成功",
@@ -533,6 +535,8 @@
         "enterVideoRatio": "請選擇影片比例",
         "enterImageModel": "請選擇圖片模型",
         "enterVideoModel": "請選擇視訊模型",
+        "enterTextModel": "請選擇文字模型（對話與提取資產都用它）",
+        "completeConfigBeforeOpen": "這個專案還沒設定文字模型，請先在專案設定裡補全再進入運作",
         "visualManualDeleted": "刪除成功",
         "selectMode": "請選擇模式",
         "deleteDirectorManualHeader": "刪除導演手冊",
@@ -796,7 +800,11 @@
       "stateDone": "已完成",
       "textPromptInput": "提示詞附加指令",
       "textPromptPh": "請輸入提示詞附加指令（可選）",
-      "batchBingAudio": "一鍵綁定音訊"
+      "batchBingAudio": "一鍵綁定音訊",
+      "textModel": "文字模型（提示詞生成）",
+      "textModelPh": "預設跟隨專案，可選",
+      "promptFailed": "提示詞生成失敗",
+      "promptFailedHint": "可重新生成，或更換文字模型後重試"
     },
     "script": {
       "searchPlaceholder": "搜尋劇本名稱...",
@@ -822,7 +830,12 @@
         "batchDeleteSuccess": "批量刪除成功",
         "extractingInProgress": "正在提取中",
         "projectNotFound": "項目未找到",
-        "selectsExport": "請選擇匯出劇本"
+        "selectsExport": "請選擇匯出劇本",
+        "pollFailed": "劇本狀態同步失敗，已停止輪詢，請重新整理頁面",
+        "reExtractTitle": "重複提取確認",
+        "reExtractConfirm": "所選劇本中有 {count} 個已提取過資產。再次提取會重新呼叫模型、消耗積分，也可能產生重複資產。確定繼續嗎？",
+        "reExtractOk": "仍然提取",
+        "reExtractCancel": "取消"
       },
       "add": {
         "title": "新增劇本",

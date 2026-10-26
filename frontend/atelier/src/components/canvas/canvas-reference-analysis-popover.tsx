@@ -17,14 +17,25 @@ type Props = {
     skills?: CanvasAgentSkillSelection[];
     disabled: boolean;
     onInsert: (report: string) => void;
+    /** 受控展开（从左侧工具菜单触发时使用） */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    /** 隐藏自带图标按钮，只保留弹层（锚点由调用方位置决定） */
+    hideTrigger?: boolean;
 };
 
 /** A reference tool inside the existing composer; never submits or replaces its Agent. */
-export function CanvasReferenceAnalysisPopover({ references, model, skills, disabled, onInsert }: Props) {
+export function CanvasReferenceAnalysisPopover({ references, model, skills, disabled, onInsert, open: openProp, onOpenChange, hideTrigger }: Props) {
     const theme = canvasThemes[useThemeStore(state => state.theme)];
     const token = useUserStore(state => state.token);
     const videos = references.filter(reference => reference.type === "video" && (reference.dataUrl || reference.url));
-    const [open, setOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
+    const controlled = openProp !== undefined;
+    const open = controlled ? !!openProp : internalOpen;
+    const setOpen = (value: boolean) => {
+        if (!controlled) setInternalOpen(value);
+        onOpenChange?.(value);
+    };
     const [file, setFile] = useState<File | null>(null);
     const [videoId, setVideoId] = useState("");
     const [request, setRequest] = useState("拆解这个参考视频的镜头、构图、运镜、光影和剪辑节奏，给出可执行的分镜与制作建议。");
@@ -131,6 +142,8 @@ export function CanvasReferenceAnalysisPopover({ references, model, skills, disa
     </section>;
     return <Popover trigger="click" placement="top"
                 arrow={false} open={open} onOpenChange={value => value ? setOpen(true) : close()} content={content} styles={{ container: { padding: 18, background: theme.toolbar.panel, color: theme.node.text, border: `1px solid ${theme.node.stroke}`, borderRadius: 16 } }}>
-        <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Film className="size-4" />} title="拆解参考视频" aria-label="拆解参考视频" disabled={disabled} />
+        {hideTrigger
+            ? <span aria-hidden="true" style={{ display: "inline-block", width: 1, height: 1, pointerEvents: "none" }} />
+            : <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Film className="size-4" />} title="拆解参考视频" aria-label="拆解参考视频" disabled={disabled} />}
     </Popover>;
 }

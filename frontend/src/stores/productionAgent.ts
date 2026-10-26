@@ -5,19 +5,21 @@ import { useChat } from "@/utils/useChat";
 import type { FlowData, Storyboard } from "@/views/production/utils/flowBuilder";
 import type { ChatMessagesData } from "@tdesign-vue-next/chat";
 import { useThrottleFn } from "@vueuse/core";
+import {accountBoundary} from '@/utils/accountBoundary';
 
-function makeProductionAgentStore(projectId: string) {
-  return defineStore(`productionAgent-${projectId}`, () => {
+function makeProductionAgentStore(projectId: string, scope: number) {
+  return defineStore(`productionAgent-${scope}-${projectId}`, () => {
+    const owner=accountBoundary.capture();
     const defMsg: ChatMessagesData[] = [
       {
         id: "welcome",
         role: "assistant",
         content: [
-          { type: "text", status: "complete", data: $t("workbench.production.chatBox.welcomeMessage") },
+          { type: "text", status: "complete", data: "我可以整理导演计划、核对前后镜头、修改指定分镜。预览、视频生成和剪辑都可以直接在工作台操作。" },
           {
             type: "suggestion",
             status: "complete",
-            data: [{ title: $t("workbench.production.chatBox.startMakingVideo"), prompt: $t("workbench.production.chatBox.startMakingVideoPrompt") }],
+            data: [{ title: "核对本集进度", prompt: "读取当前工作区，只用三点以内说明本集已完成什么、还缺什么以及下一步入口。不要重写计划、重新审核或提交媒体生成。" }],
           },
         ],
       },
@@ -63,51 +65,7 @@ function makeProductionAgentStore(projectId: string) {
         } else if (tag === "storyboardTable") {
           flowData.value.storyboardTable = value ?? "";
         }
-        // else if (tag === "storyboardItem") {
-        //   if (status === "complete") {
-        //     const prompt = attrs.prompt ?? "";
-        //     const duration = Number(attrs.duration) || 0;
-        //     const track = attrs.track || "";
-        //     const shouldGenerateImage =
-        //       (typeof attrs.shouldGenerateImage == "boolean" && attrs.shouldGenerateImage) ||
-        //       String(attrs.shouldGenerateImage).toLowerCase() == "true"
-        //         ? 1
-        //         : 0;
-
-        //     const videoDesc = attrs?.videoDesc ?? "";
-        //     const existingIndex = flowData.value.storyboard.findIndex(
-        //       (s) => s.prompt == prompt && s.duration == duration && videoDesc == s.videoDesc,
-        //     );
-        //     if (existingIndex !== -1) {
-        //       // 已存在则更新 content，保留 id
-        //       flowData.value.storyboard[existingIndex].prompt = prompt;
-        //     } else {
-        //       // 不存在则追加新条目
-        //       flowData.value.storyboard.push({
-        //         prompt: prompt || "",
-        //         duration: Number(duration) || 0,
-        //         state: "未生成" as "未生成" | "生成中" | "已完成" | "生成失败",
-        //         src: null,
-        //         associateAssetsIds: JSON.parse(attrs.associateAssetsIds) || [],
-        //         videoDesc: videoDesc,
-        //         shouldGenerateImage: shouldGenerateImage,
-        //       });
-        //       await addStoryboardInfo([
-        //         {
-        //           prompt: prompt || "",
-        //           duration: Number(duration) || 0,
-        //           track: track || "",
-        //           state: "未生成" as "未生成" | "生成中" | "已完成" | "生成失败",
-        //           src: null,
-        //           videoDesc,
-        //           shouldGenerateImage,
-        //           associateAssetsIds: JSON.parse(attrs.associateAssetsIds) || [],
-        //         },
-        //       ]);
-        //     }
-        //   }
-        // }
-        if (status == "complete") {
+        if (status == "complete" && tag === 'script') {
           throttledFn();
         }
       },
@@ -116,6 +74,7 @@ function makeProductionAgentStore(projectId: string) {
     // 实际的节流方法
     const throttledFn = useThrottleFn(
       () => {
+        if(!accountBoundary.current(owner))return;
         setFlowData(episodesId.value);
       },
       500,
@@ -127,6 +86,7 @@ function makeProductionAgentStore(projectId: string) {
       socket,
       (s) => {
         if (s) {
+          s.on('directorStageSaved', () => { getFlowData(); });
           s.on("connect", () => {
             getHistory();
           });
@@ -189,10 +149,13 @@ function makeProductionAgentStore(projectId: string) {
             callback({ success: true, message: assetsData });
           });
           s.on("generateStoryboard", async (data, callback) => {
-            const storyData = await batchGenerateStoryboard(data.ids);
-            callback({ success: true, message: storyData });
+            try {
+              const storyData = await batchGenerateStoryboard(data.ids);
+              callback({ success: true, message: storyData });
+            } catch (e: any) { callback({ success: false, error: e?.message || '分镜生成未启动' }); }
           });
           s.on("addStoryboard", async (data, callback) => {
+            try {
             const insertVal = {
               prompt: data.prompt || "",
               duration: Number(data.duration) || 0,
@@ -205,11 +168,13 @@ function makeProductionAgentStore(projectId: string) {
                   ? 1
                   : 0,
               associateAssetsIds: data.associateAssetsIds || [],
+              continuity: data.continuity || null,
             };
-            flowData.value.storyboard.push(insertVal);
             await addStoryboardInfo([insertVal]);
+            await getFlowData();
             throttledFn();
             callback({ success: true, message: $t("storyboard.assets.derivativeAddSuccess") });
+            } catch (e: any) { callback({ success: false, error: e?.message || '镜头保存失败，请核对后重试' }); }
           });
         }
       },
@@ -217,12 +182,43 @@ function makeProductionAgentStore(projectId: string) {
     );
 
     async function setFlowData(scriptId?: number) {
+      accountBoundary.assert(owner);
       await axios.post("/production/saveFlowData", {
         projectId: projectId,
         data: flowData.value,
         episodesId: scriptId || episodesId.value,
       });
     }
+
+    async function saveDirectorDocument(stage: 'scriptPlan' | 'storyboardTable', content: string, expectedContent: string, expectedPlan: string, expectedScript: string) {
+      accountBoundary.assert(owner);
+      const episode = episodesId.value;
+      const { data } = await axios.post('/production/saveFlowData', { projectId: Number(projectId), episodesId: episode, data: {}, documentEdit: { stage, content, expectedContent, expectedPlan, expectedScript } });
+      accountBoundary.assert(owner);
+      if (episode !== episodesId.value) return;
+      if (flowData.value[stage] === expectedContent && flowData.value.script === expectedScript) {
+        flowData.value[stage] = content;
+        flowData.value.reviewState = data;
+      } else await getFlowData();
+    }
+
+    async function approveStage(stage: 'scriptPlan' | 'storyboardTable') {
+      const episode = episodesId.value;
+      const snapshot = { content: flowData.value[stage], scriptPlan: flowData.value.scriptPlan, script: flowData.value.script };
+      await setFlowData(episode);
+      const { data } = await axios.post('/production/reviewStage', { projectId: Number(projectId), scriptId: episode, stage, ...snapshot });
+      if (episode === episodesId.value) flowData.value.reviewState = data;
+    }
+    let applyingServerFlow = false;
+    watch(() => [flowData.value.script, flowData.value.scriptPlan], (next, prev) => {
+      if (!applyingServerFlow && prev && next.some((value, i) => value !== prev[i]) && flowData.value.reviewState) {
+        flowData.value.reviewState.planApproved = false;
+        flowData.value.reviewState.tableApproved = false;
+      }
+    }, { flush: 'sync' });
+    watch(() => flowData.value.storyboardTable, (next, prev) => {
+      if (!applyingServerFlow && next !== prev && flowData.value.reviewState) flowData.value.reviewState.tableApproved = false;
+    }, { flush: 'sync' });
 
     let flowRequestVersion = 0;
     async function getFlowData() {
@@ -234,9 +230,11 @@ function makeProductionAgentStore(projectId: string) {
         episodesId: episode,
       });
       if (version !== flowRequestVersion || episode !== episodesId.value || token !== localStorage.getItem("token")) return;
-      flowData.value = data;
+      applyingServerFlow = true;
+      try { flowData.value = data; } finally { applyingServerFlow = false; }
     }
     async function batchGenerateStoryboard(allIds: number[], compulsory: boolean = false) {
+      if (!flowData.value.reviewState?.tableApproved) throw new Error('请先在导演总览中审核导演计划和分镜表，再生成分镜画面');
       try {
         const { data, message } = await axios.post("/production/storyboard/batchGenerateImage", {
           scriptId: episodesId.value,
@@ -259,7 +257,7 @@ function makeProductionAgentStore(projectId: string) {
               const findData = data.find((i: any) => i.id == item.id);
               if (findData) {
                 item.state = findData.state;
-                item.src = findData.src;
+                if (findData.src) item.src = findData.src;
               }
             });
           }
@@ -267,6 +265,7 @@ function makeProductionAgentStore(projectId: string) {
         return data;
       } catch (e) {
         window.$message.error((e as any)?.message);
+        throw e;
       }
     }
     async function batchGenerateAssets(allIds: number[]) {
@@ -330,6 +329,7 @@ function makeProductionAgentStore(projectId: string) {
     let assetsPollingInFlight = false;
 
     async function pollAssetsImages() {
+      if(!accountBoundary.current(owner))return;
       const ids = assetsNotStateImageIds.value;
       if (ids.length === 0 || assetsPollingInFlight) return;
       assetsPollingInFlight = true;
@@ -360,6 +360,7 @@ function makeProductionAgentStore(projectId: string) {
     }
 
     function startAssetsPolling() {
+      if(!accountBoundary.current(owner))return;
       if (assetsPollingTimer) return;
       assetsPollingTimer = window.setInterval(async () => {
         if (assetsNotStateImageIds.value.length === 0) {
@@ -395,6 +396,7 @@ function makeProductionAgentStore(projectId: string) {
     let storyboardPollingInFlight = false;
 
     async function pollStoryboardImages() {
+      if(!accountBoundary.current(owner))return;
       const ids = storyboardNotStateImageIds.value;
       if (ids.length === 0 || storyboardPollingInFlight) return;
       storyboardPollingInFlight = true;
@@ -403,12 +405,13 @@ function makeProductionAgentStore(projectId: string) {
           ids: ids,
         });
         if (!data || data.length === 0) return;
-        const records = data as Array<{ id: number; state: string; src?: string; reason?: string }>;
+        const records = data as Array<{ id: number; state: string; src?: string; reason?: string; continuity?: Storyboard['continuity'] }>;
         records.forEach((record) => {
           const item = flowData.value.storyboard.find((s) => s.id === record.id);
           if (item) {
             item.state = record.state as "未生成" | "生成中" | "已完成" | "生成失败";
             if (record.src) item.src = record.src;
+            if ('continuity' in record) item.continuity = record.continuity;
             item.reason = record?.reason ?? "";
           }
         });
@@ -420,6 +423,7 @@ function makeProductionAgentStore(projectId: string) {
     }
 
     function startStoryboardPolling() {
+      if(!accountBoundary.current(owner))return;
       if (storyboardPollingTimer) return;
       storyboardPollingTimer = window.setInterval(async () => {
         if (storyboardNotStateImageIds.value.length === 0) {
@@ -508,16 +512,25 @@ function makeProductionAgentStore(projectId: string) {
       }
     }
 
+    const assistantTextModel = ref(projectStore().project?.textModel || '');
+    const detach=accountBoundary.subscribe(()=>{stopAssetsPolling();stopStoryboardPolling();});
+    onScopeDispose(detach);
+    const assistantDraft = ref('');
+    const chatWithSelectedModel = (content: string) => chat(content, undefined, undefined, assistantTextModel.value || undefined);
     return {
       connected,
       messages,
-      chat,
+      chat: chatWithSelectedModel,
+      assistantTextModel,
+      assistantDraft,
       stopGenerate,
       socket,
       status,
       lastError,
       flowData,
       setFlowData,
+      approveStage,
+      saveDirectorDocument,
       getFlowData,
       episodesId,
       stopAssetsPolling,
@@ -529,6 +542,7 @@ function makeProductionAgentStore(projectId: string) {
       reconnect,
       thinkLevel,
       updateThinkConfig,
+      disconnect,
     };
   });
 }
@@ -536,11 +550,13 @@ function makeProductionAgentStore(projectId: string) {
 const storeMap = new Map<string, ReturnType<typeof makeProductionAgentStore>>();
 
 function createProductionAgentStore(projectId: string) {
-  if (!storeMap.has(projectId)) {
-    storeMap.set(projectId, makeProductionAgentStore(projectId));
+  const scope=accountBoundary.capture().generation,key=`${scope}:${projectId}`;
+  if (!storeMap.has(key)) {
+    storeMap.set(key, makeProductionAgentStore(projectId,scope));
   }
-  return storeMap.get(projectId)!;
+  return storeMap.get(key)!;
 }
+accountBoundary.subscribe(()=>storeMap.clear());
 
 export default function useProductionAgentStore() {
   const id = projectStore().project?.id;

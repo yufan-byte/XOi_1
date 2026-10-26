@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import axios from "axios";
+import {paymentNotifyUrl,paymentIdentityMatches} from "./guards";
 import type {
   AckKind,
   ChannelId,
@@ -33,8 +34,7 @@ export class AggrChannel implements PayChannel {
   }
 
   private notifyUrl(): string | undefined {
-    const host = process.env.XOI_PAY_NOTIFY_HOST;
-    return host ? `${host}/api/pay/callback/aggr` : undefined;
+    return paymentNotifyUrl("aggr");
   }
 
   async createOrder(ctx: CreateOrderContext): Promise<CreateOrderResult> {
@@ -72,6 +72,7 @@ export class AggrChannel implements PayChannel {
     const b: Record<string, unknown> = { ...(req.query || {}), ...(req.body || {}) };
     const sign = b.sign as string | undefined;
     if (!sign) return { ok: false, paid: false, reason: "无签名参数" };
+    if(!this.cfg.secret || !paymentIdentityMatches(b.mchid,this.cfg.mchid||this.cfg.mchId))return {ok:false,paid:false,reason:"支付商户身份不匹配或未配置密钥"};
 
     // 同样规则反算签名比对
     const pairs = Object.keys(b).filter((k) => k !== "sign").sort().map((k) => `${k}=${b[k]}`);

@@ -19,22 +19,14 @@ export const dateSlash = (ts: number) => { if (!ts) return "—"; const d = new 
 export const dateTimeShort = (ts: number) => { if (!ts) return "—"; const d = new Date(ts); return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 export const dateTimeFull = (ts: number) => (ts ? new Date(ts).toLocaleString("zh-CN", { hour12: false }) : "—");
 
-/**
- * 页头（参考站 vault command header）：描边小标签 + 粗标题 + 副标题。
- *
- * 右上角原来是一个 192px 的描边圆（`-right-8 top-1/2 size-48 rounded-full border`）——
- * 它有一半越出卡片被裁掉，在浅色主题下读起来像一块没渲染完的色斑。改成
- * **向内收的柔和径向辉光**（无硬边、无描边），既有品牌色温度又不会再出现"怪圆"。
- */
+/** 简洁的管理页页头，标题、说明与右侧操作保持稳定层级，不叠加装饰光晕。 */
 export function SectionHero({ badge, icon, title, subtitle, right, className }: { badge: string; icon?: React.ReactNode; title: string; subtitle?: string; right?: React.ReactNode; className?: string }) {
   return (
-    <header className={cn("relative overflow-hidden rounded-[16px] border border-border/60 bg-card bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_6%,transparent),transparent_58%)] px-4 py-4 shadow-[var(--shadow-soft)] md:px-5", className)}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--primary)_45%,transparent),transparent)]" aria-hidden />
-      <div className="pointer-events-none absolute -right-12 -top-16 size-44 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_70%)] blur-2xl" aria-hidden />
+    <header className={cn("xoi-admin-section-header relative rounded-2xl border border-border bg-card px-5 py-5", className)}>
       <div className="relative flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="mb-2 inline-flex"><div className="inline-flex items-center gap-2 rounded-md border border-primary/25 bg-primary/[0.08] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary [&_svg]:size-3.5">{icon}{badge}</div></div>
-          <h1 className="text-[1.7rem] font-black leading-tight tracking-[-0.02em] text-foreground md:text-[2rem]">{title}</h1>
+          <div className="mb-2 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">{icon}{badge}</div>
+          <h1 className="text-xl font-semibold leading-tight tracking-tight text-foreground md:text-2xl">{title}</h1>
           {subtitle && <p className="mt-1 max-w-3xl text-xs font-medium leading-5 text-muted-foreground md:text-sm">{subtitle}</p>}
         </div>
         {right}
@@ -93,13 +85,13 @@ export function ResellerGate({ title }: { title: string }) {
     <section className="pane mx-auto max-w-4xl px-8 py-12 text-center">
       <span className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-[#fff8e6] text-warning"><Sparkles size={36} /></span>
       <h2 className="mt-6 text-4xl font-bold">成为代理商</h2>
-      <p className="mx-auto mt-4 max-w-xl text-lg leading-8 text-muted-foreground">您当前还不是代理商。「{title}」需开通代理后使用。代理商中心可管理客户、佣金、提现、卡密及白标品牌设置。请先完成申请。</p>
+      <p className="mx-auto mt-4 max-w-xl text-lg leading-8 text-muted-foreground">您当前还不是代理商。「{title}」需申请并获平台批准后使用。代理商中心用于管理归属客户、收益及收款资料；整站品牌由平台管理员统一设置。</p>
       <div className="mx-auto mt-8 max-w-xl space-y-3 text-left">
-        {["下级用户充值时自动获得分润", "白标品牌定制：Logo / 域名 / 配色", "卡密批量生成 + 收款账号绑定"].map((t) => <div key={t} className="flex items-center gap-3 rounded-2xl border px-5 py-4 text-[15px]"><ShieldCheck size={18} className="text-success" />{t}</div>)}
+        {["按平台规则查看客户分润", "仅查看归属自己的客户和收益", "管理卡密与收款资料"].map((t) => <div key={t} className="flex items-center gap-3 rounded-2xl border px-5 py-4 text-[15px]"><ShieldCheck size={18} className="text-success" />{t}</div>)}
       </div>
       <div className="mx-auto mt-8 grid max-w-3xl gap-4 text-left md:grid-cols-2">
-        {[[Globe2, "二级域名 + 白标", "付费 franchise 通过后, 自助配置二级域名 / Logo / 配色 / 落地页, 快速上线。"], [Building2, "独立域名解析", "付费 franchise 通过后, 自助申请独立域名解析, 平台协助 DNS + 白标审核。"]].map(([I, t, d]) => { const Icon = I as typeof Globe2; return (
-          <div key={String(t)} className="rounded-2xl border p-6"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#fff8e6] text-warning"><Icon size={20} /></span><span className="text-lg font-semibold">{String(t)}</span></div><p className="mt-3 text-sm leading-7 text-muted-foreground">{String(d)}</p><Link href="/reseller/recruit" className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">查看付费方案 <ArrowRight size={14} /></Link></div>
+        {[[Globe2, "客户管理", "通过邀请方式建立客户归属，查看自己权限范围内的客户。"], [Building2, "收益管理", "按平台已批准的规则管理收益；申请通过不代表开通独立品牌分站。"]].map(([I, t, d]) => { const Icon = I as typeof Globe2; return (
+          <div key={String(t)} className="rounded-2xl border p-6"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#fff8e6] text-warning"><Icon size={20} /></span><span className="text-lg font-semibold">{String(t)}</span></div><p className="mt-3 text-sm leading-7 text-muted-foreground">{String(d)}</p></div>
         ); })}
       </div>
       <Link href="/reseller/recruit" className="mt-10 inline-flex h-12 items-center gap-2 rounded-2xl bg-primary px-8 text-[15px] font-medium text-white shadow-pop hover:bg-primary-strong">立即申请</Link>

@@ -2,10 +2,12 @@ import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 
 import { nanoid } from "nanoid";
+import { message } from "antd";
 import { localForageStorage } from "@/lib/localforage-storage";
-import { listCanvasProjects, saveCanvasProject, syncCanvasProjects } from "@/services/api/canvas-tasks";
+import { listCanvasProjects, saveCanvasProject } from "@/services/api/canvas-tasks";
 import { fetchUserConfig } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
+import { getVerifiedToken } from "@/xoi/owner";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
 import type { CanvasAgentConfig, CanvasAssistantSession, CanvasConnection, CanvasNodeData, CanvasPendingAgentRequest, ViewportTransform } from "../types";
 
@@ -14,10 +16,13 @@ export type CanvasSidePanelState = {
     width: number;
 };
 
-export const DEFAULT_CANVAS_SIDE_PANEL: CanvasSidePanelState = { open: true, width: 280 };
+export const DEFAULT_CANVAS_SIDE_PANEL: CanvasSidePanelState = { open: false, width: 280 };
 export const DEFAULT_CANVAS_AGENT_PANEL: CanvasSidePanelState = { open: false, width: 464 };
 
 export type CanvasProject = {
+    cloudRevision?: number;
+    cloudPending?: boolean;
+    cloudConflict?: boolean;
     id: string;
     title: string;
     createdAt: string;
@@ -50,12 +55,15 @@ type CanvasStore = {
 };
 
 const initialViewport: ViewportTransform = { x: 0, y: 0, k: 1 };
-const CANVAS_STORE_KEY = "infinite-canvas:canvas_store";
+// v2 避开此前把公共旧库复制进各账号的本地缓存；历史缓存保留待人工核对归属。
+const CANVAS_STORE_KEY = "infinite-canvas:canvas_store:v2";
 type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
 let accountCanvasSyncEnabled = false;
 const projectSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const projectSaveChains = new Map<string, Promise<void>>();
+const pendingProjectSaves = new Map<string, () => Promise<void>>();
 
 function waitForUserStoreHydration() {
     if (useUserStore.persist.hasHydrated()) return Promise.resolve();
@@ -76,24 +84,43 @@ function waitForUserStoreHydration() {
 function queueProjectSave(project: CanvasProject) {
     const token = useUserStore.getState().token;
     const syncEnabled = accountCanvasSyncEnabled;
+    useCanvasStore.setState(state=>({projects:state.projects.map(p=>p.id===project.id?{...p,cloudPending:true}:p)}));
     const previous = projectSaveTimers.get(project.id);
     if (previous) clearTimeout(previous);
 
-    projectSaveTimers.set(
-        project.id,
-        setTimeout(() => {
+    const saveNow = () => {
             projectSaveTimers.delete(project.id);
+            pendingProjectSaves.delete(project.id);
             if (
-                !token ||
+                !token || token !== getVerifiedToken() ||
                 !syncEnabled ||
                 !accountCanvasSyncEnabled ||
                 useUserStore.getState().token !== token
             ) {
-                return;
+                return Promise.resolve();
             }
-            void saveCanvasProject(token, project).catch(() => undefined);
-        }, 400),
-    );
+            const previous=projectSaveChains.get(project.id)||Promise.resolve();
+            const save=previous.catch(()=>{}).then(async()=>{
+                if(token!==getVerifiedToken()||useUserStore.getState().token!==token)return;
+                const snapshot=useCanvasStore.getState().projects.find(p=>p.id===project.id);
+                if(!snapshot||snapshot.cloudConflict)return;
+                try{
+                    const saved=await saveCanvasProject(token,snapshot);
+                    if(token!==getVerifiedToken())return;
+                    useCanvasStore.setState(state=>({projects:state.projects.map(p=>p.id===snapshot.id?{...p,cloudRevision:saved.cloudRevision,cloudPending:p!==snapshot}:p)}));
+                }catch(error){
+                    if(token!==getVerifiedToken())return;
+                    const conflict=(error as any).status===409;
+                    useCanvasStore.setState(state=>({projects:state.projects.map(p=>p.id===snapshot.id?{...p,cloudPending:true,cloudConflict:conflict}:p)}));
+                    message.error(conflict?"画布版本冲突，本机修改已保留；重新打开时会保留为独立副本，不会覆盖云端":"云端保存失败，本机修改已保留，请检查网络后重试");
+                }
+            });
+            projectSaveChains.set(project.id,save);
+            void save.finally(()=>{if(projectSaveChains.get(project.id)===save)projectSaveChains.delete(project.id);});
+            return save;
+    };
+    pendingProjectSaves.set(project.id, saveNow);
+    projectSaveTimers.set(project.id, setTimeout(() => { void saveNow(); }, 400));
 }
 
 function cancelProjectSaves(ids: string[]) {
@@ -102,119 +129,50 @@ function cancelProjectSaves(ids: string[]) {
         if (!timer) return;
         clearTimeout(timer);
         projectSaveTimers.delete(id);
+        pendingProjectSaves.delete(id);
     });
 }
 
-async function reconcileCanvasProjects(
-    token: string,
-    remoteProjects: CanvasProject[],
-    localProjects: CanvasProject[],
-) {
-    const remoteById = new Map(
-        remoteProjects.map((project) => [project.id, project]),
-    );
-    const missingProjects = localProjects.filter(
-        (project) => !remoteById.has(project.id),
-    );
-    const existingLocalProjects = localProjects.filter((project) =>
-        remoteById.has(project.id),
-    );
-    const projects = missingProjects.length
-        ? await syncCanvasProjects(token, missingProjects)
-            .then((syncedProjects) =>
-                mergeCanvasProjects(
-                    syncedProjects,
-                    existingLocalProjects,
-                ),
-            )
-            .catch(() =>
-                mergeCanvasProjects(remoteProjects, localProjects),
-            )
-        : mergeCanvasProjects(remoteProjects, existingLocalProjects);
-
-    localProjects.forEach((project) => {
-        const remote = remoteById.get(project.id);
-        if (
-            remote &&
-            Date.parse(project.updatedAt || "") >
-            Date.parse(remote.updatedAt || "")
-        ) {
-            queueProjectSave(project);
-        }
-    });
-
-    return projects;
+/** Flush the existing save queue before leaving the standalone editor document. */
+export async function flushCanvasBeforeExit(projectId: string) {
+    const timer = projectSaveTimers.get(projectId);
+    if (timer) clearTimeout(timer);
+    const saveNow = pendingProjectSaves.get(projectId);
+    await (saveNow ? saveNow() : projectSaveChains.get(projectId));
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    const state = { projects: useCanvasStore.getState().projects };
+    queuedPersistState = state;
+    await localForageStorage.setItem(CANVAS_STORE_KEY, JSON.stringify({ state, version: 0 }));
 }
 
 const canvasStorage: PersistStorage<CanvasStore> = {
     getItem: async (name) => {
         await waitForUserStoreHydration();
-        const localValue = await localForageStorage.getItem(name);
-        const token = useUserStore.getState().token;
-        const localParsed = localValue
-            ? (JSON.parse(localValue) as StorageValue<CanvasStore>)
-            : null;
-        const localProjects =
-            (localParsed?.state as PersistedCanvasState)?.projects || [];
-        const localHasData =
-            Array.isArray(localProjects) && localProjects.length > 0;
-
+        // upstream persist 中可能残留上个账号的 JWT；这里必须用启动时 /auth/me 核验过的 token。
+        const token = getVerifiedToken();
         if (token) {
+            const raw=await localForageStorage.getItem(name);
+            let local:CanvasProject[]=[];try{local=JSON.parse(raw||"null")?.state?.projects||[];}catch{}
             try {
-                const [userConfig, remoteProjects] = await Promise.all([
-                    fetchUserConfig(token),
-                    listCanvasProjects(token),
-                ]);
-                accountCanvasSyncEnabled =
-                    userConfig.syncCapabilities?.userData === true;
-
-                if (accountCanvasSyncEnabled && localHasData) {
-                    const projects = await reconcileCanvasProjects(
-                        token,
-                        remoteProjects,
-                        localProjects,
-                    );
-
-                    const nextState = { projects };
-                    const parsed = {
-                        state: nextState,
-                        version: 0,
-                    } as StorageValue<CanvasStore>;
-                    queuedPersistState = nextState;
-                    await localForageStorage.setItem(
-                        name,
-                        JSON.stringify(parsed),
-                    );
-                    return parsed;
-                }
-
-                if (
-                    remoteProjects.length > 0 &&
-                    (accountCanvasSyncEnabled || !localHasData)
-                ) {
-                    const nextState = { projects: remoteProjects };
-                    const parsed = {
-                        state: nextState,
-                        version: 0,
-                    } as StorageValue<CanvasStore>;
-                    queuedPersistState = nextState;
-                    await localForageStorage.setItem(
-                        name,
-                        JSON.stringify(parsed),
-                    );
-                    return parsed;
-                }
+                const [userConfig, remoteProjects] = await Promise.all([fetchUserConfig(token), listCanvasProjects(token)]);
+                accountCanvasSyncEnabled = userConfig.syncCapabilities?.userData === true;
+                const copies=local.filter(p=>p.cloudPending).map(p=>remoteProjects.some(r=>r.id===p.id)||p.cloudConflict?({...p,id:nanoid(),title:`${p.title}（本机未同步副本）`,cloudRevision:undefined,cloudPending:true,cloudConflict:false}):p);
+                const nextState = { projects: [...copies,...remoteProjects] };
+                const parsed = { state: nextState, version: 0 } as StorageValue<CanvasStore>;
+                queuedPersistState = nextState;
+                await localForageStorage.setItem(name, JSON.stringify(parsed));
+                return parsed;
             } catch (error) {
                 console.error(
                     "Failed to hydrate canvas projects from remote",
                     error,
                 );
+                if(local.length)return {state:{projects:local},version:0} as StorageValue<CanvasStore>;
             }
         }
 
-        if (!localParsed) return null;
-        queuedPersistState = localParsed.state as PersistedCanvasState;
-        return localParsed;
+        // 服务端不可达时不展示无法核对归属的旧本地工程。
+        return null;
     },
 
     setItem: (name, value) => {
@@ -255,7 +213,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     agentConfig: options?.agentConfig || null,
                     autoTitlePending: true,
                     pendingAgentRequest: options?.pendingAgentRequest,
-                    backgroundMode: "lines",
+                    backgroundMode: "dots",
                     showImageInfo: false,
                     viewport: initialViewport,
                     sidePanel: DEFAULT_CANVAS_SIDE_PANEL,
@@ -280,7 +238,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     activeChatId: source.activeChatId || null,
                     agentConfig: source.agentConfig || null,
                     autoTitlePending: false,
-                    backgroundMode: source.backgroundMode || "lines",
+                    backgroundMode: source.backgroundMode || "dots",
                     showImageInfo: source.showImageInfo || false,
                     viewport: source.viewport || initialViewport,
                     sidePanel: source.sidePanel || DEFAULT_CANVAS_SIDE_PANEL,
@@ -338,23 +296,21 @@ export const useCanvasStore = create<CanvasStore>()(
                 queueProjectSave(nextProject);
             },
             syncWithRemote: async (token, syncEnabled) => {
+                if (token !== getVerifiedToken()) return;
                 accountCanvasSyncEnabled = syncEnabled;
                 if (!syncEnabled) return;
-                const localProjects = get().projects;
+                await Promise.all([...projectSaveChains.values()]);
+                if(token!==getVerifiedToken())return;
                 const remoteProjects = await listCanvasProjects(token).catch(
                     () => null,
                 );
                 if (!remoteProjects) return;
-                const projects = await reconcileCanvasProjects(
-                    token,
-                    remoteProjects,
-                    localProjects,
-                );
                 if (saveTimer) {
                     clearTimeout(saveTimer);
                     saveTimer = null;
                 }
-                const nextState = { projects };
+                const copies=get().projects.filter(p=>p.cloudPending).map(p=>remoteProjects.some(r=>r.id===p.id)||p.cloudConflict?({...p,id:nanoid(),title:`${p.title}（本机未同步副本）`,cloudRevision:undefined,cloudPending:true,cloudConflict:false}):p);
+                const nextState = { projects: [...copies,...remoteProjects] };
                 queuedPersistState = nextState;
                 set(nextState);
                 await localForageStorage.setItem(

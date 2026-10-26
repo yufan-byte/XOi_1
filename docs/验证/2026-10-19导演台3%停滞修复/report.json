@@ -1,0 +1,87 @@
+{
+  "report": [
+    {
+      "name": "cancel restores the saved scene and playhead, with no media upload or model call"
+    },
+    {
+      "name": "unsupported encoder recovers editing and preserves the source project"
+    },
+    {
+      "name": "3% encoder queue stall automatically ends and restores scene without upload or billing",
+      "elapsedMs": 19506
+    },
+    {
+      "name": "real MP4 export followed by upload failure keeps the scene and does not create a half-finished canvas",
+      "encoderMode": "realtime/no-preference"
+    },
+    {
+      "name": "local MP4 download from the compact menu works and does not add canvas nodes"
+    },
+    {
+      "name": "real 5 second 24 fps export decodes in canvas and stays bound to the exact scene version",
+      "actual": {
+        "duration": 5,
+        "width": 1280,
+        "height": 720
+      },
+      "frameCount": 120
+    },
+    {
+      "name": "leaving the cached canvas stops video handoff and returning restores editing without an extra video or canvas result"
+    }
+  ],
+  "traffic": {
+    "model": 0,
+    "authorize": 0,
+    "save": 1,
+    "upload": 3
+  },
+  "network": {
+    "GET /api/reseller/config": 6,
+    "GET /api/auth/me": 10,
+    "GET /api/login/self": 1,
+    "GET /api/team": 1,
+    "GET /api/director-scenes": 1,
+    "GET /api/aiAssistant/director/skills": 1,
+    "GET /api/director-scenes/:id": 10,
+    "PUT /api/director-scenes/:id": 1,
+    "POST /api/canvas-files": 4,
+    "GET /api/config": 3,
+    "GET /api/v1/user-config": 1,
+    "GET /api/v1/canvas/projects": 1,
+    "GET /api/model-catalog": 1,
+    "POST /api/model-catalog/quote": 1,
+    "POST /api/v1/canvas/projects": 2,
+    "POST /api/setting/skillManagement/getSkillList": 1,
+    "GET /api/skills": 1,
+    "POST /api/modelSelect/getModelList": 1
+  },
+  "downloads": 1,
+  "errors": [],
+  "renderer": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)"
+  },
+  "video": {
+    "content": "/oss/canvas-files/501/00000000000000000000000000000003.mp4",
+    "status": "success",
+    "naturalWidth": 1280,
+    "naturalHeight": 720,
+    "seconds": "5",
+    "directorSource": {
+      "sceneId": "director3d-u501-link-test",
+      "shotId": "shot-01",
+      "revision": 1,
+      "frame": 48
+    },
+    "referenceRole": "motion",
+    "previz": {
+      "requestId": "962e2cf9-8de5-4108-81a2-9127294e6f96",
+      "fps": 24,
+      "frameCount": 120,
+      "codec": "avc1"
+    },
+    "durationMs": 5000,
+    "mimeType": "video/mp4"
+  }
+}

@@ -3,6 +3,7 @@ import u from "@/utils";
 import { z } from "zod";
 import { error, success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
+import {creativeIds} from '@/utils/creativeIds';
 const router = express.Router();
 interface Storyboard {
   id: number;
@@ -26,13 +27,15 @@ export default router.post(
   }),
   async (req, res) => {
     const { prompt, duration, state, src, scriptId, projectId, videoDesc, shouldGenerateImage } = req.body;
-    const trackId = Date.now()
-    await u.db("o_videoTrack").insert({
+    const allocator=creativeIds(u.db);await allocator.ensure();
+    const id=await u.db.transaction(async trx=>{
+    const trackId=await allocator.next(trx);
+    await trx("o_videoTrack").insert({
       id: trackId,
       scriptId: scriptId,
       projectId,
     });
-    const [id] = await u.db("o_storyboard").insert({
+    const rows = await trx("o_storyboard").insert({
       prompt,
       duration,
       state,
@@ -42,6 +45,8 @@ export default router.post(
       shouldGenerateImage: src ? 1 : 0,
       scriptId: scriptId,
       projectId: projectId,
+    }).returning('*');
+    return Number(rows[0].id);
     });
     return res.status(200).send(success({ id }));
   },

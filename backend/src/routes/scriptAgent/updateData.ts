@@ -22,6 +22,15 @@ export default router.post(
   }),
   async (req, res) => {
     const { id, data } = req.body;
+    const userId = Number((req as any).user?.id);
+    const owned = await u
+      .db("o_agentWorkData")
+      .join("o_project", "o_agentWorkData.projectId", "o_project.id")
+      .where("o_agentWorkData.id", id)
+      .andWhere("o_project.userId", userId)
+      .select("o_agentWorkData.id")
+      .first();
+    if (!owned) return res.status(404).send({ message: "改编工作区不存在" });
     await u
       .db("o_agentWorkData")
       .where({ id: id })

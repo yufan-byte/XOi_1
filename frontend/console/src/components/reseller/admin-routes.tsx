@@ -33,6 +33,9 @@ import { ModelsCenter } from "@/components/reseller/models/models-center";
 import { CustomerServiceCenter } from "@/components/reseller/customer-service/customer-service-center";
 import { AnnouncementsView } from "@/components/reseller/announcements/announcements";
 import { AdminTasksView, AdminTopupsView, AdminRedemptionsView, AdminPolicyView, AdminCreditsView } from "@/components/reseller/admin/platform-views";
+import { AdminUsersView } from "@/components/reseller/admin/users-view";
+import { DailyStatsView } from "@/components/reseller/admin/stats-view";
+import { SecurityView } from "@/components/reseller/admin/security-view";
 import { MessagesView } from "@/components/reseller/messages/messages";
 import { SiteInfo } from "@/components/reseller/site/site-info";
 import { LoginVideoPanel } from "@/components/reseller/site/login-videos";
@@ -43,6 +46,9 @@ import { SkillReview, WorkReview } from "@/components/reseller/moderation/skill-
 import { useResellerMe, useResellerScope, useIsReseller } from "@/lib/reseller/client";
 import { api, hasSession } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { createLoginUrl } from "../../../../../shared/loginNavigation";
+import {ReleasesView} from "@/components/reseller/admin/releases";
+import {TeamPage as TeamWorkspaceContent} from "@/components/team/team-page";
 
 /* ------------------------------------------------------------------ */
 /* 闸门（对应造物 reseller/layout.tsx）                                  */
@@ -67,10 +73,11 @@ export function AdminGate() {
     useEffect(() => {
         if (allowed && agentBlocked) { navigate("/reseller/overview", { replace: true }); return; }
         if (allowed) return;
-        if (!logged) { navigate(`/login?next=${encodeURIComponent(nextTarget(path))}`, { replace: true }); return; }
-        if (me.isSuccess || me.isError) navigate("/agent-apply", { replace: true });
+        if (!logged) { navigate(createLoginUrl(nextTarget(path)).replace(/^\/console/, ""), { replace: true }); return; }
+        if (me.isSuccess) navigate("/agent-apply", { replace: true });
     }, [allowed, agentBlocked, logged, navigate, path, me.isSuccess, me.isError]);
-    if (!allowed || agentBlocked) return <div className="h-dvh w-full bg-background" />;
+    if (logged && me.isError) return <div className="grid h-dvh place-content-center gap-3 bg-background px-6 text-center text-foreground"><h1 className="font-semibold">后台权限暂时未能加载</h1><p className="text-sm text-muted-foreground">请重试，当前页面地址已保留。</p><button className="rounded-xl border px-4 py-2" onClick={() => void me.refetch()}>重新加载</button><a href="/#/aiAssistant" className="text-sm text-primary">返回智能创作</a></div>;
+    if (!allowed || agentBlocked) return <div className="grid h-dvh place-items-center bg-background text-sm text-muted-foreground">正在验证后台权限…</div>;
     return <Outlet />;
 }
 
@@ -93,12 +100,12 @@ function ResellerSectionGate() {
                 <section className="pane mx-auto max-w-4xl px-8 py-12 text-center">
                     <span className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-[#fff8e6] text-warning"><Sparkles size={36} /></span>
                     <h2 className="mt-6 text-4xl font-bold">成为代理商</h2>
-                    <p className="mx-auto mt-4 max-w-xl text-lg leading-8 text-muted-foreground">您当前还不是代理商。「{title}」需开通代理后使用。代理商中心可管理客户、佣金、提现、卡密及白标品牌设置。请先完成申请。</p>
+                    <p className="mx-auto mt-4 max-w-xl text-lg leading-8 text-muted-foreground">您当前还不是代理商。「{title}」需申请并获平台批准后使用。可管理归属客户、收益和收款资料；整站品牌由平台管理员统一设置。</p>
                     <div className="mx-auto mt-8 max-w-xl space-y-3 text-left">
-                        {["下级用户充值时自动获得分润", "白标品牌定制：Logo / 域名 / 配色", "卡密批量生成 + 收款账号绑定"].map((t) => <div key={t} className="flex items-center gap-3 rounded-2xl border px-5 py-4 text-[15px]"><ShieldCheck size={18} className="text-success" />{t}</div>)}
+                        {["按平台规则查看客户分润", "仅查看归属自己的客户和收益", "管理卡密与收款资料"].map((t) => <div key={t} className="flex items-center gap-3 rounded-2xl border px-5 py-4 text-[15px]"><ShieldCheck size={18} className="text-success" />{t}</div>)}
                     </div>
                     <div className="mx-auto mt-8 grid max-w-3xl gap-4 text-left md:grid-cols-2">
-                        {[[Globe2, "二级域名 + 白标", "付费 franchise 通过后, 自助配置二级域名 / Logo / 配色 / 落地页, 快速上线。"], [Building2, "独立域名解析", "付费 franchise 通过后, 自助申请独立域名解析, 平台协助 DNS + 白标审核。"]].map(([I, t, d]) => { const Icon = I as typeof Globe2; return (
+                        {[[Globe2, "客户管理", "通过邀请建立客户归属，只查看自己权限范围内的客户。"], [Building2, "收益管理", "按平台已批准的规则管理收益；不代表开通独立品牌分站。"]].map(([I, t, d]) => { const Icon = I as typeof Globe2; return (
                             <div key={String(t)} className="rounded-2xl border p-6"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#fff8e6] text-warning"><Icon size={20} /></span><span className="text-lg font-semibold">{String(t)}</span></div><p className="mt-3 text-sm leading-7 text-muted-foreground">{String(d)}</p><Link href="/reseller/recruit" className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">查看付费方案 <ArrowRight size={14} /></Link></div>
                         ); })}
                     </div>
@@ -165,11 +172,16 @@ const TeamPage = () => {
     return <ResellerShell>{ok ? TeamView : <ResellerGate title="下级代理" />}</ResellerShell>;
 };
 
-const SiteInfoPage = () => <ResellerShell><AdminOnly title="站点信息"><SiteInfo /></AdminOnly></ResellerShell>;
+const SiteInfoPage = () => <ResellerShell><AdminOnly title="站点设置"><SiteInfo /></AdminOnly></ResellerShell>;
 
 // ---- 平台运营（XOi 补位：后端 /api/admin/* 一直没有 UI）----
 // 视图自带 SectionHero，这里只包 ResellerShell + AdminOnly；代理进不来（AGENT_PATHS 不含这些路径）
 const AdminTasksPage = () => <ResellerShell><AdminOnly title="任务监控"><AdminTasksView /></AdminOnly></ResellerShell>;
+const AdminUsersPage = () => <ResellerShell><AdminOnly title="用户管理"><AdminUsersView /></AdminOnly></ResellerShell>;
+const AdminStatsPage = () => <ResellerShell><AdminOnly title="收益总览"><DailyStatsView /></AdminOnly></ResellerShell>;
+const AdminSecurityPage = () => <ResellerShell><AdminOnly title="安全检测"><SecurityView /></AdminOnly></ResellerShell>;
+const AdminReleasesPage=()=> <ResellerShell><ReleasesView/></ResellerShell>;
+const TeamWorkspacePage=()=> <ResellerShell><TeamWorkspaceContent embedded/></ResellerShell>;
 const AdminTopupsPage = () => <ResellerShell><AdminOnly title="充值记录"><AdminTopupsView /></AdminOnly></ResellerShell>;
 const AdminRedemptionsPage = () => <ResellerShell><AdminOnly title="兑换码"><AdminRedemptionsView /></AdminOnly></ResellerShell>;
 const AdminPolicyPage = () => <ResellerShell><AdminOnly title="运营设置"><AdminPolicyView /></AdminOnly></ResellerShell>;
@@ -243,7 +255,9 @@ export function AgentApplyPage() {
         catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
     };
     const s = q.data;
-    const canApply = s && !s.admin && (s.status === null || s.status === "rejected");
+    // 代理体系已下线（2026-10-24）：申请入口关闭，页面保留作未来扩展点。
+    // 普通用户看到的不再是申请表单，而是明确的「暂未开放」说明；后台 mc_agents 审核链路原样保留。
+    const canApply = false;
     return (
         // XOi: 造物这里用 AppShell（整站工作台外壳）。XOi 的代理申请只在这一页
         // （后端 /api/agent/apply 已就绪），用轻容器承载即可，不必为一个单页搬整套工作台 chrome。
@@ -314,11 +328,16 @@ export const adminRoutes = (
         <Route path="/reseller/team" element={<TeamPage />} />
         <Route path="/reseller/settings" element={<SettingsPage />} />
         <Route path="/reseller/admin/tasks" element={<AdminTasksPage />} />
+        <Route path="/reseller/admin/users" element={<AdminUsersPage />} />
+        <Route path="/reseller/admin/stats" element={<AdminStatsPage />} />
+        <Route path="/reseller/admin/security" element={<AdminSecurityPage />} />
+        <Route path="/reseller/admin/releases" element={<AdminReleasesPage />} />
+        <Route path="/reseller/team-space" element={<TeamWorkspacePage />} />
         <Route path="/reseller/admin/topups" element={<AdminTopupsPage />} />
         <Route path="/reseller/admin/redemptions" element={<AdminRedemptionsPage />} />
         <Route path="/reseller/admin/credits" element={<AdminCreditsPage />} />
         <Route path="/reseller/admin/policy" element={<AdminPolicyPage />} />
-        <Route path="/reseller/theme/login-page" element={<LoginPageThemePage />} />
+        <Route path="/reseller/theme/login-page" element={<Navigate to="/reseller/site/info" replace />} />
         <Route path="/reseller/account/push" element={<PushPage />} />
         <Route path="/reseller/account/withdrawal" element={<WithdrawalSettingsPage />} />
         <Route path="/reseller/account/payout-profile" element={<PayoutProfilePage />} />

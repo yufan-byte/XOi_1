@@ -35,7 +35,7 @@ export function CanvasAgentSkillPopover({ selectedSkills = [], onSelect, onDelet
     const [form] = Form.useForm<Pick<AgentSkill, "name" | "description" | "coverUrl" | "coverStorageKey" | "content">>();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
-    const [tab, setTab] = useState<"all" | "director" | "system" | "user" | "selected">("all");
+    const [tab, setTab] = useState<"featured" | "all" | "director" | "system" | "user" | "selected">("featured");
     const [query, setQuery] = useState("");
     const [previewId, setPreviewId] = useState("");
     const [editingSkill, setEditingSkill] = useState<AgentSkill | null>(null);
@@ -54,7 +54,7 @@ export function CanvasAgentSkillPopover({ selectedSkills = [], onSelect, onDelet
         // Searching spans categories so a previous filter cannot hide a matching skill.
         return availableSkills.filter(skill => {
             if (keyword) return `${skill.name} ${skill.description} ${Object.values(getCanvasSkillGuide(skill) || {}).join(" ")}`.toLowerCase().includes(keyword);
-            return tab === "all" || (tab === "selected" ? isSelected(skill) : tab === "user" ? skill.source === "user" : tab === "director" ? skill.id.startsWith("purchased/director/") : skill.source === "system" && !skill.id.startsWith("purchased/director/"));
+            return tab === "featured" ? skill.id.startsWith("builtin-") : tab === "all" || (tab === "selected" ? isSelected(skill) : tab === "user" ? skill.source === "user" : tab === "director" ? skill.id.startsWith("purchased/director/") : skill.source === "system" && !skill.id.startsWith("purchased/director/"));
         });
     }, [query, availableSkills, tab, selectedSkills]);
     const preview = skills.find(skill => `${skill.source}:${skill.id}` === previewId) || skills[0];
@@ -117,7 +117,7 @@ export function CanvasAgentSkillPopover({ selectedSkills = [], onSelect, onDelet
             <div className="canvas-skill-results">{query.trim() ? `全部技能中的搜索结果 · ${skills.length} 项` : `选择适合当前创作的技能 · ${skills.length} 项`}</div>
             <div className="canvas-skill-columns">
                 <nav className="canvas-skill-categories" aria-label="技能分类">
-                    {([["all", "全部"], ["director", "导演与分镜"], ["system", "通用创作"], ["user", "我的"], ["selected", "已选"]] as const).map(([key, label]) => <button key={key} type="button" aria-label={label} aria-pressed={tab === key && !query.trim()} onClick={() => { setTab(key); setQuery(""); }}>{tab === key && !query.trim() ? <Check className="size-3.5" /> : <span className="size-3.5" />}{label}{key === "selected" ? <span className="canvas-skill-count">{selectedSkills.length}</span> : null}</button>)}
+                    {([["featured", "精选"], ["all", "全部"], ["director", "导演与分镜"], ["system", "通用创作"], ["user", "我的"], ["selected", "已选"]] as const).map(([key, label]) => <button key={key} type="button" aria-label={label} aria-pressed={tab === key && !query.trim()} onClick={() => { setTab(key); setQuery(""); }}>{tab === key && !query.trim() ? <Check className="size-3.5" /> : <span className="size-3.5" />}{label}{key === "selected" ? <span className="canvas-skill-count">{selectedSkills.length}</span> : null}</button>)}
                 </nav>
                 <div className="canvas-skill-list thin-scrollbar">
                     <Spin spinning={isLoading}>

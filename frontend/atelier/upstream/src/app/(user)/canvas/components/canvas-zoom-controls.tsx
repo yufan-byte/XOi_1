@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChevronDown, Compass, Focus, HelpCircle, Minus, Plus } from "lucide-react";
+import { ChevronDown, Compass, Focus, Hand, HelpCircle, Minus, MousePointer2, Plus, Redo2, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button, Modal, Popover, Tooltip } from "antd";
 
@@ -12,9 +12,15 @@ type CanvasZoomControlsProps = {
     onReset: () => void;
     isMiniMapOpen: boolean;
     onToggleMiniMap: () => void;
+    canvasTool: "select" | "pan";
+    onCanvasToolChange: (tool: "select" | "pan") => void;
+    canUndo: boolean;
+    canRedo: boolean;
+    onUndo: () => void;
+    onRedo: () => void;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, canvasTool, onCanvasToolChange, canUndo, canRedo, onUndo, onRedo }: CanvasZoomControlsProps) {
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [zoomOpen, setZoomOpen] = useState(false);
     const [percentDraft, setPercentDraft] = useState(String(Math.round(scale * 100)));
@@ -30,12 +36,16 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
     };
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
-    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)" };
+    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: "0 4px 20px rgba(20,25,35,.05)" };
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
 
     return (
         <div className="absolute bottom-5 left-5 z-50" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-            <div className="flex h-14 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={dockStyle}>
+            <div className="flex h-11 max-w-[calc(100vw-210px)] items-center gap-0.5 rounded-xl border px-1.5 backdrop-blur-xl" style={dockStyle}>
+                <Tooltip title={canvasTool === "select" ? "选择工具 · 点击切换移动" : "移动工具 · 点击切换选择"}>
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={activeStyle} aria-label="切换选择与移动" aria-pressed={canvasTool === "select"} icon={canvasTool === "select" ? <MousePointer2 className="size-4" /> : <Hand className="size-4" />} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")} />
+                </Tooltip>
+                <span className="mx-1 h-4 w-px" style={{ background: theme.toolbar.border }} />
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button
                         type="text"
@@ -65,6 +75,11 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                 <Tooltip title="快捷键">
                     <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={shortcutsOpen ? activeStyle : { color: theme.toolbar.item }} icon={<HelpCircle className="size-4" />} onClick={() => setShortcutsOpen(true)} aria-label="快捷键" />
                 </Tooltip>
+                <span className="mx-1 hidden h-4 w-px sm:block" style={{ background: theme.toolbar.border }} />
+                <div className="hidden items-center sm:flex">
+                    <Tooltip title="撤销"><Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} disabled={!canUndo} aria-label="撤销" icon={<Undo2 className="size-4" />} onClick={onUndo} /></Tooltip>
+                    <Tooltip title="重做"><Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} disabled={!canRedo} aria-label="重做" icon={<Redo2 className="size-4" />} onClick={onRedo} /></Tooltip>
+                </div>
             </div>
             <Modal title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-3 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>

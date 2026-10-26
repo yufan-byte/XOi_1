@@ -100,7 +100,7 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
         page: { type: "integer", minimum: 1 },
         pageSize: { type: "integer", minimum: 1, maximum: 50 },
     }),
-    defineTool("get_node", "按真实节点 ID 读取节点。", { nodeId: STRING }, ["nodeId"]),
+    defineTool("get_node", "按真实节点ID读取节点；长稿用textOffset/textLimit分段，按nextTextOffset继续读取。", { nodeId: STRING, textOffset: { type: "integer", minimum: 0 }, textLimit: { type: "integer", minimum: 1, maximum: 2000 } }, ["nodeId"]),
     defineTool("get_upstream_nodes", "读取指定节点的所有直接上游节点。", { nodeId: STRING }, ["nodeId"]),
     defineTool("get_downstream_nodes", "读取指定节点的所有直接下游节点。", { nodeId: STRING }, ["nodeId"]),
     defineTool("get_connected_nodes", "读取指定节点直接连接的上下游节点。", { nodeId: STRING }, ["nodeId"]),
@@ -140,8 +140,9 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("arrange_nodes", "整理指定节点；不传 nodeIds 时整理当前画布顶层节点。", { nodeIds: STRING_ARRAY }),
     defineTool(
         "generate_image",
-        "创建图片节点和来源连线，并按 Agent 自动生成设置决定是否提交现有图片任务链路。sourceNodeIds 只放真实直接来源，独立生成必须传空数组；其中图片按数组顺序编号为图片1、图片2。",
+        "创建图片并按自动生成设置提交任务。已有空白或明确未提交成功的节点请传nodeId原位生成，无需删除重建；已提交任务会返回现有状态而不重复调用。sourceNodeIds仅放真实直接来源，独立生成传空数组。",
         {
+            nodeId: STRING,
             prompt: STRING,
             title: STRING,
             sourceNodeIds: STRING_ARRAY,
@@ -158,8 +159,9 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     ),
     defineTool(
         "generate_video",
-        "创建视频节点和来源连线，并按 Agent 自动生成设置决定是否提交现有视频任务链路。sourceNodeIds 只放真实直接来源，独立生成必须传空数组；其中图片、视频、音频分别按各自顺序编号。",
+        "创建视频并按自动生成设置提交任务。已有空白或明确未提交成功的节点可传nodeId原位生成，已提交任务只返回状态而不重复调用。sourceNodeIds只放真实直接来源，独立生成传空数组；图片视频音频各自按顺序编号。",
         {
+            nodeId: STRING,
             prompt: { type: "string", description: "完整视频提示词，可包含多个内部镜头。有已确认定稿且用户未要求修改时，直接完整填入定稿，不得摘要、删减或另写一版；保留镜头顺序、时间区间、对白/旁白全文和资产引用说明。各镜头时长之和须等于本次视频总时长；不能将各镜统一改成默认 videoSeconds，也不因有分镜就强制拆成多个生成任务。" },
             model: { type: "string", description: "当前视频模型名称，仅用于标注；实际使用前端配置的模型，不覆盖配置。" },
             title: STRING,
@@ -179,10 +181,48 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("get_media_task_status", "读取图片、视频或音频节点的生成状态。", { nodeId: STRING }, ["nodeId"]),
 ];
 
+/** 各渠道模型常见的工具名漂移：列在左侧的名字一律折算成右侧的标准工具名再校验。
+ *  兼容线路（DeepSeek/Kimi/GLM 等）在长稿上常把 create_text_node 写成 create_node 之类。 */
+const ACTION_NAME_ALIASES: Record<string, string> = {
+    create_node: "create_text_node", add_text_node: "create_text_node", add_node: "create_text_node",
+    create_text: "create_text_node", create_textnode: "create_text_node", text_node: "create_text_node",
+    edit_text_node: "update_text_node", update_textnode: "update_text_node", modify_text_node: "update_text_node",
+    create_edge: "create_connection", connect_nodes: "create_connection", connect: "create_connection", add_connection: "create_connection", link_nodes: "create_connection",
+    delete_edge: "delete_connection", remove_connection: "delete_connection",
+    remove_node: "delete_node",
+    generateimage: "generate_image", image_gen: "generate_image", create_image: "generate_image", draw_image: "generate_image",
+    generatevideo: "generate_video", video_gen: "generate_video", create_video: "generate_video",
+    generateaudio: "generate_audio", audio_gen: "generate_audio", create_audio: "generate_audio", tts: "generate_audio",
+    read_node: "get_node", fetch_node: "get_node", query_node: "get_node",
+    canvas_summary: "get_canvas_summary", get_canvas: "get_canvas_summary",
+    task_status: "get_generation_task", get_task_status: "get_generation_task", get_media_task: "get_media_task_status",
+    save_state: "set_agent_state", update_agent_state: "set_agent_state",
+};
+
 export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = nanoid()): CanvasAgentAction {
+    if (typeof name === "string" && !ACTION_NAME_SET.has(name) && ACTION_NAME_ALIASES[name.trim().toLowerCase()]) {
+        name = ACTION_NAME_ALIASES[name.trim().toLowerCase()];
+    }
     if (typeof name !== "string" || !ACTION_NAME_SET.has(name)) throw new Error("模型返回了不允许的工具");
     if (args !== undefined && !isRecord(args)) throw new Error(name + " 的 arguments 必须是对象");
-    const input = isRecord(args) ? args : {};
+    const rawInput = isRecord(args) ? args : {};
+    // The generation config intentionally uses video-prefixed field names while
+    // the public tool keeps shorter names. Models occasionally copy the config
+    // keys verbatim, so accept those equivalent aliases instead of rejecting a
+    // valid, already-confirmed video request before it can be submitted.
+    const input: Record<string, unknown> = { ...rawInput };
+    if (name === "generate_video") {
+        for (const alias of ["videoSeconds", "duration", "duration_seconds"]) {
+            if (input[alias] === undefined) continue;
+            if (input.seconds !== undefined && Number(input.seconds) !== Number(input[alias])) throw new Error("generate_video 的时长参数互相冲突");
+            input.seconds = input[alias];
+            delete input[alias];
+        }
+        if (input.size === undefined && input.videoSize !== undefined) input.size = input.videoSize;
+        if (input.generateAudio === undefined && input.videoGenerateAudio !== undefined) input.generateAudio = input.videoGenerateAudio;
+        delete input.videoSize;
+        delete input.videoGenerateAudio;
+    }
     const definition = canvasAgentToolDefinition(name);
     const { properties, required = [] } = definition.function.parameters;
     const unknownKeys = Object.keys(input).filter((key) => !Object.prototype.hasOwnProperty.call(properties, key));
@@ -209,7 +249,20 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             };
             break;
         }
-        case "get_node":
+        case "get_node": {
+            // XML 位置参数：<function=get_node> nodeId [offset] [limit] —— 首 token 是节点ID，
+            // 后续数字依次映射 textOffset / textLimit（兼容线路不写参数名的常见输出）。
+            const pos = Array.isArray((input as Record<string, unknown>).__positional) ? (input.__positional as unknown[]).map(String) : [];
+            if (pos.length) {
+                delete (input as Record<string, unknown>).__positional;
+                if (input.nodeId === undefined && pos[0] !== undefined) input.nodeId = pos[0];
+                const nums = pos.slice(1).map((token) => Number(token)).filter((value) => Number.isFinite(value));
+                if (input.textOffset === undefined && nums.length > 0) input.textOffset = nums[0];
+                if (input.textLimit === undefined && nums.length > 1) input.textLimit = nums[1];
+            }
+            normalized = { nodeId: requiredString(input.nodeId, "nodeId"), ...(input.textOffset !== undefined ? { textOffset: Math.max(0, Math.floor(Number(input.textOffset) || 0)) } : {}), ...(input.textLimit !== undefined ? { textLimit: Math.max(1, Math.min(2000, Math.floor(Number(input.textLimit) || 1200))) } : {}) };
+            break;
+        }
         case "get_upstream_nodes":
         case "get_downstream_nodes":
         case "get_connected_nodes":
@@ -283,6 +336,7 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
         case "edit_image": {
             const sourceNodeIds = optionalStringArray(input.sourceNodeIds, "sourceNodeIds");
             normalized = {
+                ...(actionName === "generate_image" && optionalString(input.nodeId) ? { nodeId: optionalString(input.nodeId) } : {}),
                 prompt: requiredString(input.prompt, "prompt"),
                 ...(sourceNodeIds ? { sourceNodeIds } : {}),
                 ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
@@ -298,6 +352,7 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             if (input.model !== undefined) optionalString(input.model);
             if (input.generateAudio !== undefined && typeof input.generateAudio !== "boolean") throw new Error("generateAudio 必须是布尔值");
             normalized = {
+                ...(optionalString(input.nodeId) ? { nodeId: optionalString(input.nodeId) } : {}),
                 prompt: requiredString(input.prompt, "prompt"),
                 ...(sourceNodeIds ? { sourceNodeIds } : {}),
                 ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
@@ -324,8 +379,13 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
 }
 
 export async function parseCanvasAgentJson(content: string, { allowRepair = false }: { allowRepair?: boolean } = {}): Promise<ParsedCanvasAgentJson> {
-    const json = extractJsonObject(content);
-    let actionPayload = /[{,]\s*["']?actions["']?\s*:/.test(content);
+    // 兼容：deepseek-v4-flash 等兼容线路偶尔把工具调用写成 Claude 风格的 XML 标签原文
+    //（<tool_use><function=get_node>…）而不是本协议的 JSON。先把 XML 工具调用提取成标准
+    // actions 载荷再走统一解析；提不出参数时由 normalize 的「缺必填参数」反馈引导模型重发。
+    const xmlActions = extractXmlToolCalls(content);
+    const source = xmlActions || content;
+    const json = extractJsonObject(source);
+    let actionPayload = /[{,]\s*["']?actions["']?\s*:/.test(source);
     if (!json && !actionPayload) return { parsed: false, actions: [], reply: content.trim() };
     try {
         let payload: unknown;
@@ -333,7 +393,7 @@ export async function parseCanvasAgentJson(content: string, { allowRepair = fals
             payload = JSON.parse(json);
         } catch {
             if (!allowRepair) throw new Error("工具 JSON 不是合法 JSON");
-            const repairSource = json || stripJsonFence(content);
+            const repairSource = json || stripJsonFence(source);
             const sourceStructure = inspectJsonStructure(repairSource);
             if (!sourceStructure.complete) throw new Error("JSON 输出被截断，本批操作未执行");
             const { jsonrepair } = await import("jsonrepair");
@@ -421,6 +481,48 @@ function extractJsonObject(content: string) {
     const start = trimmed.indexOf("{");
     const end = trimmed.lastIndexOf("}");
     return start >= 0 && end > start ? trimmed.slice(start, end + 1) : "";
+}
+
+const XML_TOOL_TAG_FAMILY = "tool_use|tool_call|function_call|invoke|function";
+/** 从 Claude / Qwen / Kimi 风格的 XML 工具调用原文里提取动作；一个都提不出来返回空串。
+ *  兼容点（均为兼容线路实测出现过的写法）：
+ *  · 开闭标签不一致：<tool_use>…</tool_call>、<function_call>…</tool_use> —— 闭标签认家族内任意一个；
+ *  · 无闭合标签：<function=get_node> 参数直接到结尾 —— 兜底匹配到串尾；
+ *  · 位置参数：<function=get_node> nodeId offset limit —— 按空白切 token 存 __positional，
+ *    由 normalize 映射到 get_node 族的 nodeId / textOffset / textLimit。 */
+function extractXmlToolCalls(content: string): string {
+    if (!new RegExp(`<(${XML_TOOL_TAG_FAMILY})[\\s>=]`, "i").test(content)) return "";
+    const calls: Array<{ tool: string; arguments: Record<string, unknown> }> = [];
+    const re = new RegExp(`<(${XML_TOOL_TAG_FAMILY})\\b([^>]*)>([\\s\\S]*?)(?:<\\/(?:${XML_TOOL_TAG_FAMILY})>|$)`, "gi");
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(content))) {
+        const attrs = match[2] || "";
+        let body = (match[3] || "").trim();
+        let name = attrs.match(/name=["']([a-z_]+)["']/i)?.[1] || body.match(/<function=([a-z_]+)>/i)?.[1] || match[0].match(/<function=([a-z_]+)>/i)?.[1] || "";
+        // 内嵌 <function=NAME> 形态：名字在 body 开头，正文要去掉这层标签
+        const inner = body.match(/^<function=([a-z_]+)>\s*([\s\S]*)$/i);
+        if (inner) { name = name || inner[1]; body = inner[2].trim(); }
+        const args: Record<string, unknown> = {};
+        const paramRe = /<parameter=([a-zA-Z_]+)>([\s\S]*?)<\/parameter>/gi;
+        let param: RegExpExecArray | null;
+        while ((param = paramRe.exec(body))) {
+            const raw = param[2].trim();
+            try { args[param[1]] = JSON.parse(raw); } catch { args[param[1]] = raw; }
+        }
+        let leftover = body;
+        if (Object.keys(args).length) {
+            leftover = body.replace(/<parameter=[a-zA-Z_]+>[\s\S]*?<\/parameter>/gi, "").replace(/<\/?[a-z_]+>/gi, "").trim();
+        } else if (body.startsWith("{")) {
+            try { Object.assign(args, JSON.parse(body)); leftover = ""; } catch { /* 让 normalize 报缺参，引导模型重发 */ }
+        }
+        if (name) {
+            const tokens = leftover.split(/\s+/).filter(Boolean);
+            if (tokens.length) args.__positional = tokens;
+            calls.push({ tool: name, arguments: args });
+        }
+    }
+    if (!calls.length) return "";
+    return JSON.stringify({ actions: calls });
 }
 
 function stripJsonFence(content: string) {

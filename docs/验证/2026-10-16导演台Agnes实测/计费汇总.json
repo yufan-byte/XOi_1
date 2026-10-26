@@ -1,0 +1,337 @@
+{
+  "date": "2026-10-16",
+  "actualCalls": 7,
+  "model": "agnes-2.5-flash",
+  "allFreeOnly": true,
+  "totalGatewayQuota": 0,
+  "totalPoints": 0,
+  "totalYuan": 0,
+  "quoteOnly": false,
+  "paidRequests": 0,
+  "formatFailureCount": 1,
+  "validResponseCount": 6,
+  "successfulFinalCases": [
+    {
+      "task": "搭建两人桌椅白模",
+      "seconds": 12.84,
+      "evidence": "05-搭建修正后.json"
+    },
+    {
+      "task": "记者向右行走2米",
+      "seconds": 9.11,
+      "evidence": "04-人物运镜成功.json"
+    },
+    {
+      "task": "相机缓慢推进",
+      "seconds": 16.36,
+      "evidence": "04-人物运镜成功.json"
+    }
+  ],
+  "budgets": [
+    {
+      "billing_id": "f473dd75-e079-44e9-acac-3724a039bee5",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true,
+      "created_at": "2026-10-16T09:03:05.751Z"
+    },
+    {
+      "billing_id": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true,
+      "created_at": "2026-10-16T09:18:29.578Z"
+    },
+    {
+      "billing_id": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true,
+      "created_at": "2026-10-16T09:30:59.208Z"
+    },
+    {
+      "billing_id": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true,
+      "created_at": "2026-10-16T10:15:10.721Z"
+    },
+    {
+      "billing_id": "b2ed0757-fcc4-45de-a652-8340de93d836",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true,
+      "created_at": "2026-10-16T10:40:08.411Z"
+    },
+    {
+      "billing_id": "c21212cc-d12c-4393-9a8a-a897061699ce",
+      "operation_path": "/aiassistant/director/plan",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true,
+      "created_at": "2026-10-16T10:40:25.905Z"
+    },
+    {
+      "billing_id": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+      "operation_path": "/aiassistant/director/compose",
+      "calls": 1,
+      "max_calls": 1,
+      "state": "stopped",
+      "bound_model": "agnes-2.5-flash",
+      "free_only": true,
+      "created_at": "2026-10-16T10:52:32.997Z"
+    }
+  ],
+  "logs": [
+    {
+      "billing_id": "f473dd75-e079-44e9-acac-3724a039bee5",
+      "request_id": "202610160903072229177518268d9d67JHyGfwX",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    },
+    {
+      "billing_id": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "request_id": "202610160918301059972198268d9d65hQgu4G0",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    },
+    {
+      "billing_id": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "request_id": "202610160931013260025938268d9d6IVGGBS8l",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    },
+    {
+      "billing_id": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "request_id": "202610161015112168272198268d9d6idC9DWWe",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    },
+    {
+      "billing_id": "b2ed0757-fcc4-45de-a652-8340de93d836",
+      "request_id": "202610161040089122444668268d9d6u4UjL0Xa",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    },
+    {
+      "billing_id": "c21212cc-d12c-4393-9a8a-a897061699ce",
+      "request_id": "202610161040265897432108268d9d6ntURA6L8",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    },
+    {
+      "billing_id": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+      "request_id": "202610161052345386472138268d9d6DRPjr1x8",
+      "type": "2",
+      "quota": "0",
+      "model_name": "agnes-2.5-flash",
+      "channel_id": "1"
+    }
+  ],
+  "receipts": [
+    {
+      "id": "f473dd75-e079-44e9-acac-3724a039bee5",
+      "billingId": "f473dd75-e079-44e9-acac-3724a039bee5",
+      "status": "recorded",
+      "quota": 0,
+      "entries": [
+        {
+          "id": "66",
+          "quota": 0,
+          "model": "agnes-2.5-flash",
+          "at": 1792141398
+        }
+      ],
+      "points": 0,
+      "budget": {
+        "state": "stopped",
+        "reason": "用户已停止后续调用",
+        "limitPoints": 0.001,
+        "reservedPoints": 0,
+        "remainingPoints": 0.001,
+        "calls": 1,
+        "maxCalls": 1,
+        "expiresAt": "2026-10-16T09:33:05.917Z"
+      }
+    },
+    {
+      "id": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "billingId": "5e842b09-e2ca-4114-8320-01f647d28d3d",
+      "status": "recorded",
+      "quota": 0,
+      "entries": [
+        {
+          "id": "67",
+          "quota": 0,
+          "model": "agnes-2.5-flash",
+          "at": 1792142328
+        }
+      ],
+      "points": 0,
+      "budget": {
+        "state": "stopped",
+        "reason": "用户已停止后续调用",
+        "limitPoints": 0.001,
+        "reservedPoints": 0,
+        "remainingPoints": 0.001,
+        "calls": 1,
+        "maxCalls": 1,
+        "expiresAt": "2026-10-16T09:48:29.610Z"
+      }
+    },
+    {
+      "id": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "billingId": "319a5e43-44a2-41d2-9bf7-3972f34978fc",
+      "status": "recorded",
+      "quota": 0,
+      "entries": [
+        {
+          "id": "68",
+          "quota": 0,
+          "model": "agnes-2.5-flash",
+          "at": 1792143070
+        }
+      ],
+      "points": 0,
+      "budget": {
+        "state": "stopped",
+        "reason": "用户已停止后续调用",
+        "limitPoints": 0.001,
+        "reservedPoints": 0,
+        "remainingPoints": 0.001,
+        "calls": 1,
+        "maxCalls": 1,
+        "expiresAt": "2026-10-16T10:00:59.286Z"
+      }
+    },
+    {
+      "id": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "billingId": "76f9dbeb-d446-41cb-bd1c-9a02b025de71",
+      "status": "recorded",
+      "quota": 0,
+      "entries": [
+        {
+          "id": "69",
+          "quota": 0,
+          "model": "agnes-2.5-flash",
+          "at": 1792145716
+        }
+      ],
+      "points": 0,
+      "budget": {
+        "state": "stopped",
+        "reason": "用户已停止后续调用",
+        "limitPoints": 0.001,
+        "reservedPoints": 0,
+        "remainingPoints": 0.001,
+        "calls": 1,
+        "maxCalls": 1,
+        "expiresAt": "2026-10-16T10:45:10.742Z"
+      }
+    },
+    {
+      "id": "b2ed0757-fcc4-45de-a652-8340de93d836",
+      "billingId": "b2ed0757-fcc4-45de-a652-8340de93d836",
+      "status": "recorded",
+      "quota": 0,
+      "entries": [
+        {
+          "id": "70",
+          "quota": 0,
+          "model": "agnes-2.5-flash",
+          "at": 1792147216
+        }
+      ],
+      "points": 0,
+      "budget": {
+        "state": "stopped",
+        "reason": "用户已停止后续调用",
+        "limitPoints": 0.001,
+        "reservedPoints": 0,
+        "remainingPoints": 0.001,
+        "calls": 1,
+        "maxCalls": 1,
+        "expiresAt": "2026-10-16T11:10:08.423Z"
+      }
+    },
+    {
+      "id": "c21212cc-d12c-4393-9a8a-a897061699ce",
+      "billingId": "c21212cc-d12c-4393-9a8a-a897061699ce",
+      "status": "recorded",
+      "quota": 0,
+      "entries": [
+        {
+          "id": "71",
+          "quota": 0,
+          "model": "agnes-2.5-flash",
+          "at": 1792147241
+        }
+      ],
+      "points": 0,
+      "budget": {
+        "state": "stopped",
+        "reason": "用户已停止后续调用",
+        "limitPoints": 0.001,
+        "reservedPoints": 0,
+        "remainingPoints": 0.001,
+        "calls": 1,
+        "maxCalls": 1,
+        "expiresAt": "2026-10-16T11:10:25.956Z"
+      }
+    },
+    {
+      "id": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+      "billingId": "5d701790-630b-4abb-ac3a-d9c8f3818d5c",
+      "status": "recorded",
+      "quota": 0,
+      "entries": [
+        {
+          "id": "72",
+          "quota": 0,
+          "model": "agnes-2.5-flash",
+          "at": 1792147965
+        }
+      ],
+      "points": 0,
+      "budget": {
+        "state": "stopped",
+        "reason": "用户已停止后续调用",
+        "limitPoints": 0.001,
+        "reservedPoints": 0,
+        "remainingPoints": 0.001,
+        "calls": 1,
+        "maxCalls": 1,
+        "expiresAt": "2026-10-16T11:22:33.022Z"
+      }
+    }
+  ]
+}

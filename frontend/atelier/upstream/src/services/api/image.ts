@@ -383,7 +383,7 @@ function retryDelay(attempt: number) {
     return 700 * attempt;
 }
 
-async function requestWithTransientRetry(run: () => Promise<Response>, retries = 2) {
+async function requestWithTransientRetry(run: () => Promise<Response>, retries = 0) {
     let lastError: unknown;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
         try {
@@ -1121,6 +1121,14 @@ async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: num
         };
     }
     if (references.length) {
+        if(usesAccountProxy(config)){
+            // The account gateway accepts URL/data-URL references in JSON. Keep the
+            // same verifiable envelope instead of switching to an unbounded upload.
+            const images=await Promise.all(references.map(async ref=>publicHttpUrl(ref.url||ref.dataUrl||"")||await imageToDataUrl(ref)));
+            const request:Record<string,unknown>={model:config.model,prompt:withPromptGuard(config,withSystemPrompt(config,prompt)),n:1,images};
+            applyImageGenerationParams(request,config,params);
+            return {method:"POST",headers:jsonHeaders,body:JSON.stringify({endpoint:"/images/generations",...meta,request})};
+        }
         const formData = new FormData();
         formData.set("_canvas_endpoint", "/images/edits");
         formData.set("_canvas_source", meta.source);

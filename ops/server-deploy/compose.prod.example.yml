@@ -1,0 +1,129 @@
+# Copy to /opt/xoi/deploy/compose.prod.yml. Review the handbook before starting.
+# Reference template only: not a completed image build or production acceptance.
+name: xoi-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?Set a tested PostgreSQL 16 image}
+    container_name: xoi-prod-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: xoi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a random database password}
+      POSTGRES_DB: new-api
+      TZ: Asia/Shanghai
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: *logging
+
+  new-api:
+    image: ${NEWAPI_IMAGE:?Set the tested NewAPI version or digest}
+    container_name: xoi-prod-newapi
+    restart: unless-stopped
+    command: ["--log-dir", "/app/logs"]
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      SQL_DSN: postgresql://xoi:${POSTGRES_PASSWORD}@postgres:5432/new-api
+      SESSION_SECRET: ${NEWAPI_SESSION_SECRET:?Set and preserve the gateway session secret}
+      CRYPTO_SECRET: ${NEWAPI_CRYPTO_SECRET:?Set and preserve the gateway crypto secret}
+      BATCH_UPDATE_ENABLED: "false"
+      MEMORY_CACHE_ENABLED: "false"
+      SQL_MAX_OPEN_CONNS: "20"
+      SQL_MAX_IDLE_CONNS: "5"
+      TZ: Asia/Shanghai
+    volumes:
+      - newapi-data:/data
+      - newapi-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    logging: *logging
+
+  xoi:
+    image: ${XOI_IMAGE:?Set the verified XOi release image}
+    container_name: xoi-prod
+    profiles: [app]
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 60s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [NET_RAW]
+    pids_limit: 256
+    ports: ["127.0.0.1:12121:12121"]
+    environment:
+      NODE_ENV: prod
+      PORT: "12121"
+      TZ: Asia/Shanghai
+      XOI_ADMIN_PASSWORD: ${XOI_ADMIN_PASSWORD:?Required by the first-start initialization guard}
+      NEWAPI_DATABASE_URL: postgres://xoi:${POSTGRES_PASSWORD}@postgres:5432/new-api
+      NEWAPI_BASE_URL: http://new-api:3000
+      NEWAPI_ADMIN_TOKEN: ${NEWAPI_ADMIN_TOKEN:?Set the local gateway management credential}
+      NEWAPI_ADMIN_USER: ${NEWAPI_ADMIN_USER:-1}
+      NEWAPI_SYNC_GROUP: default
+      XOI_UPSTREAM_CHANNEL_ID: ${XOI_UPSTREAM_CHANNEL_ID:-}
+      XOI_UPSTREAM_BILLING_GROUP: ${XOI_UPSTREAM_BILLING_GROUP:-default}
+      XOI_UPSTREAM_PRICE_SYNC: "1"
+      XOI_NEWAPI_ONLY: "1"
+      XOI_NEWAPI_QUOTA_MODE: sync
+      XOI_NEWAPI_REDIS_ENABLED: "0"
+      XOI_ALLOWED_ORIGINS: ${XOI_ALLOWED_ORIGINS:?Set the exact public HTTPS origin}
+      XOI_TRUST_PROXY: ${XOI_TRUST_PROXY:-}
+      XOI_PAY_NOTIFY_HOST: ${XOI_PAY_NOTIFY_HOST:-}
+      XOI_DB_POOL_MAX: "8"
+      XOI_DB_ACQUIRE_TIMEOUT_MS: "10000"
+      XOI_AGENT_DB_POOL_MAX: "8"
+      XOI_MODEL_GLOBAL_CONCURRENCY: "32"
+      XOI_MODEL_USER_CONCURRENCY: "3"
+      XOI_MEDIA_WORKERS: "4"
+      XOI_MEDIA_QUEUE_GLOBAL_LIMIT: "128"
+      XOI_MEDIA_QUEUE_USER_LIMIT: "8"
+      XOI_CANVAS_STORAGE: ${XOI_CANVAS_STORAGE:-postgres}
+      XOI_RELEASE_ROLLOUT_ENABLED: ${XOI_RELEASE_ROLLOUT_ENABLED:-0}
+      XOI_INSTANCE_LABEL: ${XOI_INSTANCE_LABEL:-xoi-node}
+      XOI_RELEASE_START_MODE: ${XOI_RELEASE_START_MODE:-active}
+      XOI_RELEASE_CLUSTER: ${XOI_RELEASE_CLUSTER:-xoi-prod}
+    volumes:
+      - /opt/xoi/data:/app/backend/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      new-api:
+        condition: service_started
+    networks: [internal]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:12121/api/readyz',{signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging: *logging
+
+volumes:
+  pg-data:
+    name: xoi_prod_pg_data
+  newapi-data:
+    name: xoi_prod_gateway_data
+  newapi-logs:
+    name: xoi_prod_gateway_logs
+
+networks:
+  internal:
+    name: xoi_prod_net
+    driver: bridge

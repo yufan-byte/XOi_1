@@ -49,17 +49,19 @@ const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 /* ----------------------------- 任务监控 ----------------------------- */
 
-type TaskRow = { id: number; projectId?: number; taskClass?: string; model?: string; state?: string; describe?: string; startTime?: number; project_name?: string; user_name?: string };
+type TaskRow = { id: number | string; projectId?: number; taskClass?: string; model?: string; state?: string; describe?: string; startTime?: number; project_name?: string; user_name?: string };
 type TaskResp = { tasks: TaskRow[]; pagination: { page: number; limit: number; total: number }; stateStats: Array<{ state: string; count: number }> };
 
 const STATE_TONE: Record<string, string> = {
+  unknown: "border-orange-500/35 bg-orange-500/10 text-orange-600",
   success: "border-emerald-500/35 bg-emerald-500/10 text-emerald-600",
   failed: "border-rose-500/35 bg-rose-500/10 text-rose-600",
   running: "border-sky-500/35 bg-sky-500/10 text-sky-600",
   pending: "border-amber-500/35 bg-amber-500/10 text-amber-600",
+  cancelled: "border-stone-400/35 bg-stone-500/10 text-stone-500",
 };
-const STATE_CN: Record<string, string> = { success: "已完成", failed: "失败", running: "生成中", pending: "等待中" };
-const STATE_FILTERS = [{ key: "", label: "全部" }, { key: "running", label: "生成中" }, { key: "success", label: "已完成" }, { key: "failed", label: "失败" }, { key: "pending", label: "等待中" }];
+const STATE_CN: Record<string, string> = { success: "已完成", failed: "失败", running: "生成中", pending: "等待中", unknown: "结果待核实", cancelled: "已取消" };
+const STATE_FILTERS = [{ key: "", label: "全部" }, { key: "unknown", label: "待核实" }, { key: "running", label: "生成中" }, { key: "success", label: "已完成" }, { key: "failed", label: "失败" }, { key: "pending", label: "等待中" }, {key:"cancelled",label:"已取消"}];
 
 export function AdminTasksView() {
   const [page, setPage] = useState(1);
@@ -76,8 +78,9 @@ export function AdminTasksView() {
     <div className="flex min-h-full flex-col gap-3">
       <SectionHero badge="平台运营" icon={<Activity />} title="任务监控" subtitle="全站生成任务流水：模型、耗时、失败原因一目了然，排障从这里开始" />
       <div className="flex flex-1 flex-col gap-3 pb-24">
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-5">
           <Kpi label="任务总数" value={num(q.data?.pagination?.total)} icon={<Activity size={14} />} />
+          <Kpi label="待核实（勿重发）" value={stat("unknown")} icon={<ShieldAlert size={14} />} />
           <Kpi label="生成中" value={stat("running")} icon={<Loader2 size={14} />} />
           <Kpi label="已完成" value={stat("success")} accent icon={<BadgeCheck size={14} />} />
           <Kpi label="失败" value={stat("failed")} icon={<AlertTriangle size={14} />} />
@@ -227,7 +230,7 @@ export function AdminRedemptionsView() {
               { key: "name", label: "名称", render: (r) => String(r.name ?? "—") },
               { key: "key", label: "兑换码", render: (r) => <span className="font-mono text-xs">{String(r.key ?? "—")}</span> },
               { key: "quota", label: "面额", render: (r) => money(num(r.quota) / 500000) },
-              { key: "status", label: "状态", render: (r) => (r.status === 1 ? "未使用" : r.status === 2 ? "已使用" : r.status === 3 ? "已禁用" : String(r.status ?? "—")) },
+              { key: "status", label: "状态", render: (r) => (r.status === 1 ? "未使用" : r.status === 3 ? "已使用" : r.status === 2 ? "已禁用" : String(r.status ?? "—")) },
               { key: "created_time", label: "创建时间", render: (r) => <span className="tabular-nums text-muted-foreground">{ts(r.created_time)}</span> },
               { key: "redeemed_time", label: "核销时间", render: (r) => <span className="tabular-nums text-muted-foreground">{ts(r.redeemed_time)}</span> },
             ]}
@@ -324,6 +327,7 @@ export function AdminCreditsView() {
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [direction, setDirection] = useState<Direction>("grant");
+  const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
 
   const q = useQuery({ queryKey: ["admin-credits"], queryFn: () => api<CreditRow[]>("/api/admin/credits") });
   const rows = q.data ?? [];
@@ -336,12 +340,14 @@ export function AdminCreditsView() {
   const submit = useMutation({
     mutationFn: () => api<{ username: string; amount: number; balanceAfter: number | null }>("/api/admin/credits", {
       method: "POST",
+      headers: { "Idempotency-Key": requestId },
       body: JSON.stringify({ target: target.trim(), amount: Number(amount), reason: reason.trim(), direction }),
     }),
     onSuccess: (r) => {
       const abs = Math.abs(Number(r?.amount ?? 0)).toFixed(2);
       toast.success(`${direction === "revoke" ? "已扣回" : "已发放"} ¥${abs} → ${r?.username ?? "用户"}${r?.balanceAfter != null ? `（余额 ¥${Number(r.balanceAfter).toFixed(2)}）` : ""}`);
       setAmount(""); setReason("");
+      setRequestId(crypto.randomUUID());
       qc.invalidateQueries({ queryKey: ["admin-credits"] });
       qc.invalidateQueries({ queryKey: ["admin-topups"] });
     },

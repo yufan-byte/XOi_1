@@ -7,6 +7,10 @@ import { validateFields } from "@/middleware/middleware";
 import { Output, tool } from "ai";
 import { assetItemSchema } from "@/agents/productionAgent/tools";
 import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
+import { requireDirectorReview } from '@/utils/directorStageReview';
+import { loadDirectorContinuity, continuityPrompt, runSceneGroups, selectedContinuityAnchor } from '@/utils/directorContinuity';
+import { saveStoryboardImageVersion } from '@/utils/storyboardImageHistory';
+import { creativePreferencePrompt } from '../../../../../shared/creativePreference';
 const router = express.Router();
 export type AssetData = z.infer<typeof assetItemSchema>;
 
@@ -35,6 +39,23 @@ export default router.post(
       compulsory: boolean;
     } = req.body;
     if (!storyboardIds || storyboardIds.length === 0) return res.status(400).send(error("storyboardIds不能为空"));
+    const reviewError = await requireDirectorReview(u.db, projectId, scriptId);
+    if (reviewError) return res.status(409).send(error(reviewError));
+    let continuityFrames: Awaited<ReturnType<typeof loadDirectorContinuity>>;
+    try { continuityFrames = await loadDirectorContinuity(u.db, projectId, scriptId); }
+    catch (e) { return res.status(400).send(error(u.error(e).message)); }
+    const generationIds = new Set(storyboardIds);
+    try {
+      for (const frame of continuityFrames.filter(f => generationIds.has(Number(f.id)))) {
+        const anchor = selectedContinuityAnchor(continuityFrames, frame);
+        if (anchor && generationIds.has(Number(anchor.id)) && continuityFrames.indexOf(anchor) > continuityFrames.indexOf(frame)) throw Error('所选空间锚点也在本轮重画且位于后方，请先生成锚点再重画其他镜头');
+      }
+    } catch (e) { return res.status(400).send(error(u.error(e).message)); }
+    for (const [index, frame] of continuityFrames.entries()) {
+      if (!generationIds.has(Number(frame.id)) || frame.continuity?.transition !== 'continue') continue;
+      const previous = continuityFrames[index - 1];
+      if (!frame.sceneId || !previous || previous.sceneId !== frame.sceneId) return res.status(400).send(error('连续动作接镜需要上一镜与本镜关联同一个场景，请先与导演助理核对分镜表'));
+    }
 
     // 检查积分（每张图片扣一次）
     if (userId) {
@@ -62,11 +83,11 @@ export default router.post(
 
     const projectSettingData = await u.db("o_project").where("id", projectId).select("imageModel", "imageQuality", "artStyle", "videoRatio").first();
 
-    // 按 rowid 顺序查出每个 storyboard 关联的 assetId 有序列表
+    // 按显式顺序读取参考；PostgreSQL 没有 SQLite 的隐式 rowid。
     const assets2StoryboardRows = await u
       .db("o_assets2Storyboard")
       .whereIn("storyboardId", storyIds)
-      .orderBy("rowid")
+      .orderBy("sortOrder", "asc", "last").orderBy("assetId")
       .select("storyboardId", "assetId");
 
     // 收集所有 assetId，批量查对应的 imageId
@@ -135,16 +156,49 @@ export default router.post(
       ),
     );
 
+    const sceneAnchors = new Map<number, string>();
+    const generated = new Map<number, boolean>();
+    for (const frame of continuityFrames) {
+      if (frame.sceneId && frame.filePath && !generationIds.has(Number(frame.id)) && !sceneAnchors.has(frame.sceneId)) sceneAnchors.set(frame.sceneId, frame.filePath);
+    }
     const generateTask = async (item: (typeof storyboardData)[number]) => {
+      const index = continuityFrames.findIndex(f => Number(f.id) === Number(item.id));
+      const frame = continuityFrames[index];
+      const previous = continuityFrames[index - 1];
       const repeloadObj = {
-        prompt: item.prompt!,
+        prompt: item.prompt! + '\n' + creativePreferencePrompt(projectSettingData?.artStyle, '视觉风格') + continuityPrompt(frame.continuity, frame.sceneName, previous?.continuity),
         size: projectSettingData?.imageQuality as "1K" | "2K" | "4K",
         aspectRatio: projectSettingData?.videoRatio as `${number}:${number}`,
       };
       try {
+        const references: {type:'image';base64:string}[] = [];
+        const legend: string[] = [];
+        for (const asset of frame.references) {
+          if (!asset.filePath) continue;
+          references.push({type:'image',base64:await u.oss.getImageBase64(asset.filePath)});
+          legend.push(`参考${references.length}：固定${asset.type === 'scene' ? '场景布局' : '资产'}「${asset.name}」`);
+        }
+        const pinned = selectedContinuityAnchor(continuityFrames, frame);
+        if (pinned && generated.get(Number(pinned.id)) === false) throw Error('固定空间锚点本轮生成失败，请先修复锚点');
+        let anchor = pinned?.filePath || (frame.sceneId ? sceneAnchors.get(frame.sceneId) : undefined);
+        if (frame.continuity?.transition === 'continue') {
+          if (!previous?.filePath || generated.get(Number(previous.id)) === false) throw Error('上一镜图片尚未完成，本镜未提交模型。请重试上一镜后再继续');
+          anchor = previous.filePath;
+        }
+        if (anchor) {
+          references.push({type:'image',base64:await u.oss.getImageBase64(anchor)});
+          legend.push(`参考${references.length}：${frame.continuity?.transition === 'continue' ? '上一镜画面，延续人物和空间状态' : '本场景已确认的画面锚点，仅保持布景/光线，不照抄构图'}`);
+        }
+        if (pinned?.filePath && pinned.filePath !== anchor) {
+          references.push({ type: 'image', base64: await u.oss.getImageBase64(pinned.filePath) });
+          legend.push(`参考${references.length}：用户固定的空间布局锚点，保留床、门窗和家具空间关系，不覆盖上一镜人物末态`);
+        }
+        const scene = frame.references.find((a: { type: string; id: unknown; describe?: string }) => a.type === 'scene' && Number(a.id) === frame.sceneId);
+        if (scene?.describe) repeloadObj.prompt += '\n固定场景设定：' + scene.describe;
+        repeloadObj.prompt += '\n参考图对应关系：' + legend.join('；');
         const imageCls = await u.Ai.Image(projectSettingData?.imageModel as `${string}:${string}`).run(
           {
-            referenceList: await getAssetsImageBase64(assetRecord[item.id!] || []),
+            referenceList: references,
             ...repeloadObj,
           },
           {
@@ -156,15 +210,15 @@ export default router.post(
         );
         const savePath = `/${projectId}/assets/${scriptId}/${u.uuid()}.jpg`;
         await imageCls.save(savePath);
-        await u.db("o_storyboard").where("id", item.id).update({
-          filePath: savePath,
-          state: "已完成",
-        });
+        frame.filePath = savePath;
+        generated.set(Number(item.id), true);
+        if (frame.sceneId && !sceneAnchors.has(frame.sceneId)) sceneAnchors.set(frame.sceneId, savePath);
+        await saveStoryboardImageVersion(u.db, projectId, scriptId, Number(item.id), savePath);
       } catch (e) {
-        u.db("o_storyboard")
+        generated.set(Number(item.id), false);
+        await u.db("o_storyboard")
           .where("id", item.id)
           .update({
-            filePath: "",
             reason: u.error(e).message,
             state: "生成失败",
           });
@@ -177,10 +231,11 @@ export default router.post(
     } else {
       generateList = storyboardData.filter((item) => item.shouldGenerateImage !== 0);
     }
-    for (let i = 0; i < generateList.length; i += concurrentCount) {
-      const batch = generateList.slice(i, i + concurrentCount);
-      await Promise.all(batch.map(generateTask));
-    }
+    generateList.sort((a,b) => continuityFrames.findIndex(f=>Number(f.id)===Number(a.id))-continuityFrames.findIndex(f=>Number(f.id)===Number(b.id)));
+    await runSceneGroups(generateList, item => {
+      const frame = continuityFrames.find(f=>Number(f.id)===Number(item.id));
+      return frame?.sceneId ? `scene:${frame.sceneId}` : `shot:${item.id}`;
+    }, generateTask, Math.min(concurrentCount, 8));
   },
 );
 async function getAssetsImageBase64(imageIds: number[]) {

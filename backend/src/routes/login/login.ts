@@ -54,6 +54,7 @@ export default router.post(
     password: z.string().min(1).max(100),
   }),
   async (req, res) => {
+    res.setHeader("Cache-Control","no-store");
     const { username, password } = req.body;
     const trimmedUsername = String(username).trim();
     const clientIp = getClientIp(req);
@@ -73,9 +74,10 @@ export default router.post(
       // 网关不可用 / 配置缺失 / 版本不兼容：不算凭据失败，
       // 否则网关一抖就会把正常用户推进验证码闸门里出不来。
       const msg = e instanceof NewApiError ? e.message : "登录服务暂时不可用，请稍后重试";
-      console.error("[login] 网关异常:", e instanceof Error ? e.message : e);
+      console.error("[login] 网关异常:",e instanceof NewApiError?e.upstreamCode||e.status:"unknown", e instanceof Error ? e.message : e);
       void auditLogin({ name: trimmedUsername, ip: clientIp, ua, result: "blocked", reason: "upstream" });
-      return res.status(503).send(error(msg));
+      const status=e instanceof NewApiError&&[409,429].includes(e.status)?e.status:503;
+      return res.status(status).send({...error(msg),...(e instanceof NewApiError&&e.upstreamCode?{authCode:e.upstreamCode}:{})});
     }
 
     // 网关放行 → 同步本地镜像（顺带把 role / 封禁状态带下来）

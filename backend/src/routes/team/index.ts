@@ -2,9 +2,9 @@ import express, { type Response } from "express";
 import {
   createTeam,
   dashboard,
+  teamSummary,
   membershipOf,
   movePool,
-  setIsolate,
   teamOfOwner,
   TeamError,
 } from "@/lib/team/store";
@@ -23,7 +23,7 @@ router.get("/", async (req, res) => {
   if (!userId) return res.status(401).json({ success: false, message: "请先登录" });
   try {
     const own = await teamOfOwner(userId);
-    if (own) return res.json({ success: true, data: { role: "owner", ...(await dashboard(own, String(req.query.month || ""))) } });
+    if (own) return res.json({ success: true, data: { role: "owner", ...(req.query.summary === "1" ? await teamSummary(own) : await dashboard(own, String(req.query.month || ""))) } });
     const membership = await membershipOf(userId);
     if (!membership) return res.json({ success: true, data: { role: "none" } });
     const base = {
@@ -36,7 +36,10 @@ router.get("/", async (req, res) => {
         status: membership.member.status,
       },
     };
-    const data = await dashboard(membership.team, String(req.query.month || ""));
+    if (req.query.summary === "1") {
+      return res.json({ success: true, data: { ...base, ...(membership.member.can_view_all ? await teamSummary(membership.team) : { team: { name: membership.team.name } }) } });
+    }
+    const data = await dashboard(membership.team, String(req.query.month || ""), membership.member.can_view_all ? undefined : userId);
     if (membership.member.can_view_all) return res.json({ success: true, data: { ...base, ...data } });
     const mine = data.members.find((member) => member.userId === userId);
     return res.json({ success: true, data: { ...base, team: { name: membership.team.name }, mine } });
@@ -59,8 +62,7 @@ router.post("/", async (req, res) => {
       return res.json({ success: true, data: await movePool(team, body.dir, quota) });
     }
     if (body.action === "isolate") {
-      await setIsolate(team, !!body.on);
-      return res.json({ success: true });
+      throw new TeamError("项目级共享尚未开放，当前保持既有资源权限",409);
     }
     throw new TeamError("未知操作");
   } catch (error) {

@@ -12,7 +12,7 @@
  * 密码列从此废弃（写占位符），任何本地 bcrypt 比对都必须删掉。
  */
 import u from "@/utils";
-import crypto from "crypto";
+import {upsertUserMirror} from '@/utils/userMirrorStore';
 import type { NewApiUser } from "@/utils/newapi";
 import { roleFromNewApi } from "@/utils/newapi";
 
@@ -32,15 +32,6 @@ export interface MirrorUser {
   last_login_at?: string | null;
 }
 
-/** 展示用的 6 位数字 ID（与 new-api 的 uid 无关，纯前端展示） */
-async function createDisplayId(): Promise<string> {
-  for (;;) {
-    const displayId = String(crypto.randomInt(100000, 1000000));
-    const exists = await u.db("o_user").where("display_id", displayId).first();
-    if (!exists) return displayId;
-  }
-}
-
 /**
  * 把 new-api 的用户同步进本地镜像表（幂等）。
  *
@@ -48,45 +39,10 @@ async function createDisplayId(): Promise<string> {
  * 不需要额外的定时同步任务。
  */
 export async function upsertMirrorUser(nu: NewApiUser): Promise<MirrorUser> {
-  const now = new Date().toISOString();
   const role = roleFromNewApi(nu);
   const group = String(nu.group || "default").trim() || "default";
   const email = nu.email ? String(nu.email).trim().toLowerCase() || null : null;
-
-  const existing = (await u.db("o_user").where("id", nu.id).first()) as MirrorUser | undefined;
-
-  if (existing) {
-    await u.db("o_user")
-      .where("id", nu.id)
-      .update({
-        name: nu.username ?? existing.name,
-        // 网关是权威：本地 role 跟随网关，避免「本地是 admin 但网关没权限」
-        role,
-        email: email ?? existing.email ?? null,
-        user_group: group,
-        status: nu.status === 2 ? "banned" : "active",
-        last_login_at: now,
-      });
-    return { ...existing, name: nu.username ?? existing.name, role, email, user_group: group, status: nu.status === 2 ? "banned" : "active" };
-  }
-
-  const displayId = await createDisplayId();
-  await u.db("o_user").insert({
-    id: nu.id, // == newapi uid，见文件头约定
-    name: nu.username,
-    password: "__external__", // 占位：密码只存在 new-api
-    role,
-    status: nu.status === 2 ? "banned" : "active",
-    session_version: 0,
-    display_id: displayId,
-    newapi_uid: nu.id,
-    email,
-    user_group: group,
-    created_at: now,
-    last_login_at: now,
-  });
-
-  return (await u.db("o_user").where("id", nu.id).first()) as MirrorUser;
+  return await upsertUserMirror(u.db,{id:nu.id,name:nu.username||'',role,status:nu.status===2?'banned':'active',email,user_group:group}) as MirrorUser;
 }
 
 /** 按 new-api uid 取镜像行（业务代码里更常用 id，等价） */

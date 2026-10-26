@@ -1,4 +1,5 @@
 import express from "express";
+import { resolveTextModelKey } from "@/utils/textModel";
 import u from "@/utils";
 import { z } from "zod";
 import { success, error } from "@/lib/responseFormat";
@@ -34,7 +35,7 @@ export default router.post(
 3. 只返回正则表达式字符串本身，不要有任何其他解释文字或markdown格式。
 4. 如果文本中没有明显的章节分隔模式，返回空字符串。`;
 
-    const resText = await u.Ai.Text("universalAi").invoke({
+    const resText = await u.Ai.Text(await resolveTextModelKey()).invoke({
       system: systemPrompt,
       messages: [
         {

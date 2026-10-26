@@ -35,15 +35,15 @@ export default defineConfig({
             // 本地测试时转发到造物自己的服务上（默认 http://127.0.0.1:3000）。
             "/api/media": { target: process.env.XOI_MEDIA_TARGET || "http://127.0.0.1:3000", changeOrigin: true },
             // 其余接口是本项目的后端（XOi Express，或 ops/dev-mock-api.mjs 假后端）
-            "/api": { target: process.env.XOI_API_TARGET || "http://127.0.0.1:10588", changeOrigin: true },
-            "/oss": { target: process.env.XOI_API_TARGET || "http://127.0.0.1:10588", changeOrigin: true },
+            "/api": { target: process.env.XOI_API_TARGET || "http://127.0.0.1:12121", changeOrigin: true },
+            "/oss": { target: process.env.XOI_API_TARGET || "http://127.0.0.1:12121", changeOrigin: true },
         },
     },
     preview: {
         // 预览生产构建时同样代理，方便对着真实契约做端到端点击验证
         proxy: {
             "/api/media": { target: process.env.XOI_MEDIA_TARGET || "http://127.0.0.1:3000", changeOrigin: true },
-            "/api": { target: process.env.XOI_API_TARGET || "http://127.0.0.1:10588", changeOrigin: true },
+            "/api": { target: process.env.XOI_API_TARGET || "http://127.0.0.1:12121", changeOrigin: true },
         },
     },
     build: {

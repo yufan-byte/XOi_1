@@ -1,0 +1,148 @@
+{
+  "fixtureApis": true,
+  "realNativeEditor": true,
+  "traffic": {
+    "authorize": 3,
+    "model": 3,
+    "receipt": 11,
+    "stop": 2
+  },
+  "errors": [],
+  "report": [
+    {
+      "name": "HTTP model-unavailable response unlocks a closed attempt, retains pending receipt, never automatically retries"
+    },
+    {
+      "name": "usage opens a separate tab and preserves director scene / draft (destination fixture, not production ledger UI)"
+    },
+    {
+      "name": "unknown transport remains guarded; failed stop cannot unlock; confirmed stop allows separate retry; late old charge stays with old receipt"
+    },
+    {
+      "name": "reload reconciles stopped authorization without waiting forever for settlement"
+    },
+    {
+      "name": "单人空场 local template stays in scene editing, previews and undoes without adding a shot or calling any model"
+    },
+    {
+      "name": "双人对话 local template stays in scene editing, previews and undoes without adding a shot or calling any model"
+    },
+    {
+      "name": "table preview has five actual objects, correct camera, and both native animated pelvises aligned over chair seats",
+      "view": {
+        "camera": [
+          0,
+          1.3,
+          4.7
+        ],
+        "object-assistant-decb50eb-dd88-4b71-a539-c58134f5c4c0": [
+          0.353642,
+          -0.0050000000000000044,
+          -0.000906000000000104
+        ],
+        "mixamorigHips:object-assistant-decb50eb-dd88-4b71-a539-c58134f5c4c0": [
+          0.9999997888975038,
+          0.7183514242615229,
+          -0.0018115568075427726
+        ],
+        "mixamorigLeftFoot:object-assistant-decb50eb-dd88-4b71-a539-c58134f5c4c0": [
+          0.5455683429125323,
+          0.08132569282366708,
+          0.22533915485671963
+        ],
+        "object-assistant-11de2308-db97-4ce6-a41d-7034c440a587": [
+          -0.353642,
+          -0.0050000000000000044,
+          0.0009060000000000396
+        ],
+        "mixamorigHips:object-assistant-11de2308-db97-4ce6-a41d-7034c440a587": [
+          -0.9999997888975038,
+          0.7183514242615229,
+          0.0018115568075427082
+        ],
+        "mixamorigLeftFoot:object-assistant-11de2308-db97-4ce6-a41d-7034c440a587": [
+          -0.5455683429125323,
+          0.08132569282366708,
+          -0.2253391548567197
+        ],
+        "object-assistant-67b20425-54e1-4909-a659-e4101531e043": [
+          1,
+          0.51,
+          0
+        ],
+        "object-assistant-0cf5f16b-f76a-42e6-86ec-9ffa46045d11": [
+          -1,
+          0.51,
+          0
+        ],
+        "object-assistant-d3666c92-d447-4428-b08d-fc979f1a1f1c": [
+          0,
+          0.44,
+          0
+        ]
+      }
+    },
+    {
+      "name": "桌边对谈 local template stays in scene editing, previews and undoes without adding a shot or calling any model"
+    },
+    {
+      "name": "walk preset moves actual rendered person and actual rendered camera",
+      "first": {
+        "camera": [
+          -0.6421052631578947,
+          1.3,
+          4.7
+        ],
+        "object-assistant-4cd73c90-b220-4cb4-ab84-d67cfd13637e": [
+          -0.6210526315789473,
+          0,
+          0
+        ],
+        "mixamorigHips:object-assistant-4cd73c90-b220-4cb4-ab84-d67cfd13637e": [
+          -0.7496389591186372,
+          1.0185565448197897,
+          -0.007056218043654849
+        ],
+        "mixamorigLeftFoot:object-assistant-4cd73c90-b220-4cb4-ab84-d67cfd13637e": [
+          -0.8780514997246488,
+          0.20507819154588236,
+          -0.09112869263068318
+        ]
+      },
+      "last": {
+        "camera": [
+          -0.010526315789473717,
+          1.3,
+          4.7
+        ],
+        "object-assistant-4cd73c90-b220-4cb4-ab84-d67cfd13637e": [
+          0.010526315789473717,
+          0,
+          0
+        ],
+        "mixamorigHips:object-assistant-4cd73c90-b220-4cb4-ab84-d67cfd13637e": [
+          -0.11806002128695914,
+          0.9808746611564421,
+          -0.03445814151323472
+        ],
+        "mixamorigLeftFoot:object-assistant-4cd73c90-b220-4cb4-ab84-d67cfd13637e": [
+          0.16497224597805646,
+          0.09676571043842075,
+          -0.0756303458341955
+        ]
+      }
+    },
+    {
+      "name": "走位跟拍 local template stays in scene editing, previews and undoes without adding a shot or calling any model"
+    },
+    {
+      "name": "AI clean-build sends an empty scene, applies one person to current scene, stays in editing, and undoes (model output fixture)"
+    },
+    {
+      "name": "camera preview shows simple XOi branding"
+    },
+    {
+      "name": "no duplicate native title or leaked second-row title at 1680, 1280, 900 px"
+    }
+  ]
+}

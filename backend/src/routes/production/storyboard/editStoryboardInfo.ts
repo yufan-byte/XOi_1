@@ -3,7 +3,6 @@ import u from "@/utils";
 import { z } from "zod";
 import { success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
-import { id } from "zod/locales";
 const router = express.Router();
 
 export default router.post(
@@ -12,12 +11,14 @@ export default router.post(
     id: z.number(),
     prompt: z.string(),
     videoDesc: z.string(),
+    duration: z.number().finite().positive().max(3600).optional(),
   }),
   async (req, res) => {
-    const { id, prompt, videoDesc } = req.body;
+    const { id, prompt, videoDesc, duration } = req.body;
     await u.db("o_storyboard").where({ id }).update({
       prompt,
       videoDesc,
+      ...(duration !== undefined ? { duration: String(duration) } : {}),
     });
     res.status(200).send(success({ message: "更新提示词成功" }));
   },

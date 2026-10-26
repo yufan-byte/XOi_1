@@ -13,28 +13,21 @@ export default router.post(
     data: z.object({
       storySkeleton: z.string(),
       adaptationStrategy: z.string(),
+      script: z.array(z.object({ name: z.string(), content: z.string() })),
     }),
   }),
   async (req, res) => {
     const { projectId, agentType, data } = req.body;
-    await u
-      .db("o_agentWorkData")
-      .where({ projectId: projectId, key: agentType })
-      .update({
-        data: JSON.stringify(data),
-      });
-    const script = data.script;
-
-    await Promise.all(
-      script.map(async (s: any) => {
-        const row = await u.db("o_script").where({ projectId, name: s.name }).first();
-        if (row) {
-          await u.db("o_script").where({ id: row.id }).update({ content: s.content });
-        } else {
-          await u.db("o_script").insert({ projectId, name: s.name, content: s.content });
-        }
-      }),
-    );
+    const userId = (req as any).user?.id;
+    if (!await u.db("o_project").where({ id: projectId, userId }).first()) {
+      return res.status(404).send({ message: "项目不存在" });
+    }
+    const existing = await u.db("o_agentWorkData").where({ projectId, key: agentType }).first();
+    if (existing) {
+      await u.db("o_agentWorkData").where({ id: existing.id }).update({ data: JSON.stringify(data) });
+    } else {
+      await u.db("o_agentWorkData").insert({ projectId, key: agentType, data: JSON.stringify(data) });
+    }
 
     res.status(200).send(success());
   },

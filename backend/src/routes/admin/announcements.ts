@@ -13,29 +13,56 @@
  * 鉴权：/api/admin 前缀已统一套 requireAdmin（app.ts），本文件不重复校验。
  */
 import express from "express";
-import fs from "node:fs";
-import path from "node:path";
-import u from "@/utils";
+import { AnnouncementsStore } from "@/utils/announcementsStore";
 import { success, error } from "@/lib/responseFormat";
 
 const router = express.Router();
 
-const file = () => u.getPath(["web", "announcements.json"]);
+const store = new AnnouncementsStore();
 const TYPES = ["notice", "update", "maintenance"];
-const LIMITS = { items: 50, title: 80, content: 20000 };
+const LIMITS = { items: 50, title: 80, content: 20000, bannerText: 120, bannerCta: 12, bannerLink: 300 };
+const BANNER_THEMES = ["brand", "dark", "green"];
 
 interface Announcement { id: string; title: string; content: string; type?: string; published_at?: string }
+/** 全站顶部横幅：管理员发布后出现在所有用户页面顶部，可关闭、可配置跳转 */
+interface SiteBanner { id: string; enabled: boolean; text: string; ctaLabel: string; link: string; theme: string }
 
-function readFileSync(): Announcement[] {
-  try {
-    const raw = fs.readFileSync(file(), "utf-8");
-    const parsed = JSON.parse(raw) as { data?: unknown } | unknown[];
-    const list = Array.isArray(parsed) ? parsed : (parsed as { data?: unknown })?.data ?? [];
-    return (Array.isArray(list) ? list : []).filter((x): x is Announcement => !!x && typeof (x as Announcement).id === "string" && typeof (x as Announcement).title === "string");
-  } catch {
-    // 文件缺失 / 内容损坏：当作「还没有公告」，不要让控制台报错
-    return [];
-  }
+async function readItems(): Promise<Announcement[]> {
+  const {data}=await store.read();
+  return data.filter((x): x is Announcement => !!x && typeof (x as Announcement).id === "string" && typeof (x as Announcement).title === "string");
+}
+
+async function readBanner(): Promise<SiteBanner | null> {
+  const { banner } = await store.read();
+  return banner as SiteBanner | null;
+}
+
+/**
+ * 横幅跳转链接白名单。
+ * 防 SSRF/注入的边界：这个 JSON 是纯静态文件，**服务端从不按它回源任何地址**，
+ * 风险面只在浏览器端跳转（javascript: 伪协议 = XSS、开放重定向）。策略收紧到两种形态：
+ *   1. 站内路径（/ 开头，拒绝 // 协议相对形态）→ 前端 router 内部跳转；
+ *   2. https:// 绝对地址 → 新窗口打开（rel=noopener）。
+ * 其余（javascript:、data:、http:、//example.com 等）一律 400，不猜不修正。
+ */
+function sanitizeBannerLink(link: string): string {
+  if (!link) return "";
+  if (link.startsWith("/") && !link.startsWith("//")) return link.slice(0, LIMITS.bannerLink);
+  if (/^https:\/\//i.test(link)) return link.slice(0, LIMITS.bannerLink);
+  throw new Error("跳转链接仅支持站内路径（/ 开头）或 https:// 外链");
+}
+
+function normalizeBanner(raw: unknown): SiteBanner {
+  const b = (raw ?? {}) as Record<string, unknown>;
+  const enabled = Boolean(b?.enabled);
+  const text = String(b?.text ?? "").trim().slice(0, LIMITS.bannerText);
+  const ctaLabel = String(b?.ctaLabel ?? "").trim().slice(0, LIMITS.bannerCta);
+  const theme = BANNER_THEMES.includes(String(b?.theme)) ? String(b?.theme) : "brand";
+  let link = "";
+  try { link = sanitizeBannerLink(String(b?.link ?? "").trim()); }
+  catch (e) { throw new Error((e as Error).message); }
+  if (enabled && !text) throw new Error("开启横幅必须填写文案");
+  return { id: String(b?.id ?? "").trim() || `banner-${Date.now().toString(36)}`, enabled, text, ctaLabel, link, theme };
 }
 
 /** 生成稳定 id：日期 + 4 位随机（主站用 id 判未读，换 id 就会重新亮红点，所以只在新建时生成） */
@@ -47,14 +74,14 @@ function newId(): string {
 
 router.get("/", async (_req, res) => {
   try {
-    res.send(success({ items: readFileSync() }));
+    res.send(success({ items: await readItems(), banner: await readBanner() }));
   } catch (e) {
     res.status(500).send(error(`读取公告失败：${(e as Error).message}`));
   }
 });
 
 router.put("/", async (req, res) => {
-  const raw = (req.body ?? {}) as { items?: unknown };
+  const raw = (req.body ?? {}) as { items?: unknown; banner?: unknown };
   if (!Array.isArray(raw.items)) return res.status(400).send(error("请求体需要 { items: [...] }"));
 
   const items: Announcement[] = [];
@@ -76,14 +103,14 @@ router.put("/", async (req, res) => {
   const ids = new Set(items.map((i) => i.id));
   if (ids.size !== items.length) return res.status(400).send(error("公告 id 有重复"));
 
+  // banner 未随请求携带时保留线上现值（公告列表与横幅是两个编辑区，保存公告不能抹掉横幅）。
+  let banner: SiteBanner | null;
+  try { banner = raw.banner === undefined ? await readBanner() : normalizeBanner(raw.banner); }
+  catch (e) { return res.status(400).send(error((e as Error).message)); }
+
   try {
-    const target = file();
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    // 先写临时文件再 rename：避免写一半被主站读到半个 JSON
-    const tmp = `${target}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify({ data: items }, null, 2), "utf-8");
-    fs.renameSync(tmp, target);
-    res.send(success({ items }));
+    await store.write(items, banner);
+    res.send(success({ items, banner }));
   } catch (e) {
     res.status(500).send(error(`保存公告失败：${(e as Error).message}`));
   }

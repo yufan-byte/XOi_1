@@ -1,0 +1,346 @@
+{
+  "gpt-image-2": {
+    "tag": "p1",
+    "label": "GPT · 生图渠道"
+  },
+  "gpt-image-2.5-flare": {
+    "tag": "p1",
+    "label": "GPT · 生图渠道"
+  },
+  "gpt-image-2.5-sunburst": {
+    "tag": "p1",
+    "label": "GPT · 生图渠道"
+  },
+  "gpt-6-astra": {
+    "tag": "p1",
+    "label": "GPT · Pro 号池"
+  },
+  "gpt-5.6": {
+    "tag": "p1",
+    "label": "GPT · Pro 号池"
+  },
+  "gpt-5.6-sol": {
+    "tag": "p1",
+    "label": "GPT · Pro 号池"
+  },
+  "gpt-5.6-terra": {
+    "tag": "p1",
+    "label": "GPT · Pro 号池"
+  },
+  "gpt-5.6-luna": {
+    "tag": "p1",
+    "label": "GPT · Pro 号池"
+  },
+  "gpt-5.5": {
+    "tag": "p1",
+    "label": "GPT · Pro 号池"
+  },
+  "claude-opus-5": {
+    "tag": "p1",
+    "label": "Claude · kiro 渠道"
+  },
+  "claude-sonnet-5": {
+    "tag": "p1",
+    "label": "Claude · kiro 渠道"
+  },
+  "claude-opus-4-8": {
+    "tag": "p1",
+    "label": "Claude · kiro 渠道"
+  },
+  "claude-opus-4-7": {
+    "tag": "p1",
+    "label": "Claude · kiro 渠道"
+  },
+  "claude-opus-4-6": {
+    "tag": "p1",
+    "label": "Claude · kiro 渠道"
+  },
+  "claude-sonnet-4-6": {
+    "tag": "p1",
+    "label": "Claude · kiro 渠道"
+  },
+  "claude-haiku-4-5": {
+    "tag": "p1",
+    "label": "Claude · kiro 渠道"
+  },
+  "grok-4.6": {
+    "tag": "p1",
+    "label": "Grok · Heavy 渠道"
+  },
+  "grok-4.5": {
+    "tag": "p1",
+    "label": "Grok · Heavy 渠道"
+  },
+  "grok-4-20-non-reasoning": {
+    "tag": "p1",
+    "label": "Grok · Heavy 渠道"
+  },
+  "claude-fable-5-1": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-fable-5": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "gpt-6-astra-enterprise": {
+    "tag": "p1",
+    "label": "GPT · Pro 企业号池"
+  },
+  "gpt-5.6-sol-enterprise": {
+    "tag": "p1",
+    "label": "GPT · Pro 企业号池"
+  },
+  "gpt-5.6-terra-enterprise": {
+    "tag": "p1",
+    "label": "GPT · Pro 企业号池"
+  },
+  "gpt-5.5-enterprise": {
+    "tag": "p1",
+    "label": "GPT · Pro 企业号池"
+  },
+  "seedance-2.0-480p-discount": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-720p-discount": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.5-1080p-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.5-480p-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.5-720p-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.0-md-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-md-720p-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-pp-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "minimax-h3-768p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-1080p-official": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-480p-official": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-720p-official": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-dj-480p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-dj-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-gf-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-wd-480p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "grok-imagine-video-1.5": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-v3-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.0-v3-fast-933-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-svip-900-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-fast-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-me": {
+    "tag": "p2",
+    "label": ""
+  },
+  "wan3.0-1080p-3": {
+    "tag": "p2",
+    "label": ""
+  },
+  "wan3.0-1080p-4": {
+    "tag": "p2",
+    "label": ""
+  },
+  "wan3.0-720p-3": {
+    "tag": "p2",
+    "label": ""
+  },
+  "wan3.0-720p-4": {
+    "tag": "p2",
+    "label": ""
+  },
+  "sora-2.5-480p-guanzhuan": {
+    "tag": "p2",
+    "label": ""
+  },
+  "sora-2.5-720p-guanzhuan": {
+    "tag": "p2",
+    "label": ""
+  },
+  "sora-v3-933-pro": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-ad-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-lec-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-720p-ac": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-std": {
+    "tag": "p2",
+    "label": ""
+  },
+  "wan3.0-1080p-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "wan3.0-480p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "wan3.0-480p-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "wan3.0-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "gemini-3.1-flash-image": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-lob-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.0-z-480p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.0-z-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.0-z-fast-480p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.0-z-fast-720p": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.0-900-3": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance-2.5-900": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.0-900-fast": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-xu-480p-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "seedance2.5-xu-720p-2": {
+    "tag": "p2",
+    "label": ""
+  },
+  "claude-opus-5@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-sonnet-5@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-opus-4-8@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-opus-4-7@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-opus-4-6@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-sonnet-4-6@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-haiku-4-5@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-fable-5-1@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "claude-fable-5@claude-official": {
+    "tag": "p1",
+    "label": "Claude · 官方渠道"
+  },
+  "gpt-6-astra@gpt-pro-enterprise": {
+    "tag": "p1",
+    "label": "GPT · Pro 企业号池"
+  },
+  "gpt-5.6-sol@gpt-pro-enterprise": {
+    "tag": "p1",
+    "label": "GPT · Pro 企业号池"
+  },
+  "gpt-5.6-terra@gpt-pro-enterprise": {
+    "tag": "p1",
+    "label": "GPT · Pro 企业号池"
+  },
+  "gpt-5.5@gpt-pro-enterprise": {
+    "tag": "p1",
+    "label": "GPT · Pro 企业号池"
+  }
+}

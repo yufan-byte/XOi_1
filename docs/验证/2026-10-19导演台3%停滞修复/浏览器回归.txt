@@ -1,0 +1,15 @@
+BROWSER error Failed to load resource: net::ERR_FAILED
+BROWSER error Failed to load resource: the server responded with a status of 404 (Not Found)
+BROWSER error Failed to load resource: the server responded with a status of 404 (Not Found)
+PASS cancel restores the saved scene and playhead, with no media upload or model call {}
+PASS unsupported encoder recovers editing and preserves the source project {}
+PASS 3% encoder queue stall automatically ends and restores scene without upload or billing { elapsedMs: 19506 }
+BROWSER error Failed to load resource: the server responded with a status of 503 (Service Unavailable)
+PASS real MP4 export followed by upload failure keeps the scene and does not create a half-finished canvas { encoderMode: 'realtime/no-preference' }
+PASS local MP4 download from the compact menu works and does not add canvas nodes {}
+PASS real 5 second 24 fps export decodes in canvas and stays bound to the exact scene version { actual: { duration: 5, width: 1280, height: 720 }, frameCount: 120 }
+BROWSER error Failed to load resource: net::ERR_FAILED
+BROWSER error Failed to load resource: net::ERR_FAILED
+BROWSER error Failed to load resource: net::ERR_FAILED
+BROWSER error Failed to load resource: net::ERR_FAILED
+PASS leaving the cached canvas stops video handoff and returning restores editing without an extra video or canvas result {}

@@ -1,11 +1,13 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { QUOTA_PER_YUAN } from "../../../src/utils/points";
+export { formatAccountPointsFromYuan as fmtPoints, yuanToSignedPoints as yuanToPoints } from "../../../src/utils/points";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const QUOTA_PER_UNIT = 500000; // new-api: 500000 quota = ¥1（站内 $ 即元）
+export const QUOTA_PER_UNIT = QUOTA_PER_YUAN; // new-api: 500000 quota = ¥1（站内 $ 即元）
 
 export function quotaToUsd(quota: number) {
   return quota / QUOTA_PER_UNIT;

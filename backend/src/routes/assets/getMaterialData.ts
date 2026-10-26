@@ -30,7 +30,7 @@ export default router.post(
     const ending = await u.oss.getFileUrl("/ending.mp4", "assets");
     data.push({
       id: 0,
-      name: "XOi官方片尾",
+      name: "XOi片尾.mp4",
       filePath: ending,
       type: "clip",
     });

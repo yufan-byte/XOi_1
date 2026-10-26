@@ -1,0 +1,7282 @@
+{
+  "gemini-2.5-pro-tts": {
+    "name": "GM-2.5 Pro TTS",
+    "type": "audio",
+    "provider": "gemini",
+    "capabilities": [
+      "文字转语音",
+      "多音色",
+      "多语言",
+      "高音质"
+    ],
+    "defaults": {
+      "response_format": "wav",
+      "voice": "Zephyr"
+    },
+    "enums": {
+      "response_format": [
+        "wav"
+      ],
+      "voice": [
+        "Zephyr",
+        "Puck",
+        "Charon",
+        "Kore",
+        "Fenrir",
+        "Leda",
+        "Orus",
+        "Aoede",
+        "Callirrhoe",
+        "Autonoe",
+        "Enceladus",
+        "Iapetus",
+        "Umbriel",
+        "Algieba",
+        "Despina",
+        "Erinome",
+        "Algenib",
+        "Rasalgethi",
+        "Laomedeia",
+        "Achernar",
+        "Alnilam",
+        "Schedar",
+        "Gacrux",
+        "Pulcherrima",
+        "Achird",
+        "Zubenelgenubi",
+        "Vindemiatrix",
+        "Sadachbia",
+        "Sadaltager",
+        "Sulafat"
+      ]
+    }
+  },
+  "gm-2.5-pro-tts": {
+    "name": "GM-2.5 Pro TTS",
+    "type": "audio",
+    "provider": "gemini",
+    "capabilities": [
+      "文字转语音",
+      "多音色",
+      "多语言",
+      "高音质"
+    ],
+    "defaults": {
+      "response_format": "wav",
+      "voice": "Zephyr"
+    },
+    "enums": {
+      "response_format": [
+        "wav"
+      ],
+      "voice": [
+        "Zephyr",
+        "Puck",
+        "Charon",
+        "Kore",
+        "Fenrir",
+        "Leda",
+        "Orus",
+        "Aoede",
+        "Callirrhoe",
+        "Autonoe",
+        "Enceladus",
+        "Iapetus",
+        "Umbriel",
+        "Algieba",
+        "Despina",
+        "Erinome",
+        "Algenib",
+        "Rasalgethi",
+        "Laomedeia",
+        "Achernar",
+        "Alnilam",
+        "Schedar",
+        "Gacrux",
+        "Pulcherrima",
+        "Achird",
+        "Zubenelgenubi",
+        "Vindemiatrix",
+        "Sadachbia",
+        "Sadaltager",
+        "Sulafat"
+      ]
+    }
+  },
+  "gemini-3.1-flash-tts": {
+    "name": "GM-3.1 Flash TTS",
+    "type": "audio",
+    "provider": "gemini",
+    "capabilities": [
+      "文字转语音",
+      "多音色",
+      "多语言"
+    ],
+    "defaults": {
+      "response_format": "wav",
+      "voice": "Zephyr"
+    },
+    "enums": {
+      "response_format": [
+        "wav"
+      ],
+      "voice": [
+        "Zephyr",
+        "Puck",
+        "Charon",
+        "Kore",
+        "Fenrir",
+        "Leda",
+        "Orus",
+        "Aoede",
+        "Callirrhoe",
+        "Autonoe",
+        "Enceladus",
+        "Iapetus",
+        "Umbriel",
+        "Algieba",
+        "Despina",
+        "Erinome",
+        "Algenib",
+        "Rasalgethi",
+        "Laomedeia",
+        "Achernar",
+        "Alnilam",
+        "Schedar",
+        "Gacrux",
+        "Pulcherrima",
+        "Achird",
+        "Zubenelgenubi",
+        "Vindemiatrix",
+        "Sadachbia",
+        "Sadaltager",
+        "Sulafat"
+      ]
+    }
+  },
+  "gm-3.1-flash-tts": {
+    "name": "GM-3.1 Flash TTS",
+    "type": "audio",
+    "provider": "gemini",
+    "capabilities": [
+      "文字转语音",
+      "多音色",
+      "多语言"
+    ],
+    "defaults": {
+      "response_format": "wav",
+      "voice": "Zephyr"
+    },
+    "enums": {
+      "response_format": [
+        "wav"
+      ],
+      "voice": [
+        "Zephyr",
+        "Puck",
+        "Charon",
+        "Kore",
+        "Fenrir",
+        "Leda",
+        "Orus",
+        "Aoede",
+        "Callirrhoe",
+        "Autonoe",
+        "Enceladus",
+        "Iapetus",
+        "Umbriel",
+        "Algieba",
+        "Despina",
+        "Erinome",
+        "Algenib",
+        "Rasalgethi",
+        "Laomedeia",
+        "Achernar",
+        "Alnilam",
+        "Schedar",
+        "Gacrux",
+        "Pulcherrima",
+        "Achird",
+        "Zubenelgenubi",
+        "Vindemiatrix",
+        "Sadachbia",
+        "Sadaltager",
+        "Sulafat"
+      ]
+    }
+  },
+  "gpt-4o-mini-tts": {
+    "name": "GT-4o Mini TTS",
+    "type": "audio",
+    "provider": "openai",
+    "capabilities": [
+      "文字转语音",
+      "多音色",
+      "高性价比"
+    ],
+    "defaults": {
+      "response_format": "mp3",
+      "speed": "1.0",
+      "voice": "alloy"
+    },
+    "enums": {
+      "response_format": [
+        "mp3",
+        "opus",
+        "aac",
+        "flac",
+        "wav",
+        "pcm"
+      ],
+      "voice": [
+        "alloy",
+        "echo",
+        "fable",
+        "onyx",
+        "nova",
+        "shimmer"
+      ]
+    }
+  },
+  "gt-4o-mini-tts": {
+    "name": "GT-4o Mini TTS",
+    "type": "audio",
+    "provider": "openai",
+    "capabilities": [
+      "文字转语音",
+      "多音色",
+      "高性价比"
+    ],
+    "defaults": {
+      "response_format": "mp3",
+      "speed": "1.0",
+      "voice": "alloy"
+    },
+    "enums": {
+      "response_format": [
+        "mp3",
+        "opus",
+        "aac",
+        "flac",
+        "wav",
+        "pcm"
+      ],
+      "voice": [
+        "alloy",
+        "echo",
+        "fable",
+        "onyx",
+        "nova",
+        "shimmer"
+      ]
+    }
+  },
+  "music": {
+    "name": "Suno 音乐生成",
+    "type": "audio",
+    "provider": "suno",
+    "capabilities": [
+      "AI 音乐",
+      "音乐生成",
+      "BGM",
+      "歌词",
+      "suno"
+    ],
+    "defaults": {
+      "mode": "song",
+      "operation": "generate",
+      "version": "chirp-v6",
+      "vocal_gender": "auto"
+    },
+    "enums": {
+      "mode": [
+        "song",
+        "instrumental"
+      ],
+      "operation": [
+        "generate",
+        "extend",
+        "cover",
+        "lyrics",
+        "stems",
+        "stems_all",
+        "mp4",
+        "concat"
+      ],
+      "version": [
+        "chirp-v6",
+        "chirp-v6-mini",
+        "chirp-v5",
+        "chirp-v4-5"
+      ],
+      "vocal_gender": [
+        "auto",
+        "m",
+        "f"
+      ]
+    }
+  },
+  "speech-2.8": {
+    "name": "海螺 语音克隆 2.8",
+    "type": "audio",
+    "provider": "minimax",
+    "capabilities": [
+      "语音克隆",
+      "文字转语音",
+      "音色复刻",
+      "多语言",
+      "高音质",
+      "hd",
+      "turbo"
+    ],
+    "defaults": {
+      "emotion": "auto",
+      "pitch": "0",
+      "sound_effects": "none",
+      "speed": "1",
+      "tier": "hd",
+      "version": "2.8"
+    },
+    "enums": {
+      "emotion": [
+        "auto",
+        "happy",
+        "sad",
+        "angry",
+        "fearful",
+        "surprised",
+        "calm"
+      ],
+      "pitch": [
+        "-6",
+        "-3",
+        "0",
+        "3",
+        "6"
+      ],
+      "sound_effects": [
+        "none",
+        "spacious_echo",
+        "auditorium_echo",
+        "lofi_telephone",
+        "robotic"
+      ],
+      "speed": [
+        "0.5",
+        "0.75",
+        "1",
+        "1.25",
+        "1.5",
+        "2"
+      ],
+      "tier": [
+        "hd",
+        "turbo"
+      ],
+      "version": [
+        "2.8",
+        "2.6"
+      ]
+    }
+  },
+  "tts-1": {
+    "name": "GT 语音合成",
+    "type": "audio",
+    "provider": "openai",
+    "capabilities": [
+      "文字转语音",
+      "多音色",
+      "标准音质"
+    ],
+    "defaults": {
+      "response_format": "mp3",
+      "speed": "1.0",
+      "voice": "alloy"
+    },
+    "enums": {
+      "response_format": [
+        "mp3",
+        "opus",
+        "aac",
+        "flac",
+        "wav",
+        "pcm"
+      ],
+      "voice": [
+        "alloy",
+        "echo",
+        "fable",
+        "onyx",
+        "nova",
+        "shimmer"
+      ]
+    }
+  },
+  "tts-1-hd": {
+    "name": "GT 语音合成 HD",
+    "type": "audio",
+    "provider": "openai",
+    "capabilities": [
+      "文字转语音",
+      "多音色",
+      "高音质",
+      "hd"
+    ],
+    "defaults": {
+      "response_format": "mp3",
+      "speed": "1.0",
+      "voice": "alloy"
+    },
+    "enums": {
+      "response_format": [
+        "mp3",
+        "opus",
+        "aac",
+        "flac",
+        "wav",
+        "pcm"
+      ],
+      "voice": [
+        "alloy",
+        "echo",
+        "fable",
+        "onyx",
+        "nova",
+        "shimmer"
+      ]
+    }
+  },
+  "voice-clone": {
+    "name": "海螺 音色克隆",
+    "type": "audio",
+    "provider": "minimax",
+    "capabilities": [
+      "音色克隆",
+      "样本复刻",
+      "专属音色",
+      "音色资产"
+    ],
+    "defaults": {},
+    "enums": {}
+  },
+  "voice-design": {
+    "name": "海螺 音色设计",
+    "type": "audio",
+    "provider": "minimax",
+    "capabilities": [
+      "音色设计",
+      "文生音色",
+      "描述词生成音色",
+      "专属音色"
+    ],
+    "defaults": {},
+    "enums": {}
+  },
+  "claude-fable-5": {
+    "name": "CL Fable 5",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "cl-fable-5": {
+    "name": "CL Fable 5",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "claude-fable-5-1": {
+    "name": "CL Fable 5.1",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "cl-fable-5-1": {
+    "name": "CL Fable 5.1",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "claude-haiku-4-5": {
+    "name": "CL Haiku 4.5",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "cl-haiku-4-5": {
+    "name": "CL Haiku 4.5",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "claude-opus-4-6": {
+    "name": "CL Opus 4.6",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "cl-opus-4-6": {
+    "name": "CL Opus 4.6",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "claude-opus-4-7": {
+    "name": "CL Opus 4.7",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "cl-opus-4-7": {
+    "name": "CL Opus 4.7",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "claude-opus-4-8": {
+    "name": "CL Opus 4.8",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "cl-opus-4-8": {
+    "name": "CL Opus 4.8",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "claude-opus-5": {
+    "name": "CL Opus 5",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "cl-opus-5": {
+    "name": "CL Opus 5",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "claude-sonnet-4-6": {
+    "name": "CL Sonnet 4.6",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "cl-sonnet-4-6": {
+    "name": "CL Sonnet 4.6",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "claude-sonnet-5": {
+    "name": "CL Sonnet 5",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "cl-sonnet-5": {
+    "name": "CL Sonnet 5",
+    "type": "text",
+    "provider": "anthropic",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "codex-auto-review": {
+    "name": "GT Codex 代码审查",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "gt-codex-auto-review": {
+    "name": "GT Codex 代码审查",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "deepseek-v4-flash": {
+    "name": "DeepSeek V4 Flash",
+    "type": "text",
+    "provider": "deepseek",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "thinking": "false"
+    },
+    "enums": {
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "deepseek-v4-pro": {
+    "name": "DeepSeek V4 Pro",
+    "type": "text",
+    "provider": "deepseek",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "reasoning_effort": "low",
+      "thinking": "false"
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "high"
+      ],
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "deepseek-v4-pro-0813": {
+    "name": "DeepSeek V4 Pro (0813)",
+    "type": "text",
+    "provider": "deepseek",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "reasoning_effort": "low"
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "high"
+      ]
+    }
+  },
+  "deepseek-v4.1-flash": {
+    "name": "DeepSeek V4.1 Flash",
+    "type": "text",
+    "provider": "deepseek",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning_effort": "high"
+    },
+    "enums": {
+      "reasoning_effort": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    }
+  },
+  "doubao-seed-2-0-pro": {
+    "name": "豆包 Seed 2.0 Pro",
+    "type": "text",
+    "provider": "bytedance",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking": "false",
+      "web_search": false
+    },
+    "enums": {
+      "thinking": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "gemini-3-flash": {
+    "name": "GM-3 Flash",
+    "type": "text",
+    "provider": "google",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gm-3-flash": {
+    "name": "GM-3 Flash",
+    "type": "text",
+    "provider": "google",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gemini-3-pro": {
+    "name": "GM-3 Pro",
+    "type": "text",
+    "provider": "google",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": true,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gm-3-pro": {
+    "name": "GM-3 Pro",
+    "type": "text",
+    "provider": "google",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": true,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gemini-3.1-flash-lite": {
+    "name": "GM-3.1 Flash Lite",
+    "type": "text",
+    "provider": "google",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gm-3.1-flash-lite": {
+    "name": "GM-3.1 Flash Lite",
+    "type": "text",
+    "provider": "google",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gemini-3.1-pro": {
+    "name": "GM-3.1 Pro",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": true,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gm-3.1-pro": {
+    "name": "GM-3.1 Pro",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": true,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gemini-3.5-flash": {
+    "name": "GM-3.5 Flash",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gm-3.5-flash": {
+    "name": "GM-3.5 Flash",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gemini-3.6-flash": {
+    "name": "GM-3.6 Flash",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gm-3.6-flash": {
+    "name": "GM-3.6 Flash",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gemini-3.7-flash": {
+    "name": "GM-3.7 Flash",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gm-3.7-flash": {
+    "name": "GM-3.7 Flash",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gemini-3.8-flash": {
+    "name": "GM-3.8 Flash",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gm-3.8-flash": {
+    "name": "GM-3.8 Flash",
+    "type": "text",
+    "provider": "gemini",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "thinking_budget": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "thinking_budget": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "glm-5.2": {
+    "name": "GLM-5.2",
+    "type": "text",
+    "provider": "glm",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "reasoning_effort": "max",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "high",
+        "max"
+      ]
+    }
+  },
+  "glm-5.3": {
+    "name": "GLM-5.3",
+    "type": "text",
+    "provider": "glm",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "enable_thinking": false
+    },
+    "enums": {}
+  },
+  "glm-5.3-flash": {
+    "name": "GLM-5.3 Flash",
+    "type": "text",
+    "provider": "glm",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false
+    },
+    "enums": {}
+  },
+  "gpt-5.3-codex": {
+    "name": "GT-5.3 Codex",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "reasoning_effort": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gt-5.3-codex": {
+    "name": "GT-5.3 Codex",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "reasoning_effort": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gpt-5.4": {
+    "name": "GT-5.4",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "reasoning_effort": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    }
+  },
+  "gt-5.4": {
+    "name": "GT-5.4",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "reasoning_effort": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    }
+  },
+  "gpt-5.4-mini": {
+    "name": "GT-5.4 Mini",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "gt-5.4-mini": {
+    "name": "GT-5.4 Mini",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "gpt-5.4-nano": {
+    "name": "GT-5.4 Nano",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "gt-5.4-nano": {
+    "name": "GT-5.4 Nano",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "gpt-5.5": {
+    "name": "GT-5.5",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning_effort": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    }
+  },
+  "gt-5.5": {
+    "name": "GT-5.5",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning_effort": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    }
+  },
+  "gpt-5.6-luna": {
+    "name": "GT-5.6 Luna",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning": "standard",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning": [
+        "standard",
+        "max"
+      ]
+    }
+  },
+  "gt-5.6-luna": {
+    "name": "GT-5.6 Luna",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning": "standard",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning": [
+        "standard",
+        "max"
+      ]
+    }
+  },
+  "gpt-5.6-sol": {
+    "name": "GT-5.6 Sol",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning": "standard",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning": [
+        "standard",
+        "max",
+        "ultra"
+      ]
+    }
+  },
+  "gt-5.6-sol": {
+    "name": "GT-5.6 Sol",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning": "standard",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning": [
+        "standard",
+        "max",
+        "ultra"
+      ]
+    }
+  },
+  "gpt-5.6-terra": {
+    "name": "GT-5.6 Terra",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning": "standard",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning": [
+        "standard",
+        "max",
+        "ultra"
+      ]
+    }
+  },
+  "gt-5.6-terra": {
+    "name": "GT-5.6 Terra",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning": "standard",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning": [
+        "standard",
+        "max",
+        "ultra"
+      ]
+    }
+  },
+  "gpt-6-astra": {
+    "name": "GT-6 Astra",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "gt-6-astra": {
+    "name": "GT-6 Astra",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "grok-4-20-non-reasoning": {
+    "name": "GK-4.20 非推理版",
+    "type": "text",
+    "provider": "xai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "gk-4-20-non-reasoning": {
+    "name": "GK-4.20 非推理版",
+    "type": "text",
+    "provider": "xai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "grok-4.5": {
+    "name": "GK-4.5",
+    "type": "text",
+    "provider": "grok",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning_effort": "high"
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gk-4.5": {
+    "name": "GK-4.5",
+    "type": "text",
+    "provider": "grok",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "reasoning_effort": "high",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "grok-4.6": {
+    "name": "GK-4.6",
+    "type": "text",
+    "provider": "grok",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning_effort": "high"
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "gk-4.6": {
+    "name": "GK-4.6",
+    "type": "text",
+    "provider": "grok",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "reasoning_effort": "high",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "kimi-k3": {
+    "name": "Kimi K3",
+    "type": "text",
+    "provider": "kimi",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "minimax-m3": {
+    "name": "MiniMax-M3",
+    "type": "text",
+    "provider": "minimax",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {},
+    "enums": {}
+  },
+  "qwen3-max": {
+    "name": "通义千问 3-Max",
+    "type": "text",
+    "provider": "qwen",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "qwen3.7-flash": {
+    "name": "通义千问 3.7 Flash",
+    "type": "text",
+    "provider": "qwen",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "qwen3.7-plus": {
+    "name": "通义千问 3.7 Plus",
+    "type": "text",
+    "provider": "qwen",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "web_search": false
+    },
+    "enums": {}
+  },
+  "qwen3.8-max": {
+    "name": "通义千问 3.8-Max",
+    "type": "text",
+    "provider": "qwen",
+    "capabilities": [
+      "text",
+      "vision",
+      "video"
+    ],
+    "defaults": {
+      "enable_thinking": false,
+      "reasoning_effort": "high",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high"
+      ]
+    }
+  },
+  "aliyun-image-superres": {
+    "name": "阿里云图像超分",
+    "type": "image",
+    "provider": "aliyun",
+    "capabilities": [
+      "图像超分",
+      "图像放大"
+    ],
+    "defaults": {
+      "mode": "base",
+      "output_format": "jpg",
+      "output_quality": 95,
+      "upscale_factor": 2
+    },
+    "enums": {
+      "mode": [
+        "base",
+        "enhancement"
+      ],
+      "output_format": [
+        "jpg",
+        "png",
+        "bmp"
+      ]
+    }
+  },
+  "doubao-seedream-4-5": {
+    "name": "豆包 Seedream 4.5",
+    "type": "image",
+    "provider": "doubao",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "resolution": "2k",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "resolution": [
+        "2k",
+        "4k",
+        "1k"
+      ],
+      "size": [
+        "1:1",
+        "4:3",
+        "3:4",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3",
+        "21:9",
+        "5:4",
+        "4:5",
+        "2:1",
+        "1:2",
+        "3:1",
+        "1:3",
+        "9:21"
+      ]
+    }
+  },
+  "doubao-seedream-5-0": {
+    "name": "豆包 Seedream 5.0",
+    "type": "image",
+    "provider": "doubao",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "多图融合",
+      "联网搜索生图",
+      "3k",
+      "即梦"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "1:1",
+        "4:3",
+        "3:4",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3",
+        "21:9",
+        "5:4",
+        "4:5",
+        "2:1",
+        "1:2",
+        "9:21"
+      ]
+    }
+  },
+  "doubao-seedream-5-0-pro": {
+    "name": "豆包 Seedream 5.0 Pro",
+    "type": "image",
+    "provider": "doubao",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "多图融合",
+      "即梦"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "resolution": "1k",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "resolution": [
+        "1k",
+        "2k"
+      ],
+      "size": [
+        "1:1",
+        "4:3",
+        "3:4",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3",
+        "21:9",
+        "auto"
+      ]
+    }
+  },
+  "face-repaint": {
+    "name": "人脸转绘",
+    "type": "image",
+    "provider": "face-repaint",
+    "capabilities": [
+      "图生图",
+      "人脸转绘",
+      "2K"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "style": "黑白素描1"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1"
+      ],
+      "style": [
+        "黑白素描1",
+        "黑白素描2",
+        "黑白素描3",
+        "黑白白描",
+        "3D建模网",
+        "平铺网格"
+      ]
+    }
+  },
+  "flux-2": {
+    "name": "FX-2.0 Pro",
+    "type": "image",
+    "provider": "flux",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "多图参考",
+      "FX"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "multi-reference"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3",
+        "21:9"
+      ]
+    }
+  },
+  "fx-2": {
+    "name": "FX-2.0 Pro",
+    "type": "image",
+    "provider": "flux",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "多图参考",
+      "FX"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "multi-reference"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3",
+        "21:9"
+      ]
+    }
+  },
+  "flux-kontext": {
+    "name": "FX Kontext 编辑",
+    "type": "image",
+    "provider": "flux",
+    "capabilities": [
+      "图片编辑",
+      "文生图",
+      "FX"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "quality": "pro",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "quality": [
+        "pro",
+        "max"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4"
+      ]
+    }
+  },
+  "fx-kontext": {
+    "name": "FX Kontext 编辑",
+    "type": "image",
+    "provider": "flux",
+    "capabilities": [
+      "图片编辑",
+      "文生图",
+      "FX"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "quality": "pro",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "quality": [
+        "pro",
+        "max"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4"
+      ]
+    }
+  },
+  "gemini-3-pro-image": {
+    "name": "GM-3 Pro Image",
+    "type": "image",
+    "provider": "banana",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "4k",
+      "高清",
+      "香蕉"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9",
+        "auto"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "gm-3-pro-image": {
+    "name": "GM-3 Pro Image",
+    "type": "image",
+    "provider": "banana",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "4k",
+      "高清",
+      "香蕉"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9",
+        "auto"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "gemini-3.1-flash-image": {
+    "name": "GM-3.1 Flash Image",
+    "type": "image",
+    "provider": "banana",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "4k",
+      "高清",
+      "香蕉"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1K",
+      "thinking_level": "minimal"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9",
+        "auto",
+        "1:4",
+        "4:1",
+        "1:8",
+        "8:1"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "0.5K",
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "thinking_level": [
+        "minimal",
+        "high"
+      ]
+    }
+  },
+  "gm-3.1-flash-image": {
+    "name": "GM-3.1 Flash Image",
+    "type": "image",
+    "provider": "banana",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "4k",
+      "高清",
+      "香蕉"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1K",
+      "thinking_level": "minimal"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9",
+        "auto",
+        "1:4",
+        "4:1",
+        "1:8",
+        "8:1"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "0.5K",
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "thinking_level": [
+        "minimal",
+        "high"
+      ]
+    }
+  },
+  "gemini-3.1-flash-lite-image": {
+    "name": "GM-3.1 Flash Lite Image",
+    "type": "image",
+    "provider": "banana",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "香蕉",
+      "极速"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "1K"
+      ]
+    }
+  },
+  "gm-3.1-flash-lite-image": {
+    "name": "GM-3.1 Flash Lite Image",
+    "type": "image",
+    "provider": "banana",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "香蕉",
+      "极速"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "1K"
+      ]
+    }
+  },
+  "gpt-image-1.5-all": {
+    "name": "GT Image 1.5",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "output_format": "jpeg",
+      "size": "1024x1024"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "size": [
+        "1024x1024",
+        "1536x1024",
+        "1024x1536"
+      ]
+    }
+  },
+  "gt-image-1.5-all": {
+    "name": "GT Image 1.5",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "output_format": "jpeg",
+      "size": "1024x1024"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "size": [
+        "1024x1024",
+        "1536x1024",
+        "1024x1536"
+      ]
+    }
+  },
+  "gpt-image-2": {
+    "name": "GT Image 2",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "output_format": "jpeg",
+      "quality": "high",
+      "resolution": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "auto",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "21:9",
+        "9:21"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "auto",
+        "high",
+        "medium",
+        "low"
+      ],
+      "resolution": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "gt-image-2": {
+    "name": "GT Image 2",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "output_format": "jpeg",
+      "quality": "high",
+      "resolution": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "auto",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "21:9",
+        "9:21"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "auto",
+        "high",
+        "medium",
+        "low"
+      ],
+      "resolution": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "gpt-image-2-c": {
+    "name": "GT Image 2 C",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图编辑",
+      "1K"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "output_format": "jpeg",
+      "quality": "high",
+      "size": "1024x1024"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "auto",
+        "high",
+        "medium",
+        "low"
+      ],
+      "size": [
+        "1024x1024",
+        "1792x1024",
+        "1024x1792"
+      ]
+    }
+  },
+  "gt-image-2-c": {
+    "name": "GT Image 2 C",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图编辑",
+      "1K"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "output_format": "jpeg",
+      "quality": "high",
+      "size": "1024x1024"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "auto",
+        "high",
+        "medium",
+        "low"
+      ],
+      "size": [
+        "1024x1024",
+        "1792x1024",
+        "1024x1792"
+      ]
+    }
+  },
+  "gpt-image-2-official": {
+    "name": "GT Image 2 官方版",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "output_format": "png",
+      "quality": "low",
+      "resolution": "1k",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "resolution": [
+        "1k",
+        "2k",
+        "4k"
+      ],
+      "size": [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "2:1",
+        "1:2",
+        "3:1",
+        "1:3",
+        "21:9",
+        "9:21",
+        "auto"
+      ]
+    }
+  },
+  "gt-image-2-official": {
+    "name": "GT Image 2 官方版",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "output_format": "png",
+      "quality": "low",
+      "resolution": "1k",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "resolution": [
+        "1k",
+        "2k",
+        "4k"
+      ],
+      "size": [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "2:1",
+        "1:2",
+        "3:1",
+        "1:3",
+        "21:9",
+        "9:21",
+        "auto"
+      ]
+    }
+  },
+  "gpt-image-2.5-flare": {
+    "name": "GT Image 2.5 Flare 快速版",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "background": "opaque",
+      "count": 1,
+      "mode": "text-to-image",
+      "moderation": "low",
+      "output_compression": 100,
+      "output_format": "jpeg",
+      "quality": "medium",
+      "resolution": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "auto",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "21:9",
+        "9:21"
+      ],
+      "background": [
+        "opaque",
+        "transparent"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "moderation": [
+        "low",
+        "auto"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "resolution": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "gt-image-2.5-flare": {
+    "name": "GT Image 2.5 Flare 快速版",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "background": "opaque",
+      "count": 1,
+      "mode": "text-to-image",
+      "moderation": "low",
+      "output_compression": 100,
+      "output_format": "jpeg",
+      "quality": "medium",
+      "resolution": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "auto",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "21:9",
+        "9:21"
+      ],
+      "background": [
+        "opaque",
+        "transparent"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "moderation": [
+        "low",
+        "auto"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "resolution": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "gpt-image-2.5-sunburst": {
+    "name": "GT Image 2.5 Sunb 高端版",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "background": "opaque",
+      "count": 1,
+      "mode": "text-to-image",
+      "moderation": "low",
+      "output_compression": 100,
+      "output_format": "jpeg",
+      "quality": "medium",
+      "resolution": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "auto",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "21:9",
+        "9:21"
+      ],
+      "background": [
+        "opaque",
+        "transparent"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "moderation": [
+        "low",
+        "auto"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "resolution": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "gt-image-2.5-sunburst": {
+    "name": "GT Image 2.5 Sunb 高端版",
+    "type": "image",
+    "provider": "openai",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "background": "opaque",
+      "count": 1,
+      "mode": "text-to-image",
+      "moderation": "low",
+      "output_compression": 100,
+      "output_format": "jpeg",
+      "quality": "medium",
+      "resolution": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "auto",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "21:9",
+        "9:21"
+      ],
+      "background": [
+        "opaque",
+        "transparent"
+      ],
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "moderation": [
+        "low",
+        "auto"
+      ],
+      "output_format": [
+        "png",
+        "jpeg"
+      ],
+      "quality": [
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "resolution": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "grok-imagine-image": {
+    "name": "GK Imagine 1.0 图像",
+    "type": "image",
+    "provider": "grok",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4"
+      ]
+    }
+  },
+  "gk-imagine-image": {
+    "name": "GK Imagine 1.0 图像",
+    "type": "image",
+    "provider": "grok",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4"
+      ]
+    }
+  },
+  "grok-imagine-image-2.0": {
+    "name": "GK Imagine 2.0 图像",
+    "type": "image",
+    "provider": "xai",
+    "capabilities": [
+      "文生图",
+      "多画幅"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4"
+      ]
+    }
+  },
+  "gk-imagine-image-2.0": {
+    "name": "GK Imagine 2.0 图像",
+    "type": "image",
+    "provider": "xai",
+    "capabilities": [
+      "文生图",
+      "多画幅"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4"
+      ]
+    }
+  },
+  "kling-image-o3": {
+    "name": "可灵图片 O3",
+    "type": "image",
+    "provider": "kling",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "中文文字"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "count": 1,
+      "mode": "text-to-image",
+      "size": "1K"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "9:16",
+        "16:9",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3",
+        "21:9"
+      ],
+      "mode": [
+        "text-to-image",
+        "multi-reference",
+        "image-edit"
+      ],
+      "size": [
+        "1K",
+        "2K",
+        "4K"
+      ]
+    }
+  },
+  "mj_imagine": {
+    "name": "MJ",
+    "type": "image",
+    "provider": "midjourney",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "多图融合"
+    ],
+    "defaults": {
+      "aspect_ratio": "1:1",
+      "bot_type": "MID_JOURNEY",
+      "chaos": "0",
+      "count": 1,
+      "cw": "100",
+      "draft": false,
+      "hd": false,
+      "iw": "2",
+      "mode": "text-to-image",
+      "quality": "1",
+      "stop": "100",
+      "stylize": "100",
+      "sw": "100",
+      "tile": false,
+      "weird": "0"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3",
+        "4:5",
+        "5:4",
+        "21:9"
+      ],
+      "bot_type": [
+        "MID_JOURNEY",
+        "NIJI_JOURNEY"
+      ],
+      "chaos": [
+        "0",
+        "25",
+        "50",
+        "75",
+        "100"
+      ],
+      "cw": [
+        "0",
+        "50",
+        "100"
+      ],
+      "iw": [
+        "0.5",
+        "1",
+        "2",
+        "3"
+      ],
+      "mode": [
+        "text-to-image",
+        "multi-reference"
+      ],
+      "quality": [
+        "0.25",
+        "0.5",
+        "1",
+        "2"
+      ],
+      "stop": [
+        "50",
+        "80",
+        "100"
+      ],
+      "style": [
+        "",
+        "raw"
+      ],
+      "stylize": [
+        "0",
+        "50",
+        "100",
+        "250",
+        "500",
+        "750",
+        "1000"
+      ],
+      "sw": [
+        "0",
+        "100",
+        "500",
+        "1000"
+      ],
+      "version": [
+        "",
+        "8.2",
+        "8.1",
+        "7",
+        "6.1",
+        "6",
+        "5.2",
+        "5.1"
+      ],
+      "weird": [
+        "0",
+        "250",
+        "1000",
+        "3000"
+      ]
+    }
+  },
+  "qwen-image-2.0": {
+    "name": "通义 Qwen Image 2.0",
+    "type": "image",
+    "provider": "qwen",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "resolution": "1k",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "resolution": [
+        "1k",
+        "2k"
+      ],
+      "size": [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "2:1",
+        "1:2",
+        "3:1",
+        "1:3",
+        "21:9",
+        "9:21"
+      ]
+    }
+  },
+  "qwen-image-3.0": {
+    "name": "通义千问 3.0 图像",
+    "type": "image",
+    "provider": "qwen",
+    "capabilities": [
+      "文生图",
+      "图生图",
+      "多图融合",
+      "1k/2k",
+      "通义千问"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "quality": "标准",
+      "resolution": "2K",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "quality": [
+        "标准",
+        "pro"
+      ],
+      "resolution": [
+        "1K",
+        "2K"
+      ],
+      "size": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3"
+      ]
+    }
+  },
+  "wan2.7-image": {
+    "name": "Wan 2.7 图像",
+    "type": "image",
+    "provider": "wan",
+    "capabilities": [
+      "文生图",
+      "图生图"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "text-to-image",
+      "quality": "standard",
+      "resolution": "1k",
+      "size": "1:1"
+    },
+    "enums": {
+      "mode": [
+        "text-to-image",
+        "image-edit",
+        "multi-reference"
+      ],
+      "quality": [
+        "standard",
+        "pro"
+      ],
+      "resolution": [
+        "1k",
+        "2k"
+      ],
+      "size": [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "2:1",
+        "1:2",
+        "3:1",
+        "1:3",
+        "21:9",
+        "9:21",
+        "auto"
+      ]
+    }
+  },
+  "aliyun-video-superres": {
+    "name": "阿里云视频超分",
+    "type": "video",
+    "provider": "aliyun",
+    "capabilities": [
+      "视频超分",
+      "视频放大"
+    ],
+    "defaults": {
+      "bitrate": 10
+    },
+    "enums": {}
+  },
+  "doubao-seedance-1-5-pro": {
+    "name": "即梦 3.5 Pro",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "首尾帧",
+      "有声视频",
+      "1080p",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "4",
+      "generate_audio": "true",
+      "mode": "first-last",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "adaptive",
+        "16:9",
+        "9:16",
+        "1:1",
+        "3:4",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "8",
+        "12"
+      ],
+      "generate_audio": [
+        "true",
+        "false"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last"
+      ],
+      "resolution": [
+        "480p",
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "ecom-allpurpose-video": {
+    "name": "自研·全能视频 2.0",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "图生视频",
+      "参考生",
+      "480p",
+      "720p",
+      "过真人",
+      "电商",
+      "漫剧",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "15",
+      "mode": "reference",
+      "quality": "全能B"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "21:9"
+      ],
+      "duration": [
+        "5",
+        "10",
+        "15"
+      ],
+      "mode": [
+        "reference",
+        "text-to-video"
+      ],
+      "quality": [
+        "全能B",
+        "720P经济",
+        "480P经济"
+      ]
+    }
+  },
+  "grok-imagine-1-5-7tu-special": {
+    "name": "GK Imagine 1.5 Pro",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "多图参考",
+      "任意时长",
+      "480p",
+      "720p",
+      "含音轨"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "3",
+      "mode": "reference",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3"
+      ],
+      "duration": [
+        "3",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "480p",
+        "720p"
+      ]
+    }
+  },
+  "gk-imagine-1-5-7tu-special": {
+    "name": "GK Imagine 1.5 Pro",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "多图参考",
+      "任意时长",
+      "480p",
+      "720p",
+      "含音轨"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "3",
+      "mode": "reference",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3"
+      ],
+      "duration": [
+        "3",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "480p",
+        "720p"
+      ]
+    }
+  },
+  "grok-imagine-1-5-manju-special": {
+    "name": "GK-1.5 · 漫剧特价",
+    "type": "video",
+    "provider": "xai",
+    "capabilities": [
+      "漫剧",
+      "按次特价",
+      "15s"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "15",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9"
+      ],
+      "duration": [
+        "15"
+      ],
+      "mode": [
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "480p",
+        "720p"
+      ]
+    }
+  },
+  "gk-imagine-1-5-manju-special": {
+    "name": "GK-1.5 · 漫剧特价",
+    "type": "video",
+    "provider": "xai",
+    "capabilities": [
+      "漫剧",
+      "按次特价",
+      "15s"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "15",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9"
+      ],
+      "duration": [
+        "15"
+      ],
+      "mode": [
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "480p",
+        "720p"
+      ]
+    }
+  },
+  "grok-imagine-1.5": {
+    "name": "GK Imagine 1.5",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "720p",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "6",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "duration": [
+        "6",
+        "10",
+        "15",
+        "20",
+        "30",
+        "4",
+        "8",
+        "12"
+      ],
+      "resolution": [
+        "720p",
+        "480p",
+        "1080p"
+      ]
+    }
+  },
+  "gk-imagine-1.5": {
+    "name": "GK Imagine 1.5",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "720p",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "6",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "duration": [
+        "6",
+        "10",
+        "15",
+        "20",
+        "30",
+        "4",
+        "8",
+        "12"
+      ],
+      "resolution": [
+        "720p",
+        "480p",
+        "1080p"
+      ]
+    }
+  },
+  "grok-imagine-1.5-special": {
+    "name": "GK-1.5 图生 · 特价",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "图生视频",
+      "首帧参考图",
+      "720p",
+      "含音轨",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "15",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "6",
+        "15"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "gk-imagine-1.5-special": {
+    "name": "GK-1.5 图生 · 特价",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "图生视频",
+      "首帧参考图",
+      "720p",
+      "含音轨",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "15",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "6",
+        "15"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "grok-imagine-video": {
+    "name": "GK Imagine 1.0",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "6",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "duration": [
+        "6",
+        "10",
+        "15",
+        "20",
+        "30",
+        "16"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "720p",
+        "480p"
+      ]
+    }
+  },
+  "gk-imagine-video": {
+    "name": "GK Imagine 1.0",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "6",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "duration": [
+        "6",
+        "10",
+        "15",
+        "20",
+        "30",
+        "16"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "720p",
+        "480p"
+      ]
+    }
+  },
+  "grok-imagine-video-manju-special": {
+    "name": "GK-1.0 · 漫剧特价",
+    "type": "video",
+    "provider": "xai",
+    "capabilities": [
+      "漫剧",
+      "按次特价",
+      "10s"
+    ],
+    "defaults": {
+      "count": 1,
+      "duration": "10",
+      "mode": "reference"
+    },
+    "enums": {
+      "duration": [
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "reference"
+      ]
+    }
+  },
+  "gk-imagine-video-manju-special": {
+    "name": "GK-1.0 · 漫剧特价",
+    "type": "video",
+    "provider": "xai",
+    "capabilities": [
+      "漫剧",
+      "按次特价",
+      "10s"
+    ],
+    "defaults": {
+      "count": 1,
+      "duration": "10",
+      "mode": "reference"
+    },
+    "enums": {
+      "duration": [
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "reference"
+      ]
+    }
+  },
+  "grok-imagine-video-special": {
+    "name": "GK-1.0 多图 · 特价",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "参考生",
+      "多图参考",
+      "720p",
+      "含音轨",
+      "10秒",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "6",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "6",
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "gk-imagine-video-special": {
+    "name": "GK-1.0 多图 · 特价",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "参考生",
+      "多图参考",
+      "720p",
+      "含音轨",
+      "10秒",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "6",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "6",
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "grok-video-3": {
+    "name": "GK Video 3",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "首尾帧",
+      "参考生",
+      "720p",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "10",
+      "mode": "first-frame",
+      "size": "720P"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "2:3",
+        "3:2",
+        "1:1"
+      ],
+      "duration": [
+        "6",
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "size": [
+        "720P"
+      ]
+    }
+  },
+  "gk-video-3": {
+    "name": "GK Video 3",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "首尾帧",
+      "参考生",
+      "720p",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "10",
+      "mode": "first-frame",
+      "size": "720P"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "2:3",
+        "3:2",
+        "1:1"
+      ],
+      "duration": [
+        "6",
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "size": [
+        "720P"
+      ]
+    }
+  },
+  "happyhorse-1-0": {
+    "name": "HappyHorse 1.0",
+    "type": "video",
+    "provider": "happyhorse",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "text-to-video",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4"
+      ],
+      "duration": [
+        "5",
+        "10"
+      ],
+      "mode": [
+        "text-to-video"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "happyhorse-1-1": {
+    "name": "HappyHorse 1.1",
+    "type": "video",
+    "provider": "happyhorse",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "参考生",
+      "有声视频",
+      "1080p",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "3",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "4:5",
+        "5:4",
+        "9:21",
+        "21:9"
+      ],
+      "duration": [
+        "3",
+        "5",
+        "10",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "1080p",
+        "720p"
+      ]
+    }
+  },
+  "kling-3.0-turbo": {
+    "name": "可灵 3.0 Turbo",
+    "type": "video",
+    "provider": "kling",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "极速"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "3",
+      "generate_audio": false,
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "3",
+        "5",
+        "8",
+        "10",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "kling-v3": {
+    "name": "可灵 V3",
+    "type": "video",
+    "provider": "kling",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "generate_audio": true,
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "duration": [
+        "5",
+        "10",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last"
+      ],
+      "resolution": [
+        "720p",
+        "1080p",
+        "4k"
+      ]
+    }
+  },
+  "kling-v3-motion-control": {
+    "name": "可灵 V3 运动控制",
+    "type": "video",
+    "provider": "kling",
+    "capabilities": [
+      "运动控制",
+      "参考视频生视频",
+      "图生视频",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "resolution": [
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "kling-v3-omni-cankao": {
+    "name": "可灵 V3 Omni 参考生",
+    "type": "video",
+    "provider": "kling",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "有声视频",
+      "参考生视频",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "6",
+      "generate_audio": true,
+      "mode": "std"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "duration": [
+        "5",
+        "10",
+        "15",
+        "6"
+      ],
+      "mode": [
+        "std",
+        "pro"
+      ]
+    }
+  },
+  "minimax-h3": {
+    "name": "MiniMax H3",
+    "type": "video",
+    "provider": "minimax",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "768p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "4:3",
+        "1:1",
+        "3:4"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "768p",
+        "2k"
+      ]
+    }
+  },
+  "minimax-hailuo-2-3": {
+    "name": "MiniMax 海螺 2.3",
+    "type": "video",
+    "provider": "minimax",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图"
+    ],
+    "defaults": {
+      "count": 1,
+      "duration": "6",
+      "mode": "first-frame",
+      "resolution": "768p"
+    },
+    "enums": {
+      "duration": [
+        "6",
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame"
+      ],
+      "resolution": [
+        "768p",
+        "1080p"
+      ]
+    }
+  },
+  "omni-flash-1-1": {
+    "name": "Omni Flash 1.1",
+    "type": "video",
+    "provider": "gemini",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "多图参考",
+      "同步音频"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "10",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "pixverse-c1": {
+    "name": "PixVerse C1 · 过人脸",
+    "type": "video",
+    "provider": "pixverse",
+    "capabilities": [
+      "图生视频",
+      "文生视频",
+      "首帧",
+      "真人照片",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9"
+      ],
+      "duration": [
+        "5",
+        "8"
+      ],
+      "mode": [
+        "first-frame",
+        "text-to-video"
+      ],
+      "resolution": [
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "pixverse-v6": {
+    "name": "PixVerse V6",
+    "type": "video",
+    "provider": "pixverse",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "duration": [
+        "5",
+        "8"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame"
+      ],
+      "resolution": [
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "seedance-2-0-9tu-special": {
+    "name": "Seedance 2.0 · 九图特价",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "参考生",
+      "真人照片",
+      "720p",
+      "含音轨",
+      "九图",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "10",
+      "mode": "reference",
+      "quality": "Fast",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9"
+      ],
+      "duration": [
+        "15",
+        "10",
+        "5"
+      ],
+      "mode": [
+        "text-to-video",
+        "reference",
+        "first-frame"
+      ],
+      "quality": [
+        "Fast",
+        "标准"
+      ],
+      "resolution": [
+        "720p",
+        "480p"
+      ]
+    }
+  },
+  "seedance-2-0-ecom-special": {
+    "name": "Seedance 2.0 · 电商特价",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "参考生",
+      "720p",
+      "含音轨",
+      "电商",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "5",
+      "mode": "reference",
+      "quality": "满血9图"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1"
+      ],
+      "duration": [
+        "5",
+        "10",
+        "15"
+      ],
+      "mode": [
+        "reference",
+        "text-to-video"
+      ],
+      "quality": [
+        "标准",
+        "真人模特",
+        "满血9图"
+      ]
+    }
+  },
+  "seedance-2-0-official": {
+    "name": "Seedance 2.0 · 官方直连",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "视频参考",
+      "参考生",
+      "视频延续",
+      "视频编辑",
+      "首尾帧",
+      "480p",
+      "720p",
+      "1080p",
+      "官方直连",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "4",
+      "mode": "first-frame",
+      "quality": "mini",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9",
+        "adaptive"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "reference",
+        "first-frame",
+        "first-last",
+        "edit",
+        "extend"
+      ],
+      "quality": [
+        "标准",
+        "fast",
+        "mini"
+      ],
+      "resolution": [
+        "480p",
+        "720p",
+        "1080p",
+        "4k"
+      ]
+    }
+  },
+  "seedance-2-0-promo": {
+    "name": "Seedance 2.0 · 特价按秒",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "图生视频",
+      "视频参考",
+      "参考生",
+      "首尾帧",
+      "720p/1080p/2K/4K",
+      "按秒计费"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "5",
+      "mode": "reference",
+      "quality": "mini",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "duration": [
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "15",
+        "4"
+      ],
+      "mode": [
+        "reference",
+        "first-last",
+        "text-to-video",
+        "first-frame"
+      ],
+      "quality": [
+        "标准",
+        "fast",
+        "mini"
+      ],
+      "resolution": [
+        "480p",
+        "720p",
+        "1080p",
+        "2k",
+        "4k"
+      ]
+    }
+  },
+  "seedance-2-0-special": {
+    "name": "Seedance 2.0 · 特价按次",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "视频参考",
+      "音频参考",
+      "参考生",
+      "720p",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "15",
+      "mode": "first-frame",
+      "quality": "标准",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "21:9",
+        "1:1",
+        "4:3",
+        "3:4"
+      ],
+      "duration": [
+        "15"
+      ],
+      "mode": [
+        "reference",
+        "first-frame",
+        "first-last",
+        "text-to-video"
+      ],
+      "quality": [
+        "高清",
+        "快速",
+        "标准"
+      ],
+      "resolution": [
+        "720p",
+        "480p",
+        "4k"
+      ]
+    }
+  },
+  "seedance-2-5": {
+    "name": "Seedance 2.5 · 官方直连",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "多模态参考",
+      "参考视频",
+      "参考音频",
+      "480p",
+      "720p",
+      "长视频30秒",
+      "原生音轨",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29",
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference",
+        "first-last",
+        "edit",
+        "extend"
+      ],
+      "resolution": [
+        "480p",
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "seedance-2-5-manju-special": {
+    "name": "Seedance 2.5 · 漫剧特价",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "参考生",
+      "720p",
+      "含音轨",
+      "漫剧",
+      "电商商品",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "30",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "4:3",
+        "3:4"
+      ],
+      "duration": [
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "seedance-2-5-promo": {
+    "name": "Seedance 2.5 · 特价按秒",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "多模态参考",
+      "参考音频",
+      "参考视频",
+      "480p",
+      "720p",
+      "1080p/2K/4K",
+      "原生音轨",
+      "按秒特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29",
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "480p",
+        "720p",
+        "1080p",
+        "2k",
+        "4k"
+      ]
+    }
+  },
+  "seedance-2-5-special": {
+    "name": "Seedance 2.5 · 特价按次",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "参考生",
+      "720p",
+      "1080p",
+      "长视频30秒",
+      "原生音轨",
+      "按次特价"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "30",
+      "mode": "first-frame",
+      "resolution": "1080p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1",
+        "4:3",
+        "3:4"
+      ],
+      "duration": [
+        "30",
+        "15"
+      ],
+      "mode": [
+        "reference",
+        "first-frame",
+        "text-to-video"
+      ],
+      "resolution": [
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "seedance-video-edit": {
+    "name": "自研·视频编辑",
+    "type": "video",
+    "provider": "video-edit",
+    "capabilities": [
+      "视频编辑",
+      "换人",
+      "按次"
+    ],
+    "defaults": {
+      "count": 1,
+      "mode": "edit"
+    },
+    "enums": {
+      "mode": [
+        "edit"
+      ]
+    }
+  },
+  "sora-2": {
+    "name": "SR-2",
+    "type": "video",
+    "provider": "sora",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "12",
+      "mode": "text-to-video"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "8",
+        "12",
+        "4"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame"
+      ]
+    }
+  },
+  "sr-2": {
+    "name": "SR-2",
+    "type": "video",
+    "provider": "sora",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "12",
+      "mode": "text-to-video"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "8",
+        "12",
+        "4"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame"
+      ]
+    }
+  },
+  "sora-2-official": {
+    "name": "SR-2 官方无水印",
+    "type": "video",
+    "provider": "openai",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "无水印",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "4",
+      "mode": "text-to-video"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "4",
+        "8",
+        "12"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame"
+      ]
+    }
+  },
+  "sr-2-official": {
+    "name": "SR-2 官方无水印",
+    "type": "video",
+    "provider": "openai",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "无水印",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "4",
+      "mode": "text-to-video"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "4",
+        "8",
+        "12"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame"
+      ]
+    }
+  },
+  "veo-3.1": {
+    "name": "VO-3.1",
+    "type": "video",
+    "provider": "gemini",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "首尾帧",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "8",
+      "mode": "first-frame",
+      "quality": "高质量",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9"
+      ],
+      "duration": [
+        "8"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "quality": [
+        "经济",
+        "快速",
+        "高质量"
+      ],
+      "resolution": [
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "vo-3.1": {
+    "name": "VO-3.1",
+    "type": "video",
+    "provider": "gemini",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "首尾帧",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "8",
+      "mode": "first-frame",
+      "quality": "高质量",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9"
+      ],
+      "duration": [
+        "8"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "quality": [
+        "经济",
+        "快速",
+        "高质量"
+      ],
+      "resolution": [
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "veo-4-omni": {
+    "name": "VO-4 Omni",
+    "type": "video",
+    "provider": "gemini",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "多图参考",
+      "同步音频"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "3",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "4",
+        "6",
+        "8",
+        "10",
+        "3",
+        "5",
+        "7",
+        "9"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p",
+        "1080p",
+        "4k"
+      ]
+    }
+  },
+  "vo-4-omni": {
+    "name": "VO-4 Omni",
+    "type": "video",
+    "provider": "gemini",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "多图参考",
+      "同步音频"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "3",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "4",
+        "6",
+        "8",
+        "10",
+        "3",
+        "5",
+        "7",
+        "9"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p",
+        "1080p",
+        "4k"
+      ]
+    }
+  },
+  "veo-4-omni-manju-special": {
+    "name": "VO-4 Omni · 漫剧特价",
+    "type": "video",
+    "provider": "google",
+    "capabilities": [
+      "漫剧",
+      "按次特价",
+      "10s"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "10",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "vo-4-omni-manju-special": {
+    "name": "VO-4 Omni · 漫剧特价",
+    "type": "video",
+    "provider": "google",
+    "capabilities": [
+      "漫剧",
+      "按次特价",
+      "10s"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "10",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "duration": [
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "veo-4-omni-v2v": {
+    "name": "Omni 视频转视频",
+    "type": "video",
+    "provider": "gemini",
+    "capabilities": [
+      "视频转视频",
+      "双视频融合",
+      "参考图混输",
+      "无水印"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "mode": "reference"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "mode": [
+        "reference"
+      ]
+    }
+  },
+  "vo-4-omni-v2v": {
+    "name": "Omni 视频转视频",
+    "type": "video",
+    "provider": "gemini",
+    "capabilities": [
+      "视频转视频",
+      "双视频融合",
+      "参考图混输",
+      "无水印"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "mode": "reference"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16"
+      ],
+      "mode": [
+        "reference"
+      ]
+    }
+  },
+  "viduq3": {
+    "name": "Vidu Q3",
+    "type": "video",
+    "provider": "vidu",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图",
+      "首尾帧",
+      "有声视频",
+      "1080p",
+      "高清"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "4",
+      "mode": "first-frame",
+      "model_variant": "turbo",
+      "off_peak": false,
+      "resolution": "540p",
+      "tier": "pro"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "1:1"
+      ],
+      "duration": [
+        "5",
+        "4",
+        "8",
+        "12",
+        "16"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "model_variant": [
+        "turbo",
+        "pro"
+      ],
+      "resolution": [
+        "540p",
+        "720p",
+        "1080p"
+      ],
+      "tier": [
+        "turbo",
+        "pro",
+        "mix"
+      ]
+    }
+  },
+  "wan-2-6": {
+    "name": "Wan 2.6",
+    "type": "video",
+    "provider": "alibaba",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "1080p",
+      "自带音轨"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "text-to-video",
+      "quality": "标准"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4"
+      ],
+      "duration": [
+        "5",
+        "10"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame"
+      ],
+      "quality": [
+        "标准",
+        "快速"
+      ]
+    }
+  },
+  "wan-3-0": {
+    "name": "Wan 3.0",
+    "type": "video",
+    "provider": "alibaba",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "参考生",
+      "视频参考",
+      "音频参考",
+      "480p/720p/1080p",
+      "最长30秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "text-to-video",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "3:4",
+        "4:3",
+        "1:1"
+      ],
+      "duration": [
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "20",
+        "25",
+        "30",
+        "4",
+        "16",
+        "17",
+        "18",
+        "19",
+        "21",
+        "22",
+        "23",
+        "24",
+        "26",
+        "27",
+        "28",
+        "29"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "reference"
+      ],
+      "resolution": [
+        "480p",
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "wan2.7-video": {
+    "name": "Wan 2.7 视频",
+    "type": "video",
+    "provider": "wan",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首帧参考图"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "2",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4"
+      ],
+      "duration": [
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "continuation"
+      ],
+      "resolution": [
+        "720p",
+        "1080p"
+      ]
+    }
+  },
+  "wanneng-video": {
+    "name": "自研·万能视频",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "图生视频",
+      "参考生",
+      "720p",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "5",
+      "mode": "reference",
+      "quality": "1.1",
+      "resolution": "720P"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "duration": [
+        "5",
+        "4",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "mode": [
+        "reference",
+        "text-to-video"
+      ],
+      "quality": [
+        "1.1",
+        "1.0"
+      ],
+      "resolution": [
+        "720P"
+      ]
+    }
+  },
+  "glm-5": {
+    "name": "GLM-5",
+    "type": "text",
+    "provider": "glm",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {},
+    "enums": {}
+  },
+  "glm-5.1": {
+    "name": "GLM-5.1",
+    "type": "text",
+    "provider": "glm",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {},
+    "enums": {}
+  },
+  "qwen3.6-plus": {
+    "name": "通义千问 3.6 Plus",
+    "type": "text",
+    "provider": "qwen",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false
+    },
+    "enums": {}
+  },
+  "qwen3.7-max": {
+    "name": "通义千问 3.7 Max",
+    "type": "text",
+    "provider": "qwen",
+    "capabilities": [
+      "text"
+    ],
+    "defaults": {
+      "enable_thinking": false
+    },
+    "enums": {}
+  },
+  "qwen3.8-flash": {
+    "name": "通义千问 3.8 Flash",
+    "type": "text",
+    "provider": "qwen",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "enable_thinking": false
+    },
+    "enums": {}
+  },
+  "seedance-2.0-480p-discount": {
+    "name": "seedance2.0 · 480p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "参考生",
+      "参考视频",
+      "参考音频",
+      "按次"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "480p"
+      ]
+    }
+  },
+  "seedance-2.0-720p-discount": {
+    "name": "seedance2.0 · 720p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "参考生",
+      "参考视频",
+      "参考音频",
+      "按次"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "duration": [
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "seedance-2.0-hs-720p": {
+    "name": "seedance2.0 · hs-720p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "参考生",
+      "参考视频",
+      "参考音频",
+      "按次"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "seedance-2.5-hs-720p": {
+    "name": "seedance2.5 · hs-720p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "多模态参考",
+      "参考视频",
+      "参考音频",
+      "长视频30秒",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29",
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "seedance-2.0-480p-official": {
+    "name": "seedance2.0 · 480p-100%",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "参考生",
+      "参考视频",
+      "参考音频",
+      "官方直连",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9",
+        "adaptive"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "480p"
+      ]
+    }
+  },
+  "seedance-2.0-720p-official": {
+    "name": "seedance2.0 · 720p-100%",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "参考生",
+      "参考视频",
+      "参考音频",
+      "官方直连",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9",
+        "adaptive"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "minimax-h3-768p": {
+    "name": "minimax-h3 · 768p-930-8-22",
+    "type": "video",
+    "provider": "minimax",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "多模态参考",
+      "参考音频",
+      "768p",
+      "原生音轨",
+      "按次"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "768p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "4:3",
+        "1:1",
+        "3:4"
+      ],
+      "duration": [
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "768p"
+      ]
+    }
+  },
+  "seedance-2.0-hs-1080p": {
+    "name": "seedance2.0 · hs-1080p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "参考生",
+      "参考视频",
+      "参考音频",
+      "按次",
+      "1080P"
+    ],
+    "defaults": {
+      "aspect_ratio": "9:16",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "1080p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "9:16",
+        "16:9",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "12",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "1080p"
+      ]
+    }
+  },
+  "seedance-2.5-hs-1080p": {
+    "name": "seedance2.5 · hs-1080p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "多模态参考",
+      "参考视频",
+      "参考音频",
+      "长视频30秒",
+      "按秒",
+      "1080P"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "1080p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29",
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "1080p"
+      ]
+    }
+  },
+  "seedance-2.0-1080p-official": {
+    "name": "seedance2.0 · 1080p-100%",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "参考生",
+      "参考视频",
+      "参考音频",
+      "官方直连",
+      "按秒",
+      "1080P"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "1080p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9",
+        "adaptive"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "1080p"
+      ]
+    }
+  },
+  "seedance-2.5-lec-480p": {
+    "name": "seedance2.5 · lec-480p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "多模态参考",
+      "参考视频",
+      "参考音频",
+      "长视频30秒",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29",
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "480p"
+      ]
+    }
+  },
+  "seedance-2.5-lec-720p": {
+    "name": "seedance2.5 · lec-720p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "多模态参考",
+      "参考视频",
+      "参考音频",
+      "长视频30秒",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29",
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "seedance-2.5-480p-ac": {
+    "name": "seedance2.5 · 480p-ac",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "图生视频",
+      "首尾帧",
+      "多模态参考",
+      "参考音频",
+      "按次"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "reference",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29"
+      ],
+      "mode": [
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "480p"
+      ]
+    }
+  },
+  "seedance-2.5-480p": {
+    "name": "seedance2.5 · 480p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "多模态参考",
+      "参考视频",
+      "参考音频",
+      "长视频30秒",
+      "不卡真人",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "480p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29",
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "480p"
+      ]
+    }
+  },
+  "seedance-2.5-720p": {
+    "name": "seedance2.5 · 720p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [
+      "文生视频",
+      "图生视频",
+      "首尾帧",
+      "多模态参考",
+      "参考视频",
+      "参考音频",
+      "长视频30秒",
+      "不卡真人",
+      "按秒"
+    ],
+    "defaults": {
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "duration": "5",
+      "mode": "first-frame",
+      "resolution": "720p"
+    },
+    "enums": {
+      "aspect_ratio": [
+        "16:9",
+        "9:16",
+        "21:9",
+        "3:4",
+        "1:1",
+        "4:3"
+      ],
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "8",
+        "10",
+        "12",
+        "15",
+        "20",
+        "25",
+        "29",
+        "30"
+      ],
+      "mode": [
+        "text-to-video",
+        "first-frame",
+        "first-last",
+        "reference"
+      ],
+      "resolution": [
+        "720p"
+      ]
+    }
+  },
+  "seedance-2.0-v3-720p": {
+    "name": "seedance2.0 · v3-720p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.5-v3-720p": {
+    "name": "seedance2.5 · v3-720p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.5-v3-720p-10": {
+    "name": "seedance2.5 · v3-720p-101010",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.5-10img": {
+    "name": "seedance2.5 · 10图",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.0-std": {
+    "name": "seedance2.0 · std",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "grok-imagine-video-1.5": {
+    "name": "grok-imagine · video-1.5-preview",
+    "type": "video",
+    "provider": "grok",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.0-fast-2": {
+    "name": "seedance2.0 · fast-2",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.0-900-3": {
+    "name": "seedance2.0 · 900-3",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.5-900": {
+    "name": "seedance2.5 · 900",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.5-9img": {
+    "name": "seedance2.5 · 9图",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.5-vid": {
+    "name": "seedance2.5 · vid",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.5-doubao": {
+    "name": "seedance2.5 · doubao",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.5-kl": {
+    "name": "seedance2.5 · kl",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "sora-2.0-480p-guan": {
+    "name": "sora · 480p-guanzhuan",
+    "type": "video",
+    "provider": "openai",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "sora-2.0-720p-guan": {
+    "name": "sora · 720p-guanzhuan",
+    "type": "video",
+    "provider": "openai",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "sora-v3-933-pro": {
+    "name": "sora · v3-933-pro",
+    "type": "video",
+    "provider": "openai",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.0-me": {
+    "name": "seedance2.0 · me",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "seedance-2.0-svip-900-720p": {
+    "name": "seedance2.0 · svip-900-720p",
+    "type": "video",
+    "provider": "doubao",
+    "capabilities": [],
+    "defaults": {},
+    "enums": {}
+  },
+  "gpt-5.6": {
+    "name": "GT-5.6",
+    "type": "text",
+    "provider": "openai",
+    "capabilities": [
+      "text",
+      "vision"
+    ],
+    "defaults": {
+      "reasoning_effort": "medium",
+      "web_search": false
+    },
+    "enums": {
+      "reasoning_effort": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    }
+  },
+  "seedance2.0-line1-xoi": {
+    "name": "即梦 2.0 · XOi 专线",
+    "type": "video",
+    "enums": {
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "resolution": [
+        "480p",
+        "720p"
+      ],
+      "aspect_ratio": [
+        "1:1",
+        "3:4",
+        "4:3",
+        "9:16",
+        "16:9",
+        "21:9"
+      ]
+    },
+    "defaults": {
+      "duration": "15",
+      "resolution": "480p",
+      "aspect_ratio": "16:9"
+    },
+    "provider": "BYT",
+    "available": true,
+    "description": "长期稳定渠道，推荐使用！2.0模型 支持 480p 720p 9图3视频3音频（XOi 专用线路）",
+    "paramSchema": {
+      "audios": {
+        "type": "upload",
+        "label": {
+          "zh": "参考音频"
+        },
+        "max_items": 3,
+        "authoritative": true
+      },
+      "images": {
+        "type": "upload",
+        "label": {
+          "zh": "参考图片"
+        },
+        "max_items": 9,
+        "authoritative": true
+      },
+      "videos": {
+        "type": "upload",
+        "label": {
+          "zh": "参考视频"
+        },
+        "max_items": 3,
+        "authoritative": true
+      },
+      "duration": {
+        "enum": [
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "时长"
+        },
+        "default": "15"
+      },
+      "resolution": {
+        "enum": [
+          "480p",
+          "720p"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "清晰度"
+        },
+        "default": "480p"
+      },
+      "aspect_ratio": {
+        "enum": [
+          "1:1",
+          "3:4",
+          "4:3",
+          "9:16",
+          "16:9",
+          "21:9"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "视频比例"
+        },
+        "default": "16:9"
+      }
+    },
+    "capabilities": [
+      "参考图",
+      "参考视频",
+      "参考音频"
+    ],
+    "referenceLimits": {
+      "audios": 3,
+      "images": 9,
+      "videos": 3
+    }
+  },
+  "seedance2.0-line1-fast-xoi": {
+    "name": "即梦 Fast · XOi 专线",
+    "type": "video",
+    "enums": {
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "resolution": [
+        "480p",
+        "720p"
+      ],
+      "aspect_ratio": [
+        "1:1",
+        "3:4",
+        "4:3",
+        "9:16",
+        "16:9",
+        "21:9"
+      ]
+    },
+    "defaults": {
+      "duration": "15",
+      "resolution": "480p",
+      "aspect_ratio": "16:9"
+    },
+    "provider": "BYT",
+    "available": true,
+    "description": "长期稳定渠道，推荐使用！fast模型 支持 480p 720p 9图3视频3音频（XOi 专用线路）",
+    "paramSchema": {
+      "audios": {
+        "type": "upload",
+        "label": {
+          "zh": "参考音频"
+        },
+        "max_items": 3,
+        "authoritative": true
+      },
+      "images": {
+        "type": "upload",
+        "label": {
+          "zh": "参考图片"
+        },
+        "max_items": 9,
+        "authoritative": true
+      },
+      "videos": {
+        "type": "upload",
+        "label": {
+          "zh": "参考视频"
+        },
+        "max_items": 3,
+        "authoritative": true
+      },
+      "duration": {
+        "enum": [
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "时长"
+        },
+        "default": "15"
+      },
+      "resolution": {
+        "enum": [
+          "480p",
+          "720p"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "清晰度"
+        },
+        "default": "480p"
+      },
+      "aspect_ratio": {
+        "enum": [
+          "1:1",
+          "3:4",
+          "4:3",
+          "9:16",
+          "16:9",
+          "21:9"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "视频比例"
+        },
+        "default": "16:9"
+      }
+    },
+    "capabilities": [
+      "参考图",
+      "参考视频",
+      "参考音频"
+    ],
+    "referenceLimits": {
+      "audios": 3,
+      "images": 9,
+      "videos": 3
+    }
+  },
+  "seedance2.5-line1-xoi": {
+    "name": "即梦 2.5 · XOi 专线",
+    "type": "video",
+    "enums": {
+      "duration": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30"
+      ],
+      "resolution": [
+        "480p",
+        "720p"
+      ],
+      "aspect_ratio": [
+        "1:1",
+        "3:4",
+        "4:3",
+        "9:16",
+        "16:9",
+        "21:9"
+      ]
+    },
+    "defaults": {
+      "duration": "15",
+      "resolution": "480p",
+      "aspect_ratio": "16:9"
+    },
+    "provider": "BYT",
+    "available": true,
+    "description": "长期稳定渠道，推荐使用！2.5模型 支持 480p 720p 30图10视频10音频（XOi 专用线路）",
+    "paramSchema": {
+      "audios": {
+        "type": "upload",
+        "label": {
+          "zh": "参考音频"
+        },
+        "max_items": 10,
+        "authoritative": true
+      },
+      "images": {
+        "type": "upload",
+        "label": {
+          "zh": "参考图片"
+        },
+        "max_items": 30,
+        "authoritative": true
+      },
+      "videos": {
+        "type": "upload",
+        "label": {
+          "zh": "参考视频"
+        },
+        "max_items": 10,
+        "authoritative": true
+      },
+      "duration": {
+        "enum": [
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "时长"
+        },
+        "default": "15"
+      },
+      "resolution": {
+        "enum": [
+          "480p",
+          "720p"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "清晰度"
+        },
+        "default": "480p"
+      },
+      "aspect_ratio": {
+        "enum": [
+          "1:1",
+          "3:4",
+          "4:3",
+          "9:16",
+          "16:9",
+          "21:9"
+        ],
+        "type": "enum",
+        "label": {
+          "zh": "视频比例"
+        },
+        "default": "16:9"
+      }
+    },
+    "capabilities": [
+      "参考图",
+      "参考视频",
+      "参考音频"
+    ],
+    "referenceLimits": {
+      "audios": 10,
+      "images": 30,
+      "videos": 10
+    }
+  }
+}

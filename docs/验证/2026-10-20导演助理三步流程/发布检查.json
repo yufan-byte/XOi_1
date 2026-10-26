@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-20",
+  "port": 12121,
+  "checks": [
+    {
+      "url": "/",
+      "status": 200,
+      "sha256": "6c9620e7af89c677828b3d800cf33a2cfe3f33b63123eebc519609eb8d6738bd"
+    },
+    {
+      "url": "/assets/index-CLsyPGh6.js",
+      "status": 200
+    },
+    {
+      "url": "/assets/index-A9m-sWRJ.css",
+      "status": 200
+    },
+    {
+      "url": "/monoform/index.html",
+      "status": 200,
+      "sha256": "250f4abe533c218d9accfde30b3eae77812164fa94434e29463bdd49d9e9c1a0"
+    },
+    {
+      "url": "/monoform/xoi-host.css",
+      "status": 200,
+      "sha256": "f167fdd26f999f868e8a135355fc4d1cb100d1ade2181c038802d9ff9d2dbd57"
+    },
+    {
+      "url": "/monoform/xoi-workspace.js",
+      "status": 200,
+      "sha256": "d606c3c10b238c44845aacdd50e321e6f8a8dd8c5c8c397fb1dc0e089e4ce83c"
+    },
+    {
+      "url": "/monoform/xoi-motion-library.js",
+      "status": 200,
+      "sha256": "9759cb20311525b9f0804f5b0b6f1a96b976f0e6697ef43d9e3135958ee56867"
+    },
+    {
+      "url": "/monoform/xoi-identity-bootstrap.js",
+      "status": 200,
+      "sha256": "b83d64fed43c81a9c93dba044253074ed2d0b7e7c97e4b1ba55cb879c3616430"
+    },
+    {
+      "url": "/api/readyz",
+      "status": 200
+    },
+    {
+      "url": "/api/director-scenes",
+      "status": 401
+    }
+  ]
+}

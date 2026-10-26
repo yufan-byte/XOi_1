@@ -25,6 +25,8 @@ add("script", "ids", "script/delScript", "script/pollScriptAssets");
 add("script", "data.script.*.id", "scriptAgent/updateData");
 add("agentData", "id", "scriptAgent/updateData");
 add("storyboard", "id", "production/storyboard/editStoryboardInfo", "production/storyboard/removeFrame", "production/storyboard/updateStoryboardUrl");
+add("storyboard", "id", "production/storyboard/saveContinuity");
+add("storyboard", "id", "production/storyboard/restoreContinuityImage");
 add("storyboard", "ids", "production/storyboard/batchDelete", "production/storyboard/pollingImage");
 add("storyboard", "data.storyboard.*.id", "production/saveFlowData");
 add("track", "id", "production/workbench/deleteTrack", "production/workbench/updateVideoDuration", "production/workbench/updateVideoPrompt");
@@ -74,6 +76,9 @@ export function resourceScope(load: ResourceLoader): RequestHandler {
     const user = (req as any).user;
     if (!user) return next();
     const route = req.path.replace(/^\/+|\/+$/g, "").toLowerCase();
+    // One-stop uses its own owner-scoped UUID document store, not o_project's numeric IDs.
+    // Exact router endpoints only: their strict schemas and authenticated document queries own this scope.
+    if (/^one-stop\/generation\/(quote|jobs)$/.test(route)) return next();
     const creative = /^(project|general|novel|script|scriptagent|assets|assetsgenerate|production|cornerscape|task|agents)(\/|$)/.test(route);
     try {
       const sources = [req.body, req.query].filter((value) => value && !Buffer.isBuffer(value));

@@ -1,0 +1,107 @@
+/* 外层项目栏、技能栏与 3D 编辑器使用同一套工作区材质。 */
+.main .view .director3d-container { background:#242220; }
+.main .view .director3d-container .project-bar { background:#292522 !important; border-color:#403933; border-radius:0; box-shadow:none; }
+.main .view .director3d-container .project-eyebrow { background:transparent; border:0; padding:0; color:#ed955f; }
+.main .view .director3d-container .project-trigger strong { font-size:13px; }
+.main .view .director3d-container .project-create { width:28px; height:28px; background:#ed955f; color:#2b2018; border-radius:4px; box-shadow:none; }
+.main .view .director3d-container .project-dialog { background:#2c2927; border-color:#51463e; border-radius:8px; box-shadow:0 8px 28px #0005; }
+.main .view .director3d-container .project-card { background:#332c26; border-color:#51463e; border-radius:5px; box-shadow:none; }
+.main .view .director3d-container .director-skills-entry { left:auto; top:7px; right:12px; font-family:Inter,-apple-system,"PingFang SC",sans-serif; color:#eee9e4; }
+.main .view .director3d-container .skills-trigger { height:34px; padding:0 10px; border-color:#51463e; background:#332c26; color:#edb48a; border-radius:4px; box-shadow:none; }
+.main .view .director3d-container .skills-trigger span { color:#a48e7d; }
+.main .view .director3d-container:has(.skills-panel) .director3d-iframe { width:calc(100% - 340px); }
+.main .view .director3d-container .director-skills-entry:has(.skills-panel) { left:auto; right:0; top:0; bottom:0; width:340px; pointer-events:none; }
+.main .view .director3d-container .director-skills-entry:has(.skills-panel)::before { content:""; position:absolute; top:0; left:0; right:0; height:var(--xoi-director-header,49px); background:#292522; border-bottom:1px solid #403933; }
+.main .view .director3d-container .director-skills-entry:has(.skills-panel) .skills-trigger { position:absolute; top:7px; right:12px; pointer-events:auto; }
+.main .view .director3d-container .skills-panel { position:absolute; top:var(--xoi-director-header,49px); bottom:0; right:0; width:340px; margin:0; max-height:none; padding:16px; border:0; border-left:1px solid #51463e; border-radius:0; background:#2c2927; box-shadow:none; color:#eee9e4; pointer-events:auto; }
+.main .view .director3d-container .skills-panel header h2 { font-size:17px; line-height:1.5; }
+.main .view .director3d-container .skills-panel header button { color:#baa89b; }
+.main .view .director3d-container .skills-panel header small,
+.main .view .director3d-container .skills-intro,
+.main .view .director3d-container .skill-description,
+.main .view .director3d-container .billing-note,
+.main .view .director3d-container .scene-meta { color:#b8a595; }
+.main .view .director3d-container .skills-list button { background:transparent; color:#c4b3a6; border-color:#51463e; border-radius:4px; }
+.main .view .director3d-container .skills-list button.selected { background:#ed955f20; border-color:#bd784e; color:#f5c4a1; }
+.main .view .director3d-container .skills-panel textarea,
+.main .view .director3d-container .skill-controls select { background:#242220; color:#eee9e4; border-color:#51463e; border-radius:4px; }
+.main .view .director3d-container .skills-panel textarea::placeholder { color:#a28c7b; opacity:1; }
+.main .view .director3d-container .skills-panel .modelSelectControl { background:#242220; color:#eee9e4; border-color:#51463e; border-radius:4px; }
+.main .view .director3d-container .skills-panel .modelSelectControl .placeholder { color:#a28c7b; }
+.main .view .director3d-container .skills-panel .t-input { background:#242220; color:#eee9e4; border-color:#51463e; }
+.main .view .director3d-container .skills-panel .t-input input { color:#eee9e4; }
+.main .view .director3d-container .skills-panel .primary-actions button,
+.main .view .director3d-container .skills-panel .result-actions button,
+.main .view .director3d-container .shot-proposal>button { background:transparent; color:#d7af91; border-color:#69503f; border-radius:4px; }
+.main .view .director3d-container .skills-panel .primary-actions button:first-child { background:#ed955f; color:#2b2018; border-color:#ed955f; }
+.main .view .director3d-container .shot-proposal { border:0; border-top:1px solid #51463e; border-radius:0; background:transparent; padding:14px 0; }
+.main .view .director3d-container .plan-results { border-color:#51463e; }
+.main .view .director3d-container .plan-boundary { color:#c7ac96; background:#352d27; border-radius:4px; }
+.main .view .director3d-container .skill-notice { color:#edb48a; }
+@media(max-width:1100px) {
+  .main .view .director3d-container:has(.skills-panel) .director3d-iframe { width:100%; }
+  .main .view .director3d-container .director-skills-entry:has(.skills-panel) { width:min(340px,calc(100% - 16px)); }
+  .main .view .director3d-container .skills-panel { width:100%; box-shadow:-8px 0 20px #0003; }
+}
+@media(prefers-reduced-motion:no-preference) {
+  .main .view .director3d-container .skills-panel { animation:xoi-director-panel .14s ease-out; }
+  @keyframes xoi-director-panel { from { opacity:.6; transform:translateX(8px); } to { opacity:1; transform:none; } }
+}
+.main .view .director3d-container .director-mode-tabs { display:grid; grid-template-columns:repeat(4,1fr); gap:3px; border-bottom:1px solid #51463e; margin:12px 0; padding-bottom:9px; }
+.main .view .director3d-container .director-mode-tabs button { background:transparent; border:0; border-radius:4px; color:#bcaea2; font-size:12px; padding:7px 1px; cursor:pointer; }
+.main .view .director3d-container .director-mode-tabs button[aria-pressed=true] { background:#ed955f20; color:#f5c4a1; }
+.main .view .director3d-container .motion-preset-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.main .view .director3d-container .motion-preset-grid button { background:transparent; border:1px solid #51463e; border-radius:4px; padding:8px; color:#eee9e4; text-align:left; cursor:pointer; }
+.main .view .director3d-container .motion-preset-grid button[aria-pressed=true] { border-color:#ed955f; background:#ed955f12; }
+.main .view .director3d-container .motion-preset-grid svg { display:block; width:100%; height:62px; background:#242220; }
+.main .view .director3d-container .motion-preset-grid path { fill:none; stroke:#ed955f; stroke-width:2; }
+.main .view .director3d-container .motion-subject { fill:#bcaea2; }
+.main .view .director3d-container .motion-camera { fill:#ed955f; }
+.main .view .director3d-container .motion-preset-grid strong { display:block; font-size:12px; margin:8px 0 4px; }
+.main .view .director3d-container .motion-preset-grid small { color:#bcaea2; font-size:10px; }
+.main .view .director3d-container .motion-field { display:flex; flex-direction:column; gap:7px; font-size:12px; color:#bcaea2; margin:14px 0; }
+.main .view .director3d-container .motion-field select,.main .view .director3d-container .motion-field input[type=number] { width:100%; background:#242220; color:#eee9e4; border:1px solid #51463e; padding:8px; border-radius:4px; box-sizing:border-box; }
+.main .view .director3d-container .motion-field input[type=range] { accent-color:#ed955f; width:100%; }
+.main .view .director3d-container .motion-setting-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.main .view .director3d-container .motion-check { display:flex; gap:8px; color:#bcaea2; font-size:12px; line-height:1.6; }
+.main .view .director3d-container .motion-check input { accent-color:#ed955f; }
+.main .view .director3d-container .scene-action-list { padding-left:18px; font-size:12px; color:#d8c7b8; line-height:1.8; }
+.main .view .director3d-container .director-conversation { border-top:1px solid #51463e; padding-top:10px; margin-top:10px; font-size:12px; line-height:1.7; color:#bcaea2; }
+.main .view .director3d-container .director-conversation strong { color:#eee9e4; }
+@media(prefers-reduced-motion:reduce) { .main .view .director3d-container .motion-camera { display:none; } }
+.main .view .director3d-container .skills-trigger { white-space:nowrap; }
+.main .view .director3d-container .motion-quick-actions { position:sticky; top:-16px; z-index:3; background:#2c2927; padding:2px 0 8px; border-bottom:1px solid #51463e; margin-bottom:12px; }
+.main .view .director3d-container .motion-quick-actions .motion-field { margin:8px 0; }
+@media(max-width:1100px) { .main .view .director3d-container .director-skills-entry:has(.skills-panel)::before { display:none; } }
+
+/* 助理使用稳定的任务顺序：选任务、检查草稿、应用结果。 */
+.main .view .director3d-container .director-applied-state { border:1px solid #69503f; border-left:3px solid #ed955f; background:#332c26; padding:10px; margin:12px 0; font-size:12px; }
+.main .view .director3d-container .director-applied-state strong { display:block; color:#f0c5a4; overflow-wrap:anywhere; }
+.main .view .director3d-container .director-applied-state p { color:#bcaea2; line-height:1.6; margin:7px 0; }
+.main .view .director3d-container .director-applied-state .result-actions { margin:8px 0 0; gap:5px; }
+.main .view .director3d-container .director-applied-state .result-actions button { font-size:11px; padding:6px 7px; }
+.main .view .director3d-container .director-task-state { padding:9px 0; color:#edb48a; font-size:12px; line-height:1.6; }
+.main .view .director3d-container .motion-advanced,.main .view .director3d-container .director-skill-options { border-block:1px solid #403933; padding:10px 0; margin:12px 0; }
+.main .view .director3d-container .motion-advanced summary,.main .view .director3d-container .director-skill-options summary { cursor:pointer; font-size:12px; color:#d7af91; }
+.main .view .director3d-container .skills-panel { overscroll-behavior:contain; scrollbar-color:#675446 transparent; }
+.main .view .director3d-container .motion-library .primary-actions { display:flex; flex-wrap:wrap; gap:7px; margin:10px 0 2px; }
+.main .view .director3d-container .motion-library .primary-actions button { padding:8px 10px; font-family:inherit; font-size:12px; line-height:1.5; cursor:pointer; border:1px solid #69503f; }
+.main .view .director3d-container .motion-library button:disabled { opacity:.5; cursor:not-allowed; }
+.main .view .director3d-container .motion-library .skills-intro,.main .view .director3d-container .motion-library .skill-description { font-size:12px; line-height:1.7; margin:10px 0; }
+.main .view .director3d-container .motion-library .billing-note,.main .view .director3d-container .motion-library .scene-meta { font-size:11px; line-height:1.7; margin:10px 0; }
+.main .view .director3d-container .motion-library .skill-notice { font-size:12px; line-height:1.6; }
+.main .view .director3d-container .motion-library .skill-error { color:#f1a18c; font-size:12px; line-height:1.6; }
+
+.main .view .director3d-container .director-cost-hint { margin:8px 0; color:#bcaea2; font-size:11px; line-height:1.6; }
+/* Sequential director workflow; AI is an optional method within each step. */
+.main .view .director3d-container .director-mode-tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.main .view .director3d-container .director-camera-method {display:flex;gap:12px;margin:12px 0;border-bottom:1px solid #403933;padding-bottom:10px}
+.main .view .director3d-container .director-camera-method button {border:0;background:transparent;color:#bcaea2;padding:4px 0;font-size:12px;cursor:pointer}
+.main .view .director3d-container .director-camera-method button[aria-pressed=true]{color:#edb48a;box-shadow:0 2px #ed955f}
+.main .view .director3d-container .director-stage-next{display:grid;gap:8px;margin:16px 0}
+.main .view .director3d-container .director-stage-next button,.main .view .director3d-container .director-back-build{border:0;background:transparent;color:#edb48c;text-align:left;padding:5px 0;font-size:12px;cursor:pointer}
+.main .view .director3d-container .motion-preset-grid svg{height:44px}
+.main .view .director3d-container .motion-preset-grid small{font-size:10px}
+.main .view .director3d-container .director-build-task{display:flex;gap:12px;margin:12px 0}
+.main .view .director3d-container .director-build-task button{border:0;background:transparent;color:#bcaea2;font-size:12px;padding:4px 0;cursor:pointer}
+.main .view .director3d-container .director-build-task button[aria-pressed=true]{color:#edb48a;border-bottom:1px solid #ed955f}

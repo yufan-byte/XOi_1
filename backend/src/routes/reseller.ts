@@ -21,6 +21,13 @@ import {
   AgentError, agentFail, balanceOf, codesOf, createCodes, customerOwners, listAgents,
   pendingWithdrawals, processWithdrawal, requestWithdrawal, reviewAgent, setAgentDomain, setMarkup, syncAgentRatios, withdrawalsOf,
 } from "@/lib/agent/store";
+import { syncUpstreamPricing } from "@/lib/model-catalog/sync";
+import { clearModelCatalogCache } from "@/lib/model-catalog";
+import { requireDb } from "@/lib/agent/db";
+import {siteSchema,skinSchema} from "@/lib/reseller/site-settings";
+import {publicSiteBrand} from "../../../shared/siteBrand";
+import {ConfigConflict} from "@/lib/reseller/pg-store";
+import crypto from "node:crypto";
 
 const router = express.Router();
 
@@ -58,6 +65,7 @@ const AGENT_WRITABLE: readonly Section[] = ["customers", "finance"];
 const NOT_VIA_CONFIG: readonly Section[] = ["audit", "models"];
 
 router.get("/config", h(async (req, res) => {
+  res.set("Cache-Control","no-store");
   const sp = req.query as Record<string, string>;
   if (sp.all) {
     const scope = await resolveScope(req); if (!scope) return forbidden(res);
@@ -74,6 +82,7 @@ router.get("/config", h(async (req, res) => {
   }
   const d = await readData();
   let value: unknown = d[s];
+  if(s==="site")value=publicSiteBrand(d.site);
   if (s === "settings") { const st = d.settings; value = { minTopup: st.minTopup, allowCustomAmount: st.allowCustomAmount, topupTiers: st.topupTiers, userInvite: st.userInvite, inviteRate: st.inviteRate, inviteReward: st.inviteReward, showInviteCodeOnSignup: st.showInviteCodeOnSignup, topupGuide: !!st.topupGuide, topupGuideText: st.topupGuideText ?? "", topupGuideButton: st.topupGuideButton ?? "", topupGuideUrl: st.topupGuideUrl ?? "", showBecomeReseller: st.showBecomeReseller ?? true, becomeResellerPopup: !!st.becomeResellerPopup }; }
   if (s === "models") value = { disabled: d.models.disabled, markupPct: d.models.markupPct };
   ok(res, value);
@@ -81,19 +90,38 @@ router.get("/config", h(async (req, res) => {
 
 router.put("/config", h(async (req, res) => {
   const scope = await resolveScope(req); if (!scope) return forbidden(res);
-  const body = req.body as { section?: Section; value?: unknown; action?: string } | null;
+  const body = req.body as { section?: Section; value?: unknown; action?: string;expectedValue?:unknown } | null;
   const section = body?.section;
   if (!section || !(section in (await readData())) || NOT_VIA_CONFIG.includes(section)) return fail(res, "bad section");
   if (scope.kind === "agent" && !AGENT_WRITABLE.includes(section)) return forbidden(res);
   if (!body.value || typeof body.value !== "object" || Array.isArray(body.value)) return fail(res, "bad value");
+  if(section==="domain")return fail(res,"独立品牌分站暂未开放；域名接入请由部署管理员配置",409);
   const key = storeKeyOf(scope);
   let value = body.value as ResellerData[Section];
+  if(section==="site"){
+    const parsed=siteSchema.safeParse(body.value);
+    if(!parsed.success)return fail(res,parsed.error.issues[0]?.message||"站点设置无效");
+    value=parsed.data;
+  }
+  if(section==="theme"){
+    const skin=skinSchema.safeParse((body.value as {skin?:unknown}).skin);
+    if(!skin.success)return fail(res,"请选择有效的控制台配色");
+    const previous=(await readData(key)).theme;
+    value={...previous,skin:skin.data};
+  }
   if (section === "finance") {
     // 提现记录只能由服务端生成 / 审核（代理走 /api/reseller/finance POST），这里写入时保留服务器上的原值
     const cur = (await readData(key)).finance; const v = body.value as Partial<FinanceConfig>;
     value = { accounts: Array.isArray(v.accounts) ? v.accounts.slice(0, 20) : cur.accounts, profile: v.profile && typeof v.profile === "object" ? v.profile : cur.profile, invoices: Array.isArray(v.invoices) ? v.invoices.slice(0, 200) : cur.invoices, withdrawals: cur.withdrawals };
   }
   const action = typeof body.action === "string" ? body.action.slice(0, 64) : `reseller.${section}.update`;
+  if(section==="site"||section==="theme"){
+    if(!Object.hasOwn(body,"expectedValue"))return fail(res,"请刷新站点设置后重试，以避免覆盖其他管理员的更改",409);
+    try{
+      const next=await updateSection(section,value as never,key,{expectedValue:body.expectedValue,audit:{id:crypto.randomUUID(),at:Date.now(),actorRole:"reseller",actorEmail:scope.user.email||scope.user.username,action,targetType:"site-settings",targetId:section,ip:clientIp(req)}});
+      return ok(res,next[section]);
+    }catch(e){if(e instanceof ConfigConflict)return fail(res,e.message,409);throw e;}
+  }
   const next = await updateSection(section, value as never, key);
   await appendAudit({ actorRole: scope.kind === "agent" ? "agent" : "reseller", actorEmail: scope.user.email || scope.user.username, action, targetType: "reseller", targetId: String(scope.user.id), ip: clientIp(req) }, key);
   ok(res, next[section]);
@@ -131,6 +159,41 @@ type Opt = { key: string; value: string };
 const recentChanges = (m: Pick<ModelsConfig, "markupHistory">) => m.markupHistory.filter((x) => Date.now() - x.at < MARKUP_WINDOW_MS).length;
 const full = (m?: Partial<ModelsConfig>): ModelsConfig => ({ ...DEFAULT_DATA.models, ...(m ?? {}) });
 
+router.get("/models/upstream-status", h(async (req, res) => {
+  const scope = await resolveScope(req);
+  if (!scope || scope.kind !== "platform") return forbidden(res);
+  const exists = await requireDb().query("SELECT to_regclass('xoi_upstream_pricing_sync') AS name");
+  if (!exists.rows[0].name) return ok(res, { syncedAt: null, models: 0, status: "not_synced", canSync: (scope.user.role ?? 0) >= 100 });
+  const configured = Number(process.env.XOI_UPSTREAM_CHANNEL_ID || 0);
+  const result = configured
+    ? await requireDb().query(`SELECT c.id,c.name,c.tag,s.synced_at,s.snapshot FROM channels c LEFT JOIN xoi_upstream_pricing_sync s ON s.channel_id=c.id WHERE c.id=$1 AND c.status=1 ORDER BY c.id`, [configured])
+    : await requireDb().query(`SELECT c.id,c.name,c.tag,s.synced_at,s.snapshot FROM channels c LEFT JOIN xoi_upstream_pricing_sync s ON s.channel_id=c.id WHERE c.tag LIKE 'zaowu-%' AND c.status=1 ORDER BY c.id`);
+  const channels = result.rows.map(row => {
+    const snapshot = row.snapshot || {};
+    const rows = Array.isArray(snapshot.rows) ? snapshot.rows : [];
+    return { id: Number(row.id), name: String(row.name || row.tag || row.id), status: snapshot.lastAttemptStatus || snapshot.status || "not_synced",
+      models: rows.length, syncedAt: row.synced_at || null, lastAttemptAt: snapshot.lastAttemptAt || null, lastError: snapshot.lastError || null,
+      unsupportedModels: Array.isArray(snapshot.unsupportedModels) ? snapshot.unsupportedModels : [] };
+  });
+  const modelNames = new Set<string>();
+  for (const row of result.rows) for (const model of Array.isArray(row.snapshot?.rows) ? row.snapshot.rows : []) if (model?.model_name) modelNames.add(String(model.model_name));
+  const synced = channels.filter(channel => channel.status === "synced");
+  const latest = synced.map(channel => new Date(channel.syncedAt || 0).getTime()).filter(Number.isFinite).sort((a, b) => b - a)[0];
+  const lastAttempt = channels.map(channel => new Date(channel.lastAttemptAt || 0).getTime()).filter(Number.isFinite).sort((a, b) => b - a)[0];
+  const status = channels.length && synced.length === channels.length ? "synced" : synced.length ? "partial" : channels.length ? "failed" : "not_synced";
+  const admin = (scope.user.role ?? 0) >= 100;
+  return ok(res, { syncedAt: latest ? new Date(latest) : null, lastAttemptAt: lastAttempt ? new Date(lastAttempt) : null,
+    lastError: admin ? channels.filter(channel => channel.status !== "synced").map(channel => `${channel.name}：${channel.lastError || "尚未同步"}`).join("；") || null : undefined,
+    models: modelNames.size, status, syncedChannels: synced.length, totalChannels: channels.length,
+    unsupportedModels: admin ? [...new Set(channels.flatMap(channel => channel.unsupportedModels))] : undefined,
+    channels: admin ? channels : undefined, intervalMinutes: 15, canSync: admin });
+}));
+router.post("/models/sync-upstream", h(async (req, res) => {
+  const scope = await resolveScope(req);
+  if (!scope || scope.kind !== "platform" || (scope.user.role ?? 0) < 100) return forbidden(res);
+  return ok(res, await syncUpstreamPricing());
+}));
+
 async function readGroupRatio(req: Request): Promise<Record<string, number>> {
   const opts = await backend<Opt[]>(req, "/api/option/");
   const raw = opts.find((o) => o.key === "GroupRatio")?.value || "{}";
@@ -146,7 +209,10 @@ router.get("/models", h(async (req, res) => {
   }
   const models = full((await readData()).models);
   let defaultGroupRatio: number | null = null; let optionError = "";
-  try { defaultGroupRatio = (await readGroupRatio(req)).default ?? null; } catch (e) { optionError = (e as Error).message; }
+  try {
+    defaultGroupRatio = (await readGroupRatio(req)).default ?? 1;
+    models.markupPct = Math.round((defaultGroupRatio - 1) * 10_000) / 100;
+  } catch (e) { optionError = (e as Error).message; }
   ok(res, { models, remaining: Math.max(0, MAX_CHANGES - recentChanges(models)), defaultGroupRatio, optionError, scope: "platform" });
 }));
 
@@ -199,17 +265,18 @@ router.put("/models", h(async (req, res) => {
     if (rounded !== cur.markupPct) {
       if (recentChanges(cur) >= MAX_CHANGES) return fail(res, `30 天内最多调整 ${MAX_CHANGES} 次，本月次数已用完`, 429);
       next = { ...cur, markupPct: rounded, markupHistory: [{ pct: rounded, at: Date.now() }, ...cur.markupHistory].slice(0, 50) };
-      await updateSection("models", next); await audit("reseller.models.markup");
     }
     let applied = false; let optionError = ""; let defaultGroupRatio: number | null = null;
     try {
       const gr = await readGroupRatio(req);
       gr.default = Math.round((1 + rounded / 100) * 10_000) / 10_000;
       await backend(req, "/api/option/", { method: "PUT", body: JSON.stringify({ key: "GroupRatio", value: JSON.stringify(gr) }) });
+      await updateSection("models", next); await audit("reseller.models.markup");
+      clearModelCatalogCache();
       applied = true; defaultGroupRatio = gr.default;
       // 代理倍率以平台倍率为底（base[g] × (1+加价%)），平台一改就得跟着重算
       try { await syncAgentRatios(); } catch (e) { console.error("[models] agent ratio sync:", (e as Error).message); }
-    } catch (e) { optionError = (e as Error).message; }
+    } catch (e) { return fail(res, `加价尚未成功生效：${(e as Error).message}`, 502); }
     return ok(res, { models: next, remaining: Math.max(0, MAX_CHANGES - recentChanges(next)), applied, optionError, defaultGroupRatio });
   }
 
@@ -431,17 +498,48 @@ router.post("/recruit", h(async (req, res) => {
 
 interface NRedemption { id: number; user_id: number; key: string; status: number; name: string; quota: number; created_time: number; redeemed_time: number; expired_time?: number; used_user_id: number; count?: number }
 
+/** 卡密列表行的前端形状（CardKey） */
+function redemptionRow(r: { id: number; key: string; name: string; quota: number; status: number; created: number; redeemed: number; usedUserId: number; expiredAt: number }) {
+  const now = Date.now();
+  return { id: r.id, key: r.key, name: r.name, amount: toCny(r.quota), status: r.status, createdAt: r.created, redeemedAt: r.redeemed, expiredAt: r.expiredAt, usedUserId: r.usedUserId, expired: r.status === 1 && r.expiredAt > 0 && r.expiredAt < now };
+}
+
+/**
+ * GET /redemption → 卡密列表。
+ *   ?page=&page_size=  → 服务端真分页（卡密多了列表不卡），返回 {items,total,page,page_size}
+ *   不带分页参数        → 兼容旧行为，返回全量数组（agent 卡密页旧调用仍可用）
+ * 代理只看自己生成的卡密（mc_agent_codes 关联），站长看全站（网关 redemption 表）。
+ */
 router.get("/redemption", h(async (req, res) => {
   const scope = await resolveScope(req); if (!scope) return forbidden(res);
   try {
-    // 代理只看自己生成的卡密（mc_agent_codes 关联），站长看全站
+    const pageQ = Number(req.query.page);
+    const paged = Number.isInteger(pageQ) && pageQ >= 1;
+    const page = paged ? Math.min(pageQ, 100000) : 1;
+    const pageSize = paged ? Math.min(Math.max(Number(req.query.page_size) || 20, 1), 100) : 0;
+
     if (scope.kind === "agent") {
-      const now = Date.now();
-      return ok(res, (await codesOf(scope.agent.userId)).map((r) => ({ id: r.id, key: r.key, name: r.name, amount: toCny(r.quota), status: r.status, createdAt: r.createdAt, redeemedAt: r.redeemedAt, expiredAt: r.expiredAt, usedUserId: r.usedUserId, expired: r.status === 1 && r.expiredAt > 0 && r.expiredAt < now })));
+      if (!paged) {
+        const now = Date.now();
+        return ok(res, (await codesOf(scope.agent.userId)).map((r) => redemptionRow({ id: r.id, key: r.key, name: r.name, quota: r.quota, status: r.status, created: r.createdAt, redeemed: r.redeemedAt, usedUserId: r.usedUserId, expiredAt: r.expiredAt })));
+      }
+      const pool = requireDb();
+      const total = Number((await pool.query("SELECT COUNT(*)::int AS n FROM mc_agent_codes c JOIN redemptions r ON r.id = c.redemption_id WHERE c.agent_id = $1 AND r.deleted_at IS NULL", [scope.agent.userId])).rows[0]?.n ?? 0);
+      const r = await pool.query(`SELECT r.id, r.key, r.name, r.quota, r.status, r.created_time, r.redeemed_time, r.used_user_id, r.expired_time
+        FROM mc_agent_codes c JOIN redemptions r ON r.id = c.redemption_id WHERE c.agent_id = $1 AND r.deleted_at IS NULL ORDER BY r.id DESC LIMIT $2 OFFSET $3`, [scope.agent.userId, pageSize, (page - 1) * pageSize]);
+      const items = r.rows.map((x) => redemptionRow({ id: Number(x.id), key: String(x.key), name: String(x.name ?? ""), quota: Number(x.quota), status: Number(x.status), created: Number(x.created_time) * 1000, redeemed: Number(x.redeemed_time) * 1000, usedUserId: Number(x.used_user_id), expiredAt: Number(x.expired_time) > 0 ? Number(x.expired_time) * 1000 : 0 }));
+      return ok(res, { items, total, page, page_size: pageSize });
     }
-    const items: NRedemption[] = [];
-    for (let p = 1; p <= 10; p++) { const d = await backend<{ items: NRedemption[] }>(req, `/api/redemption/?p=${p}&page_size=100`); items.push(...(d?.items ?? [])); if ((d?.items ?? []).length < 100) break; }
-    ok(res, items.map((r) => ({ id: r.id, key: r.key, name: r.name, amount: toCny(r.quota), status: r.status, createdAt: r.created_time * 1000, redeemedAt: r.redeemed_time ? r.redeemed_time * 1000 : 0, expiredAt: r.expired_time && r.expired_time > 0 ? r.expired_time * 1000 : 0, usedUserId: r.used_user_id, expired: r.status === 1 && !!r.expired_time && r.expired_time > 0 && r.expired_time * 1000 < Date.now() })));
+
+    if (!paged) {
+      const items: NRedemption[] = [];
+      for (let p = 1; p <= 10; p++) { const d = await backend<{ items: NRedemption[] }>(req, `/api/redemption/?p=${p}&page_size=100`); items.push(...(d?.items ?? [])); if ((d?.items ?? []).length < 100) break; }
+      return ok(res, items.map((r) => redemptionRow({ id: r.id, key: r.key, name: r.name, quota: r.quota, status: r.status, created: r.created_time * 1000, redeemed: r.redeemed_time ? r.redeemed_time * 1000 : 0, usedUserId: r.used_user_id, expiredAt: r.expired_time && r.expired_time > 0 ? r.expired_time * 1000 : 0 })));
+    }
+    // 平台：单页透传网关分页（真源在网关，total 用网关的计数）
+    const d = await backend<{ items?: NRedemption[]; total?: number }>(req, `/api/redemption/?p=${page - 1}&page_size=${pageSize}`);
+    const items = (d?.items ?? []).map((r) => redemptionRow({ id: r.id, key: r.key, name: r.name, quota: r.quota, status: r.status, created: r.created_time * 1000, redeemed: r.redeemed_time ? r.redeemed_time * 1000 : 0, usedUserId: r.used_user_id, expiredAt: r.expired_time && r.expired_time > 0 ? r.expired_time * 1000 : 0 }));
+    ok(res, { items, total: Number(d?.total ?? items.length), page, page_size: pageSize });
   } catch (e) { failed(res, e); }
 }));
 

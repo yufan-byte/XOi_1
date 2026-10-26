@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 import { error, success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
+import { isUsablePrompt } from "@/utils/promptQuality";
 
 const router = express.Router();
 
@@ -88,6 +89,16 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
         return res.status(400).send(error(`积分不足，需要 ${total} 积分，当前余额 ${balance}`));
       }
     }
+  }
+
+  // 0. 出图前置闸门：任一选中项没有可用提示词就整批拦下（不插占位、不扣积分、不浪费额度）
+  const notReady = (items as Array<{ name: string; prompt: string }>).filter(
+    (item) => !String(item.prompt ?? "").trim() || !isUsablePrompt(item.prompt),
+  );
+  if (notReady.length) {
+    return res.status(400).send(
+      error(`以下资产还没有可用提示词，已阻止出图：${notReady.map((item) => item.name).join("、")}。请先生成提示词。`),
+    );
   }
 
   // 1. 查询项目

@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-18T17:12:36.269Z",
+  "port": 12121,
+  "checks": [
+    {
+      "url": "/",
+      "status": 200,
+      "sha256": "222a3d42d5503363961dcbae869050695d6fe7a38d57ff04d6b20b7e8f450ef8"
+    },
+    {
+      "url": "/assets/index-CILGHsH2.js",
+      "status": 200
+    },
+    {
+      "url": "/assets/index-A9m-sWRJ.css",
+      "status": 200
+    },
+    {
+      "url": "/atelier-canvas/index.html",
+      "status": 200,
+      "sha256": "6aaa83d15469c909a9d21fde384c212d9cd48f4056a06193d74e6c64812eb839"
+    },
+    {
+      "url": "/atelier-canvas/assets/index-CrME2Btt.js",
+      "status": 200
+    },
+    {
+      "url": "/atelier-canvas/assets/index-qr5S7LBy.css",
+      "status": 200
+    },
+    {
+      "url": "/monoform/index.html",
+      "status": 200,
+      "sha256": "3abe1b75d65896bc79e7fed602afe41bd868d8a4b1e364b1098596976bc9f886"
+    },
+    {
+      "url": "/monoform/xoi-identity-bootstrap.js",
+      "status": 200,
+      "sha256": "7c78bbc464e31b9c6ddd2d417e1d0d5d5e576c54a24cc4fcb390993be6361617"
+    },
+    {
+      "url": "/monoform/xoi-scene-sync.js",
+      "status": 200,
+      "sha256": "f8431e7383d99da5379d46b5a4f746ea5303dfbf95786ed35d7b978a4ece99b9"
+    },
+    {
+      "url": "/monoform/xoi-workspace.css",
+      "status": 200,
+      "sha256": "cfcfd24c384618402b489a23e5916446629a591393355cee448ffbb377286e37"
+    },
+    {
+      "url": "/api/healthz",
+      "status": 200
+    },
+    {
+      "url": "/api/readyz",
+      "status": 200
+    },
+    {
+      "url": "/api/director-scenes",
+      "status": 401
+    }
+  ],
+  "modelRequests": 0
+}

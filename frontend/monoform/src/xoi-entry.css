@@ -1,0 +1,9 @@
+/**
+ * XOi 导演台样式入口（设计令牌先继承上游，主题化在 P2）。
+ *
+ * 上游 styles.css 用的是 CSS 变量（--bg / --panel / --text / --line ...），
+ * 所以主题化应该改这些变量，而不是像旧的 xoi-host.css 那样对具体选择器打 !important。
+ */
+
+/* XOI-THEME: P2 在这里把强调色统一到品牌色，例如：
+   :root { --accent: #f57400; } */

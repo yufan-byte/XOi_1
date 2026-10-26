@@ -36,7 +36,7 @@ type AssetStore = {
     cleanupImages: (extra?: unknown) => void;
 };
 
-const ASSET_STORE_KEY = ownerKey("infinite-canvas:asset_store");
+const ASSET_STORE_KEY = ownerKey("infinite-canvas:asset_store:v2");
 
 const assetStorage: PersistStorage<AssetStore> = {
     getItem: async (name) => {
