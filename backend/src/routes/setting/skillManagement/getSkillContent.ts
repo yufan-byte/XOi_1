@@ -2,10 +2,8 @@ import express from "express";
 import { success, error } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { z } from "zod";
-import isPathInside from "is-path-inside";
 import u from "@/utils";
-import p from "path";
-import * as fs from "fs";
+import { readSkillDocument } from "@/utils/skillDocument";
 
 const router = express.Router();
 
@@ -17,13 +15,11 @@ export default router.post(
   async (req, res) => {
     const { path } = req.body;
     const skillsRoot = u.getPath(["skills"]);
-    const filePath = p.join(skillsRoot, path);
-    if (!isPathInside(filePath, skillsRoot)) {
-      return res.status(400).send(error("无效的路径"));
+    try {
+      const raw = await readSkillDocument(skillsRoot, path);
+      res.status(200).send(success(raw));
+    } catch {
+      res.status(400).send(error("技能资料不存在或不在允许读取范围"));
     }
-
-    const raw = await fs.promises.readFile(filePath, "utf-8");
-
-    res.status(200).send(success(raw));
   },
 );

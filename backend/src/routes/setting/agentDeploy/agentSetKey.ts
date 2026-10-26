@@ -38,11 +38,6 @@ export default router.post(
           modelName: "xoi:claude-sonnet-4-6",
           vendorId: "xoi",
         });
-        await u.db("o_agentDeploy").where("key", "universalAi").update({
-          model: "claude-haiku-4-5",
-          modelName: "xoi:claude-haiku-4-5-20251001",
-          vendorId: "xoi",
-        });
         res.status(200).send(success("一键填入成功"));
       }
     } catch (err) {
