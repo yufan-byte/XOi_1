@@ -174,24 +174,30 @@ export default async (knex: Knex): Promise<void> => {
   await dropColumn("o_vendorConfig", "inputs");
   await dropColumn("o_vendorConfig", "createTime");
 
-  const volcengineVer = await vendorApi.getVendor("volcengine").version;
-  if (Number(volcengineVer) < 2.4) {
-    vendorApi.writeCode("volcengine", vendorData["volcengine.ts"]);
-  }
-  const minimaxVer = await vendorApi.getVendor("minimax").version;
-  if (Number(minimaxVer) < 2.1) {
-    vendorApi.writeCode("minimax", vendorData["minimax.ts"]);
-  }
-  const xoiVer = await vendorApi.getVendor("xoi").version;
-  if (Number(xoiVer) < 3.2) {
-    vendorApi.writeCode("xoi", vendorData["xoi.ts"]);
-  }
-
   // 生产环境只开放 NewAPI。已有 Agent 若在 NewAPI 模型清单里有同名模型，自动迁移；
   // 没有同名项则保留配置并在运行时明确拒绝，避免静默改成错误模型或绕过网关。
   const configuredOnly = String(process.env.XOI_NEWAPI_ONLY || "").trim().toLowerCase();
   const newApiOnly = ["1", "true", "yes", "on"].includes(configuredOnly) ||
     (!configuredOnly && ["prod", "production"].includes(String(process.env.NODE_ENV || "").toLowerCase()));
+
+  // ⚠️ 旧第三方供应商的代码刷新只能在「非 NewAPI 单源」模式下执行：
+  // 生产（XOI_NEWAPI_ONLY=1）时 vendor.ts 的 RCE 闸门禁止执行非 newapi 供应商代码，
+  // getVendor("volcengine") 会直接抛错——曾导致空库首次启动在建表完成后崩溃、服务起不来。
+  if (!newApiOnly) {
+    const volcengineVer = await vendorApi.getVendor("volcengine").version;
+    if (Number(volcengineVer) < 2.4) {
+      vendorApi.writeCode("volcengine", vendorData["volcengine.ts"]);
+    }
+    const minimaxVer = await vendorApi.getVendor("minimax").version;
+    if (Number(minimaxVer) < 2.1) {
+      vendorApi.writeCode("minimax", vendorData["minimax.ts"]);
+    }
+    const xoiVer = await vendorApi.getVendor("xoi").version;
+    if (Number(xoiVer) < 3.2) {
+      vendorApi.writeCode("xoi", vendorData["xoi.ts"]);
+    }
+  }
+
   if (newApiOnly) {
     const newApiVendor = await knex("o_vendorConfig").where("id", "newapi").first();
     if (!newApiVendor) throw new Error("生产模式要求 NewAPI 适配器，但 o_vendorConfig.newapi 不存在");

@@ -50,9 +50,9 @@ RUN node scripts/sync-platform-brand.mjs --check && NODE_OPTIONS=--max-old-space
 # ───────── Stage 2: 后端打包（esbuild bundle）─────────
 FROM node:22-bookworm-slim AS backend-build
 WORKDIR /app/backend
-# 切 Debian 源加速（中国大陆默认阿里云）；源不可达时自动回退官方源，避免整轮构建卡死。
-# 想强制用官方源：--build-arg APT_MIRROR=
-ARG APT_MIRROR=mirrors.aliyun.com
+# 切 Debian 源加速（默认中科大镜像：国内/受网络限制环境实测稳定；不可达会自动回退官方源）。
+# 想换源：--build-arg APT_MIRROR=mirrors.cloud.tencent.com ；想用官方源：--build-arg APT_MIRROR=
+ARG APT_MIRROR=mirrors.ustc.edu.cn
 RUN <<'EOF'
 set -eu
 npm config set registry https://registry.npmjs.org/
@@ -100,7 +100,7 @@ WORKDIR /app/backend
 LABEL org.opencontainers.image.title="XOi" \
       org.opencontainers.image.description="AI 短剧工厂一体化部署"
 
-ARG APT_MIRROR=mirrors.aliyun.com
+ARG APT_MIRROR=mirrors.ustc.edu.cn
 RUN <<'EOF'
 set -eu
 npm config set registry https://registry.npmjs.org/
@@ -144,6 +144,9 @@ COPY --from=backend-build /app/backend/data/models /app/assets-seed/models
 COPY --from=backend-build /app/backend/data/vendor /app/assets-seed/vendor
 COPY --from=backend-build /app/backend/data/modelPrompt /app/assets-seed/modelPrompt
 COPY --from=backend-build /app/backend/data/assets /app/assets-seed/assets
+# ⚠️ 产物在 /app/release/serve 运行，而生产依赖装在 /app/backend/node_modules；
+# Node 只会向上找 /app/release/node_modules，缺这条软链会全量 MODULE_NOT_FOUND（pg/sharp 等外部依赖）。
+RUN ln -s /app/backend/node_modules /app/release/node_modules
 ARG XOI_RELEASE_ID=unversioned
 RUN mkdir -p data
 
