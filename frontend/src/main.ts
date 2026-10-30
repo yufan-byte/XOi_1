@@ -19,6 +19,7 @@ import "splitpanes/dist/splitpanes.css";
 import "./assets/main.scss";
 import "./styles/theme.scss";
 import "./styles/readability.scss";
+import "./styles/xoi.scss";
 import "../shared/styles/overlay-motion.css";
 
 import { imageOptimizer } from '@/utils/imageOptimizer'

@@ -50,13 +50,6 @@ const hslToHex = (h: number, s: number, l: number) => {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
-// 生成品牌色阶
-const generateColorPalette = (hex: string) => {
-  const { h, s, l } = hexToHsl(hex);
-  const lightLevels = [97, 92, 85, 75, 62, l, Math.max(l - 12, 20), Math.max(l - 24, 15), Math.max(l - 36, 10), Math.max(l - 48, 5)];
-  return lightLevels.map((level) => hslToHex(h, s, level));
-};
-
 // 解析主题模式为具体值（light/dark），用于 md-editor 等不支持 auto 的组件
 export const resolveThemeMode = (mode: string): "light" | "dark" =>
   mode === "auto" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : (mode as "light" | "dark");
@@ -80,22 +73,29 @@ export const applyThemeMode = (mode: string) => {
   }
 };
 
-// 应用主题色
+// 应用强调色
+// XOi Mono：主按钮、复选框等「品牌色」固定为主文字色（见 styles/xoi.scss），
+// 用户选择的颜色只作为强调色，用于选中、焦点与「已覆盖」标记（--x-sel）。
 export const applyThemeColor = (color: string) => {
   const root = document.documentElement;
-  const palette = generateColorPalette(color);
   const isDark = root.getAttribute("theme-mode") === "dark";
-  const colors = isDark ? [...palette].reverse() : palette;
+  const { h, s, l } = hexToHsl(color || "#9AA8FF");
+  const sat = isDark ? s : Math.min(s, 70);
+  const light = isDark ? Math.max(l, 72) : Math.min(l, 52);
+  const sel = hslToHex(h, sat, light);
+  const r = parseInt(sel.slice(1, 3), 16);
+  const g = parseInt(sel.slice(3, 5), 16);
+  const b = parseInt(sel.slice(5, 7), 16);
+  root.style.setProperty("--x-sel", sel);
+  root.style.setProperty("--x-sel-bg", `rgba(${r}, ${g}, ${b}, ${isDark ? 0.1 : 0.08})`);
 
-  colors.forEach((c, i) => root.style.setProperty(`--td-brand-color-${i + 1}`, c));
-
-  ["", "-hover:5", "-focus:2", "-active:7", "-disabled:3", "-light:1", "-light-hover:2"].forEach((suffix) => {
-    const [name, level] = suffix.split(":");
-    root.style.setProperty(`--td-brand-color${name}`, level ? `var(--td-brand-color-${level})` : "var(--td-brand-color-6)");
-  });
-
-  root.style.setProperty("--td-text-color-brand", `var(--td-brand-color-${isDark ? 8 : 7})`);
-  root.style.setProperty("--td-text-color-link", "var(--td-brand-color-8)");
+  // 清掉旧版本写在行内的品牌色阶，交给样式表统一管理
+  for (let i = 1; i <= 10; i++) root.style.removeProperty(`--td-brand-color-${i}`);
+  ["", "-hover", "-focus", "-active", "-disabled", "-light", "-light-hover"].forEach((suffix) =>
+    root.style.removeProperty(`--td-brand-color${suffix}`),
+  );
+  root.style.removeProperty("--td-text-color-brand");
+  root.style.removeProperty("--td-text-color-link");
 };
 
 // 使用 View Transition API 进行平滑过渡

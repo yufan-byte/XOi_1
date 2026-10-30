@@ -2,7 +2,6 @@
   <div class="task">
     <div class="header taskHero">
       <div class="headerInfo fc">
-        <span class="taskEyebrow">XOi CREATIVE OPERATIONS</span>
         <span class="title">{{ $t("workbench.task.title") }}</span>
         <span class="sub">{{ $t("workbench.task.subtitle") }}</span>
         <div class="taskMeta"><span><strong>{{ pagination.total }}</strong> 全部任务</span><span><strong>{{ runningCount }}</strong> 进行中</span></div>

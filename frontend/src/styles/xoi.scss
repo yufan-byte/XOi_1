@@ -1,0 +1,561 @@
+// ============================================================
+// XOi Mono 设计系统
+// 深色优先、浅色同构。界面只用灰阶分层，颜色只表达状态；
+// 光谱渐变是唯一的品牌色，只用于「AI 正在工作 / 会调用模型并消耗积分」。
+// 本文件最后加载：定义 --x-* 变量，并把 TDesign 变量映射过来，
+// 让所有 TDesign 组件统一换成这套外观。
+// ============================================================
+
+:root,
+:root[theme-mode="light"] {
+  --x-bg: #fafafa;
+  --x-bg-1: #f4f4f5;
+  --x-bg-2: #ffffff;
+  --x-bg-3: #eeeef0;
+  --x-bg-4: #e4e4e8;
+  --x-line: #e4e4e7;
+  --x-line-2: #d2d2d8;
+  --x-fg: #0a0a0b;
+  --x-fg-2: #4f4f58;
+  --x-fg-3: #6b6b74;
+  --x-fg-inv: #ffffff;
+
+  --x-sel: #4f5bd5;
+  --x-sel-bg: rgba(79, 91, 213, 0.08);
+  --x-ok: #15803d;
+  --x-warn: #b45309;
+  --x-err: #dc2626;
+  --x-ok-bg: rgba(21, 128, 61, 0.08);
+  --x-warn-bg: rgba(180, 83, 9, 0.08);
+  --x-err-bg: rgba(220, 38, 38, 0.08);
+
+  --x-scrim: rgba(10, 10, 11, 0.32);
+  --x-shadow: 0 12px 40px rgba(10, 10, 11, 0.14), 0 0 0 1px rgba(10, 10, 11, 0.06);
+  --x-shadow-sm: 0 2px 8px rgba(10, 10, 11, 0.06);
+}
+
+:root.dark,
+:root[theme-mode="dark"] {
+  --x-bg: #0a0a0b;
+  --x-bg-1: #0f0f11;
+  --x-bg-2: #141417;
+  --x-bg-3: #1b1b1f;
+  --x-bg-4: #24242a;
+  --x-line: #222227;
+  --x-line-2: #303037;
+  --x-fg: #ededef;
+  --x-fg-2: #a1a1ab;
+  --x-fg-3: #8a8a94;
+  --x-fg-inv: #0a0a0b;
+
+  --x-sel: #9aa8ff;
+  --x-sel-bg: rgba(154, 168, 255, 0.1);
+  --x-ok: #4ade80;
+  --x-warn: #f5b94a;
+  --x-err: #f87171;
+  --x-ok-bg: rgba(74, 222, 128, 0.1);
+  --x-warn-bg: rgba(245, 185, 74, 0.1);
+  --x-err-bg: rgba(248, 113, 113, 0.1);
+
+  --x-scrim: rgba(0, 0, 0, 0.62);
+  --x-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --x-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+:root {
+  --x-spectrum: linear-gradient(90deg, #8a9bff 0%, #c08bff 28%, #ff8a92 55%, #62d9e8 80%, #5ee0a8 100%);
+  --x-sans: "Inter", "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+  --x-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --x-r-xs: 4px;  // 标签
+  --x-r-sm: 6px;  // 控件
+  --x-r-md: 8px;  // 卡片
+  --x-r-lg: 10px; // 浮层
+  --x-r-xl: 12px; // 弹窗
+
+  // 尺寸：侧栏 / 图标轨 / 项目栏 / 环节设定 / 单项抽屉
+  --x-side-w: 216px;
+  --x-rail-w: 56px;
+  --x-pbar-h: 48px;
+  --x-stage-rail-w: 288px;
+  --x-drawer-w: 400px;
+}
+
+// ── TDesign 变量映射（两套主题共用同一组引用）──────────────
+:root,
+:root[theme-mode="light"],
+:root.dark,
+:root[theme-mode="dark"] {
+  // 品牌色 = 主文字色（主按钮反白），选中与焦点用 --x-sel
+  --td-brand-color: var(--x-fg);
+  --td-brand-color-hover: var(--x-fg-2);
+  --td-brand-color-active: var(--x-fg);
+  --td-brand-color-focus: var(--x-sel-bg);
+  --td-brand-color-disabled: var(--x-bg-4);
+  --td-brand-color-light: var(--x-bg-3);
+  --td-brand-color-light-hover: var(--x-bg-4);
+  --td-brand-color-1: var(--x-bg-2);
+  --td-brand-color-2: var(--x-bg-3);
+  --td-brand-color-3: var(--x-bg-4);
+  --td-brand-color-4: var(--x-line-2);
+  --td-brand-color-5: var(--x-fg-3);
+  --td-brand-color-6: var(--x-fg-2);
+  --td-brand-color-7: var(--x-fg);
+  --td-brand-color-8: var(--x-fg);
+  --td-brand-color-9: var(--x-fg);
+  --td-brand-color-10: var(--x-fg);
+
+  --td-success-color: var(--x-ok);
+  --td-warning-color: var(--x-warn);
+  --td-error-color: var(--x-err);
+  --td-success-color-light: var(--x-ok-bg);
+  --td-warning-color-light: var(--x-warn-bg);
+  --td-error-color-light: var(--x-err-bg);
+
+  --td-bg-color-page: var(--x-bg);
+  --td-bg-color-container: var(--x-bg-1);
+  --td-bg-color-container-hover: var(--x-bg-3);
+  --td-bg-color-container-active: var(--x-bg-4);
+  --td-bg-color-container-select: var(--x-bg-3);
+  --td-bg-color-secondarycontainer: var(--x-bg-2);
+  --td-bg-color-secondarycontainer-hover: var(--x-bg-3);
+  --td-bg-color-secondarycontainer-active: var(--x-bg-4);
+  --td-bg-color-component: var(--x-bg-3);
+  --td-bg-color-component-hover: var(--x-bg-4);
+  --td-bg-color-component-active: var(--x-line-2);
+  --td-bg-color-component-disabled: var(--x-bg-2);
+  --td-bg-color-secondarycomponent: var(--x-bg-4);
+  --td-bg-color-secondarycomponent-hover: var(--x-line-2);
+  --td-bg-color-secondarycomponent-active: var(--x-line-2);
+  --td-bg-color-specialcomponent: var(--x-bg-2);
+
+  --td-text-color-primary: var(--x-fg);
+  --td-text-color-secondary: var(--x-fg-2);
+  --td-text-color-placeholder: var(--x-fg-3);
+  --td-text-color-disabled: var(--x-fg-3);
+  --td-text-color-anti: var(--x-fg-inv);
+  --td-text-color-brand: var(--x-fg);
+  --td-text-color-link: var(--x-fg);
+
+  --td-border-level-1-color: var(--x-line);
+  --td-border-level-2-color: var(--x-line-2);
+  --td-component-stroke: var(--x-line);
+  --td-component-border: var(--x-line-2);
+
+  --td-mask-active: var(--x-scrim);
+  --td-shadow-1: var(--x-shadow-sm);
+  --td-shadow-2: var(--x-shadow);
+  --td-shadow-3: var(--x-shadow);
+
+  --td-radius-small: var(--x-r-xs);
+  --td-radius-default: var(--x-r-sm);
+  --td-radius-medium: var(--x-r-md);
+  --td-radius-large: var(--x-r-xl);
+  --td-radius-extraLarge: var(--x-r-xl);
+
+  --td-font-family: var(--x-sans);
+  --td-font-family-medium: var(--x-sans);
+
+  // 字号：基准 13，标签 11/12，标题 14/16/20/28
+  --td-font-size-body-small: 12px;
+  --td-font-size-body-medium: 13px;
+  --td-font-size-body-large: 14px;
+  --td-font-size-link-small: 12px;
+  --td-font-size-link-medium: 13px;
+  --td-font-size-link-large: 14px;
+  --td-font-size-mark-small: 11px;
+  --td-font-size-mark-medium: 12px;
+  --td-font-size-title-small: 14px;
+  --td-font-size-title-medium: 16px;
+  --td-font-size-title-large: 20px;
+  --td-font-size-title-extraLarge: 20px;
+  --td-font-size-headline-small: 28px;
+  --td-font-size-headline-medium: 28px;
+  --td-font-size-headline-large: 32px;
+  --td-line-height-body-small: 18px;
+  --td-line-height-body-medium: 20px;
+  --td-line-height-body-large: 22px;
+  --td-line-height-link-small: 18px;
+  --td-line-height-link-medium: 20px;
+  --td-line-height-link-large: 22px;
+  --td-line-height-mark-small: 16px;
+  --td-line-height-mark-medium: 18px;
+  --td-line-height-title-small: 20px;
+  --td-line-height-title-medium: 24px;
+  --td-line-height-title-large: 28px;
+  --td-line-height-title-extraLarge: 28px;
+  --td-line-height-headline-small: 36px;
+  --td-line-height-headline-medium: 36px;
+  --td-line-height-headline-large: 40px;
+
+  // 控件高度：默认 30 / 小 26 / 大 36
+  --td-comp-size-m: 30px;
+  --td-comp-size-s: 26px;
+  --td-comp-size-l: 36px;
+
+  --td-scrollbar-color: var(--x-line-2);
+  --td-scrollbar-hover-color: var(--x-fg-3);
+  --td-scroll-track-color: transparent;
+
+  // 兼容旧变量（theme.scss / 各页面仍有引用）
+  --bgc: var(--x-bg-1);
+  --page: var(--x-bg);
+}
+
+// ── 全局基础 ───────────────────────────────────────────────
+html,
+body {
+  background: var(--x-bg);
+  color: var(--x-fg);
+  font-family: var(--x-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--x-sel-bg);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--x-line-2);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--x-fg-3);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+// ── 工具类 ────────────────────────────────────────────────
+.x-mono,
+.x-num {
+  font-family: var(--x-mono);
+  font-variant-numeric: tabular-nums;
+}
+.x-c2 { color: var(--x-fg-2); }
+.x-c3 { color: var(--x-fg-3); }
+.x-cap {
+  font-size: 11px;
+  color: var(--x-fg-3);
+  letter-spacing: 0.04em;
+}
+.x-hint {
+  font-size: 12px;
+  color: var(--x-fg-3);
+}
+
+// 状态点：未生成 / 生成中 / 已完成 / 失败 / 待处理
+.x-st {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--x-fg-2);
+  white-space: nowrap;
+  &::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--x-fg-3);
+  }
+  &.idle::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--x-fg-3); }
+  &.ok::before { background: var(--x-ok); }
+  &.warn::before { background: var(--x-warn); }
+  &.err { color: var(--x-err); }
+  &.err::before { background: var(--x-err); }
+  &.run::before {
+    background: var(--x-spectrum);
+    background-size: 300% 100%;
+    animation: x-spec 1.6s linear infinite;
+  }
+}
+@keyframes x-spec {
+  0% { background-position: 0 0; }
+  100% { background-position: 300% 0; }
+}
+
+// 「已覆盖」标记
+.x-ovr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--x-sel);
+  &::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--x-sel);
+  }
+}
+
+// 继承值框（只读）
+.x-inherit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--x-r-sm);
+  border: 1px dashed var(--x-line-2);
+  font-size: 12px;
+}
+
+// ── TDesign 组件统一外观 ──────────────────────────────────
+// 按钮：主按钮反白、默认按钮灰底描边、无阴影、无位移
+.t-button {
+  border-radius: var(--x-r-sm);
+  box-shadow: none;
+  font-weight: 500;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.t-button.t-button--variant-base.t-button--theme-primary {
+  background: var(--x-fg);
+  border-color: var(--x-fg);
+  color: var(--x-fg-inv);
+  &:not(.t-is-disabled):not(:disabled):hover {
+    background: var(--x-fg);
+    border-color: var(--x-fg);
+    opacity: 0.88;
+  }
+  &.t-is-disabled,
+  &:disabled {
+    background: var(--x-bg-4);
+    border-color: var(--x-bg-4);
+    color: var(--x-fg-3);
+  }
+}
+.t-button.t-button--variant-base.t-button--theme-default,
+.t-button.t-button--variant-outline.t-button--theme-default {
+  background: var(--x-bg-2);
+  border-color: var(--x-line-2);
+  color: var(--x-fg);
+  &:not(.t-is-disabled):not(:disabled):hover {
+    background: var(--x-bg-3);
+    border-color: var(--x-line-2);
+    color: var(--x-fg);
+  }
+}
+.t-button.t-button--variant-outline.t-button--theme-primary {
+  background: transparent;
+  border-color: var(--x-line-2);
+  color: var(--x-fg);
+  &:not(.t-is-disabled):not(:disabled):hover {
+    background: var(--x-bg-3);
+    border-color: var(--x-fg-3);
+    color: var(--x-fg);
+  }
+}
+.t-button.t-button--variant-text {
+  color: var(--x-fg-2);
+  &:not(.t-is-disabled):not(:disabled):hover {
+    background: var(--x-bg-3);
+    color: var(--x-fg);
+  }
+}
+.t-button.t-button--theme-danger.t-button--variant-base {
+  background: transparent;
+  border-color: var(--x-line-2);
+  color: var(--x-err);
+  &:not(.t-is-disabled):not(:disabled):hover {
+    background: var(--x-err-bg);
+    border-color: var(--x-err);
+  }
+}
+
+// AI 按钮：会调用模型并消耗积分。加在 t-button 或原生 button 上
+.x-ai.t-button,
+button.x-ai {
+  border-color: transparent !important;
+  background: linear-gradient(var(--x-bg-2), var(--x-bg-2)) padding-box, var(--x-spectrum) border-box !important;
+  color: var(--x-fg) !important;
+  &:not(.t-is-disabled):not(:disabled):hover {
+    background: linear-gradient(var(--x-bg-3), var(--x-bg-3)) padding-box, var(--x-spectrum) border-box !important;
+    opacity: 1;
+  }
+}
+.x-ai.x-pri.t-button,
+button.x-ai.x-pri {
+  background: linear-gradient(var(--x-fg), var(--x-fg)) padding-box, var(--x-spectrum) border-box !important;
+  color: var(--x-fg-inv) !important;
+  &:not(.t-is-disabled):not(:disabled):hover {
+    background: linear-gradient(var(--x-fg), var(--x-fg)) padding-box, var(--x-spectrum) border-box !important;
+    opacity: 0.9;
+  }
+}
+.x-ai.t-button.t-is-disabled,
+button.x-ai:disabled {
+  background: var(--x-bg-4) !important;
+  color: var(--x-fg-3) !important;
+}
+
+// 输入类：统一 6px 圆角、1px 描边、选中蓝色焦点
+.t-input,
+.t-textarea__inner,
+.t-select .t-input,
+.t-input-number .t-input {
+  border-radius: var(--x-r-sm);
+}
+.t-input--focused,
+.t-input:focus-within,
+.t-textarea__inner:focus,
+.t-textarea__inner.t-is-focused {
+  border-color: var(--x-sel) !important;
+  box-shadow: 0 0 0 3px var(--x-sel-bg) !important;
+}
+
+// 复选框、单选、开关：选中为主文字色
+.t-checkbox.t-is-checked .t-checkbox__input,
+.t-checkbox.t-is-indeterminate .t-checkbox__input {
+  background-color: var(--x-fg);
+  border-color: var(--x-fg);
+}
+.t-checkbox .t-checkbox__input::after {
+  border-color: var(--x-fg-inv);
+}
+.t-radio.t-is-checked .t-radio__input {
+  border-color: var(--x-fg);
+}
+.t-radio.t-is-checked .t-radio__input::after {
+  background-color: var(--x-fg);
+}
+.t-switch.t-is-checked {
+  background-color: var(--x-fg);
+}
+.t-switch.t-is-checked .t-switch__handle::after {
+  background-color: var(--x-fg-inv);
+}
+
+// 选项卡：下划线 1px 主文字色
+.t-tabs__nav-item.t-is-active,
+.t-tabs__nav-item.t-is-active .t-tabs__nav-item-text-wrapper {
+  color: var(--x-fg);
+  font-weight: 500;
+}
+.t-tabs__bar {
+  background-color: var(--x-fg);
+  height: 1px;
+}
+.t-tabs__nav-container.t-is-top::after {
+  background-color: var(--x-line);
+}
+
+// 分段（radio-group）
+.t-radio-group.t-radio-group--filled {
+  background: var(--x-bg-2);
+  border: 1px solid var(--x-line);
+  border-radius: 7px;
+  padding: 2px;
+  .t-radio-group__bg-block {
+    background: var(--x-bg-4);
+    border-radius: 5px;
+    box-shadow: none;
+  }
+  .t-radio-button.t-is-checked {
+    color: var(--x-fg);
+  }
+}
+
+// 标签
+.t-tag {
+  border-radius: var(--x-r-xs);
+}
+.t-tag.t-tag--default.t-tag--dark,
+.t-tag.t-tag--default.t-tag--light {
+  background: var(--x-bg-3);
+  color: var(--x-fg-2);
+  border-color: transparent;
+}
+.t-tag.t-tag--primary.t-tag--light {
+  background: var(--x-sel-bg);
+  color: var(--x-sel);
+}
+.t-tag.t-tag--primary.t-tag--dark {
+  background: var(--x-fg);
+  color: var(--x-fg-inv);
+}
+
+// 弹窗 / 抽屉 / 浮层：12px / 无边框阴影外唯一阴影
+.t-dialog {
+  border-radius: var(--x-r-xl);
+  border: 1px solid var(--x-line-2);
+  background: var(--x-bg-1);
+  box-shadow: var(--x-shadow);
+}
+.t-dialog__header {
+  font-size: 14px;
+  font-weight: 600;
+}
+.t-drawer__content-wrapper {
+  background: var(--x-bg-1);
+}
+.t-drawer__header {
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--x-line);
+}
+.t-popup__content,
+.t-select__dropdown .t-popup__content,
+.t-dropdown {
+  background: var(--x-bg-2);
+  border: 1px solid var(--x-line-2);
+  border-radius: var(--x-r-lg);
+  box-shadow: var(--x-shadow);
+}
+.t-tooltip .t-popup__content {
+  background: var(--x-fg);
+  color: var(--x-fg-inv);
+  border: 0;
+  border-radius: var(--x-r-sm);
+  font-size: 12px;
+}
+.t-message,
+.t-notification {
+  background: var(--x-bg-2);
+  border: 1px solid var(--x-line-2);
+  border-radius: var(--x-r-lg);
+  box-shadow: var(--x-shadow);
+}
+
+// 表格：表头 12px 灰、行 1px 分隔、选中浅蓝
+.t-table {
+  font-size: 13px;
+  background: var(--x-bg-1);
+  th {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--x-fg-3);
+    background: var(--x-bg-1) !important;
+  }
+  tr.t-table__row--selected > td {
+    background: var(--x-sel-bg);
+  }
+}
+
+// 分页、加载
+.t-pagination {
+  font-family: var(--x-mono);
+}
+.t-loading__gradient-conic,
+.t-loading svg {
+  color: var(--x-fg-2);
+}
+
+// 卡片（TDesign Card）
+.t-card {
+  border-radius: var(--x-r-md);
+  border: 1px solid var(--x-line);
+  background: var(--x-bg-1);
+  box-shadow: none;
+}

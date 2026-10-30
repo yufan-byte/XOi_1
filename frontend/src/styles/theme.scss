@@ -1,562 +1,228 @@
-// 苹果风格毛玻璃极简主题
-// 适配 XOi 玻璃 Logo，清新科技、轻量化 AI 创作工具
-// 参考 Apple Design (WWDC 2018) - Materials & Depth
+// XOi Mono · 兼容层
+// 旧页面引用的变量与工具类全部保留类名，外观统一映射到 styles/xoi.scss 的 --x-* 变量。
+// 规则：灰阶分层、1px 描边、无毛玻璃、无悬停位移；渐变只保留光谱（AI 语义）。
 
 :root {
-  // 主色调 - 跟随 TDesign 主题 token
-  --bg-primary: var(--td-bg-color-page);
-  --bg-secondary: var(--td-bg-color-container);
-  --bg-tertiary: var(--td-bg-color-secondarycontainer);
-  --bg-card: var(--td-bg-color-container);
+  --bg-primary: var(--x-bg);
+  --bg-secondary: var(--x-bg-1);
+  --bg-tertiary: var(--x-bg-2);
+  --bg-card: var(--x-bg-1);
 
-  // 渐变色调 - 暖橙（品牌主色，替代旧紫蓝）
-  --accent-gradient: linear-gradient(135deg, #ffb36b, #f57400, #e26500);
-  --accent-primary: #f57400;
-  --accent-secondary: #ff9b45;
-  --accent-pink: #ffb36b;
-  --accent-teal: #f6a15b;
-  --accent-light: rgba(245, 116, 0, 0.08);
-  --accent-glow: rgba(245, 116, 0, 0.15);
+  --accent-gradient: var(--x-spectrum);
+  --accent-primary: var(--x-fg);
+  --accent-secondary: var(--x-fg-2);
+  --accent-pink: var(--x-fg-2);
+  --accent-teal: var(--x-fg-2);
+  --accent-light: var(--x-bg-3);
+  --accent-glow: var(--x-sel-bg);
 
-  // 文字颜色 - 跟随 TDesign 主题 token
-  --text-primary: var(--td-text-color-primary);
-  --text-secondary: var(--td-text-color-secondary);
-  --text-tertiary: var(--td-text-color-placeholder);
-  --text-accent: var(--td-brand-color);
+  --text-primary: var(--x-fg);
+  --text-secondary: var(--x-fg-2);
+  --text-tertiary: var(--x-fg-3);
+  --text-accent: var(--x-fg);
 
-  // 边框 - 跟随 TDesign 主题 token
-  --border-primary: var(--td-border-level-1-color);
-  --border-hover: var(--td-brand-color-3);
-  --border-focus: var(--td-brand-color);
+  --border-primary: var(--x-line);
+  --border-hover: var(--x-line-2);
+  --border-focus: var(--x-sel);
 
-  // 阴影 - 跟随 TDesign 阴影层级
-  --shadow-sm: var(--td-shadow-1);
-  --shadow-md: var(--td-shadow-2);
-  --shadow-lg: var(--td-shadow-3);
-  --shadow-glow: var(--td-shadow-1);
+  --shadow-sm: none;
+  --shadow-md: var(--x-shadow-sm);
+  --shadow-lg: var(--x-shadow);
+  --shadow-glow: none;
 
-  // 玻璃拟态（保留兼容）
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.5);
-  --glass-blur: blur(20px);
+  --glass-bg: var(--x-bg-1);
+  --glass-border: var(--x-line);
+  --glass-blur: none;
 
-  // ========== 材质系统 ==========
-  // 材质背景 - 统一映射到 TDesign 容器色（实色卡片，现代 SaaS 风格）
-  --material-ultra-thin: var(--td-bg-color-secondarycontainer);   // 极轻材质 - 装饰性元素
-  --material-thin: var(--td-bg-color-container);                   // 轻材质 - 工具栏
-  --material-regular: var(--td-bg-color-container);                // 标准材质 - 侧边栏、面板
-  --material-thick: var(--td-bg-color-container);                  // 厚材质 - 弹窗、抽屉
-  --material-thicker: var(--td-bg-color-container);                // 更厚材质 - 模态框
+  --material-ultra-thin: var(--x-bg-2);
+  --material-thin: var(--x-bg-2);
+  --material-regular: var(--x-bg-1);
+  --material-thick: var(--x-bg-1);
+  --material-thicker: var(--x-bg-1);
 
-  // 模糊效果 - 不同强度 + 饱和度增强（苹果核心公式）
-  --blur-light: blur(10px) saturate(150%);             // 轻模糊 - 卡片、小元素
-  --blur-medium: blur(20px) saturate(180%);            // 中模糊 - 工具栏、面板
-  --blur-heavy: blur(30px) saturate(200%);             // 强模糊 - 侧边栏、弹窗
-  --blur-ultra: blur(40px) saturate(220%);             // 超强模糊 - 模态框背景
+  --blur-light: none;
+  --blur-medium: none;
+  --blur-heavy: none;
+  --blur-ultra: none;
 
-  // 材质边框 - 跟随 TDesign 边框层级
-  --material-border-light: var(--td-border-level-1-color);
-  --material-border-medium: var(--td-border-level-2-color);
-  --material-border-heavy: var(--td-border-level-2-color);
+  --material-border-light: var(--x-line);
+  --material-border-medium: var(--x-line);
+  --material-border-heavy: var(--x-line-2);
 
-  // 字体
-  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  --font-primary: var(--x-sans);
+  --font-mono: var(--x-mono);
 
-  // 圆角
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  --radius-sm: var(--x-r-sm);
+  --radius-md: var(--x-r-md);
+  --radius-lg: var(--x-r-md);
+  --radius-xl: var(--x-r-xl);
   --radius-full: 9999px;
 
-  // 过渡 - 苹果风格 spring 曲线
-  --transition-fast: 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-slow: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-material: 0.3s cubic-bezier(0.16, 1, 0.3, 1);  // 材质化动画专用
+  --transition-fast: 0.12s ease;
+  --transition-normal: 0.15s ease;
+  --transition-slow: 0.25s ease;
+  --transition-material: 0.15s ease;
 }
 
-// 全局样式
 * {
   box-sizing: border-box;
 }
 
 body {
-  /* 现代 SaaS 风格：TDesign 页面底色 + 一层极淡的暖色环境光，
-   * 让纯灰白底带上一点温度（暗色下透明度压低，不脏底色） */
-  background:
-    radial-gradient(1100px 420px at 85% -8%, rgba(255, 155, 69, 0.055), transparent 62%),
-    radial-gradient(900px 380px at -10% 4%, rgba(255, 179, 107, 0.045), transparent 60%),
-    var(--td-bg-color-page);
-  background-attachment: fixed;
-  color: var(--td-text-color-primary);
-  font-family: var(--font-primary);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  background: var(--x-bg);
+  color: var(--x-fg);
+  font-family: var(--x-sans);
 }
 
-// ========== 毛玻璃背景字体优化 ==========
-// 确保在半透明背景上的文字清晰可读
-// 参考 Apple Design: "Vibrancy keeps text legible over changing backgrounds"
-
-// 毛玻璃背景上的文字优化
-.glass-text,
-.menu .item .title,
-.toolbar,
-.property-panel .field label {
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-// 无障碍支持 - 减少透明度
-@media (prefers-reduced-transparency: reduce) {
-  .menu,
-  .view,
-  .toolbar,
-  .property-panel,
-  .card {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background: var(--bg-card) !important;
-  }
-}
-
-// 无障碍支持 - 高对比度
-@media (prefers-contrast: more) {
-  .menu,
-  .view,
-  .toolbar,
-  .property-panel,
-  .card {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background: white !important;
-    border: 2px solid var(--text-primary) !important;
-  }
-}
-
-// 玻璃拟态效果 —— 已落地为实色材质，描边与阴影保持同一套暖调
-.glass {
-  background: var(--material-regular);
-  border: 1px solid var(--material-border-light);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 1px 2px rgba(60, 42, 20, 0.04), 0 8px 24px rgba(60, 42, 20, 0.05);
-}
-
+// 旧的毛玻璃类：改为实色面板
+.glass,
 .glass-strong {
-  background: var(--material-thick);
-  border: 1px solid var(--material-border-medium);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 4px rgba(60, 42, 20, 0.05), 0 16px 40px rgba(60, 42, 20, 0.08);
+  background: var(--x-bg-1);
+  border: 1px solid var(--x-line);
+  border-radius: var(--x-r-md);
+  box-shadow: none;
+}
+.glass-strong {
+  border-color: var(--x-line-2);
+  box-shadow: var(--x-shadow);
 }
 
-// 渐变文字
+// 渐变文字：只用于 AI 语义（如「生成中」）
 .gradient-text {
-  background: var(--accent-gradient);
+  background: var(--x-spectrum);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-// 渐变边框 - 温润渐变描边
+// 渐变描边 = AI 描边
 .gradient-border {
   position: relative;
-  border: none;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1.5px;
-    background: var(--accent-gradient);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-    opacity: 0.6;
-    transition: opacity var(--transition-normal);
-  }
-
-  &:hover::before {
-    opacity: 1;
-  }
+  border: 1px solid transparent;
+  background: linear-gradient(var(--x-bg-2), var(--x-bg-2)) padding-box, var(--x-spectrum) border-box;
 }
 
-// 按钮样式 —— 静态暖橙渐变（流动动画在常驻按钮上太闹，去掉了）
+// 按钮（非 TDesign 的原生按钮）
+.btn-primary,
+.btn-secondary,
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--x-r-sm);
+  font: 500 13px var(--x-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
 .btn-primary {
-  background: var(--accent-gradient);
-  color: white;
-  border: none;
-  border-radius: var(--radius-full);
-  padding: 10px 24px;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  box-shadow: 0 4px 14px rgba(242, 100, 50, 0.24);
-
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 20px rgba(242, 100, 50, 0.3);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
+  background: var(--x-fg);
+  color: var(--x-fg-inv);
+  border: 1px solid var(--x-fg);
+  &:hover { opacity: 0.88; }
 }
-
 .btn-secondary {
-  background: var(--material-thin);
-  backdrop-filter: var(--blur-light);
-  -webkit-backdrop-filter: var(--blur-light);
-  color: var(--text-primary);
-  border: 1px solid var(--material-border-light);
-  border-radius: var(--radius-full);
-  padding: 10px 24px;
-  font-weight: 500;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all var(--transition-material);
-
-  &:hover {
-    border-color: var(--border-hover);
-    background: var(--accent-light);
-    box-shadow: var(--shadow-sm);
-  }
+  background: var(--x-bg-2);
+  color: var(--x-fg);
+  border: 1px solid var(--x-line-2);
+  &:hover { background: var(--x-bg-3); }
 }
-
 .btn-ghost {
   background: transparent;
-  color: var(--text-secondary);
-  border: none;
-  border-radius: var(--radius-full);
-  padding: 8px 16px;
-  font-weight: 500;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all var(--transition-normal);
-
-  &:hover {
-    background: var(--accent-light);
-    color: var(--text-primary);
-  }
+  color: var(--x-fg-2);
+  border: 1px solid transparent;
+  &:hover { background: var(--x-bg-3); color: var(--x-fg); }
 }
 
-// 卡片样式 —— 实色卡片 + 暖调描边 + 双层软阴影（比单层更「浮」得更自然）
+// 卡片：悬停只加深描边
 .card {
-  background: var(--material-regular);
-  border: 1px solid var(--material-border-light);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  box-shadow:
-    0 1px 2px rgba(60, 42, 20, 0.04),
-    0 8px 24px rgba(60, 42, 20, 0.05);
-  transition: all var(--transition-material);
-
-  &:hover {
-    border-color: rgba(245, 116, 0, 0.22);
-    box-shadow:
-      0 2px 4px rgba(60, 42, 20, 0.05),
-      0 14px 32px rgba(60, 42, 20, 0.09);
-    transform: translateY(-2px);
-  }
+  background: var(--x-bg-1);
+  border: 1px solid var(--x-line);
+  border-radius: var(--x-r-md);
+  padding: 16px;
+  box-shadow: none;
+  transition: border-color 0.15s ease;
+  &:hover { border-color: var(--x-line-2); }
 }
 
-// 输入框 —— 干净实底 + 暖橙聚焦环（去掉无意义的背板模糊，输入更清爽）
-input, textarea, select {
-  background: var(--material-thin);
-  border: 1px solid var(--material-border-light);
-  color: var(--text-primary);
-  border-radius: var(--radius-md);
-  padding: 10px 14px;
-  font-family: var(--font-primary);
-  font-size: 14px;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-
-  &:focus {
-    outline: none;
-    border-color: rgba(245, 116, 0, 0.55);
-    box-shadow: 0 0 0 3px rgba(245, 116, 0, 0.13);
-  }
-
-  &::placeholder {
-    color: var(--text-tertiary);
-  }
+// 原生输入
+input,
+textarea,
+select {
+  font-family: var(--x-sans);
 }
 
-// 链接
 a {
-  color: var(--accent-primary);
+  color: inherit;
   text-decoration: none;
-  transition: all var(--transition-normal);
-
-  &:hover {
-    color: var(--accent-secondary);
-  }
 }
 
-// 滚动条 —— 暖灰、悬停加深，宽度与轨道留白更从容
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(140, 120, 96, 0.22);
-  border-radius: var(--radius-full);
-  border: 2px solid transparent;
-  background-clip: content-box;
-
-  &:hover {
-    background-color: rgba(140, 120, 96, 0.38);
-    background-clip: content-box;
-  }
-}
-
-// 动画
+// 动画（保留名称，去掉模糊与位移）
 @keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
-
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-
 @keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
 }
-
-// ========== 苹果风格材质化动画 ==========
-// 参考 Apple Design: "Materialize, don't just fade"
-// 模糊 + 缩放 + 透明度 组合动画，营造材质到达感
-
 @keyframes materialize-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-    filter: blur(10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-  }
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
 }
-
 @keyframes materialize-out {
-  from {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.95);
-    filter: blur(10px);
-  }
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
+.material-enter-active { animation: materialize-in 0.18s ease; }
+.material-leave-active { animation: materialize-out 0.12s ease; }
+.animate-fade-in { animation: fade-in 0.2s ease; }
+.animate-scale-in { animation: scale-in 0.18s ease; }
 
-// 材质化过渡类
-.material-enter-active {
-  animation: materialize-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.material-leave-active {
-  animation: materialize-out 0.2s ease;
-}
-
-// 工具类
-.animate-fade-in {
-  animation: fade-in 0.3s ease;
-}
-
-.animate-scale-in {
-  animation: scale-in 0.2s ease;
-}
-
-// 悬停效果
-.hover-lift {
-  transition: all var(--transition-normal);
-
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-  }
-}
-
+.hover-lift,
 .hover-glow {
-  transition: all var(--transition-normal);
-
-  &:hover {
-    box-shadow: var(--shadow-glow);
-  }
+  transition: border-color 0.15s ease;
+  &:hover { border-color: var(--x-line-2); }
 }
 
-// 标签/胶囊
+// 标签
 .tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 12px;
-  background: var(--accent-light);
-  color: var(--text-accent);
-  border-radius: var(--radius-full);
-  font-size: 12px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--x-bg-3);
+  color: var(--x-fg-2);
+  border-radius: var(--x-r-xs);
+  font-size: 11px;
   font-weight: 500;
-  transition: all var(--transition-normal);
-
-  &:hover {
-    background: var(--accent-glow);
-  }
+  white-space: nowrap;
 }
 
-// 分割线
 .divider {
   height: 1px;
-  background: var(--border-primary);
+  background: var(--x-line);
   margin: 16px 0;
 }
 
-// 柔和光晕
 .soft-glow {
   position: relative;
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: -20%;
-    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-    opacity: 0;
-    transition: opacity var(--transition-slow);
-    pointer-events: none;
-    z-index: -1;
-  }
-
-  &:hover::after {
-    opacity: 1;
-  }
 }
 
-// ============================================================
-// 全局按钮现代化 —— 苹果风格
-// 暖橙渐变（落日橙 #ff9b45 → 深暖橙 #f26432）+ 白色文字，
-// 与站点「暖橙 + 墨黑」的品牌身份一致。仅覆盖 variant=base 的
-// 主题按钮；outline/danger/success 不受影响。
-// ============================================================
-$t-btn-brand-from: #ff9b45;   // 落日橙
-$t-btn-brand-to: #f26432;     // 深暖橙
-$t-btn-ink: #ffffff;          // 橙底上的白字
-
-button.t-button.t-button--variant-base,
-.t-button.t-button--variant-base {
-
-  /* 主色按钮 */
-  &.t-button--theme-primary {
-    background-color: $t-btn-brand-to;
-    background-image: linear-gradient(135deg, $t-btn-brand-from, $t-btn-brand-to);
-    border: none;
-    color: $t-btn-ink !important;
-    -webkit-text-fill-color: $t-btn-ink;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    border-radius: 14px;
-    box-shadow:
-      0 4px 14px rgba(242, 100, 50, 0.30),
-      inset 0 1px 0 rgba(255, 255, 255, 0.35),
-      inset 0 -1px 0 rgba(140, 45, 10, 0.12);
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-                box-shadow 0.25s ease,
-                filter 0.25s ease;
-
-    &:not(.t-is-disabled):not(:disabled):hover {
-      transform: translateY(-1px);
-      filter: brightness(1.04) saturate(1.05);
-      box-shadow:
-        0 8px 22px rgba(242, 100, 50, 0.36),
-        inset 0 1px 0 rgba(255, 255, 255, 0.45);
-      background-image: linear-gradient(
-        135deg,
-        lighten($t-btn-brand-from, 4%),
-        lighten($t-btn-brand-to, 3%)
-      );
-    }
-
-    &:not(.t-is-disabled):not(:disabled):active {
-      transform: translateY(0);
-      box-shadow:
-        0 3px 10px rgba(242, 100, 50, 0.28),
-        inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    }
-
-    &.t-is-disabled,
-    &:disabled {
-      opacity: 0.6;
-      background-image: none;
-      background-color: #efece6;
-      color: rgba(36, 35, 33, 0.45) !important;
-      -webkit-text-fill-color: rgba(36, 35, 33, 0.45);
-      box-shadow: none;
-      transform: none;
-      cursor: not-allowed;
-    }
-
-    /* 图标颜色跟随深墨字 */
-    svg { stroke: $t-btn-ink; fill: none; [fill] { fill: $t-btn-ink; } }
-    .i-icon path[fill="currentColor"] { fill: $t-btn-ink; }
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
-
-  /* 默认中性按钮（灰白）—— 柔化处理 */
-  &.t-button--theme-default {
-    border-radius: 12px;
-    background-color: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-
-    &:not(.t-is-disabled):not(:disabled):hover {
-      background-color: #fff;
-      border-color: rgba(245, 116, 0, 0.40);
-      color: #c25a22;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-    }
-    &:not(.t-is-disabled):not(:disabled):active {
-      transform: translateY(0);
-    }
-  }
-}
-
-/* 小尺寸主按钮自动更圆润一些 */
-button.t-button.t-size-s.t-button--theme-primary.t-button--variant-base {
-  border-radius: 999px;
 }

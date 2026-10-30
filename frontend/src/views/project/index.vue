@@ -206,6 +206,15 @@ function getAllProject() {
     .post("/project/getProject")
     .then(({ data }) => {
       allProject.value = data;
+      // L1 项目栏「设定」深链：列表就绪后按 ?edit=1&projectId= 打开编辑弹窗
+      if (route.query.edit === '1' && route.query.projectId) {
+        const target = (data as any[]).find((p) => p.id === String(route.query.projectId));
+        if (target) {
+          editProjectData.value = { ...target };
+          dialogShow.value = true;
+        }
+        router.replace({ path: '/project', query: { ...route.query, edit: undefined } });
+      }
     })
     .catch(() => { loadError.value = "请检查网络连接或稍后重试"; })
     .finally(() => {

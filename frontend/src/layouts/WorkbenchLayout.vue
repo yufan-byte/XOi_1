@@ -116,17 +116,48 @@
     </div>
     <div class="view" :class="{ 'story-workspace': ['/project', '/project/new', '/novel', '/scriptAgent', '/script', '/cornerScape', '/production', '/assets'].includes(route.path) }">
       <div class="topMenu" v-if="!isImmersive && project?.id && isProjectPage">
-        <!-- 面包屑（打开项目后显示）：工作台 → 项目列表；项目名 → 该项目首页 -->
-        <div class="breadcrumb" v-if="project?.id">
-          <button type="button" class="bc-item bc-link" title="返回项目列表" @click="router.push('/project')">项目列表</button>
-          <span class="bc-sep">/</span>
+        <!-- L1 项目栏（XOi Mono）：返回 · 项目名 · 01–07 环节步进 · 资产 · 项目设定 -->
+        <div class="projBar">
+          <button type="button" class="projBack" title="返回项目列表" aria-label="返回项目列表" @click="router.push('/project')">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <button
             type="button"
-            class="bc-item bc-link"
-            :title="project.projectType === 'novel' ? '回到项目首页（原文）' : '回到项目首页（剧本整理）'"
+            class="projName"
+            :title="project.projectType === 'novel' ? '回到项目首页（原文）' : '回到项目首页（分集）'"
             @click="router.push({ path: project.projectType === 'novel' ? '/novel' : '/script', query: { projectId: String(project.id) } })">{{ project?.name }}</button>
-          <span class="bc-sep">/</span>
-          <span class="bc-item current">{{ currentPageName }}</span>
+          <span class="projTypeTag">{{ project.projectType === 'novel' ? '小说' : '剧本' }}</span>
+          <nav class="projSteps" aria-label="创作环节">
+            <template v-for="(menu, index) in rightBtnList" :key="index">
+              <span v-if="menu.type === 'divider'" class="projStepsDivider" aria-hidden="true"></span>
+              <button
+                v-else-if="menu.type === 'btn' && (project.projectType === 'novel' || !menu.nodelOnly)"
+                type="button"
+                class="projStep"
+                :class="{ active: isStepActive(menu) }"
+                :title="menu.description"
+                :aria-label="`${menu.step} ${menu.label}`"
+                :aria-current="isStepActive(menu) ? 'step' : undefined"
+                @pointerenter="warmPage(menu.path!)"
+                @focus="warmPage(menu.path!)"
+                @click="handleClick(menu)">
+                <span class="stepNum x-num">{{ menu.step }}</span><span class="stepLabel">{{ menu.label }}</span>
+              </button>
+            </template>
+          </nav>
+          <div class="projBarRight">
+            <button
+              type="button"
+              class="projUtil"
+              title="项目内的角色、场景、道具、素材与音频"
+              @click="handleClick(rightBtnList.find((m) => m.path === '/assets'))">
+              <i-folder-open size="14px" /><span>资产</span>
+            </button>
+            <button type="button" class="projUtil" title="项目名称、简介、视觉风格与模型配置" @click="openProjectSettings">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M10 3.2v2M10 14.8v2M3.2 10h2M14.8 10h2M5.2 5.2l1.4 1.4M13.4 13.4l1.4 1.4M14.8 5.2l-1.4 1.4M6.6 13.4l-1.4 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span>设定</span>
+            </button>
+          </div>
         </div>
         <!-- 流水线进度带：跨页面常驻，随时知道这个项目做到哪一步了 -->
         <PipelineProgress
@@ -135,26 +166,6 @@
           :progress="project.progress"
           :project-type="project.projectType"
           size="sm" />
-        <div class="top-right">
-          <!-- 项目级快捷入口 -->
-          <div class="shortcuts" v-if="project?.id">
-            <template v-for="(menu, index) in rightBtnList" :key="index">
-              <div
-                class="shortcut"
-                v-if="menu.type === 'btn' && (project.projectType === 'novel' || !menu.nodelOnly)"
-                :class="{ active: activeMenu == menu.path }"
-                :title="menu.description"
-                :aria-label="`${menu.label}：${menu.description}`"
-                @pointerenter="warmPage(menu.path!)"
-              @focus="warmPage(menu.path!)"
-              @touchstart.passive="warmPage(menu.path!)"
-              @click="handleClick(menu)">
-                <component :is="menu.icon" class="icon" />
-                <span class="label">{{ menu.label }}</span>
-              </div>
-            </template>
-          </div>
-        </div>
       </div>
       <div id="pipeline-dock" class="pipelineDock" aria-label="创作流程提示"></div>
       <div class="viewBox">
@@ -449,14 +460,17 @@ const utilityMenu = [
   { type: "btn", path: "/skills", label: "Skill 市场", description: "发现并管理可复用的创作能力", icon: "i-toolkit", badge: "扩展" },
 ];
 
+// L1 项目栏 · 环节步进（XOi Mono 规划）：01–07 顺序主线，分镜/视频/剪辑同页三段用 stage 深链定位
 const rightBtnList = ref([
-  { type: "btn", path: "/novel", label: "导入素材", description: "导入小说原文或已有剧本", icon: "i-file-text", nodelOnly: true },
-  { type: "btn", path: "/scriptAgent", label: "AI 改编（可选）", description: "需要把故事改编成短剧时使用，不是必经环节", icon: "i-magic", nodelOnly: true },
-  { type: "btn", path: "/script", label: "剧本整理", description: "把原文或已有剧本整理成可制作的分集剧本", icon: "i-editing" },
-  { type: "btn", path: "/cornerScape", label: "角色场景", description: "提取并生成角色、场景和道具", icon: "i-user" },
-  { type: "btn", path: "/production", label: "分镜成片", description: "制作分镜、画面、视频并合成成片", icon: "i-play" },
+  { type: "btn", path: "/novel", label: "原文", step: "01", description: "导入小说原文或已有剧本", icon: "i-file-text", nodelOnly: true },
+  { type: "btn", path: "/scriptAgent", label: "改编", step: "02", description: "需要改写原故事时使用，可跳过", icon: "i-magic", nodelOnly: true },
+  { type: "btn", path: "/script", label: "分集", step: "03", description: "整理分集剧本并提取资产", icon: "i-editing" },
+  { type: "btn", path: "/cornerScape", label: "角色场景", step: "04", description: "提取并生成角色、场景和道具", icon: "i-user" },
+  { type: "btn", path: "/production", stage: "planning", label: "分镜", step: "05", description: "导演计划、分镜表与分镜画面", icon: "i-play" },
+  { type: "btn", path: "/production", stage: "video", label: "视频", step: "06", description: "生成并采用镜头视频", icon: "i-play" },
+  { type: "btn", path: "/production", stage: "edit", label: "剪辑", step: "07", description: "连播检查并到剪辑台导出成片", icon: "i-play" },
   { type: "divider", label: "" },
-  { type: "btn", path: "/assets", label: "项目素材", description: "查看当前项目生成的全部素材", icon: "i-folder-open", projectScoped: true },
+  { type: "btn", path: "/assets", label: "资产", description: "项目内的角色、场景、道具、素材与音频", icon: "i-folder-open", projectScoped: true },
 ]);
 
 const router = useRouter();
@@ -517,6 +531,17 @@ const isProjectPage = computed(() => projectPages.includes(route.path) || (route
 const { t } = useI18n();
 function menuLabel(menu: any) { return menu?.label || (menu?.labelKey ? t(menu.labelKey) : ''); }
 const activeMenu = ref(route.path);
+// L1 项目栏步骤激活：路径一致外，分镜/视频/剪辑还需 stage 对上；未带 stage 的 /production 不高亮具体步骤
+function isStepActive(menu: any) {
+  if (route.path !== menu.path) return false;
+  if (menu.stage) return route.query.stage === menu.stage;
+  return true;
+}
+// 项目设定：回到项目列表并直接打开编辑弹窗（?edit=1）
+function openProjectSettings() {
+  if (!project.value?.id) return;
+  router.push({ path: "/project", query: { projectId: String(project.value.id), edit: "1" } });
+}
 const toolsMenuOpen = ref(false);
 const toolsTriggerRef = ref<HTMLElement | null>(null);
 const toolsDropStyle = ref({ left: "258px", top: "420px" });
@@ -568,7 +593,10 @@ function handleClick(menu: any) {
     return;
   }
   if (projectPages.includes(menu.path) && project.value?.id) {
-    router.push({ path: menu.path, query: { projectId: String(project.value.id), ...(route.query.episode ? { episode: route.query.episode } : {}) } });
+    const query: Record<string, string> = { projectId: String(project.value.id) };
+    if (menu.stage) query.stage = menu.stage;
+    else if (route.query.episode) query.episode = String(route.query.episode);
+    router.push({ path: menu.path, query });
     activeMenu.value = menu.path;
     return;
   }
@@ -694,9 +722,9 @@ onBeforeUnmount(() => {
   window.removeEventListener("message", receiveBillingNotice);
 });
 
-// 当前页名（顶栏面包屑末级）
+// 当前页名（诊断与无障碍场景仍可用；L1 项目栏上线后顶栏不再展示面包屑）
 const currentPageName = computed(() => {
-  if (route.path === '/assets' && route.query.projectId) return '项目素材';
+  if (route.path === '/assets' && route.query.projectId) return '资产';
   const menu = [...menuList.value, ...utilityMenu, ...rightBtnList.value].find((item: any) => item.path === route.path);
   return menuLabel(menu);
 });
@@ -877,6 +905,131 @@ async function handleUpdateProfile() {
 </script>
 
 <style lang="scss" scoped>
+/* ── L1 项目栏（XOi Mono）────────────────────────────── */
+.projBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 4px;
+}
+.projBack {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--x-line, #e4e4e7);
+  background: transparent;
+  color: var(--x-fg-2, #4f4f58);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  svg { width: 15px; height: 15px; }
+  &:hover { background: var(--x-bg-3, #eeeef0); color: var(--x-fg, #0a0a0b); }
+}
+.projName {
+  flex: none;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--x-fg, #0a0a0b);
+  cursor: pointer;
+  &:hover { color: var(--x-fg, inherit); text-decoration: underline; text-underline-offset: 3px; }
+}
+.projTypeTag {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--x-line, #e4e4e7);
+  font-size: 10px;
+  color: var(--x-fg-3, #6b6b74);
+  letter-spacing: 0.04em;
+}
+.projSteps {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+.projStepsDivider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 6px;
+  background: var(--x-line, #e4e4e7);
+}
+.projStep {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--x-fg-2, #4f4f58);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  .stepNum {
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    color: var(--x-fg-3, #6b6b74);
+    background: var(--x-bg-3, #eeeef0);
+    font-variant-numeric: tabular-nums;
+  }
+  .stepLabel { font-size: 12px; font-weight: 550; white-space: nowrap; }
+  &:hover { background: var(--x-bg-3, #eeeef0); color: var(--x-fg, #0a0a0b); }
+  &.active {
+    background: var(--x-sel-bg, rgba(79, 91, 213, 0.08));
+    border-color: transparent;
+    color: var(--x-fg, #0a0a0b);
+    .stepNum { background: var(--x-sel, #4f5bd5); color: var(--x-fg-inv, #ffffff); }
+    .stepLabel { font-weight: 650; }
+  }
+  &:focus-visible { outline: 2px solid var(--x-sel, #4f5bd5); outline-offset: 1px; }
+}
+.projBarRight {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.projUtil {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--x-line, #e4e4e7);
+  background: transparent;
+  color: var(--x-fg-2, #4f4f58);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  svg { width: 13px; height: 13px; }
+  &:hover { background: var(--x-bg-3, #eeeef0); color: var(--x-fg, #0a0a0b); }
+}
+@media (max-width: 1100px) {
+  .projName { max-width: 140px; }
+  .projStep .stepLabel { display: none; }
+  .projStep { padding: 0 7px; }
+}
 .site-brand-footer { margin:0 4px 10px; max-height:48px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:10px; line-height:16px; color:#92928a; }
 .main {
   width: 100vw;
