@@ -290,6 +290,8 @@ interface ImageConfig {
   referenceList?: Extract<ReferenceList, { type: "image" }>[];
   size: "1K" | "2K" | "4K";
   aspectRatio: `${number}:${number}`;
+  exactSize?: string;
+  inputMode?: string;
 }
 
 interface TaskRecord {

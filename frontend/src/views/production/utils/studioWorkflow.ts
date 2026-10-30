@@ -66,14 +66,17 @@ export function storyboardTrackCode(frames: { trackId?: number | null }[], track
 /** Return from the editor to this episode, never to a different project supplied in returnTo. */
 export function editorProductionReturn(returnTo: unknown, projectId: string, episode: string) {
   let stage: StudioStage = "edit";
+  let view: "canvas" | "studio" = "studio";
   if (typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\")) {
     try {
       const target = new URL(returnTo, "http://local.invalid");
-      if (target.pathname === "/production" && target.searchParams.get("projectId") === projectId)
+      if (target.pathname === "/production" && target.searchParams.get("projectId") === projectId) {
         stage = studioStageFor(target.searchParams.get("stage")) || "edit";
+        if (target.searchParams.get("view") === "canvas") view = "canvas";
+      }
     } catch {
       /* Keep a local episode return if an old link is malformed. */
     }
   }
-  return { path: "/production", query: { projectId, episode, stage } };
+  return { path: "/production", query: { projectId, episode, stage, view } };
 }

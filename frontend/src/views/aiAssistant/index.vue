@@ -313,7 +313,7 @@
           </span>
         </button>
         <div class="featureGrid">
-          <button v-for="card in featureCards" :key="card.title" type="button" class="featureCard" @click="router.push(card.route)">
+          <button v-for="card in featureCards" :key="card.title" type="button" class="featureCard" @click="openFeature(card)">
             <span class="featureThumb" :style="card.imageUrl ? undefined : { background: card.grad }">
               <img v-if="card.imageUrl" :src="card.imageUrl" :alt="card.alt" loading="lazy" decoding="async" />
             </span>
@@ -368,6 +368,10 @@ import { storeToRefs } from "pinia";
 import { MessagePlugin } from "tdesign-vue-next";
 import axios from "@/utils/axios";
 import {safeAssistantMarkup} from "@/utils/safeAssistantMarkup";
+import { authHeaders, sessionUserId } from "@/utils/session";
+import {writeBrowserHandoff} from "../../../../shared/browserHandoff";
+import {accountBoundary} from "@/utils/accountBoundary";
+const assistantOwner = accountBoundary.capture();
 import settingStore from "@/stores/setting";
 import { showPointsToast } from "@/utils/pointsToast";
 // Miora IP 身躯贴图 · 736×737 PNG 经 Vite ESM-import 解析为运行期 hashed URL，
@@ -406,16 +410,24 @@ type FeatureCard = { alt: string; title: string; desc: string; imageUrl?: string
 const featureCards: FeatureCard[] = [
   { alt: "无限画布", title: "无限画布", desc: "把提示词、参考图与生成结果放进同一张画布，持续推演创意", imageUrl: "/miora-home/ai-creative-canvas.png", route: "/canvas" },
   { alt: "白模预演", title: "白模预演", desc: "3D 场景排兵布阵，镜头与关键帧先预演再实拍", imageUrl: "/miora-home/director-stage.png", route: "/director3d" },
-  { alt: "创作智能体", title: "创作智能体", desc: "一句话拆解成海报、视频、品牌视觉等可执行任务", imageUrl: "/miora-home/creative-agent.png", route: "/aiAssistant", hot: true },
+  { alt: "一站式创作", title: "一站式创作", desc: "从一句故事开始，一站完成剧本、角色、分镜、配音与成片", imageUrl: "/one-stop/brand/one-stop-story-dawn-v1.png", route: "/one-stop/#/comic", hot: true },
   { alt: "灵感广场", title: "灵感广场", desc: "看看别人在做什么，一键套用同款工作流", imageUrl: "/miora-home/inspiration-square.svg", route: "/square" },
 ];
+function openFeature(card: FeatureCard) {
+  if (card.route.startsWith("/one-stop/")) {
+    window.location.assign(card.route);
+    return;
+  }
+  router.push(card.route);
+}
 let canvasOpening=false;
 function warmCanvas(){window.dispatchEvent(new Event('xoi:canvas-warmup'));}
 async function openCanvasWithPrompt(preset = inputValue.value.trim()) {
   if(canvasOpening)return;
   const prompt = preset.trim();
   try {
-    localStorage.setItem("xoi_canvas_handoff_v1", JSON.stringify({
+    accountBoundary.assert(assistantOwner);
+    writeBrowserHandoff(sessionStorage, assistantOwner.token, "canvas-prompt", {
       prompt,
       category: activeCategory.value,
       skills: activeSkillOptions.value.map((skill) => ({ path: skill.path, name: skill.name, group: skill.group })),
@@ -426,7 +438,7 @@ async function openCanvasWithPrompt(preset = inputValue.value.trim()) {
       assets: composerAttachments.value,
       source: "aiAssistant",
       createdAt: Date.now(),
-    }));
+    });
   } catch {
     MessagePlugin.warning("画布入口数据暂时无法保存，请重试");
     return;
@@ -497,7 +509,7 @@ const filteredSkills = computed(() => {
   const sourceItems = skillOptions.value.filter((item) => item.source === skillTab.value);
   return keyword ? sourceItems.filter((item) => `${item.name} ${item.group} ${item.desc}`.toLowerCase().includes(keyword)) : sourceItems;
 });
-function persistSelectedSkills() { try { localStorage.setItem(selectedSkillsKey.value, JSON.stringify(selectedSkills.value)); } catch {} }
+function persistSelectedSkills() { try { accountBoundary.assert(assistantOwner);localStorage.setItem(selectedSkillsKey.value, JSON.stringify(selectedSkills.value)); } catch {} }
 function toggleSkill(path: string) {
   const removing = selectedSkills.value.includes(path);
   selectedSkills.value = removing ? selectedSkills.value.filter((item) => item !== path) : [...selectedSkills.value, path].slice(-4);
@@ -536,10 +548,12 @@ async function loadSkills() {
       axios.get<{ items: any[]; installedIds: string[] }>("/skills?tab=market").catch(() => null),
       fetch("/skill-market/catalog.json", { cache: "no-store" }).catch(() => null),
     ]);
+    accountBoundary.assert(assistantOwner);
     const files = Array.isArray(data) ? data : [];
     const installed = JSON.parse(localStorage.getItem(installedSkillsKey.value) || "[]");
     const installedMeta = Array.isArray(installed) ? [...installed] : [];
     const catalog = catalogResponse?.ok ? await catalogResponse.json().catch(() => ({ data: [] })) : { data: [] };
+    accountBoundary.assert(assistantOwner);
     const sources = [...(market?.data?.items ?? []), ...(Array.isArray(catalog?.data) ? catalog.data : [])];
     for (const id of market?.data?.installedIds ?? []) {
       const path = `community/${id}.md`;
@@ -657,23 +671,13 @@ interface PersistedSessionLite {
   msgs: PersistedMessageLite[];
 }
 
-// 从本仓 token 解 JWT payload 取 uid 作命名空间后缀实现「换号互不可见」语义;
-// token 缺失/格式破损/chat.ts auth-optional 匿名场景降级共享 anon 桶不阻断聊天主线。
+// 会话桶按 uid 分命名空间实现「换号互不可见」语义。
+// F3 之后本地已没有 JWT 可解，uid 直接取自非敏感会话信号（uid:nonce）；
+// 未登录 / 信号缺失时降级共享 anon 桶，不阻断聊天主线。
 function sessionBucketKey(): string {
-  let uid = "anon";
-  try {
-    const tk = typeof localStorage !== "undefined" ? localStorage.getItem("token") || "" : "";
-    const seg = tk.split(".")[1];
-    if (seg && /^[A-Za-z0-9_-]+$/.test(seg)) {
-      // base64url → base64 → 正确 UTF-8 文本(payload 含中文 name 不能裸用 atob 否则乱码但不影响取数字 id 此处仍走严谨解码保险)
-      const b64 = seg.replace(/-/g, "+").replace(/_/g, "/");
-      const jsonStr = decodeURIComponent(
-        escape(atob(b64)) /* legacy byte-string bridge 仍广泛支持且兼容旧版 Safari */
-      );
-      const pld = JSON.parse(jsonStr);
-      if (pld?.id != null) uid = String(pld.id);
-    }
-  } catch {/* decode 失败静默降级 anon */}
+  accountBoundary.assert(assistantOwner);
+  const uid = assistantOwner.token.split(":")[0];
+  if (!uid) throw new Error("请先登录");
   return `${SESSIONS_BASE_KEY}:${uid}`;
 }
 
@@ -683,6 +687,7 @@ function schedulePersist(): void {
   __persistTimer = setTimeout(() => {
     __persistTimer = null;
     try {
+      accountBoundary.assert(assistantOwner);
       const liteArr: PersistedSessionLite[] =
         [...conversations.value]
           .slice(-SESSION_MAX_KEEP)
@@ -1007,7 +1012,7 @@ function creationModelLabel(model: string) { return creationModelLabels.value[mo
 
 async function loadCreationDefaults() {
   try {
-    const response = await fetch("/api/config", { headers: { Authorization: localStorage.getItem("token") || "" } });
+    const response = await fetch("/api/config", { headers: { ...authHeaders() } });
     if (!response.ok) return;
     const config = await response.json();
     creationModelLabels.value = Object.fromEntries((config?.model_catalog || []).map((model: any) => [model.modelName, model.name || model.label || model.modelName]));

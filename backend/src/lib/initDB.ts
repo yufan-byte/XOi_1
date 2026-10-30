@@ -393,7 +393,9 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.increments("id");
         table.bigInteger("projectId");
         table.string("taskClass");
-        table.string("relatedObjects");
+        // 存的是整个请求体的 JSON（提示词 + 参考图地址 + 规格），必须 text。
+        // 老库由 lib/fixDB.ts 的 alterColumnType 迁过来。
+        table.text("relatedObjects");
         table.string("model");
         table.text("describe");
         table.string("state");
@@ -536,7 +538,7 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         table.bigInteger("flowId"); //工作流id
         table.bigInteger("startTime");
         table.string("promptState");
-        table.bigInteger("audioBindState");
+        table.text("audioBindState");
         table.text("promptErrorReason");
         table.unique(["id"]);
       },
@@ -1324,6 +1326,24 @@ export default async (knex: Knex, forceInit: boolean = false): Promise<void> => 
         await t.initData(knex);
         console.log("[初始化数据库] 表数据初始化:", t.name);
       }
+    }
+  }
+
+  // Migration: 为老库补高频查询索引（CREATE INDEX IF NOT EXISTS 幂等，可重复执行）。
+  // o_assets 的列表/统计/批量绑定等十余处路由都按 projectId / scriptId 过滤，
+  // 旧库只有主键索引，资产过千后这些查询会退化为全表扫描。
+  const indexMigrations: Array<{ name: string; sql: string }> = [
+    { name: "idx_o_assets_projectId", sql: 'CREATE INDEX IF NOT EXISTS "idx_o_assets_projectId" ON "o_assets" ("projectId")' },
+    { name: "idx_o_assets_scriptId", sql: 'CREATE INDEX IF NOT EXISTS "idx_o_assets_scriptId" ON "o_assets" ("scriptId")' },
+    { name: "idx_o_storyboard_projectId", sql: 'CREATE INDEX IF NOT EXISTS "idx_o_storyboard_projectId" ON "o_storyboard" ("projectId")' },
+    { name: "idx_o_storyboard_scriptId", sql: 'CREATE INDEX IF NOT EXISTS "idx_o_storyboard_scriptId" ON "o_storyboard" ("scriptId")' },
+  ];
+  for (const idx of indexMigrations) {
+    if (!(await knex.schema.hasTable(idx.sql.match(/ON "([^"]+)"/)![1]))) continue;
+    try {
+      await knex.raw(idx.sql);
+    } catch (err) {
+      console.warn("[初始化数据库] 索引创建失败(不影响启动):", idx.name, err instanceof Error ? err.message : err);
     }
   }
 

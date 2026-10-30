@@ -54,9 +54,12 @@ test("video groups retain all source shot numbers and never renumber around an u
 test("editor returns preserve the originating stage and actual episode", () => {
   assert.deepEqual(editorProductionReturn("/production?projectId=7&stage=video&episode=old", "7", "11"), {
     path: "/production",
-    query: { projectId: "7", episode: "11", stage: "video" },
+    query: { projectId: "7", episode: "11", stage: "video", view: "studio" },
   });
   assert.equal(editorProductionReturn(undefined, "7", "11").query.stage, "edit");
+  assert.deepEqual(editorProductionReturn("/production?projectId=7&episode=11&stage=video&view=canvas", "7", "11"), {
+    path: "/production", query: { projectId: "7", episode: "11", stage: "video", view: "canvas" },
+  });
 });
 test("editor returns reject external, cross-project and unrelated paths", () => {
   for (const path of [
@@ -65,5 +68,5 @@ test("editor returns reject external, cross-project and unrelated paths", () => 
     "/production?projectId=8&stage=planning",
     "/canvas?projectId=7&stage=planning",
   ])
-    assert.deepEqual(editorProductionReturn(path, "7", "11"), { path: "/production", query: { projectId: "7", episode: "11", stage: "edit" } });
+    assert.deepEqual(editorProductionReturn(path, "7", "11"), { path: "/production", query: { projectId: "7", episode: "11", stage: "edit", view: "studio" } });
 });

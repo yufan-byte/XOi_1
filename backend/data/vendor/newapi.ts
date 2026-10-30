@@ -99,6 +99,8 @@ interface ImageConfig {
   prompt: string;
   /** 平台传的是 referenceList（version >= 2.0）；老模板收到 imageBase64。两个都兼容。 */
   referenceList?: RefItem[];
+  exactSize?: string;
+  inputMode?: string;
   imageBase64?: string[];
   size: "1K" | "2K" | "4K";
   aspectRatio: `${number}:${number}`;
@@ -215,7 +217,26 @@ function headers() {
 /** 上游报错翻成人话：new-api 把 agnes 免费额度限流包装成「负载已饱和」，用户完全看不出该等多久 */
 function friendlyUpstreamError(message: string): string {
   if (/负载已饱和|rate_limit|限流/i.test(message)) return "上游模型限流（agnes 免费额度有速率限制），请等 1 分钟左右再试，或升级 agnes 套餐";
+  // 内容审核拒绝：上游常以 HTTP 200 + 文案返回，不说清楚用户只会反复重试同样被拒的提示词
+  if (/安全审核|内容审核|sensitive|未通过安全|违规|moderation|content[_ ]policy|inappropriate/i.test(message))
+    return `内容未通过上游安全审核：请调整提示词或更换素材（含真人正脸、公众人物、暴力/敏感元素的图最容易被拒）。本次未生成图片，不计费。原始提示：${message}`;
   return message;
+}
+
+/** 上游「HTTP 200 但响应体是错误」的统一识别：网关把失败包成 200 很常见（如内容审核拒绝、
+ *  all_vendors_failed），此时 data 里没有图片。不透出真实原因，用户只能看到
+ *  「网关没有返回图片」，反复重试同样会被拒。返回错误文案；正常响应返回空串。 */
+function upstreamImageError(payload: any): string {
+  if (!payload || typeof payload !== "object") return "";
+  const err = payload.error;
+  const message = typeof err === "string" ? err : (err && (err.message || err.error)) || payload.message || payload.msg || "";
+  const code = payload.code ?? payload.error_code;
+  const badCode = typeof code !== "undefined" && ![200, "200", 0, "0", "success", ""].includes(code as any);
+  const noImage = !payload.data && !payload.url && !payload.b64_json;
+  if (!message && !badCode) return "";
+  // 有图片就优先交图（个别线路同时带 warning 字段）
+  if (!noImage) return "";
+  return friendlyUpstreamError(String(message || (badCode ? `网关返回失败码 ${code}` : "")));
 }
 
 function unwrap(res: any): any {
@@ -325,8 +346,9 @@ const imageRequest = async (config: ImageConfig, model: ImageModel): Promise<str
     response_format: "url", // 造物站内一律传 url
   };
 
-  const px = imagePixels(config.size, config.aspectRatio);
+  const px = config.exactSize || imagePixels(config.size, config.aspectRatio);
   if (px) body.size = px;
+  if (config.inputMode) body.mode = config.inputMode;
   // ⚠️ 清晰度必须发 resolution，**不要换成 quality:"high"**。
   //    造物 2026-09-22 实测过这个换法，两个后果都会发生：
   //      (1) 用户选的 4K 根本没送到，出的还是 1K，计费也落回默认档；
@@ -341,21 +363,27 @@ const imageRequest = async (config: ImageConfig, model: ImageModel): Promise<str
 
   let res;
   try {
-    // 300s：与造物对齐（其 genImage 默认 timeoutMs = 300_000）。gpt-image-2 实测最长 221s，
-    // 90s/240s 都可能在上游已经出图并计费之后才放弃——钱花了、图丢掉。
-    res = await axios.post(`${baseUrl()}/images/generations`, body, { headers: headers(), timeout: 300000 });
+    // 600s：造物 genImage 默认 300s，但 seedream 5.0 图编辑实测会超过 5 分钟（用户实测整 5 分钟被掐断）；
+    // 网关层也已同步放宽到 10 分钟，两边必须一致，否则上层先断、下层白等。
+    res = await axios.post(`${baseUrl()}/images/generations`, body, { headers: headers(), timeout: 600000 });
   } catch (err: any) {
     // 上游生图 90 秒不返回，基本都是模型侧挂死（实测 doubao-seedream-5-0 会永久无响应），
     // 快速失败 + 人话提示，别让用户在画布上干等三分钟。
     if (/timeout of \d+ms exceeded/i.test(String(err?.message || ""))) {
-      throw new Error(`图片模型 ${model.modelName} 等待 5 分钟仍未返回：上游可能仍在生成并已计费，请稍后到画布/资产库确认，不要立刻重复提交`);
+      throw new Error(`图片模型 ${model.modelName} 等待 10 分钟仍未返回：上游可能仍在生成并已计费，请稍后到画布/资产库确认，不要立刻重复提交`);
     }
+    const detail = err?.response?.data;
+    const message = typeof detail?.error === "string" ? detail.error : detail?.error?.message || detail?.message || detail?.msg;
+    if (typeof message === "string" && message.trim()) throw new Error(friendlyUpstreamError(message));
+    if (err?.response?.status >= 500) throw new Error(`图片服务暂时异常（${err.response.status}），请查看任务与积分记录后再重试`);
     throw err;
   }
   const payload = unwrap(res) || {};
+  const upstreamError = upstreamImageError(payload);
+  if (upstreamError) throw new Error(upstreamError);
   const first = Array.isArray(payload.data) ? payload.data[0] : payload;
   const url = first && (first.url || first.b64_json);
-  if (!url) throw new Error("网关没有返回图片（响应里没有 data[0].url）");
+  if (!url) throw new Error("网关返回了空结果（既没有 data[0].url 也没有 b64_json）：可能是上游内容审核拒绝或线路临时异常，请换提示词/素材或换线路后重试；本次未出图，不计费");
   // b64_json 也认，但站内默认应该是 url
   return first.b64_json && !first.url ? `data:image/png;base64,${first.b64_json}` : url;
 };
@@ -380,9 +408,9 @@ const videoRequest = async (config: VideoConfig, model: VideoModel): Promise<str
     // Go struct field .Alias.seconds of type string），必须字符串化
     seconds: String(config.duration || 5),
     // 网关强校验 mode（实测 400: "mode 不能为空"）：有参考图=reference，首尾帧=keyframe，纯文本=text
-    mode: (Array.isArray(config.referenceList) && config.referenceList.length > 0)
+    mode: mode === "startEndRequired" ? "keyframe" : (Array.isArray(config.referenceList) && config.referenceList.length > 0)
       ? "reference"
-      : (mode === "startEndRequired" ? "keyframe" : "text"),
+      : "text",
   };
   if (config.aspectRatio) body.aspect_ratio = config.aspectRatio;
   if (config.resolution) body.resolution = config.resolution;

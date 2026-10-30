@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { cn, timeHM } from "@/lib/utils";
 import { useCatalog } from "./adapters/queries";
 import { chat } from "./adapters/llm";
+import { accountStorageKey, accountLocalStorage } from "./adapters/request";
 import { AppShell } from "./adapters/shell";
 import { useStudio } from "./studio/store";
 import { EmptyModel, RichTip, SideDrawer, TipProvider, topbarBtn } from "./studio/ui";
@@ -31,7 +32,9 @@ export function ChatStudio() {
   const [personaOpen, setPersonaOpen] = useState(false);
   const [persona, setPersona] = useState<ChatPersona | null>(null);
   /** 历史会话（本机 localStorage）：恢复 / 删除 */
-  const [sessions, setSessions] = useState<{ id: string; title: string; at: number; msgs: ChatMsg[] }[]>(() => { try { return JSON.parse(localStorage.getItem("xoi-chat-sessions") || "[]"); } catch { return []; } });
+  const historyKey = useRef(accountStorageKey("xoi-chat-sessions")).current;
+  const historyStorage = useMemo(accountLocalStorage, []);
+  const [sessions, setSessions] = useState<{ id: string; title: string; at: number; msgs: ChatMsg[] }[]>(() => { try { return JSON.parse(historyStorage.getItem(historyKey) || "[]"); } catch { return []; } });
   const abortRef = useRef<AbortController | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -75,7 +78,7 @@ export function ChatStudio() {
       const title = (msgs.find((m) => m.role === "user")?.content ?? "对话").slice(0, 24);
       setSessions((c) => {
         const next = [{ id, title, at: Date.now(), msgs }, ...c.filter((x) => x.id !== id)].slice(0, 30);
-        localStorage.setItem("xoi-chat-sessions", JSON.stringify(next));
+        historyStorage.setItem(historyKey, JSON.stringify(next));
         return next;
       });
     } catch { /* 隐私模式忽略 */ }
@@ -85,7 +88,7 @@ export function ChatStudio() {
     setMsgs(x.msgs); sessionRef.current = x.id; setDlg(null);
     toast.success("已恢复该会话");
   };
-  const deleteSession = (id: string) => { setSessions((c) => { const n = c.filter((x) => x.id !== id); try { localStorage.setItem("xoi-chat-sessions", JSON.stringify(n)); } catch {} return n; }); };
+  const deleteSession = (id: string) => { setSessions((c) => { const n = c.filter((x) => x.id !== id); try { historyStorage.setItem(historyKey, JSON.stringify(n)); } catch {} return n; }); };
   const nameOf = useMemo(() => { const m = new Map(models.map((x) => [x.id, x.name])); return (id: string) => m.get(id) ?? id; }, [models]);
 
   return (

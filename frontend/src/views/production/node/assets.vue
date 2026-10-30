@@ -71,7 +71,7 @@
         </div>
       </div>
     </div>
-    <editImage v-model="visible" v-if="visible" :flowData="currentRow" @save="save" />
+    <editImage v-model="visible" v-if="visible" :flowData="currentRow" @save="saveFromCanvas" />
   </t-card>
 </template>
 
@@ -115,21 +115,22 @@ function generateAssetsImage(row: DeriveAsset, referanceImageUrl: string) {
 async function save({ imageUrl, flowId }: { imageUrl: string; flowId: number }) {
   // 更新对应分镜的 src
   if (!imageUrl) return;
+  const savedAssetId=currentAssetsId.value;
+  const {data}=await axios.post("/production/assets/updateAssetsUrl", {id:savedAssetId,url:imageUrl,flowId});
   for (const i of assets.value) {
-    const target = i.derive.find((s) => s.id === currentAssetsId.value);
+    const target = i.derive.find((s) => s.id === savedAssetId);
     if (target) {
       target.state = '已完成'
-      target.src = imageUrl;
+      target.src = data.url || imageUrl;
       target.flowId = flowId;
       break;
     }
   }
 
-  await axios.post("/production/assets/updateAssetsUrl", {
-    id: currentAssetsId.value,
-    url: imageUrl,
-    flowId,
-  });
+}
+
+async function saveFromCanvas(payload: { imageUrl: string; flowId: number; onComplete: (failure?: unknown) => void }) {
+  try { await save(payload); payload.onComplete(); } catch (e) { payload.onComplete(e); }
 }
 
 async function removeFn(id: number) {

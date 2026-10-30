@@ -1,3 +1,5 @@
+import { sessionSignal } from "./session";
+
 export type DailySpend = {
   day: string;
   timezone: string;
@@ -13,7 +15,7 @@ let checking = false,
   lastOwner = "";
 /** Observational only. No model requests, cancellation or authorization decisions live here. */
 export async function checkDailySpendReminder() {
-  const token = localStorage.getItem("token") || "";
+  const token = sessionSignal() || "";
   if (!token) return;
   if (lastOwner !== token) {
     lastOwner = token;
@@ -23,15 +25,16 @@ export async function checkDailySpendReminder() {
   checking = true;
   lastRead = Date.now();
   try {
-    const headers = { Authorization: token };
-    const response = await fetch("/api/billing/preferences", { headers, cache: "no-store", signal: AbortSignal.timeout(5000) });
+    // F3：凭据走 httpOnly cookie（同源自动携带）；token 只用于「本轮账号是否还是同一个」的比对。
+    const requestInit = { credentials: "same-origin" as const };
+    const response = await fetch("/api/billing/preferences", { ...requestInit, cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok) return;
     const status = (await response.json()).data as DailySpend;
-    if (!status?.shouldRemind || localStorage.getItem("token") !== token) return;
-    const claim = await fetch("/api/billing/daily-notice/claim", { method: "POST", headers, signal: AbortSignal.timeout(5000) });
+    if (!status?.shouldRemind || sessionSignal() !== token) return;
+    const claim = await fetch("/api/billing/daily-notice/claim", { ...requestInit, method: "POST", signal: AbortSignal.timeout(5000) });
     if (!claim.ok) return;
     const data = (await claim.json()).data as DailySpend;
-    if (!data?.claimed || localStorage.getItem("token") !== token) return;
+    if (!data?.claimed || sessionSignal() !== token) return;
     document.getElementById("xoi-daily-spend-reminder")?.remove();
     const box = document.createElement("aside");
     box.id = "xoi-daily-spend-reminder";

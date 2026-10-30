@@ -1,6 +1,7 @@
 // useChat.ts
 import { ref, shallowRef, onMounted, onUnmounted, computed, onScopeDispose } from "vue";
 import { accountBoundary } from './accountBoundary';
+import { sessionToken } from './session';
 import { io, Socket } from "socket.io-client";
 import { authorizeModelCall, modelCallSubmitted } from "./billingGate";
 import type { ChatMessagesData, AIMessage, UserMessage, AIMessageContent, ChatMessageStatus } from "@tdesign-vue-next/chat";
@@ -570,7 +571,11 @@ export function useChat(options: UseChatOptions) {
     socket.value.on("connect_error", (error) => {
       connected.value = false;
       connecting.value = false;
-      lastError.value = "实时连接失败，请检查登录状态或点击重连";
+      // 服务端会把拒绝原因（登录失效 / 无权访问项目 / 连接过多…）塞进 message，
+      // 原样透出去；socket.io 自己的英文底层错误（xhr poll error 等）没法给用户看，退回通用话术。
+      const reason = String((error as Error)?.message || "").trim();
+      const humanReason = /[\u4e00-\u9fa5]/.test(reason) ? reason : "";
+      lastError.value = humanReason ? `实时连接失败：${humanReason}` : "实时连接失败，请检查登录状态或点击重连";
       console.error("[Chat Connect Error]", error);
     });
   };
@@ -590,7 +595,9 @@ export function useChat(options: UseChatOptions) {
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 10000,
-        auth: { token: owner.token, ...(typeof auth === "function" ? auth() : auth) },
+        // owner.token 是**账号切换信号**（uid:nonce），不是凭据：塞进 auth.token 会让后端
+        // 拿它去验签，直接判无效凭据、连不上。凭据只用内存里的 JWT，没有就交给同源 cookie。
+        auth: { token: sessionToken() || undefined, ...(typeof auth === "function" ? auth() : auth), expectedUser: owner.token.split(":")[0] },
       });
       socket.value.onAny(() => {
         if(!accountBoundary.current(owner)){

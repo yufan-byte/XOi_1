@@ -1,0 +1,12 @@
+{
+  "source": "/Users/zhaochenyu/Desktop/C_code/monoform-previs-studio-main",
+  "files": {
+    "src/App.jsx": "6d2c3851c94d9a58957f49819a195a0e6d491e9305f9c9d1b643581ab0a3e531",
+    "src/Viewport.jsx": "3e9deb2bbeb6d066fef2366ce7e360a99f4cd027f81e4705dc201acf2a06aab3",
+    "src/styles.css": "565e3e93cfba77295093cca3b9f85d95dfb05f4dbc21254debf877f84e79bc57",
+    "src/cameraMotion.js": "ec08cd8e0d456094bfa2c8ff1f8ef143f043eff4f02595dc779b29ee54017e78",
+    "src/previsMotion.js": "ee1bb936b0a05d6c2b800069f102b7b3837c3e82f4b09ef0916d36a81195aca2",
+    "src/routeOwnership.js": "0d173d8c870f15c8256e49dba015fb2f67db6648e51ef644567045352da3691b",
+    "src/sceneToMonoform.js": "2e2267d765fbaf035c6b06487aeae8916b26764caf7b128d3ce6fb633c23bab5"
+  }
+}

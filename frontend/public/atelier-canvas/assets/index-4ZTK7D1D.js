@@ -1,0 +1,1 @@
+import{r as t,j as e}from"./index-BuhITq-u.js";function o(){return t.useEffect(()=>{(window.top??window).location.href="/#/director3d"},[]),e.jsx("main",{className:"grid h-full place-content-center bg-[#faf9f7] text-[#34302d]",children:"正在打开导演工作台…"})}export{o as default};

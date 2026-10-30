@@ -1,0 +1,1 @@
+import{i as p}from"./index-BwWJL9tT.js";import{A as r}from"./index-CT1iPo4K.js";import{u as m}from"./useTranslation-5xABatUL.js";function i(){const{message:o}=r.useApp(),{t:s}=m();return(e,t=s("common.copied"))=>{p(e),o.success(t)}}export{i as u};

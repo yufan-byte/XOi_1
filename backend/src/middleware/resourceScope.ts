@@ -122,6 +122,8 @@ export function resourceScope(load: ResourceLoader): RequestHandler {
         loaded.set(kind, rows);
       }
       const projectIds = requested.get("project");
+      const relatedProjects = new Set([...loaded.values()].flat().map(row => row.projectId).filter(id => id != null).map(Number));
+      if (relatedProjects.size > 1) throw new ScopeError(403, "同一次操作的资源必须属于同一项目");
       if (projectIds?.size === 1) {
         const projectId = [...projectIds][0];
         for (const rows of loaded.values()) if (rows.some((r) => r.projectId != null && Number(r.projectId) !== projectId)) {
@@ -142,7 +144,8 @@ export function resourceScope(load: ResourceLoader): RequestHandler {
       if (route === "production/workbench/selectvideo" && loaded.get("video")?.some((r) => Number(r.parentId) !== Number(body.trackId))) {
         throw new ScopeError(403, "视频不属于该轨道");
       }
-      const scriptId = body.scriptId || body.episodesId;
+      const scripts = requested.get("script");
+      const scriptId = body.scriptId || body.episodesId || (scripts?.size === 1 ? [...scripts][0] : undefined);
       if (scriptId && [...loaded.entries()].some(([kind, rows]) => ["storyboard", "track", "video"].includes(kind) && rows.some((r) => r.scriptId != null && Number(r.scriptId) !== Number(scriptId)))) {
         throw new ScopeError(403, "资源不属于当前剧集");
       }

@@ -197,6 +197,8 @@
 
 <script setup lang="ts">
 import { editorProductionReturn } from "../../../utils/studioWorkflow";
+import { sessionUserId } from "@/utils/session";
+import {accountBoundary} from "@/utils/accountBoundary";
 import { provide } from "vue";
 import { useRoute, useRouter, onBeforeRouteLeave } from "vue-router";
 import axios from "@/utils/axios";
@@ -374,7 +376,8 @@ function fitTimeline() {
   if (area) area.scrollLeft = 0;
 }
 
-const editorOwner = localStorage.getItem("userId") || "";
+const editorOwner = sessionUserId();
+const editorScope = accountBoundary.capture();
 const draftKey = computed(() => {
   if (isStandalone.value) return `xoi:${editorOwner}:timeline-draft:standalone:${String(route.query.draft || "default")}`;
   return `xoi:${editorOwner}:timeline-draft:${projectId.value || "project"}:${scriptId.value || "episode"}`;
@@ -399,6 +402,7 @@ async function restoreCloudTimeline() {
     // A viral legacy key includes a verified owner; never auto-import an unscoped legacy draft.
     if (!timelineDraft.value && route.query.viralDraft) timelineDraft.value = JSON.parse(localStorage.getItem(`xoi:timeline-draft:standalone:viral-${editorOwner}-${route.query.viralDraft}`) || "null");
     const saved = await getCloudDocument<{ tracks: Track[]; ratio: string; name: string; shots?: Shot[] }>(editorOwner, "timeline", currentTimelineId);
+    accountBoundary.assert(editorScope);
     if (saved) {
       timelineRevision = saved.revision;
       if (meta?.pending && meta.revision === saved.revision && timelineDraft.value) { timelineSaveMessage.value = "本机有未同步编辑 · 自动保存后可跨设备继续"; return; }
@@ -587,7 +591,7 @@ async function loadMaterials() {
         type: "video",
         name: "XOi片尾.mp4",
         duration: 0,
-        icon: "🎬",
+        icon: "i-video",
         color: "linear-gradient(135deg, #2d2a28 0%, #68574d 100%)",
         url: "/assets/ending.mp4",
         loading: true,
@@ -867,6 +871,7 @@ function scheduleDraftSave() {
   draftSaveTimer = setTimeout(persistTimeline, 600);
 }
 function persistTimeline() {
+    if(!accountBoundary.current(editorScope))return;
     if (!ready) return;
     if (draftSaveTimer) clearTimeout(draftSaveTimer);
     draftSaveTimer = null;
@@ -883,6 +888,7 @@ function persistTimeline() {
       timelineSaveMessage.value = "本机缓存空间不足，正在尝试云端保存";
     }
     timelineQueue = timelineQueue.catch(() => {}).then(async () => {
+      accountBoundary.assert(editorScope);
       if (sequence !== timelineSaveSequence) return; // Coalesce stale autosaves while a previous network write is in flight.
       assertWorkspaceOwner(editorOwner);
       if (!cloudAvailable) throw new Error("云端尚未读取成功，本机修改保留；请联网后重新打开并核对");
@@ -1316,7 +1322,7 @@ function goBack() {
 }
 function goStoryboard() {
   if (isStandalone.value) return goBack();
-  router.push({ path: "/production", query: { projectId: String(project.value?.id || route.query.projectId || ""), episode: String(scriptId.value || route.query.episode || ""), stage: "frames" } });
+  router.push({ path: "/production", query: { projectId: String(project.value?.id || route.query.projectId || ""), episode: String(scriptId.value || route.query.episode || ""), stage: "frames", view: "studio" } });
 }
 
 // ─────────────────────── 生命周期 ───────────────────────
@@ -1331,10 +1337,10 @@ onMounted(async () => {
       scriptName.value = draft.title;
     } catch (error) { MessagePlugin.error(error instanceof Error ? error.message : "复刻任务读取失败"); }
   }
-  if (!isStandalone.value) {
-    await resolveEpisode();
-    await Promise.all([loadShots(), loadMaterials()]);
-  }
+  if (!isStandalone.value) await resolveEpisode();
+  // Standalone editing still needs the shared XOi ending in “本地视频”.
+  // The public brand asset is referenced once and is never copied per user/project.
+  await Promise.all([loadShots(), loadMaterials()]);
   await restoreCloudTimeline();
   await initializeTracks();
   if (timelineSaveMessage.value.startsWith("本机有未同步编辑")) scheduleDraftSave();

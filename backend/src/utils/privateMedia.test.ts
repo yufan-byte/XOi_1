@@ -32,7 +32,11 @@ test('private media checks cookie identity, tenant, version, one-file grant and 
       assert.equal((await get('/canvas/image/2/image.png',{Cookie:cookie(a)})).status,403);
     });
     await t.test('owner plays media; admin remains allowed; shared presets stay readable',async()=>{
-      const response=await get('/101/frame.png',{Cookie:cookie(a)});assert.equal(response.status,200);assert.match(response.headers.get('cache-control')||'',/private/);assert.match(response.headers.get('cache-control')||'',/no-store/);
+      const response=await get('/101/frame.png',{Cookie:cookie(a)});assert.equal(response.status,200);assert.match(response.headers.get('cache-control')||'',/private/);assert.match(response.headers.get('cache-control')||'',/no-cache/);
+      const etag=response.headers.get('etag');assert.ok(etag);
+      assert.equal((await get('/101/frame.png',{Cookie:cookie(a),'If-None-Match':etag,'Cache-Control':'max-age=0'})).status,304);
+      assert.equal((await get('/101/frame.png',{Cookie:cookie(b),'If-None-Match':etag})).status,403);
+      assert.equal((await get('/101/frame.png',{'If-None-Match':etag})).status,403);
       assert.equal((await get('/101/frame.png',{Authorization:'Bearer '+a})).status,200);
       assert.equal((await get('/101/frame.png',{Cookie:cookie(token(3))})).status,200);
       assert.equal((await get('/artStyle/shared.jpg')).status,200);

@@ -37,6 +37,10 @@ async function boot() {
   }
 
   const { default: App } = await import("../upstream/src/App.jsx");
+  if (localStorage.getItem("xoi_session") !== context.token) {
+    renderRefusal(root, "账号已切换，请重新打开工程");
+    return;
+  }
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
       <App />

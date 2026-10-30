@@ -7,6 +7,7 @@ import { h } from "vue";
 import { authorizeModelCall, modelCallSubmitted } from "./billingGate";
 import { billableOperation } from "../../../shared/billableOperations";
 import { accountBoundary } from './accountBoundary';
+import { clearSession, sessionToken } from './session';
 const instance = axios.create();
 
 instance.interceptors.request.use(async function (config) {
@@ -15,11 +16,15 @@ instance.interceptors.request.use(async function (config) {
   config.timeout = config.timeout || otherSetting.value.axiosTimeOut;
   const owner = accountBoundary.capture();
   (config as any).accountOwner = owner;
-  const token = owner.token;
+  // F3：凭据只从内存取（登录/迁移那一次放进来的），取不到就不设 header ——
+  // 同源请求会自动带上后端下发的 httpOnly 会话 cookie，由后端兜底认证。
+  const token = sessionToken();
   if (token) {
     config.headers.Authorization = token;
   }
   const path = String(config.url || "");
+  const expectedUser = /^([1-9]\d*):/.exec(owner.token)?.[1];
+  if (expectedUser) config.headers.set("X-Xoi-Expected-User", expectedUser);
   if (billableOperation(path, config.method || "GET")) {
     const ticket = await authorizeModelCall(path, config.data, config.signal as AbortSignal | undefined);
     (config as any).billingTicket = ticket;
@@ -67,7 +72,9 @@ instance.interceptors.response.use(
     modelCallSubmitted(error.config?.billingTicket, true);
     const pricingRequest = /\/(?:model-catalog(?:\/quote)?|modelSelect\/getModelList)$/.test(String(error.config?.url || "").split("?")[0]);
     if (error.response?.status === 401) {
-      localStorage.removeItem("token");
+      // F3：清本机会话信号 + 内存凭据；cookie 是 httpOnly 的，删不掉也不该删——
+      // 真正的失效由后端 session_version 判定，下一次登录会覆盖它。
+      clearSession();
       // 带 expired 标记去登录页：登录页落地会弹「登录已过期」提示。
       // 画布强制登出链路也是跳 /#/login?expired=1 —— 这里若不带标记会把那个带标记的跳转覆盖掉（query 丢失）。
       if (router.currentRoute.value.path !== "/login") {

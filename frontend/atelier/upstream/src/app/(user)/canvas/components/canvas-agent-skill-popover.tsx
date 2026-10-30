@@ -48,6 +48,10 @@ export function CanvasAgentSkillPopover({ selectedSkills = [], onSelect, onDelet
     }, [loadSkills, message, open, token]);
 
     const isSelected = (skill: Pick<AgentSkill, "id" | "source">) => selectedSkills.some(selected => selected.id === skill.id && selected.source === skill.source);
+    /** 与提示词控制台同口径：官方系统技能 = 橙标；用户导入 = 蓝标，一眼区分来源。 */
+    const sourceTag = (source: AgentSkill["source"]) => source === "user"
+        ? <span style={{ flexShrink: 0, fontSize: 11, lineHeight: "16px", padding: "0 6px", borderRadius: 999, background: "rgba(59,130,246,0.14)", color: "#3b82f6" }}>自定义</span>
+        : <span style={{ flexShrink: 0, fontSize: 11, lineHeight: "16px", padding: "0 6px", borderRadius: 999, background: "rgba(245,116,0,0.14)", color: "#f57400" }}>官方</span>;
     const availableSkills = useMemo(() => [...systemSkills.filter(skill => skill.id.startsWith("purchased/director/")), ...systemSkills.filter(skill => !skill.id.startsWith("purchased/director/")), ...userSkills].filter(skill => skill.enabled), [systemSkills, userSkills]);
     const skills = useMemo(() => {
         const keyword = query.trim().toLowerCase();
@@ -124,7 +128,7 @@ export function CanvasAgentSkillPopover({ selectedSkills = [], onSelect, onDelet
                         {skills.length ? skills.map(skill => (
                             <div key={`${skill.source}:${skill.id}`} className="canvas-skill-row" data-active={preview === skill}>
                                 <button type="button" className="canvas-skill-item" onClick={() => setPreviewId(`${skill.source}:${skill.id}`)}>
-                                    <strong>{skill.name}{isSelected(skill) ? <Check className="size-3.5" /> : null}</strong>
+                                    <strong>{sourceTag(skill.source)}{skill.name}{isSelected(skill) ? <Check className="size-3.5" /> : null}</strong>
                                     <span>{skill.description || "自定义创作工作流"}</span>
                                 </button>
                                 <button type="button" role="checkbox" aria-checked={Boolean(isSelected(skill))} aria-label={`选择 ${skill.name}`} disabled={atLimit && !isSelected(skill)} className="canvas-skill-check" onClick={() => toggleSkill(skill)}>{isSelected(skill) ? <Check size={14} /> : null}</button>
@@ -136,7 +140,10 @@ export function CanvasAgentSkillPopover({ selectedSkills = [], onSelect, onDelet
                 {preview ? <section className="canvas-skill-preview" aria-label="技能详情">
                     <AgentSkillCover name={preview.name} coverUrl={preview.coverUrl} coverStorageKey={preview.coverStorageKey} borderColor={theme.node.stroke} background={theme.node.fill} />
                     <span className="canvas-skill-kind">{preview.id.startsWith("purchased/director/") ? "导演与分镜" : preview.source === "user" ? "我的技能" : "通用创作"}</span>
-                    <h3>{preview.name}</h3>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {sourceTag(preview.source)}
+                        <h3 style={{ margin: 0 }}>{preview.name}</h3>
+                    </div>
                     <p>{preview.description || "把你的工作流带入画布创作。"}</p>
                     {guide ? <dl className="canvas-skill-guide"><dt>准备什么</dt><dd>{guide.input}</dd><dt>可以得到</dt><dd>{guide.output}</dd></dl> : null}
                     <div className="canvas-skill-preview-actions">

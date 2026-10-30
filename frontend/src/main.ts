@@ -26,6 +26,7 @@ import { installBillingFetchGuard } from "@/utils/billingGate";
 import {installSiteBrand} from "@/utils/siteBrand";
 import {installAccountBoundary} from '@/utils/accountBoundary';
 import {prepareMediaSession} from '../shared/mediaSession';
+import {bootstrapSession} from '@/utils/sessionBootstrap';
 installAccountBoundary();
 installBillingFetchGuard();
 installSiteBrand();
@@ -38,5 +39,8 @@ app.use(router);
 app.use(i18n);
 app.use(LoadingPlugin);
 app.directive("loading", LoadingDirective);
-// Prepare private playback before any project thumbnails/videos are mounted.
-void prepareMediaSession().catch(()=>{}).finally(()=>app.mount("#app"));
+// F3：先把「老 token → cookie」迁移 / cookie → 会话信号 补齐，再挂载应用。
+// 顺序不能反：路由守卫与各页面在挂载瞬间就会判断登录态，信号没就位会被误踢到登录页。
+void bootstrapSession()
+  .catch(() => {})
+  .finally(() => void prepareMediaSession().catch(()=>{}).finally(()=>app.mount("#app")));

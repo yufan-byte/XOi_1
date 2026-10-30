@@ -1,0 +1,1 @@
+import{c as o,p as r}from"./middleware-ojFA9p62.js";import{o as s}from"./index-Cj6oTgoG.js";const p=o()(r(e=>({theme:"light",setTheme:a=>e({theme:a})}),{name:s("xoi-canvas:appearance:v2")}));export{p as u};

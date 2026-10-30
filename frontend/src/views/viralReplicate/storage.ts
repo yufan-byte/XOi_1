@@ -1,4 +1,5 @@
 import localforage from "localforage";
+import {accountBoundary} from "@/utils/accountBoundary";
 import { restoreShots, type ReplicateShot } from "./workflow";
 import { assertWorkspaceOwner, getCloudDocument, listCloudDocuments, saveCloudDocument, uploadWorkspaceFile, downloadWorkspaceFile, rememberWorkspaceFile, type CloudAsset } from "@/utils/workspace";
 export interface ReplicateDraft {
@@ -18,10 +19,13 @@ export function draftKey(owner: string, id: string) {
   return `${encodeURIComponent(owner)}:${encodeURIComponent(id)}`;
 }
 export async function saveDraft(draft: ReplicateDraft) {
+  const scope=accountBoundary.capture();assertWorkspaceOwner(draft.owner);
   const key = draftKey(draft.owner, draft.id);
   const write = async () => {
     assertWorkspaceOwner(draft.owner);
+    accountBoundary.assert(scope);
     const previous = await drafts.getItem<ReplicateDraft>(key);
+    accountBoundary.assert(scope);
     if (previous && Number(previous.revision || 0) !== Number(draft.revision || 0)) throw new Error("任务已在其他页面更新，请重新打开草稿；不会提交生成");
     const revision = Number(draft.revision || 0) + 1;
     // Keep the latest edit locally even if the network fails. Never report it as cloud-saved.
@@ -31,6 +35,7 @@ export async function saveDraft(draft: ReplicateDraft) {
       const videoAsset = draft.video ? await uploadWorkspaceFile(draft.owner, draft.video) : draft.videoAsset;
       const { product, video, owner, revision: localRevision, cloudRevision, cloudPending, ...portable } = draft;
       const saved = await saveCloudDocument(owner, "viral", draft.id, previous?.cloudRevision || cloudRevision || 0, draft.title, { ...portable, productAsset, videoAsset });
+      accountBoundary.assert(scope);
       await drafts.setItem(key, { ...draft, productAsset, videoAsset, revision, cloudRevision: saved.revision, cloudPending: false });
     } catch (error: any) {
       throw new Error(error.response?.status === 409 ? "云端草稿已在其他设备更新，本机修改仍保留；请重新打开并核对" : "本机已保留修改，但云端保存未完成；请检查网络后重试，不会提交生成");
@@ -48,10 +53,13 @@ export async function loadDraft(owner: string, id: string): Promise<ReplicateDra
   return loadDraftUnlocked(owner, id);
 }
 async function loadDraftUnlocked(owner: string, id: string): Promise<ReplicateDraft | null> {
+  const scope=accountBoundary.capture();assertWorkspaceOwner(owner);
   const key = draftKey(owner, id), local = await drafts.getItem<ReplicateDraft>(key);
+  accountBoundary.assert(scope);
   let remote;
   try { remote = await getCloudDocument<ReplicateDraft>(owner, "viral", id); }
-  catch (error) { if (local?.owner === owner) return { ...local, cloudPending: true, shots: restoreShots(local.shots) }; throw error; }
+  catch (error) { accountBoundary.assert(scope);assertWorkspaceOwner(owner);if (local?.owner === owner) return { ...local, cloudPending: true, shots: restoreShots(local.shots) }; throw error; }
+  accountBoundary.assert(scope);
   let conflictCopyId: string | undefined;
   if (local?.cloudPending && remote && remote.revision !== (local.cloudRevision || 0)) {
     // Resolve explicitly on reopen: retain edits as a separate local fork, then open the authoritative cloud version.
@@ -68,6 +76,7 @@ async function loadDraftUnlocked(owner: string, id: string): Promise<ReplicateDr
   if (draft.product && draft.productAsset) rememberWorkspaceFile(owner, draft.product, draft.productAsset);
   if (draft.video && draft.videoAsset) rememberWorkspaceFile(owner, draft.video, draft.videoAsset);
   await drafts.setItem(key, draft);
+  accountBoundary.assert(scope);
   return { ...draft, shots: restoreShots(draft.shots) };
 }
 export async function restoreDraftFiles(draft: ReplicateDraft) {
@@ -76,6 +85,7 @@ export async function restoreDraftFiles(draft: ReplicateDraft) {
   return draft;
 }
 export async function listDrafts(owner: string) {
+  const scope=accountBoundary.capture();assertWorkspaceOwner(owner);
   const items: { id: string; title: string; updatedAt: number; shots: number; completed: number }[] = [];
   await drafts.iterate<ReplicateDraft, void>(draft => {
     if (draft.owner === owner) items.push({ id: draft.id, title: draft.title, updatedAt: draft.updatedAt, shots: draft.shots.length, completed: draft.shots.filter(s => s.clip).length });
@@ -84,5 +94,5 @@ export async function listDrafts(owner: string) {
     const remote = await listCloudDocuments(owner, "viral");
     for (const doc of remote) if (!items.some(item => item.id === doc.id)) items.push({ id: doc.id, title: doc.title, updatedAt: doc.updatedAt, shots: 0, completed: 0 });
   } catch { /* Offline cache remains visible. Save must still fail closed before a paid submission. */ }
-  return items.sort((a, b) => b.updatedAt - a.updatedAt);
+  accountBoundary.assert(scope);assertWorkspaceOwner(owner);return items.sort((a, b) => b.updatedAt - a.updatedAt);
 }

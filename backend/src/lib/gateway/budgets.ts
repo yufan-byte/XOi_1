@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import { db } from "@/utils/db";
 import { getGatewayRequestContext } from "./context";
+import {allowedSceneImageUrl,sceneMediaOrigin} from '@/utils/director/sceneModels';
+import {supportsBoundedQwenVision} from '@/utils/gptVisionBudget';
 import { BILLING_ID_PATTERN, billableOperation, canvasTextWorkflowPath } from "../../../../shared/billableOperations";
-import { BUDGET_LIFETIME_MS, BUDGET_MAX_CALLS, BUDGET_MAX_POINTS, BillingBudgetError, boundGatewayRequest, budgetCallLimit, budgetDecision, budgetModelDecision, freeBudgetDecision, normalizeBudgetPath } from "@/utils/billingBudgetPolicy";
+import { BUDGET_LIFETIME_MS, BUDGET_MAX_CALLS, BUDGET_MAX_POINTS, BillingBudgetError, boundGatewayRequest, budgetCallLimit, budgetDecision, budgetModelDecision, directorBudgetDecision, freeBudgetDecision, normalizeBudgetPath } from "@/utils/billingBudgetPolicy";
 import { QUOTA_PER_POINT, quotaToPoints } from "@/utils/creditUnits";
 import { newApiV1BaseUrl,assertProductionModel,getUserGatewayCredentials } from "./newapi";
 import { assertUserModelAccess, getUserCatalog } from "@/lib/model-catalog";
@@ -28,6 +30,7 @@ export function ensureBudgetSchema() {
     }).catch(error=>{schema=undefined;throw error;});
 }
 export async function createModelBudget(userId: number, path: string, points: number, freeModel?: string, freeOnly=false,allowedModels?:string[],automatic=false,localOnly=false) {
+  const directorDecision=directorBudgetDecision(path,automatic);if(directorDecision)throw new BillingBudgetError(directorDecision);
   const operation = billableOperation(path);
   if (!operation || !Number.isFinite(points) || points < 0 || (points > 0 && points < .001) || points > BUDGET_MAX_POINTS) throw new BillingBudgetError("收费预算必须为 0.001–1000 积分；明确免费模型可使用零预算");
   if (points === 0) {
@@ -100,7 +103,7 @@ export async function claimModelBudget(userId:number,id:string,path:string,stepI
       await trx.raw("UPDATE xoi_model_budgets SET claimed_at=coalesce(claimed_at,now()) WHERE user_id=? AND billing_id=?",[userId,id]);
     });
   }
-  const result = await db.raw("UPDATE xoi_model_budgets SET claimed_at=now() WHERE user_id=? AND billing_id=? AND operation_path=? AND claimed_at IS NULL AND state='active' AND expires_at>now() RETURNING billing_id",[userId,id,normalizeBudgetPath(path)]);
+  const result = await db.raw("UPDATE xoi_model_budgets SET claimed_at=now() WHERE user_id=? AND billing_id=? AND operation_path=? AND (? OR automatic=false) AND claimed_at IS NULL AND state='active' AND expires_at>now() RETURNING billing_id",[userId,id,normalizeBudgetPath(path),budgetCallLimit(path)!==1]);
   if (!result.rows.length) throw new BillingBudgetError("预算已使用、停止或不属于本次操作，请重新确认；不会自动重试");
 }
 export async function stopModelBudget(userId:number,id:string) {
@@ -170,14 +173,25 @@ export async function prepareBudgetedGatewayRequest(url:string,method:string,bod
   const model = String(body.model||"");
   assertProductionModel(model);
   if (!model || method.toUpperCase()!=="POST") throw new BillingBudgetError("模型预算参数无效");
+  if (/^seedance2\.[05]-line1(?:-fast)?-xoi$/i.test(model)) {
+    const resolution = String(body.resolution ?? "").toLowerCase().replace(/^(480|720|1080)$/, "$1p");
+    if (!["480p", "720p"].includes(resolution)) throw new BillingBudgetError("该专线此清晰度的计费尚未核实，未提交模型请求");
+  }
   try { await assertUserModelAccess(context.userId, model); }
   catch (error) { throw new BillingBudgetError((error as Error).message); }
   const config = await currentPricing(context.userId,model);
   const credential=await getUserGatewayCredentials(context.userId);
   await ensureBudgetSchema();
-  const mode=(await db.raw('SELECT automatic FROM xoi_model_budgets WHERE user_id=? AND billing_id=?',[context.userId,context.billingId])).rows[0];
+  const mode=(await db.raw('SELECT automatic,operation_path FROM xoi_model_budgets WHERE user_id=? AND billing_id=?',[context.userId,context.billingId])).rows[0];
+  const directorDecision=directorBudgetDecision(mode?.operation_path||'',mode?.automatic===true);if(directorDecision)throw new BillingBudgetError(directorDecision);
   let bounded;
-  try{bounded=boundGatewayRequest(target.pathname,body,config.pricing,config.factor,config.cacheFactor);}
+  let allowRemoteImage:((url:string)=>boolean)|undefined;
+  if(supportsBoundedQwenVision(model)&&JSON.stringify(body.messages||[]).includes('https:')){
+    const key=await db('o_setting').where({key:'tokenKey'}).first('value');
+    const origin=sceneMediaOrigin();
+    allowRemoteImage=url=>allowedSceneImageUrl(url,context.userId,String(key?.value||''),origin);
+  }
+  try{bounded=boundGatewayRequest(target.pathname,body,config.pricing,config.factor,config.cacheFactor,allowRemoteImage);}
   catch(error){
     if(!mode?.automatic)throw error;
     const n=Number(body.n??1),output=Number(body.max_tokens??body.max_completion_tokens??body.max_output_tokens??8192);

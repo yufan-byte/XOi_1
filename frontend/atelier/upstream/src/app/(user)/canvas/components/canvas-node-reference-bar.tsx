@@ -8,13 +8,20 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { buildAllCanvasResourceReferences, type CanvasResourceReference } from "../utils/canvas-resource-references";
 import type { CanvasNodeData } from "../types";
 
-export function CanvasNodeReferenceBar({ nodeId, connectedNodes, onDisconnect, onStartSelection }: { nodeId: string; connectedNodes: CanvasNodeData[]; onDisconnect?: (fromNodeId: string, toNodeId: string) => void; onStartSelection?: (nodeId: string) => void }) {
+export function CanvasNodeReferenceBar({ nodeId, connectedNodes, markedReference, onDisconnect, onStartSelection }: { nodeId: string; connectedNodes: CanvasNodeData[]; markedReference?: string; onDisconnect?: (fromNodeId: string, toNodeId: string) => void; onStartSelection?: (nodeId: string) => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const references = buildAllCanvasResourceReferences(connectedNodes);
+    const markedItem: CanvasResourceReference | null = markedReference ? { id: "marked-reference", nodeId: "", title: "局部编辑标记图", label: "标记图", text: "", kind: "image", previewUrl: markedReference, active: true } : null;
     return (
         <div className="mb-2">
             <div className="mb-1.5 text-[11px] font-medium" style={{ color: theme.node.muted }}>参考内容</div>
             <div className="thin-scrollbar flex min-h-12 gap-2 overflow-x-auto pb-1">
+                {markedItem ? (
+                    <div className="group relative grid size-12 shrink-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: "#3b82f6" }} title="局部编辑标记图：蓝色区域为本次要修改的位置（已随任务提交）">
+                        <span className="grid size-full place-items-center overflow-hidden rounded-[inherit]">{markedItem.previewUrl ? <img src={markedItem.previewUrl} alt="局部编辑标记图" className="size-full object-cover" /> : <ImageIcon className="size-4 opacity-65" />}</span>
+                        <span className="absolute -top-1 -left-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#3b82f6] px-1 text-[9px] font-semibold text-white">标记</span>
+                    </div>
+                ) : null}
                 {references.map((reference) => <ReferenceItem key={reference.id} reference={reference} onRemove={() => onDisconnect?.(reference.nodeId, nodeId)} />)}
                 <button type="button" className="grid size-12 shrink-0 place-items-center rounded-xl border bg-transparent transition hover:opacity-70" style={{ borderColor: theme.toolbar.border, color: theme.node.muted }} title="从画布选择参考节点" onClick={() => onStartSelection?.(nodeId)}>
                     <Plus className="size-4" />

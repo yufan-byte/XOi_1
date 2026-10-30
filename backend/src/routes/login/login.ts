@@ -9,6 +9,8 @@ import { getClientIp } from "@/utils/getClientIp";
 import { makeComboKey, markFailure, releaseHolds } from "@/lib/failCounter";
 import { auditLogin, upsertMirrorUser } from "@/lib/userMirror";
 import { NewApiError, newApiLogin } from "@/utils/newapi";
+import { setSessionCookie, setMediaCookies } from "@/utils/sessionCookie";
+import { mustChangePasswordOf } from "@/lib/team/store";
 import { z } from "zod";
 
 const router = express.Router();
@@ -109,6 +111,15 @@ export default router.post(
     releaseHolds(comboKey, clientIp);
     void auditLogin({ uid: mirror.id, name: mirror.name ?? trimmedUsername, ip: clientIp, ua, result: "ok" });
 
+    // F3：同时下发 httpOnly 会话 cookie。响应体仍回 token（未迁移的客户端继续用 header 也能用），
+    // 但前端已改为不把它写 localStorage —— XSS 再也拿不到可持久化的凭据。
+    // 管理员代建 / 被重置过密码的团队账号：首次登录必须先改掉初始密码。
+    const mustChangePassword = await mustChangePasswordOf(mirror.id);
+
+    setSessionCookie(req, res, token);
+    // 媒体（/oss）授权也一并下发：前端已拿不到 JWT 原文，不能再自己算 hint。
+    setMediaCookies(req, res, mirror.id, token);
+
     return res.status(200).send(
       success(
         {
@@ -117,6 +128,7 @@ export default router.post(
           id: mirror.id,
           display_id: mirror.display_id,
           role: mirror.role || "user",
+          mustChangePassword,
         },
         "登录成功",
       ),

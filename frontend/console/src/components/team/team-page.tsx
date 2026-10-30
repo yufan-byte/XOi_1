@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Download, KeyRound, Pencil, RotateCcw, RefreshCw, ArrowLeft, Trash2, UserPlus, Users, Wallet } from "lucide-react";
+import { Ban, Download, FileSpreadsheet, KeyRound, Pencil, RotateCcw, RefreshCw, ArrowLeft, Trash2, UserPlus, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { TopBar } from "@/components/shell/topbar";
 import {TeamManagementPanel,TeamRenameDialog} from "./team-management";
+import {TeamListView} from "./team-list";
+import {BatchCreateDialog, downloadBatch} from "./team-batch";
+import {SudoDialog,cachedSudoToken} from "./team-sudo";
+import {MfaCard, type MfaState} from "./team-mfa";
+import type { BatchSummary } from "@/lib/team-types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { api, hasSession, loadAuth } from "@/lib/api";
@@ -17,11 +22,11 @@ import {CREDIT_RULE_LABEL,TEAM_WORKSPACE_PATH,formatTeamQuota,teamQuotaPoints,te
 
 type Period = "month" | "day" | "total";
 interface MemberRow {
-  id: number; userId: number; nickname: string; email: string; status: "active" | "disabled";
+  id: number; userId: number; nickname: string; email: string | null; username?: string | null; mustChangePassword?: boolean; status: "active" | "disabled";
   limitQuota: number; period: Period; canViewAll: boolean; periodUsed: number; monthUsed: number; wallet: number; over: boolean; joinedAt?: number;
 }
 interface Dash {
-  role: "owner" | "member" | "none"; canViewAll?: boolean;
+  role: "owner" | "member" | "none"; canViewAll?: boolean; mfaEnabled?: boolean;
   me?: { nickname: string; limitQuota: number; period: Period; status: string };
   team?: { id?: number; name: string; pool?: number; isolate?: boolean };
   monthTotal?: number; seats?: { used: number; max: number; active: number; disabled: number };
@@ -50,6 +55,12 @@ function exportCsv(name: string, rows: (string | number)[][]) {
 
 export function TeamPage({embedded=false}:{embedded?:boolean}={}) {
   const navigate=useNavigate();
+  const params=useParams();
+  // 多团队：/team/:teamId 进具体团队；没有 teamId 时先看列表。
+  // 只有一个团队的老用户直接进详情，行为和升级前一致。
+  const routeTeamId=Number(params.teamId)||0;
+  const [teamId,setTeamId]=useState(routeTeamId);
+  useEffect(()=>{if(routeTeamId&&routeTeamId!==teamId)setTeamId(routeTeamId);},[routeTeamId]);
   const logged = hasSession();
   const queryClient = useQueryClient();
   const { data: self } = useSelf(logged);
@@ -58,7 +69,10 @@ export function TeamPage({embedded=false}:{embedded?:boolean}={}) {
   const [month, setMonth] = useState(months()[0]);
   const [tab, setTab] = useState<"overview" | "members" | "records" | "management">("overview");
   const [renaming,setRenaming]=useState(false);
-  const query = useQuery({ queryKey: ["team", loadAuth()?.user.id ?? 0, month], queryFn: () => api<Dash>(`/api/team?month=${month}`), enabled: logged });
+  const openTeam=(id:number)=>{setTeamId(id);if(!window.location.pathname.startsWith("/console/reseller"))navigate(`/team/${id}`);};
+  const query = useQuery({ queryKey: ["team", loadAuth()?.user.id ?? 0, month, teamId], queryFn: () => api<Dash>(`/api/team?month=${month}${teamId?`&teamId=${teamId}`:""}`), enabled: logged && !!teamId });
+  // 没有指定团队时先探一次身份：无团队 → 引导开通；是别人的团队成员 → 直接落到那个团队；是团队所有者 → 进「我的团队」列表。
+  const gate = useQuery({ queryKey: ["team-gate", loadAuth()?.user.id ?? 0], queryFn: () => api<Dash>("/api/team?summary=1"), enabled: logged && !teamId, retry: false });
   const data = query.data;
   const owner = data?.role === "owner";
   useEffect(() => {
@@ -75,7 +89,18 @@ export function TeamPage({embedded=false}:{embedded?:boolean}={}) {
 
   if(returningToManagement)return <EmptyPage>正在打开管理台团队空间…</EmptyPage>;
   let content: React.ReactNode;
-  if (query.isLoading) content = <EmptyPage>正在加载团队信息…</EmptyPage>;
+  // 「我的团队」列表页：搜索 + 分页 + 新建，点进任意团队看它的独立工作区
+  if(!teamId){
+    if(gate.isLoading)content=<EmptyPage>正在加载团队信息…</EmptyPage>;
+    else if(gate.isError)content=<EmptyPage>团队信息没加载出来，<button className="text-primary" onClick={() => void gate.refetch()}>重试</button></EmptyPage>;
+    else if(!gate.data||gate.data.role==="none")content=<CreateTeam onDone={refresh}/>;
+    else if(gate.data.role==="member"){
+      // 团队成员自己不开团队也没有列表，直接落到所属团队的工作区
+      content=<MemberRedirect teamId={gate.data.team?.id??0} onOpen={openTeam}/>;
+    }
+    else content=<TeamListView onOpen={openTeam}/>;
+  }
+  else if (query.isLoading) content = <EmptyPage>正在加载团队信息…</EmptyPage>;
   else if (query.isError) content = <EmptyPage>团队信息没加载出来，<button className="text-primary" onClick={() => void query.refetch()}>重试</button></EmptyPage>;
   else if (!data || data.role === "none") content = <CreateTeam onDone={refresh} />;
   else if (data.role === "member" && !data.canViewAll) content = <MemberHome data={data} month={month} onMonth={setMonth} />;
@@ -92,11 +117,13 @@ export function TeamPage({embedded=false}:{embedded?:boolean}={}) {
         <Stat label="成员席位" value={`${data.seats?.used ?? 0} / ${data.seats?.max ?? 2000}`} hint={`${data.seats?.active ?? 0} 活跃 · ${data.seats?.disabled ?? 0} 停用`} />
         <Stat label="超额提醒" value={data.overLimit?.length ? `${data.overLimit.length} 人` : "无"} hint={data.overLimit?.length ? `${data.overLimit.slice(0, 3).join("、")} 已用满额度` : "全部成员额度正常"} warn={!!data.overLimit?.length} />
       </div>
-      {owner && <PoolPanel pool={data.team?.pool ?? 0} balance={self?.quota ?? 0} members={data.members ?? []} onDone={refresh} />}
+      {owner && <SecurityPanel mfaEnabled={!!data.mfaEnabled} />}
+      {owner && <RecentBatches teamId={data.team?.id ?? 0} mfaEnabled={!!data.mfaEnabled} />}
+      {owner && <PoolPanel pool={data.team?.pool ?? 0} balance={self?.quota ?? 0} members={data.members ?? []} mfaEnabled={!!data.mfaEnabled} onDone={refresh} />}
       <div className="grid gap-4 lg:grid-cols-2"><Share members={data.members ?? []} total={data.monthTotal ?? 0} /><Trend days={data.days ?? []} /></div>
       {owner && !(data.members?.length) && <div className={card}><h3 className="font-semibold">开始协作</h3><p className="mt-1 text-sm text-muted-foreground">先将个人积分划入团队，再到「成员与额度」添加成员。每位成员拥有独立账号；成员消费上限与实际可用余额分别显示。</p><Button className="mt-3" onClick={() => setTab("members")}>管理成员与额度</Button></div>}
       </>}
-      {tab === "members" && <Members members={data.members ?? []} owner={owner} onDone={refresh} />}
+      {tab === "members" && <Members members={data.members ?? []} owner={owner} teamId={data.team?.id ?? 0} teamName={data.team?.name ?? ""} mfaEnabled={!!data.mfaEnabled} onDone={refresh} />}
       {tab === "records" && <Records key={month} month={month} />}
       {owner&&tab==="management"&&<TeamManagementPanel/>}
       {owner&&renaming&&<TeamRenameDialog name={data.team?.name||""} onClose={()=>setRenaming(false)} onDone={refresh}/> }
@@ -105,6 +132,74 @@ export function TeamPage({embedded=false}:{embedded?:boolean}={}) {
 
   if(embedded)return <section className="xoi-team-workspace" aria-label="团队空间">{content}</section>;
   return <div className="xoi-team-shell min-h-dvh w-full bg-background text-foreground"><div className="border-b border-border bg-card"><TopBar /></div><main><div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 pt-4">{self && self.role >= 10 && <Link to="/reseller/overview" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} />返回管理控制台</Link>}<a href="/#/project" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} />返回创作工作台</a></div>{content}</main></div>;
+}
+
+/** 团队成员不属于任何自己开的团队：把 URL 换成所属团队的独立工作区。 */
+/** 团队安全：动态口令（MFA）。开关状态由后端 `/api/team/mfa` 提供，这里只负责展示与流转。 */
+function SecurityPanel({ mfaEnabled }: { mfaEnabled: boolean }) {
+  const query = useQuery({ queryKey: ["team-mfa", loadAuth()?.user.id ?? 0], queryFn: () => api<MfaState>("/api/team/mfa"), retry: false });
+  const fallback: MfaState = { enabled: mfaEnabled, enrolledAt: null, confirmedAt: null, recoveryRemaining: 0, digits: 6, period: 30 };
+  return <MfaCard initial={query.data ?? fallback} onChange={() => { /* 状态由 MfaCard 内部 reload 维护 */ }} />;
+}
+
+/** 最近批量下发的账号清单：只能这里重新下载，且需要安全验证。 */
+function RecentBatches({ teamId, mfaEnabled }: { teamId: number; mfaEnabled: boolean }) {
+  const [askSudo, setAskSudo] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: ["team-batches", loadAuth()?.user.id ?? 0, teamId],
+    queryFn: () => api<{ items: BatchSummary[] }>(`/api/team/batches?teamId=${teamId}`),
+    enabled: teamId > 0, retry: false,
+  });
+  const items = (query.data?.items ?? []).filter((item) => !item.expired);
+  if (!items.length) return null;
+
+  const download = async (batchId: string) => {
+    const token = cachedSudoToken();
+    if (!token) { setPending(batchId); setAskSudo(true); return; }
+    await downloadBatch(batchId, teamId, mfaEnabled, () => setAskSudo(true), token);
+  };
+
+  return (
+    <div className={card}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2"><FileSpreadsheet size={16} className="text-primary" /><h3 className="font-semibold">最近下发的账号清单</h3></div>
+        <span className="text-xs text-muted-foreground">{items.length} 条可下载</span>
+      </div>
+      <p className="mt-1 text-xs leading-6 text-muted-foreground">清单里的初始密码在服务端加密暂存，30 分钟后自动销毁；每次下载都要重新验证，且会记入团队审计日志。</p>
+      <div className="mt-3 space-y-2">
+        {items.map((item) => (
+          <div key={item.batchId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 px-3 py-2 text-xs">
+            <span className="tabular-nums">{new Date(item.createdAt).toLocaleString("zh-CN")} · {item.count} 个账号</span>
+            <span className="flex items-center gap-2">
+              <span className="text-muted-foreground">已下载 {item.downloads} / 5 次</span>
+              <Button size="sm" variant="secondary" onClick={() => void download(item.batchId)}><Download size={13} />下载 Excel</Button>
+            </span>
+          </div>
+        ))}
+      </div>
+      {askSudo && (
+        <SudoDialog
+          mfaEnabled={mfaEnabled}
+          reason="下载包含初始密码的账号清单，需要先完成安全验证。"
+          onClose={() => { setAskSudo(false); setPending(null); }}
+          onDone={(token) => {
+            const id = pending;
+            setAskSudo(false); setPending(null);
+            if (id) void downloadBatch(id, teamId, mfaEnabled, () => setAskSudo(true), token);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function MemberRedirect({ teamId, onOpen }: { teamId: number; onOpen: (teamId: number) => void }) {
+  useEffect(() => {
+    if (teamId) onOpen(teamId);
+  }, [teamId, onOpen]);
+  if (!teamId) return <EmptyPage>你所属的团队信息不可用，请联系团队所有者</EmptyPage>;
+  return <EmptyPage>正在打开你的团队…</EmptyPage>;
 }
 
 function MonthSelect({ month, onChange }: { month: string; onChange: (value: string) => void }) {
@@ -139,23 +234,29 @@ function Stat({ label, value, hint, warn }: { label: string; value: string; hint
   return <div className={card}><div className="text-xs text-muted-foreground">{label}</div><div className={cn("mt-1 text-2xl font-bold tabular-nums", warn && "text-danger")}>{value}</div>{hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}</div>;
 }
 
-function PoolPanel({ pool, balance, members, onDone }: { pool: number; balance: number; members: MemberRow[]; onDone: () => void }) {
+function PoolPanel({ pool, balance, members, mfaEnabled, onDone }: { pool: number; balance: number; members: MemberRow[]; mfaEnabled: boolean; onDone: () => void }) {
   const [amount, setAmount] = useState(""); const [busy, setBusy] = useState(false);
+  const [pendingDir, setPendingDir] = useState<"in" | "out" | null>(null);
   const submitting=useRef(false);
-  const go = async (direction: "in" | "out") => {
+  const go = async (direction: "in" | "out", sudoToken?: string) => {
     const value = teamPointsToYuan(amount);
     if (submitting.current) return;
     if (value===null || !(value > 0)) { toast.error("请输入大于 0 的有效积分"); return; }
     if (value * QUOTA_PER_UNIT > (direction === "in" ? balance : pool)) { toast.error(direction === "in" ? "个人余额不足" : "团队可用余额不足"); return; }
     if(!window.confirm(`确认将 ${fmt(value*QUOTA_PER_UNIT)} ${direction==="in"?"从个人余额划入团队":"从团队转回个人余额"}？这只是积分划拨，不会充值或调用模型。`))return;
+    // 划拨属于资金类操作：必须先完成安全验证（10 分钟内免重复）
+    const token = sudoToken || cachedSudoToken();
+    if (!token) { setPendingDir(direction); return; }
     submitting.current=true;setBusy(true);
-    try { await api("/api/team", { method: "POST", body: JSON.stringify({ action: "pool", dir: direction, amount: value }) }); toast.success(direction === "in" ? "积分已划入团队" : "积分已转回个人余额"); setAmount(""); onDone(); }
+    try { await api("/api/team", { method: "POST", headers: { "X-Xoi-Sudo": token }, body: JSON.stringify({ action: "pool", dir: direction, amount: value }) }); toast.success(direction === "in" ? "积分已划入团队" : "积分已转回个人余额"); setAmount(""); onDone(); }
     catch (error) { toast.error((error as Error).message); }
     finally { submitting.current=false;setBusy(false); }
   };
   const unlimited = members.filter(member => member.limitQuota === 0).length;
   const budgets = (["day", "month", "total"] as Period[]).map(period => `${PERIOD[period]} ${fmt(members.filter(member => member.period === period && member.limitQuota > 0).reduce((sum, member) => sum + member.limitQuota, 0))}`);
-  return <div className={cn(card, "flex flex-wrap items-center gap-4")}><Wallet size={18} className="text-primary" /><div className="text-sm">个人余额 <b>{fmt(balance)}</b></div><div className="text-sm">团队池 <b>{fmt(pool)}</b></div><input value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^\d.]/g, ""))} aria-label="划拨积分" inputMode="decimal" placeholder="输入积分" className="h-10 w-36 rounded-xl border bg-background px-3 outline-none" /><Button disabled={busy} onClick={() => void go("in")}>划入团队</Button><Button variant="secondary" disabled={busy} onClick={() => void go("out")}>转回个人</Button><div className="w-full text-xs text-muted-foreground">{CREDIT_RULE_LABEL} · 划拨只转移已有积分，不是充值，也不是模型消费。成员上限按周期统计：{budgets.join(" · ")} · 不限额 {unlimited} 人。额度是消费上限，不等于已划拨余额；补给仍取决于团队池余额。</div></div>;
+  return <><div className={cn(card, "flex flex-wrap items-center gap-4")}><Wallet size={18} className="text-primary" /><div className="text-sm">个人余额 <b>{fmt(balance)}</b></div><div className="text-sm">团队池 <b>{fmt(pool)}</b></div><input value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^\d.]/g, ""))} aria-label="划拨积分" inputMode="decimal" placeholder="输入积分" className="h-10 w-36 rounded-xl border bg-background px-3 outline-none" /><Button disabled={busy} onClick={() => void go("in")}>划入团队</Button><Button variant="secondary" disabled={busy} onClick={() => void go("out")}>转回个人</Button><div className="w-full text-xs text-muted-foreground">{CREDIT_RULE_LABEL} · 划拨只转移已有积分，不是充值，也不是模型消费。成员上限按周期统计：{budgets.join(" · ")} · 不限额 {unlimited} 人。额度是消费上限，不等于已划拨余额；补给仍取决于团队池余额。</div></div>
+    {pendingDir && <SudoDialog mfaEnabled={mfaEnabled} reason="积分划拨属于资金操作，需要先完成安全验证。" onClose={() => setPendingDir(null)} onDone={(token) => { const dir = pendingDir; setPendingDir(null); if (dir) void go(dir, token); }} />}
+  </>;
 }
 
 function Share({ members, total }: { members: MemberRow[]; total: number }) {
@@ -168,18 +269,39 @@ function Trend({ days }: { days: { day: string; quota: number }[] }) {
   return <div className={card}><h3 className="font-semibold">团队消费趋势</h3><p className="text-xs text-muted-foreground">所选月份的每日消费</p><div className="mt-3 flex h-36 items-end gap-[3px]">{days.map((day) => <div key={day.day} title={`${day.day} · ${fmt(day.quota)}`} className="flex-1 rounded-t bg-primary/70" style={{ height: `${Math.max(2, day.quota / max * 100)}%` }} />)}</div></div>;
 }
 
-function Members({ members, owner, onDone }: { members: MemberRow[]; owner: boolean; onDone: () => void }) {
+function Members({ members, owner, teamId, teamName, mfaEnabled, onDone }: { members: MemberRow[]; owner: boolean; teamId: number; teamName: string; mfaEnabled: boolean; onDone: () => void }) {
   const [search, setSearch] = useState(""); const [adding, setAdding] = useState(false); const [editing, setEditing] = useState<MemberRow | null>(null); const [password, setPassword] = useState<MemberRow | null>(null);
-  const [filter, setFilter] = useState("all"); const [page, setPage] = useState(1); const [busyId, setBusyId] = useState<number | null>(null);
+  const [filter, setFilter] = useState("all"); const [page, setPage] = useState(1); const [busyId, setBusyId] = useState<number | null>(null); const [batching, setBatching] = useState(false);
+  // 代成员改密需要管理员本人再过一次安全验证；这里记住「待提交的改密」，验完再发
+  const [pendingPassword, setPendingPassword] = useState<{ member: MemberRow; value: string } | null>(null);
   const list = useMemo(() => members.filter(member => {
     const key = search.trim().toLowerCase();
-    return (!key || `${member.nickname} ${member.email}`.toLowerCase().includes(key)) && (filter === "all" || filter === "over" && member.over || member.status === filter);
+    return (!key || `${member.nickname} ${member.email ?? ""} ${member.username ?? ""}`.toLowerCase().includes(key)) && (filter === "all" || filter === "over" && member.over || member.status === filter);
   }), [members, search, filter]);
   const pages = Math.max(1, Math.ceil(list.length / 25));
   const currentPage = Math.min(page, pages);
   const visible = list.slice((currentPage - 1) * 25, currentPage * 25);
-  const act = async (member: MemberRow, body: Record<string, unknown>, message: string) => { if (busyId !== null) return false; setBusyId(member.id); try { await api(`/api/team/members/${member.id}`, { method: "PATCH", body: JSON.stringify(body) }); toast.success(message); onDone(); return true; } catch (error) { toast.error((error as Error).message); return false; } finally { setBusyId(null); } };
-  return <div className={card}><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><Users size={16} /><h3 className="font-semibold">团队成员</h3><span className="text-xs text-muted-foreground">{members.length} 名</span></div><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={!list.length} onClick={() => exportCsv("团队成员.csv", [["昵称", "邮箱", "角色", "当前积分", "积分上限", "周期", "本期已用积分"], ...list.map((member) => [member.nickname, member.email, teamMemberRole(member.canViewAll),teamQuotaPoints(member.wallet), member.limitQuota ? teamQuotaPoints(member.limitQuota) : "不限", PERIOD[member.period], teamQuotaPoints(member.periodUsed)])])}><Download size={14} />导出</Button>{owner && <Button size="sm" onClick={() => setAdding(true)}><UserPlus size={14} />添加成员</Button>}</div></div><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="搜索成员姓名 / 邮箱" className="mt-3 h-9 w-full rounded-xl border bg-background px-3 text-sm outline-none" /><div className="mt-3 flex flex-wrap gap-1" role="group" aria-label="成员状态">{[["all", "全部"], ["active", "正常"], ["disabled", "已停用"], ["over", "额度已用满"]].map(([value, label]) => <button key={value} onClick={() => { setFilter(value); setPage(1); }} className={cn("rounded-lg px-3 py-1.5 text-xs", filter === value ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>{label}</button>)}</div><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[820px] text-sm"><thead><tr className="text-left text-xs text-muted-foreground"><th className="py-2">成员</th><th>可用积分</th><th>本期已用 / 额度</th><th>剩余额度</th><th>下次重置</th><th className="text-right">{owner ? "操作" : "消费权限"}</th></tr></thead><tbody className="divide-y">{visible.map((member) => { const remaining = member.limitQuota ? Math.max(0, member.limitQuota - member.periodUsed) : 0; return <tr key={member.id}><td className="py-2"><div className="flex items-center gap-2 font-medium">{member.nickname}<span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">{teamMemberRole(member.canViewAll)}</span></div><div className="text-xs text-muted-foreground">{member.email} · {member.status === "active" ? "正常" : "已停用"}</div></td><td>{fmt(member.wallet)}</td><td className={member.over ? "text-danger" : ""}>{fmt(member.periodUsed)} / {member.limitQuota ? fmt(member.limitQuota) : "不限"}</td><td>{member.limitQuota ? fmt(remaining) : "不限"}</td><td className="text-muted-foreground">{resetText(member.period)}</td><td className="text-right">{owner && <span className="inline-flex gap-1" aria-busy={busyId === member.id}><Icon label="编辑" onClick={() => setEditing(member)}><Pencil size={13} /></Icon><Icon label="改密" onClick={() => setPassword(member)}><KeyRound size={13} /></Icon>{member.status === "active" ? <Icon label="停用" disabled={busyId !== null} onClick={() => void act(member, { action: "disable" }, "已停用")}><Ban size={13} /></Icon> : <Icon label="启用" disabled={busyId !== null} onClick={() => void act(member, { action: "enable" }, "已启用")}><RotateCcw size={13} /></Icon>}<Icon label="删除" disabled={busyId !== null} danger onClick={() => { if (window.confirm(`确定删除「${member.nickname}」吗？`)) void act(member, { action: "delete" }, "已删除"); }}><Trash2 size={13} /></Icon></span>}{!owner && <span className="text-xs text-muted-foreground">只读</span>}</td></tr>; })}</tbody></table>{!list.length && <div className="py-10 text-center text-sm text-muted-foreground">{members.length ? "没有匹配成员，试试其他关键词或状态" : "还没有成员，可从添加成员开始"}</div>}</div><div className="mt-3 flex items-center justify-between text-xs text-muted-foreground"><span>共 {list.length} 名 · 每页 25 名</span><div className="flex items-center gap-3"><Button size="sm" variant="secondary" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>上一页</Button><span>{currentPage} / {pages}</span><Button size="sm" variant="secondary" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>下一页</Button></div></div>{adding && <MemberForm onClose={() => setAdding(false)} onDone={onDone} />}{editing && <MemberForm edit={editing} onClose={() => setEditing(null)} onDone={onDone} />}{password && <PasswordDialog member={password} onClose={() => setPassword(null)} onSave={(value) => act(password, { action: "password", password: value }, "密码已修改")} />}</div>;
+  const act = async (member: MemberRow, body: Record<string, unknown>, message: string, sudoToken?: string) => { if (busyId !== null) return false; setBusyId(member.id); try { await api(`/api/team/members/${member.id}`, { method: "PATCH", headers: sudoToken ? { "X-Xoi-Sudo": sudoToken } : undefined, body: JSON.stringify(body) }); toast.success(message); onDone(); return true; } catch (error) { toast.error((error as Error).message); return false; } finally { setBusyId(null); } };
+  /** 改密提交：没有 sudo 令牌就先弹验证，验完自动续跑。 */
+  const savePassword = async (member: MemberRow, value: string): Promise<boolean> => {
+    const token = cachedSudoToken();
+    if (!token) { setPendingPassword({ member, value }); return false; }
+    return act(member, { action: "password", password: value }, "密码已修改，成员下次登录需改密", token);
+  };
+  return <div className={card}><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><Users size={16} /><h3 className="font-semibold">团队成员</h3><span className="text-xs text-muted-foreground">{members.length} 名</span></div><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={!list.length} onClick={() => exportCsv("团队成员.csv", [["昵称", "邮箱", "角色", "当前积分", "积分上限", "周期", "本期已用积分"], ...list.map((member) => [member.nickname, member.email ?? member.username ?? "", teamMemberRole(member.canViewAll),teamQuotaPoints(member.wallet), member.limitQuota ? teamQuotaPoints(member.limitQuota) : "不限", PERIOD[member.period], teamQuotaPoints(member.periodUsed)])])}><Download size={14} />导出</Button>{owner && <Button size="sm" variant="secondary" onClick={() => setBatching(true)}><UserPlus size={14} />批量下发账号</Button>}{owner && <Button size="sm" onClick={() => setAdding(true)}><UserPlus size={14} />添加成员</Button>}</div></div><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="搜索成员姓名 / 邮箱" className="mt-3 h-9 w-full rounded-xl border bg-background px-3 text-sm outline-none" /><div className="mt-3 flex flex-wrap gap-1" role="group" aria-label="成员状态">{[["all", "全部"], ["active", "正常"], ["disabled", "已停用"], ["over", "额度已用满"]].map(([value, label]) => <button key={value} onClick={() => { setFilter(value); setPage(1); }} className={cn("rounded-lg px-3 py-1.5 text-xs", filter === value ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>{label}</button>)}</div><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[820px] text-sm"><thead><tr className="text-left text-xs text-muted-foreground"><th className="py-2">成员</th><th>可用积分</th><th>本期已用 / 额度</th><th>剩余额度</th><th>下次重置</th><th className="text-right">{owner ? "操作" : "消费权限"}</th></tr></thead><tbody className="divide-y">{visible.map((member) => { const remaining = member.limitQuota ? Math.max(0, member.limitQuota - member.periodUsed) : 0; return <tr key={member.id}><td className="py-2"><div className="flex items-center gap-2 font-medium">{member.nickname}<span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">{teamMemberRole(member.canViewAll)}</span></div><div className="text-xs text-muted-foreground">{member.email || member.username || ""}{member.username && member.email ? ` · ${member.username}` : ""} · {member.status === "active" ? "正常" : "已停用"}{member.mustChangePassword ? " · 待改密" : ""}</div></td><td>{fmt(member.wallet)}</td><td className={member.over ? "text-danger" : ""}>{fmt(member.periodUsed)} / {member.limitQuota ? fmt(member.limitQuota) : "不限"}</td><td>{member.limitQuota ? fmt(remaining) : "不限"}</td><td className="text-muted-foreground">{resetText(member.period)}</td><td className="text-right">{owner && <span className="inline-flex gap-1" aria-busy={busyId === member.id}><Icon label="编辑" onClick={() => setEditing(member)}><Pencil size={13} /></Icon><Icon label="改密" onClick={() => setPassword(member)}><KeyRound size={13} /></Icon>{member.status === "active" ? <Icon label="停用" disabled={busyId !== null} onClick={() => void act(member, { action: "disable" }, "已停用")}><Ban size={13} /></Icon> : <Icon label="启用" disabled={busyId !== null} onClick={() => void act(member, { action: "enable" }, "已启用")}><RotateCcw size={13} /></Icon>}<Icon label="删除" disabled={busyId !== null} danger onClick={() => { if (window.confirm(`确定删除「${member.nickname}」吗？`)) void act(member, { action: "delete" }, "已删除"); }}><Trash2 size={13} /></Icon></span>}{!owner && <span className="text-xs text-muted-foreground">只读</span>}</td></tr>; })}</tbody></table>{!list.length && <div className="py-10 text-center text-sm text-muted-foreground">{members.length ? "没有匹配成员，试试其他关键词或状态" : "还没有成员，可从添加成员开始"}</div>}</div><div className="mt-3 flex items-center justify-between text-xs text-muted-foreground"><span>共 {list.length} 名 · 每页 25 名</span><div className="flex items-center gap-3"><Button size="sm" variant="secondary" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>上一页</Button><span>{currentPage} / {pages}</span><Button size="sm" variant="secondary" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>下一页</Button></div></div>{adding && <MemberForm onClose={() => setAdding(false)} onDone={onDone} />}{editing && <MemberForm edit={editing} onClose={() => setEditing(null)} onDone={onDone} />}{password && <PasswordDialog member={password} onClose={() => setPassword(null)} onSave={(value) => savePassword(password, value)} />}{owner && batching && teamId > 0 && <BatchCreateDialog teamId={teamId} teamName={teamName} mfaEnabled={mfaEnabled} onClose={() => setBatching(false)} onDone={onDone} />}
+    {pendingPassword && (
+      <SudoDialog
+        mfaEnabled={mfaEnabled}
+        reason={`即将为「${pendingPassword.member.nickname}」设置新登录密码，该成员所有设备会被立即登出。`}
+        onClose={() => setPendingPassword(null)}
+        onDone={(token) => {
+          const job = pendingPassword;
+          setPendingPassword(null);
+          setPassword(null);
+          if (job) void act(job.member, { action: "password", password: job.value }, "密码已修改，成员下次登录需改密", token);
+        }}
+      />
+    )}</div>;
 }
 
 function Icon({ label, onClick, danger, disabled, children }: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean; children: React.ReactNode }) { return <button title={label} aria-label={label} disabled={disabled} onClick={onClick} className={cn("grid h-8 w-8 place-items-center rounded-lg border text-muted-foreground hover:text-foreground disabled:opacity-50", danger && "hover:bg-danger/10 hover:text-danger")}>{children}</button>; }

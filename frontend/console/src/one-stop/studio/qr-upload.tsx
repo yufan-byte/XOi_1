@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { OmniDialog } from "./ui";
-import { accountKey } from "../adapters/request";
+import { accountKey, assertAccountSession, oneStopRequest } from "../adapters/request";
 import type { RefKind } from "./media-page";
 
 export interface PickupItem { id: string; name: string; kind: RefKind; url: string; bytes: number; created_at: number }
@@ -13,18 +13,19 @@ export interface PickupItem { id: string; name: string; kind: RefKind; url: stri
 /** 手机版上传页：嵌入在上传弹窗的 iframe / 手机直接打开 /one-stop/#/upload 时渲染 */
 export function PhoneUploadPage() {
   const [busy, setBusy] = useState(false);
+  const transfer = new URLSearchParams(location.hash.split("?")[1] || "").get("transfer") || "";
   const send = async (files: FileList | null) => {
     if (!files?.length) return;
+    if (!/^[a-f0-9-]{36}$/.test(transfer)) return toast.error("请重新扫描电脑端当前上传二维码");
+    const owner = assertAccountSession();
     setBusy(true);
     try {
       let ok = 0;
       for (const f of Array.from(files)) {
         if (f.size > 12 * 1048576) { toast.error(`「${f.name}」超过 12MB，请先压缩`); continue; }
         const dataUrl = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
-        const token = accountKey();
-        const res = await fetch("/api/one-stop-uploads", { method: "POST", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify({ name: f.name, dataUrl }) });
-        const body = await res.json().catch(() => null);
-        if (!res.ok || body?.success === false) throw new Error(body?.message || `上传失败（${res.status}）`);
+        assertAccountSession(owner);
+        await oneStopRequest("/api/one-stop-uploads", { method: "POST", body: JSON.stringify({ name: f.name, dataUrl, transfer }) });
         ok++;
       }
       if (ok) toast.success(`已上传 ${ok} 个素材，回到电脑点「取回」即可使用`);
@@ -38,7 +39,7 @@ export function PhoneUploadPage() {
         <p className="mt-1 text-xs leading-5 text-muted-foreground">选择图片 / 视频 / 音频（单个 ≤12MB），上传后回到电脑端点「取回」就会出现在参考上传格里。</p>
         <label className="primary-gradient mt-6 inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl text-[14px] font-semibold text-white">
           {busy ? <Loader2 size={16} className="animate-spin" /> : null}{busy ? "上传中…" : "选择文件上传"}
-          <input type="file" multiple accept="image/*,video/*,audio/*" className="hidden" onChange={(e) => { void send(e.target.files); e.target.value = ""; }} />
+          <input type="file" multiple disabled={busy} accept="image/*,video/*,audio/*" className="hidden" onChange={(e) => { void send(e.target.files); e.target.value = ""; }} />
         </label>
         <p className="mt-4 text-[11px] text-muted-foreground">需要与电脑端登录同一账号。</p>
       </div>
@@ -52,18 +53,27 @@ export function QrUploadDialog({ open, onOpenChange, onPickup }: { open: boolean
   const [items, setItems] = useState<PickupItem[]>([]);
   const [loading, setLoading] = useState(false);
   const taken = useRef<Set<string>>(new Set());
-  const pickupUrl = typeof location !== "undefined" ? `${location.origin}/one-stop/#/upload` : "";
+  const channel = useRef<{id: string; owner: string} | null>(null);
+  const [transfer, setTransfer] = useState("");
+  const pickupUrl = transfer ? `${location.origin}/one-stop/#/upload?transfer=${transfer}` : "";
   useEffect(() => {
     if (!open) return;
-    import("qrcode").then((Q) => Q.toDataURL(pickupUrl, { width: 220, margin: 1 })).then(setQr).catch(() => setQr(""));
-  }, [open, pickupUrl]);
+    const session = {id: crypto.randomUUID(), owner: accountKey()};
+    channel.current = session; taken.current.clear(); setItems([]); setQr(""); setLoading(false); setTransfer(session.id);
+    const url = `${location.origin}/one-stop/#/upload?transfer=${session.id}`;
+    import("qrcode").then((Q) => Q.toDataURL(url, { width: 220, margin: 1 })).then(value => {if (channel.current === session) setQr(value);}).catch(() => {});
+    return () => { channel.current = null; };
+  }, [open]);
   const fetchNew = async (toast_ = true) => {
+    const session = channel.current;
+    if (!session) return;
     setLoading(true);
     try {
-      const token = accountKey();
-      const res = await fetch("/api/one-stop-uploads", { headers: { Authorization: token }, cache: "no-store" });
-      const body = await res.json().catch(() => null);
-      const fresh: PickupItem[] = (Array.isArray(body?.data?.items) ? body.data.items : []).filter((x: PickupItem) => !taken.current.has(x.id));
+      assertAccountSession(session.owner);
+      const body = await oneStopRequest<{items: PickupItem[]}>(`/api/one-stop-uploads?transfer=${session.id}`);
+      if (channel.current !== session) return;
+      assertAccountSession(session.owner);
+      const fresh: PickupItem[] = (Array.isArray(body.items) ? body.items : []).filter((x: PickupItem) => !taken.current.has(x.id));
       if (fresh.length) {
         for (const x of fresh) taken.current.add(x.id);
         setItems((c) => [...fresh, ...c].slice(0, 30));
@@ -71,7 +81,7 @@ export function QrUploadDialog({ open, onOpenChange, onPickup }: { open: boolean
         toast.success(`取回 ${fresh.length} 个素材，已加入参考上传格`);
       } else if (toast_) toast.info("还没有新的扫码上传素材");
     } catch { if (toast_) toast.error("取回失败，请稍后重试"); }
-    finally { setLoading(false); }
+    finally { if (channel.current === session) setLoading(false); }
   };
   // 打开时立即拉一次，随后 5 秒轮询（关闭即停）
   useEffect(() => {

@@ -27,6 +27,22 @@ export function metadataFromCards(raw: unknown, allowed: Set<string>): ModelMeta
       const values = Array.isArray(field.enum) ? field.enum : Array.isArray(field.options) ? field.options.map((v: any) => v?.value) : [];
       const clean = values.filter((v: any) => typeof v === "string" || typeof v === "number" || typeof v === "boolean").slice(0, 100);
       if (clean.length) { safe.enum = clean; enums[key] = clean; }
+      // 保留中文选项标签。只留 enum 的话，前端只能把 "hd" / "none" / "auto" 原样显示出来，
+      // 中文界面上会突然冒出英文枚举值（档位 hd、音效 none、情绪 auto）。
+      // 这里只收展示文案（label / description），不带任何成本、渠道、凭据信息。
+      if (Array.isArray(field.options) && field.options.length) {
+        const picked = field.options
+          .filter((o: any) => o && (typeof o.value === "string" || typeof o.value === "number"))
+          .slice(0, 100)
+          .map((o: any) => {
+            const row: Record<string, any> = { value: o.value };
+            const label = typeof o.label === "string" ? o.label : typeof o.label?.zh === "string" ? o.label.zh : undefined;
+            if (label) row.label = label.slice(0, 40);
+            if (typeof o.description === "string" && o.description.trim()) row.description = o.description.trim().slice(0, 120);
+            return row;
+          });
+        if (picked.length) safe.options = picked;
+      }
       if (safe.default !== undefined) defaults[key] = safe.default;
       paramSchema[key] = safe;
     }

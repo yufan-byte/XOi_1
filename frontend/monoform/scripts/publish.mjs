@@ -21,6 +21,7 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const DIST = join(ROOT, "dist");
 const SITE = join(ROOT, "..", "public", "monoform");
 const dryRun = process.argv.includes("--dry-run");
+const keepBackups = process.argv.includes("--keep-backups");
 
 if (!existsSync(DIST)) {
   console.error("✗ 没有 dist/，先跑 npm run build");
@@ -49,7 +50,7 @@ if (existsSync(SITE)) {
       .filter((name) => name.startsWith("monoform.bak."))
       .sort()
       .reverse();
-    for (const name of olds.slice(3)) {
+    for (const name of keepBackups ? [] : olds.slice(3)) {
       rmSync(join(ROOT, "..", "public", name), { recursive: true, force: true });
       console.log(`  清理旧备份 ${name}`);
     }

@@ -45,7 +45,7 @@
                   <t-image-viewer :images="[row.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
                     <template #trigger="{ open }">
                       <div class="mediaTrigger" @click="row.src && open()">
-                        <img :src="row.src" :alt="row.name" />
+                        <img :src="thumbUrl(row.src, 200)" :alt="row.name" loading="lazy" decoding="async" />
                         <div class="mediaHoverOverlay">
                           <t-icon name="browse" size="20px" />
                           <span class="hoverText">{{ $t("components.storyboardImageCheck.preview") }}</span>
@@ -69,6 +69,7 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
 import axios from "@/utils/axios";
+import { thumbUrl } from "@/utils/mediaUrl";
 import type { TableProps } from "tdesign-vue-next";
 import type { Storyboard } from "@/views/production/utils/flowBuilder";
 const props = withDefaults(

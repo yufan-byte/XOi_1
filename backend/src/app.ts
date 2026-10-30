@@ -21,11 +21,14 @@ import http from "node:http";
 import expressWs from "express-ws";
 import logger from "morgan";
 import cors from "cors";
+import compression from "compression";
+import os from "node:os";
 import buildRoute from "@/core";
 import path from "path";
 import fs from "fs";
 import u from "@/utils";
 import { resolveIdentity } from "@/utils/authIdentity";
+import { cookieAuthAllowed, readSessionToken } from "@/utils/sessionCookie";
 import { requireAdmin } from "@/middleware/requireAdmin";
 import socketInit from "@/socket/index";
 import { ensureThumbnail, ThumbnailSize } from "@/utils/image";
@@ -48,6 +51,8 @@ import { productionBillingBlockers, productionPricingBlockers } from "@/utils/pr
 import { claimModelBudget,ensureBudgetSchema } from "@/lib/gateway/budgets";
 import { createResourceLoader } from "@/utils/resourceAccess";
 import { resourceScope } from "@/middleware/resourceScope";
+import { expectedAccount } from "@/middleware/expectedAccount";
+import {createMediaHistoryRouter} from "@/lib/workspace/mediaHistory";
 import { sharedRateLimiter,sharedRates } from "@/middleware/sharedRateLimiter";
 import { productionSecurityBlockers } from "@/utils/productionSecurityPolicy";
 import {requestBodyGuard} from "@/middleware/requestBodyGuard";
@@ -69,6 +74,12 @@ server.headersTimeout=15000;
 server.requestTimeout=120000;
 const generationLimiter = rateLimiter({ windowMs: 60000, max: 60, keyGenerator: (req) => String((req as any).user?.id || req.ip) });
 const thumbnailLimiter = rateLimiter({ windowMs: 60000, max: 120 });
+/**
+ * 缩略图生成并发上限（2026-10-26 性能）：原先写死 8，但 sharp 是 libvips 线程池，
+ * 实际吞吐跟着 CPU 核数走——2 核小机上 8 个并发会把事件循环和内存一起拖住，
+ * 8 核以上又白白排队。改成 2×核数、夹在 [4,16] 之间：小机不被打爆，大机吃满。
+ */
+const THUMBNAIL_CONCURRENCY = Math.max(4, Math.min(16, (os.cpus()?.length || 2) * 2));
 let thumbnailsInFlight = 0;
 let draining=false;
 let socketServer:Server|undefined;
@@ -103,6 +114,28 @@ export default async function startServe(randomPort: Boolean = false) {
   expressWs(app);
 
   app.use(logger("dev"));
+
+  /**
+   * 响应压缩（2026-10-26 性能）：此前后端**完全没有压缩**，主入口 JS 1.01MB、
+   * 聊天相关 chunk 3.18MB 全是裸传，这是首屏最大的一个坑。
+   * - threshold 1KB：小响应不压，省 CPU 也不值得那点字节。
+   * - 显式排除 SSE / 视频音频 / 二进制：压缩器需要攒缓冲才能出块，
+   *   套在 event-stream 上会把逐条推送的 token 全堵住，表现就是「AI 一直不说话」。
+   * - XOI_COMPRESSION=0 可整体关掉（压测对比、或排查「响应变成 chunked」时用）。
+   */
+  if (String(process.env.XOI_COMPRESSION || "1") !== "0") app.use(
+    compression({
+      threshold: 1024,
+      level: 6,
+      filter: (req, res) => {
+        const type = String(res.getHeader("Content-Type") || "");
+        if (/event-stream|octet-stream|^video\/|^audio\/|^image\//i.test(type)) return false;
+        if (String(req.headers["x-no-compression"] || "") === "1") return false;
+        return compression.filter(req, res);
+      },
+    }),
+  );
+
   // 跨域收紧（2026-10-24）：未配置 XOI_ALLOWED_ORIGINS 时不再反射任意 origin——
   // 同源部署不需要 CORS 头，浏览器同源策略自然阻止外部站点读取 API。
   // 需要跨域（前后端分域部署）时在环境变量里列出精确来源即可。
@@ -123,8 +156,9 @@ export default async function startServe(randomPort: Boolean = false) {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     // 防止 MIME 类型嗅探
     res.setHeader("X-Content-Type-Options", "nosniff");
-    // XSS 防护（旧浏览器）
-    res.setHeader("X-XSS-Protection", "1; mode=block");
+    // 注意：不再下发 `X-XSS-Protection`。该头依赖的 XSS Auditor 已在 Chrome 78+/Edge 移除，
+    // 而在仍支持它的旧版浏览器里反而存在已知绕过（攻击者可用它屏蔽页面脚本、做内容劫持）。
+    // 现代做法是 CSP（见下方说明）+ 输出编码。
     // 阻止浏览器猜测 favicon
     res.setHeader("X-Download-Options", "noopen");
     // 控制 Referrer 信息
@@ -134,18 +168,48 @@ export default async function startServe(randomPort: Boolean = false) {
     if (req.secure || req.headers["x-forwarded-proto"] === "https") {
       res.setHeader("Strict-Transport-Security", "max-age=31536000");
     }
-    // 权限策略：禁用敏感浏览器特性
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    // 项目声音素材支持用户主动录音；麦克风仅开放给同源页面，仍需浏览器逐次授权。
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
+    // CSP（2026-10-26 纵深防御）：此前全站没有任何 CSP，唯一的 XSS 防线是前端
+    // safeAssistantMarkup() 的转义 —— 只要有一处漏转义就没有第二道闸。
+    // 这里先上 **Report-Only**（只报告、不拦截），用真实流量把违规清单摸清楚，
+    // 逐项收敛后再切正式，避免一刀切把页面打白。
+    // 刻意保留 'unsafe-inline'/'unsafe-eval'：Vue 运行时编译与 TDesign 的内联样式依赖它们。
+    // 但 report-only 也立刻带来一条真收益：connect-src 'self' 意味着即使被注入脚本，
+    // 也拿不到把会话数据外带到第三方域的能力（exfil 链被掐断）。
+    // 只对 HTML 文档下发：静态 js/css/图片不需要 CSP，带上只是白送几百字节。
+    if (!path.extname(req.path) || /\.html?$/i.test(req.path)) {
+      res.setHeader(
+        "Content-Security-Policy-Report-Only",
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: blob: data:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
+      );
+    }
     next();
   });
 
   app.use(requestBodyGuard());
   app.use(["/api/admin", "/api/login", "/api/billing"], express.json({ limit: "1mb" }));
-  app.use(express.json({ limit: process.env.XOI_JSON_LIMIT || "25mb" }));
+  // 画布项目与扫码上传是「整份数据塞一个 JSON」的接口，天然比普通接口大，需要单独放宽；
+  // 必须挂在全局 parser 之前，否则请求会先被下面的全局上限挡成 413。
+  // 画布保存的真实路径是 /api/v1/canvas/projects（canvas-compat 挂在 /api/v1 下），
+  // 而 /api/v1 同时是网关代理层 —— 图片编辑/参考图这类请求也会带 base64，故整段放宽。
+  app.use("/api/v1", express.json({ limit: process.env.XOI_BULK_JSON_LIMIT || "13mb" }));
+  // 12 MiB phone media becomes 16 MiB base64, plus bounded JSON metadata.
+  app.use("/api/one-stop-uploads", express.json({ limit: 16 * 1024 * 1024 + 512 * 1024 }));
+  // 画布媒体任务（生图/图编辑/生视频）的 body 会带多张 base64 参考图：图编辑上限 10 张、
+  // 每个 1~2MB 是常态，4MB 全局上限必然打成 413 request entity too large（用户实测）。
+  // 这几条路由本身有鉴权 + 生成限流 + 配额校验，放宽到 13mb 与其实际载荷匹配。
+  app.use(["/api/canvas-image-tasks", "/api/canvas-video"], express.json({ limit: process.env.XOI_BULK_JSON_LIMIT || "13mb" }));
+  // 全局上限 25MB → 4MB（2026-10-26 安全）：普通接口没有一个需要 >4MB，而 25MB 的 body
+  // 在 JSON.parse 阶段会放大 2~3 倍内存 —— 一个已登录用户并发几十个请求就能把 2G 小机打满（低成本 DoS）。
+  app.use(express.json({ limit: process.env.XOI_JSON_LIMIT || "4mb" }));
   app.use(express.urlencoded({ extended: true, limit: process.env.XOI_FORM_LIMIT || "2mb" }));
   app.use("/api/login/login",sharedRateLimiter("login-ip",60000,10,req=>req.ip||"unknown"));
   app.use("/api/login/register",sharedRateLimiter("register-ip",3600000,5,req=>req.ip||"unknown"));
   app.use("/api/login/captcha",sharedRateLimiter("captcha-ip",60000,30,req=>req.ip||"unknown"));
+  // 刷新保活接口（会把 cookie 的有效期重新推满 24h）。本身需要有效凭据，
+  // 但放任刷就等于给了一条「无限续期」通道，按 IP 兜个 60 次/分。
+  app.use("/api/login/session",sharedRateLimiter("login-session-ip",60000,60,req=>req.ip||"unknown"));
   setInterval(()=>{void sharedRates.clean().catch(e=>console.error("[shared-rate] 清理失败",e.message));},600000).unref();
 
   // 容器编排探针：liveness 不依赖外部服务，readiness 同时验证共享 PG 与 NewAPI。
@@ -237,7 +301,7 @@ export default async function startServe(randomPort: Boolean = false) {
         const smallImagePath = path.join(smallImageBaseDir, dir, `${base}_${sizeSubDir}${ext}`);
         if (!smallImagePath.startsWith(`${path.resolve(smallImageBaseDir)}${path.sep}`)) return res.status(403).end();
 
-        if (thumbnailsInFlight >= 8) return res.status(429).json({ message: "缩略图处理繁忙，请稍后重试" });
+        if (thumbnailsInFlight >= THUMBNAIL_CONCURRENCY) return res.status(429).json({ message: "缩略图处理繁忙，请稍后重试" });
         thumbnailsInFlight++;
         ensureThumbnail(originalPath, smallImagePath, sizeOpts).then((thumbnailPath) => {
           if (thumbnailPath) {
@@ -266,7 +330,9 @@ export default async function startServe(randomPort: Boolean = false) {
       res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
       /\.(jpe?g|png|gif|webp|svg|ico|bmp|mp4|webm)$/i.test(req.path) ? next() : res.status(403).end();
     },
-    express.static(skillsDir, { acceptRanges: false }),
+    // 封面等文件名是 UUID，内容不可变（更新即换名），可安全长缓存；
+    // no-store 的旧浏览器缓存无 Hash 失效语义，这里给 7 天足矣。
+    express.static(skillsDir, { acceptRanges: false, maxAge: "7d", setHeaders: (res)=>{ res.setHeader("Vary","Accept-Encoding"); } }),
   );
 
   // assets 静态资源
@@ -275,7 +341,27 @@ export default async function startServe(randomPort: Boolean = false) {
     fs.mkdirSync(assetsDir, { recursive: true });
   }
   console.log("文件目录:", assetsDir);
-  app.use("/assets", express.static(assetsDir, { acceptRanges: false }));
+  // 主站构建产物与素材目录都使用 /assets 前缀。脚本和样式只从受控的
+  // web 构建目录读取，缺失时直接 404，不能回退到可写素材目录。
+  const webBuildAssets = express.static(path.join(u.getPath("web"), "assets"), {
+    acceptRanges: false,
+    fallthrough: false,
+    immutable: true,
+    maxAge: "1y",
+  });
+  app.use("/assets", (req, res, next) => {
+    if (!/\.(?:js|css)$/i.test(req.path)) return next();
+    return webBuildAssets(req, res, next);
+  });
+  // /assets 仅承载品牌静态素材（如 ending.mp4）。与 /skills / /oss 同理：
+  // 若任意可执行文件（html/js/json/可作为文档的 svg 等）误落入此目录，会被同源加载执行，
+  // 成为存储型 XSS 或信息泄露面。故只允许媒体/字体/图标类扩展名，并对响应强制 sandbox CSP。
+  const ASSET_EXT_RE = /\.(?:mp4|webm|mov|mp3|wav|m4a|jpe?g|png|gif|webp|avif|bmp|svg|ico|woff2?|ttf|otf|eot)$/i;
+  app.use("/assets", (req, res, next) => {
+    if (!ASSET_EXT_RE.test(req.path)) return res.status(403).end();
+    res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
+    next();
+  }, express.static(assetsDir, { acceptRanges: false }));
 
   // data/web 静态网站
   const announcements = new AnnouncementsStore();
@@ -326,6 +412,10 @@ export default async function startServe(randomPort: Boolean = false) {
   // 必须挂在下面的全局 XOi JWT 中间件之前 —— 两套身份体系，互不替代。
   // Cover self-authenticating routers too; a drain cannot bypass admission via reseller/agent paths.
   app.use("/api",releaseLifecycle.admission);
+  // 限流（2026-10-26 审计 R-D）：reseller/agent 挂在全局限流(app.ts 靠后)之前，此前无任何速率限制；
+  // 这两组全是后台管理类端点（config/audit/finance/redemption 等，无高频生成），按 IP 300 次/分钟
+  // 足够正常使用，同时挡住爆破 / 薅 redemption 等资金相关写接口。
+  app.use(["/api/reseller","/api/agent"], sharedRateLimiter("reseller-agent-ip",60000,300,req=>req.ip||"unknown"));
   const resellerRouter = (await import("@/routes/reseller")).default;
   app.use("/api/reseller", resellerRouter);
 
@@ -385,13 +475,28 @@ export default async function startServe(randomPort: Boolean = false) {
     }
   })();
 
+  // 登录桥接会话清道夫：回收偶发回收失败的网关临时会话，防止越积越多并拖垮登录。
+  void (async () => {
+    try {
+      const { startAuthBridgeSweeper } = await import("@/utils/newapi");
+      startAuthBridgeSweeper();
+      console.log("[auth] 桥接会话清理已启动");
+    } catch (error) {
+      console.warn("[auth] 桥接会话清理启动失败：", (error as Error).message);
+    }
+  })();
+
   app.use(async (req, res, next) => {
     const setting = await u.db("o_setting").where("key", "tokenKey").select("value").first();
     if (!setting) return res.status(444).send({ message: "服务器秘钥未配置，请联系管理员" });
     const { value: tokenKey } = setting;
-    // 仅从 header 获取 token（URL 传递 token 会导致泄露风险）
-    const rawToken = req.headers.authorization || "";
-    const token = rawToken.replace("Bearer ", "");
+    // 凭据来源：Authorization header 优先（兼容未迁移的客户端与同源非浏览器调用），
+    // 其次 httpOnly 会话 cookie（F3：前端不再把 JWT 落 localStorage）。
+    // URL 传 token 一律不支持 —— 会经 Referer / 访问日志 / 浏览器历史泄露。
+    const headerToken = String(req.headers.authorization || "").replace(/^(Bearer\s+)+/i, "");
+    // 跨站请求只认 header，不认 cookie（cookieAuthAllowed 自带 Sec-Fetch-Site / Origin 双重确认）。
+    const cookieToken = cookieAuthAllowed(req) ? readSessionToken(req) : "";
+    const token = headerToken || cookieToken;
     // 白名单路径
     if (
       req.path === "/api/login/login" ||
@@ -413,7 +518,17 @@ export default async function startServe(randomPort: Boolean = false) {
 
     if (!token) return res.status(401).send({ message: "未提供token" });
     try {
-      const userInfo = await resolveIdentity(token, tokenKey as string, loadAuthUser);
+      let userInfo: Awaited<ReturnType<typeof resolveIdentity>>;
+      try {
+        userInfo = await resolveIdentity(token, tokenKey as string, loadAuthUser);
+      } catch (headerError) {
+        // 兜底（F3）：历史代码把「非凭据」的会话信号当 Bearer 发了出来（如画布仍拼
+        // `Authorization: Bearer <uid:nonce>`）。此时 header 不是凭据，但同源请求的
+        // httpOnly cookie 里还有真凭据 —— 以 cookie 的身份放行，避免一处漏改就白屏。
+        // 跨站请求读不到 cookieToken，因此这条兜底不构成鉴权绕过。
+        if (!cookieToken || cookieToken === token) throw headerError;
+        userInfo = await resolveIdentity(cookieToken, tokenKey as string, loadAuthUser);
+      }
       (req as any).user = userInfo;
       if (userInfo.role !== "admin" && !["GET", "HEAD"].includes(req.method) &&
           !/^\/api\/(pay|setting\/loginConfig)(\/|$)/.test(req.path) &&
@@ -427,9 +542,12 @@ export default async function startServe(randomPort: Boolean = false) {
     }
   });
 
+  app.use("/api", expectedAccount);
+  app.use("/api/one-stop/media-history",createMediaHistoryRouter(db));
   // Header-authenticated bootstrap for <img>/<video>. Cookie is never accepted for API writes.
   app.get('/api/login/media-session',(req,res)=>{
-    const token=String(req.headers.authorization||'').replace(/^(Bearer\s+)+/i,'');
+    // 迁移后前端已无 JWT 原文可带，这里允许直接复用会话 cookie 里的凭据来颁发媒体 cookie。
+    const token=String(req.headers.authorization||'').replace(/^(Bearer\s+)+/i,'')||readSessionToken(req);
     res.setHeader('Cache-Control','no-store');
     res.cookie(`xoi_media_session_${(req as any).user.id}`,token,{httpOnly:true,sameSite:'lax',secure:req.secure||['prod','production'].includes(process.env.NODE_ENV||''),path:'/oss',maxAge:86400000});
     res.status(204).end();
@@ -481,6 +599,9 @@ export default async function startServe(randomPort: Boolean = false) {
   app.use("/api/setting/dev", requireAdmin);
   app.use("/api/setting/memoryConfig", requireAdmin);
   app.use("/api/other/deleteAllData", requireAdmin);
+  // 团队功能（建团队/批量下发账号/重置密码/导出Excel/MFA/资金池）全部仅管理员可用。
+  // 必须挂在生成 router 注册之前（router.default(app) 在下方），否则拦不住。
+  app.use("/api/team", requireAdmin);
   app.use("/api/other/deleteAllData", (_req, res, next) => {
     if (["prod", "production"].includes(process.env.NODE_ENV || "")) {
       return res.status(403).json({ message: "生产环境请通过服务器备份维护流程执行数据库清空或恢复" });

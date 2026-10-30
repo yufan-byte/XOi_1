@@ -8,7 +8,7 @@
       v-model:visible="dialogVisible"
       :header="false"
       :close-btn="false"
-      width="min(1180px, 94vw)"
+      width="min(900px, 94vw)"
       @confirm="handleOk"
       @close-btn-click="handleCancel"
       @cancel="handleCancel"
@@ -16,148 +16,66 @@
       :cancel-btn="$t('workbench.project.dialog.cancel')">
       <div class="createWorkspace">
         <aside class="createSteps">
-          <div class="createStepsEyebrow">创作参数</div>
-          <div class="createStepsTitle">创作参数预设</div>
-          <div class="setupNote"><strong>先确定创作基调</strong><span>预先设定项目类型、制作规格、视觉参考与导演叙事方案，后续可随时调整。</span></div>
+          <div class="createStepsEyebrow">PROJECT PROFILE</div>
+          <div class="createStepsTitle">{{ isEdit ? "编辑项目" : "新建项目" }}</div>
+          <div class="setupNote"><strong>先把项目讲清楚</strong><span>名称和简介会成为未来团队协作时的项目名片，让成员一眼知道它要做什么、从哪里开始。</span></div>
           <div class="setupMeta"><span>内容来源</span><strong>{{ formState.projectType === 'novel' ? '小说改编' : '剧本创作' }}</strong></div>
-          <div class="setupMeta"><span>预设范围</span><strong>类型 · 规格 · 视觉 · 叙事</strong></div>
-          <div class="createStepsFooter">保存后，这些创作参数仍可在项目设置中修改。</div>
+          <div class="setupMeta"><span>团队识别</span><strong>{{ formState.name.trim() || '等待填写项目名称' }}</strong></div>
+          <div class="createStepsFooter">视觉风格和导演方法不在建项时做死，后续按角色、场景和镜头的实际需要加载 Skill。</div>
         </aside>
         <div class="createContent">
-        <div class="formColumns">
-        <div class="formLeft">
+          <div class="projectProfileHeader">
+            <div><span>{{ isEdit ? "PROJECT SETTINGS" : "CREATE PROJECT" }}</span><h3>{{ isEdit ? "更新项目信息" : "创建一个新的短剧项目" }}</h3></div>
+            <p>先确定内容来源和项目简介，生成模型作为项目默认值，后续仍可调整。</p>
+          </div>
           <t-form :data="formState" label-align="top">
-            <t-form-item :label="$t('workbench.project.dialog.projectType')">
-              <t-select v-model="formState.projectType" :placeholder="$t('workbench.project.dialog.selectType')">
-                <t-option key="基于小说原文" :label="$t('workbench.project.dialog.basedOnNovel')" value="novel" />
-                <t-option key="基于剧本" :label="$t('workbench.project.dialog.basedOnScript')" value="script" />
-              </t-select>
+            <t-form-item label="项目类型">
+              <div class="projectTypeCards">
+                <button type="button" :class="{ active: formState.projectType === 'novel' }" @click="formState.projectType = 'novel'">
+                  <span class="typeIcon">文</span><span><strong>小说改编</strong><small>从小说原文开始，先进行 AI 改编和剧本整理</small></span><t-icon v-if="formState.projectType === 'novel'" name="check-circle-filled" />
+                </button>
+                <button type="button" :class="{ active: formState.projectType === 'script' }" @click="formState.projectType = 'script'">
+                  <span class="typeIcon">剧</span><span><strong>剧本创作</strong><small>已有剧本或直接写剧本，从剧本整理开始制作</small></span><t-icon v-if="formState.projectType === 'script'" name="check-circle-filled" />
+                </button>
+              </div>
             </t-form-item>
-            <t-form-item :label="$t('workbench.project.dialog.projectName')">
+            <t-form-item label="项目名称">
               <t-input v-model="formState.name" :placeholder="$t('workbench.project.dialog.projectNamePh')" />
             </t-form-item>
-            <t-form-item :label="$t('workbench.project.dialog.novelType')">
-              <t-input v-model="formState.type" :placeholder="$t('workbench.project.dialog.novelTypePh')" />
-            </t-form-item>
-            <t-form-item :label="$t('workbench.project.dialog.modelData')">
-              <div class="modelParameters">
-                <modelSelect v-model="formState.imageModel" type="image" />
-                <t-select v-model="formState.imageQuality" class="paramSelect" :placeholder="$t('workbench.production.editImage.quality')">
-                  <t-option value="1K" label="1K" />
-                  <t-option value="2K" label="2K" />
-                  <t-option value="4K" label="4K" />
-                </t-select>
-              </div>
-            </t-form-item>
-            <t-form-item :label="$t('workbench.project.dialog.videoModelData')">
-              <div class="modelParameters">
-                <modelSelect v-model="formState.videoModel" type="video" @change="changeFn" :changeConfig="true" />
-                <t-select v-model="formState.mode" class="paramSelect" :placeholder="$t('workbench.production.editImage.mode')">
-                  <t-option v-for="value in mode" :key="value.value" :value="value.value" :label="value.label" />
-                </t-select>
-              </div>
-            </t-form-item>
-            <t-form-item :label="$t('workbench.project.dialog.videoRatio')">
-              <t-select v-model="formState.videoRatio" :options="RATIO_OPTIONS" />
-            </t-form-item>
-            <t-form-item :label="$t('workbench.project.dialog.textModelData')">
-              <div class="modelParameters">
-                <modelSelect v-model="formState.textModel" type="text" :placeholder="$t('workbench.project.dialog.textModelPh')" />
-              </div>
-            </t-form-item>
-            <t-form-item :label="$t('workbench.project.dialog.novelIntro')">
+            <t-form-item label="项目简介">
               <t-textarea
                 v-model="formState.intro"
-                :autosize="{ minRows: 3, maxRows: 6 }"
-                :placeholder="$t('workbench.project.dialog.novelIntroPh')" />
+                :autosize="{ minRows: 4, maxRows: 7 }"
+                placeholder="用几句话说明故事核心、目标受众、成片目标或交付要求。后续团队成员会从这里快速了解项目。" />
             </t-form-item>
-          </t-form>
-        </div>
-        <div class="formRight">
-          <t-form label-align="top">
-            <t-form-item>
-              <div class="artStylePicker">
-                <div class="artStyleHeader">
-                  <div><strong>视觉风格方案</strong><small>选择画面质感、色彩与美术方向</small></div>
-                  <t-button v-if="visualPreference.mode === 'preset'" size="small" variant="text" @click="openVisualManualDialog()">
-                    <template #icon><i-plus size="14" /></template>
-                    专业手册
-                  </t-button>
-                </div>
-                <div class="preferenceChoices"><button v-for="choice in preferenceChoices" :key="choice.value" type="button" :class="{ active: visualPreference.mode === choice.value }" @click="setPreferenceMode('artStyle', choice.value)">{{ choice.label }}</button></div>
-                <p v-if="visualPreference.mode === 'none'" class="preferenceNote">暂不限定画面风格，先创建项目。后续可在导演助理中逐步明确。</p>
-                <t-textarea v-else-if="visualPreference.mode === 'custom'" :value="visualPreference.text" @change="(value: unknown) => setCustomPreference('artStyle', String(value))" placeholder="例如：宋代写实电影，低饱和自然光；人物服装、房间布局保持一致。" :maxlength="4000" :autosize="{ minRows: 4, maxRows: 7 }" />
-                <div v-else class="artStyleContent">
-                  <t-loading :loading="visualManualLoading" :text="$t('workbench.project.dialog.loading')">
-                    <div class="gridContainer">
-                      <div
-                        v-for="(item, index) in visualManualOptions"
-                        :key="index"
-                        class="gridItem"
-                        :class="[`preset-${index % 8}`, { active: formState.artStyle === item.stylePath }]"
-                        @click="formState.artStyle = item.stylePath">
-                        <div class="imageWrapper">
-                          <img :src="item.images && item.images[0]" alt="" class="artImage" loading="lazy" />
-                        </div>
-                        <div class="styleName">{{ item.name.replace(/^#\s*/, '').replace(/风格说明$/, '') }}</div>
-                        <t-button class="editBtn" shape="square" @click.stop="openVisualManualDialog(item)">
-                          <i-edit theme="outline" size="14" />
-                        </t-button>
-                        <t-button class="delBtn" shape="square" @click.stop="deleteVisualManual(item)">
-                          <i-delete theme="outline" size="14" />
-                        </t-button>
-                        <t-button class="preview" shape="square" @click.stop="handlePreview(item.images && item.images[0])">
-                          <i-preview-open theme="outline" size="14" />
-                        </t-button>
-                      </div>
-                    </div>
-                  </t-loading>
-                </div>
+            <t-form-item label="项目题材">
+              <t-input v-model="formState.type" placeholder="例如：古装悬疑、都市甜宠、科幻冒险" />
+            </t-form-item>
+
+            <div class="modelSection">
+              <div class="modelSectionHead"><div><strong>默认生成设置</strong><small>创建后仍可在具体生成环节修改</small></div></div>
+              <div class="modelGrid">
+                <t-form-item label="图片模型">
+                  <div class="modelParameters">
+                    <modelSelect v-model="formState.imageModel" type="image" />
+                    <t-select v-model="formState.imageQuality" class="paramSelect" :placeholder="$t('workbench.production.editImage.quality')">
+                      <t-option value="1K" label="1K" /><t-option value="2K" label="2K" /><t-option value="4K" label="4K" />
+                    </t-select>
+                  </div>
+                </t-form-item>
+                <t-form-item label="视频模型">
+                  <div class="modelParameters">
+                    <modelSelect v-model="formState.videoModel" type="video" @change="changeFn" :changeConfig="true" />
+                    <t-select v-model="formState.mode" class="paramSelect" :placeholder="$t('workbench.production.editImage.mode')">
+                      <t-option v-for="value in mode" :key="value.value" :value="value.value" :label="value.label" />
+                    </t-select>
+                  </div>
+                </t-form-item>
+                <t-form-item label="画面比例"><t-select v-model="formState.videoRatio" :options="RATIO_OPTIONS" /></t-form-item>
+                <t-form-item label="文本模型（对话 / 提取资产）"><modelSelect v-model="formState.textModel" type="text" :placeholder="$t('workbench.project.dialog.textModelPh')" /></t-form-item>
               </div>
-            </t-form-item>
-            <t-form-item>
-              <div class="directorManual">
-                <div class="directorManualHeader">
-                  <div><strong>导演叙事方案</strong><small>选择节奏、镜头语言与叙事基调</small></div>
-                  <t-button v-if="narrativePreference.mode === 'preset'" size="small" variant="text" @click="openDirectorManualDialog()">
-                    <template #icon><i-plus size="14" /></template>
-                    专业手册
-                  </t-button>
-                </div>
-                <div class="preferenceChoices"><button v-for="choice in preferenceChoices" :key="choice.value" type="button" :class="{ active: narrativePreference.mode === choice.value }" @click="setPreferenceMode('directorManual', choice.value)">{{ choice.label }}</button></div>
-                <p v-if="narrativePreference.mode === 'none'" class="preferenceNote">暂不套用叙事模板。导演助理以剧本为准，重要决策由你确认。</p>
-                <t-textarea v-else-if="narrativePreference.mode === 'custom'" :value="narrativePreference.text" @change="(value: unknown) => setCustomPreference('directorManual', String(value))" placeholder="例如：悬疑慢揭示，少旁白，通过人物反应和环境细节交代信息。" :maxlength="4000" :autosize="{ minRows: 4, maxRows: 7 }" />
-                <div v-else class="artStyleContent">
-                  <t-loading :loading="directorManualLoading" :text="$t('workbench.project.dialog.loading')">
-                    <div class="gridContainer">
-                      <div
-                        v-for="(item, index) in directorManualOptions"
-                        :key="index"
-                        class="gridItem"
-                        :class="{ active: formState.directorManual === item.directorManual }"
-                        @click="formState.directorManual = item.directorManual">
-                        <div class="imageWrapper">
-                          <img :src="item.images && item.images[0]" alt="" class="artImage" loading="lazy" />
-                        </div>
-                        <div class="styleName">{{ item.name.replace(/^#\s*/, '').replace(/风格说明$/, '') }}</div>
-                        <t-button class="editBtn" shape="square" @click.stop="openDirectorManualDialog(item)">
-                          <i-edit theme="outline" size="14" />
-                        </t-button>
-                        <t-button class="delBtn" shape="square" @click.stop="deleteDirectorManual(item)">
-                          <i-delete theme="outline" size="14" />
-                        </t-button>
-                        <t-button class="preview" shape="square" @click.stop="handlePreview(item.images && item.images[0])">
-                          <i-preview-open theme="outline" size="14" />
-                        </t-button>
-                      </div>
-                    </div>
-                  </t-loading>
-                </div>
-              </div>
-            </t-form-item>
+            </div>
           </t-form>
-        </div>
-        </div>
         </div>
       </div>
     </t-dialog>
@@ -191,7 +109,7 @@
                 <label class="fieldLabel">{{ $t("workbench.project.dialog.visualManualCover") }}</label>
                 <div class="coverUploadArea multiCoverUploadArea">
                   <div v-for="(img, idx) in visualManualForm.images" :key="idx" class="coverPreview">
-                    <img :src="img" class="coverImg" @click.stop="handlePreview(img && img)" style="cursor: pointer" />
+                    <img :src="thumbUrl(img, 400)" class="coverImg" @click.stop="handlePreview(img && img)" style="cursor: pointer" />
                     <div class="coverImgRemove" @click="removeVisualManualCover(idx)">
                       <i-close size="10" />
                     </div>
@@ -264,7 +182,7 @@
                 <label class="fieldLabel">{{ $t("workbench.project.dialog.directorManualCover") }}</label>
                 <div class="coverUploadArea multiCoverUploadArea">
                   <div v-for="(img, idx) in directorManualForm.images" :key="idx" class="coverPreview">
-                    <img :src="img" class="coverImg" />
+                    <img :src="thumbUrl(img, 400)" class="coverImg" />
                     <div class="coverImgRemove" @click="removeVisualManualCover(idx)">
                       <i-close size="10" />
                     </div>
@@ -315,6 +233,7 @@
 import { ref, watch, computed, onMounted } from "vue";
 import { readCreativePreference, customCreativePreference, type CreativePreference } from '../../../../../shared/creativePreference';
 import axios from "@/utils/axios";
+import { thumbUrl } from "@/utils/mediaUrl";
 import { MdEditor } from "@/utils/markdown";
 import { resolveThemeMode } from "@/utils/theme";
 import settingStore from "@/stores/setting";
@@ -500,10 +419,6 @@ function handleOk() {
   if (!formState.value.videoModel) return window.$message.warning($t("workbench.project.msg.enterVideoModel"));
   // 文本模型是剧本对话与资产提取的唯一入口，缺它项目无法运作，必须在创建/编辑时选好
   if (!formState.value.textModel) return window.$message.warning($t("workbench.project.msg.enterTextModel"));
-  if (preferenceModes.value.artStyle === 'preset' && !formState.value.artStyle) return window.$message.warning('请选择视觉方案，或选择暂不设置');
-  if (preferenceModes.value.directorManual === 'preset' && !formState.value.directorManual) return window.$message.warning('请选择叙事方案，或选择暂不设置');
-  if (visualPreference.value.mode === 'custom' && !visualPreference.value.text.trim()) return window.$message.warning('请填写视觉要求，或选择暂不设置');
-  if (narrativePreference.value.mode === 'custom' && !narrativePreference.value.text.trim()) return window.$message.warning('请填写叙事要求，或选择暂不设置');
   if (!formState.value.videoRatio) return window.$message.warning($t("workbench.project.msg.enterVideoRatio"));
   if (!formState.value.intro) return window.$message.warning($t("workbench.project.msg.enterProjectIntro"));
   if (!formState.value.imageQuality) return window.$message.warning($t("workbench.project.msg.enterProjectQuality"));
@@ -944,8 +859,6 @@ watch(addProjectShow, async (visible) => {
     } else {
       resetForm();
     }
-    fetchVisualManuals();
-    queryDirectorManual();
   }
 }, { immediate: true });
 </script>
@@ -1012,6 +925,53 @@ watch(addProjectShow, async (visible) => {
 .setupMeta strong { color: #403c36; font-size: 12px; font-weight: 600; }
 .createContent { min-width: 0; padding: 30px; overflow: auto; background: #fcfbf8; }
 
+.projectProfileHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e5e1da;
+}
+.projectProfileHeader span { color: #a36742; font-size: 10px; font-weight: 750; letter-spacing: .16em; }
+.projectProfileHeader h3 { margin: 5px 0 0; color: #292722; font-size: 20px; letter-spacing: -.02em; }
+.projectProfileHeader p { max-width: 310px; margin: 0; color: #827b70; font-size: 12px; line-height: 1.65; }
+
+.projectTypeCards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.projectTypeCards button {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  min-height: 78px;
+  padding: 14px;
+  border: 1px solid #d9d5ce;
+  border-radius: 11px;
+  background: #fff;
+  color: #35322d;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.projectTypeCards button:hover { border-color: #a99d91; }
+.projectTypeCards button.active { border-color: #e98a55; background: #fff8f2; box-shadow: 0 0 0 2px rgba(233,138,85,.12); }
+.projectTypeCards .typeIcon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 10px; background: #f0ede7; color: #514a42; font-weight: 750; }
+.projectTypeCards button.active .typeIcon { background: #ffe3d0; color: #bd5725; }
+.projectTypeCards strong, .projectTypeCards small { display: block; }
+.projectTypeCards strong { font-size: 14px; }
+.projectTypeCards small { margin-top: 4px; color: #8a8176; font-size: 11px; line-height: 1.45; }
+.projectTypeCards .t-icon { color: #df6d35; }
+
+.modelSection { margin-top: 6px; padding: 18px 18px 0; border: 1px solid #e1ddd6; border-radius: 12px; background: #f7f5f1; }
+.modelSectionHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.modelSectionHead strong, .modelSectionHead small { display: block; }
+.modelSectionHead strong { color: #37332d; font-size: 14px; }
+.modelSectionHead small { margin-top: 3px; color: #8d867b; font-size: 11px; font-weight: 400; }
+.modelGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+.modelGrid :deep(.t-form__item) { min-width: 0; }
+
 :deep(.t-dialog__body) {
   max-height: min(calc(100dvh - 140px), 760px);
   overflow-y: auto;
@@ -1067,6 +1027,15 @@ watch(addProjectShow, async (visible) => {
 .modelParameters :deep(.modelSelectField), .modelParameters :deep(.paramSelect) { width: 100%; min-width: 0; }
 .modelParameters :deep(.modelSelectControl) { width: 100%; min-width: 0; }
 .modelParameters :deep(.modelSelectControl > span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .createWorkspace { grid-template-columns: 1fr; }
+  .createSteps { display: none; }
+  .createContent { padding: 22px 18px; }
+  .projectProfileHeader { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .projectProfileHeader p { max-width: none; }
+  .projectTypeCards, .modelGrid { grid-template-columns: 1fr; }
+}
 
 .formColumns {
   display: grid;

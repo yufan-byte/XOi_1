@@ -21,11 +21,19 @@ const router = express.Router();
 const store = new AnnouncementsStore();
 const TYPES = ["notice", "update", "maintenance"];
 const LIMITS = { items: 50, title: 80, content: 20000, bannerText: 120, bannerCta: 12, bannerLink: 300 };
-const BANNER_THEMES = ["brand", "dark", "green"];
+const BANNER_THEMES = ["brand", "orange", "dark", "green"];
+/**
+ * 横幅「关闭后何时再出现」策略：
+ *   day     —— 关闭后当天不再出现，次日首次进入重新出现（默认，运营最常用）
+ *   session —— 直到本次浏览器会话结束/退出登录前不再出现（= 每次打开/登录都会重新出现）
+ *   refresh —— 刷新页面就重新出现（只在当前页面视图内保持关闭）
+ *   never   —— 关闭后不再出现，直到管理员换一条新横幅（旧行为）
+ */
+const BANNER_DISMISS_MODES = ["day", "session", "refresh", "never"];
 
 interface Announcement { id: string; title: string; content: string; type?: string; published_at?: string }
-/** 全站顶部横幅：管理员发布后出现在所有用户页面顶部，可关闭、可配置跳转 */
-interface SiteBanner { id: string; enabled: boolean; text: string; ctaLabel: string; link: string; theme: string }
+/** 全站顶部横幅：管理员发布后出现在所有用户页面顶部，可关闭、可配置跳转与关闭策略 */
+interface SiteBanner { id: string; enabled: boolean; text: string; ctaLabel: string; link: string; theme: string; dismissMode: string }
 
 async function readItems(): Promise<Announcement[]> {
   const {data}=await store.read();
@@ -58,11 +66,13 @@ function normalizeBanner(raw: unknown): SiteBanner {
   const text = String(b?.text ?? "").trim().slice(0, LIMITS.bannerText);
   const ctaLabel = String(b?.ctaLabel ?? "").trim().slice(0, LIMITS.bannerCta);
   const theme = BANNER_THEMES.includes(String(b?.theme)) ? String(b?.theme) : "brand";
+  // 未知/缺省一律回落 day：宁可多提醒一次，也不要因为字段拼错变成「永远不再显示」。
+  const dismissMode = BANNER_DISMISS_MODES.includes(String(b?.dismissMode)) ? String(b?.dismissMode) : "day";
   let link = "";
   try { link = sanitizeBannerLink(String(b?.link ?? "").trim()); }
   catch (e) { throw new Error((e as Error).message); }
   if (enabled && !text) throw new Error("开启横幅必须填写文案");
-  return { id: String(b?.id ?? "").trim() || `banner-${Date.now().toString(36)}`, enabled, text, ctaLabel, link, theme };
+  return { id: String(b?.id ?? "").trim() || `banner-${Date.now().toString(36)}`, enabled, text, ctaLabel, link, theme, dismissMode };
 }
 
 /** 生成稳定 id：日期 + 4 位随机（主站用 id 判未读，换 id 就会重新亮红点，所以只在新建时生成） */

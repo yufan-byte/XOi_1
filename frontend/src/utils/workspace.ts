@@ -1,11 +1,12 @@
 import axios from "@/utils/axios";
 import rawAxios from "axios";
 import settingStore from "@/stores/setting";
+import { authHeaders, sessionSignal, sessionUserId } from "./session";
 
 const config = { preserveHttpError: true, timeout: 15000 } as any;
 export interface CloudDocument<T = any> { id: string; title: string; revision: number; updatedAt: number; payload: T }
 export function assertWorkspaceOwner(owner: string) {
-  if (!owner || owner !== localStorage.getItem("userId") || !localStorage.getItem("token")) throw new Error("账号已变化，请重新打开工作台");
+  if (!owner || owner !== sessionUserId() || owner !== localStorage.getItem("userId") || !sessionSignal()) throw new Error("账号已变化，请重新打开工作台");
 }
 export async function getCloudDocument<T>(owner: string, kind: string, id: string): Promise<CloudDocument<T> | null> {
   assertWorkspaceOwner(owner);
@@ -16,8 +17,14 @@ export async function getCloudDocument<T>(owner: string, kind: string, id: strin
 }
 export async function listCloudDocuments(owner: string, kind: string) {
   assertWorkspaceOwner(owner);
-  const result = await axios.get<Omit<CloudDocument, "payload">[]>(`/workspace/documents/${kind}`, config);
-  assertWorkspaceOwner(owner); return result.data;
+  const items: Omit<CloudDocument,"payload">[]=[];
+  for(let offset=0;offset<10000;offset+=50){
+    const result=await axios.get<Omit<CloudDocument,"payload">[]>(`/workspace/documents/${kind}`,{...config,params:{offset}});
+    assertWorkspaceOwner(owner);
+    if(!Array.isArray(result.data))throw new Error("草稿目录格式无效");
+    items.push(...result.data);if(result.data.length<50)break;
+  }
+  return items;
 }
 export async function saveCloudDocument(owner: string, kind: string, id: string, revision: number, title: string, payload: unknown) {
   assertWorkspaceOwner(owner);
@@ -36,7 +43,7 @@ export async function uploadWorkspaceFile(owner: string, file: File): Promise<Cl
       const ext = ({ "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif", "video/mp4": "mp4", "video/webm": "webm" } as Record<string, string>)[file.type];
       if (!ext) throw new Error("云端素材支持 PNG / JPG / WebP / GIF / MP4 / WebM");
       const response = await rawAxios.post(`${settingStore().baseUrl.replace(/\/$/, "")}/canvas-files?ext=${ext}`, file, {
-        headers: { Authorization: localStorage.getItem("token") || "", "Content-Type": "application/octet-stream" }, timeout: 120000,
+        headers: { ...authHeaders(), "X-Xoi-Expected-User": owner, "Content-Type": "application/octet-stream" }, timeout: 120000,
       });
       assertWorkspaceOwner(owner);
       return { url: response.data.url, bytes: response.data.bytes, name: file.name, type: file.type };

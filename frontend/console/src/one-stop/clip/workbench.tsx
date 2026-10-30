@@ -13,6 +13,7 @@ import { cn, fmtCny } from "@/lib/utils";
 import { analyzable, analyzeAsset, estimateCost, frameCount, sampleFrames } from "./analyze";
 import { AssetThumb } from "./asset-list";
 import { blobStore } from "./blob-store";
+import { assertAccountSession } from "../adapters/request";
 import { canRender, downloadBlob, extOf, renderTimeline, type RenderSegment } from "./engine";
 import { FX_LABEL, type FxKind } from "./fx";
 import { generatePlan, planDuration, revisePlan } from "./plan";
@@ -26,6 +27,7 @@ const KIND_FILTERS: { value: AssetKind | "all"; label: string }[] = [{ value: "a
 const loadAnalysis = (p: ClipProject) => Object.fromEntries(p.assets.filter((a) => a.analysis).map((a) => [a.id, a.analysis!.status === "running" ? { status: "pending" as const } : a.analysis!]));
 
 export function ClipWorkbench({ project, assets, onBack, onUpdate, initialRender }: { project: ClipProject; assets: ClipAsset[]; onBack: () => void; onUpdate: (p: ClipProject) => void; initialRender?: Blob | null }) {
+  const owner = useRef(assertAccountSession()).current;
   const [plan, setPlan] = useState<EditPlan | undefined>(project.plan);
   const [model, setModel] = useState(project.model);
   const [ratio, setRatio] = useState<RatioKey>(project.ratio || "9:16");
@@ -56,7 +58,7 @@ export function ClipWorkbench({ project, assets, onBack, onUpdate, initialRender
   const supported = useMemo(() => canRender(), []);
 
   // 写回项目一律基于 latest 并立刻更新它：分析队列和规划都是异步的，拿闭包里的旧 project 会互相覆盖（分析结果被一次改字幕冲掉）
-  const save = (patch: (cur: ClipProject) => ClipProject) => { const next = patch(latest.current); latest.current = next; onUpdate(next); };
+  const save = (patch: (cur: ClipProject) => ClipProject) => { if(!alive.current)return; assertAccountSession(owner); const next = patch(latest.current); if(next.id!==project.id)throw new Error("项目已切换"); latest.current = next; onUpdate(next); };
   const commit = (next: EditPlan, bump = true) => { setPlan(next); save((cur) => ({ ...cur, plan: next, title: next.title || cur.title, model, ratio, version: bump ? cur.version + 1 : cur.version })); };
   const fitMode: FitMode = plan?.fit ?? "letterbox";
   const total = plan ? planDuration(plan) : 0;
@@ -69,6 +71,7 @@ export function ClipWorkbench({ project, assets, onBack, onUpdate, initialRender
     setPlanning(true); const ac = new AbortController(); abort.current = ac;
     try {
       const next = req && plan ? await revisePlan(model, liveAssets, plan, req, { signal: ac.signal }) : await generatePlan(model, liveAssets, project.prompt, project.template, { referenceNames: project.referenceNames, reasoning: thinking, signal: ac.signal });
+      ac.signal.throwIfAborted(); if(!alive.current)return; assertAccountSession(owner);
       // 适配方式是用户在工具栏选的，模型不管这个：重新规划沿用当前设置
       commit({ ...next, fit: next.fit ?? plan?.fit }); setRequest(""); toast.success(`AI 剪辑师写入了 v${latest.current.version}`);
     } catch (e) { const err = e as Error; if (err.name !== "AbortError") toast.error(err.message); }
@@ -76,6 +79,7 @@ export function ClipWorkbench({ project, assets, onBack, onUpdate, initialRender
   };
 
   const render = async () => {
+    const owner = assertAccountSession(), blobs = blobStore.forProject(project.id);
     if (!plan?.segments.length) return toast.error("先加一段素材再导出");
     if (missingUsed) return toast.error("方案里用到的素材文件不在浏览器里，删掉标着「文件丢失」的片段，或回到首页重新上传后再导出");
     const r = RATIOS.find((x) => x.value === ratio)!;
@@ -84,9 +88,13 @@ export function ClipWorkbench({ project, assets, onBack, onUpdate, initialRender
     try {
       const bgm = plan.bgm !== undefined && assets[plan.bgm]?.kind === "audio" ? { asset: assets[plan.bgm], volume: 0.35 } : undefined;
       const out = await renderTimeline(segs, { width: r.w, height: r.h, transition: "fade", fit: fitMode, keepAudio, bgm, title: plan.title, signal: ac.signal, onProgress: (ratio, phase) => setProgress({ ratio, phase }) });
+      if(!alive.current || ac.signal.aborted){URL.revokeObjectURL(out.url);return;}
+      assertAccountSession(owner);
       if (result) URL.revokeObjectURL(result.url);
       setResult({ url: out.url, blob: out.blob, mime: out.mime, took: out.duration }); setTab("result");
-      await blobStore.put(`render-${project.id}`, out.blob);
+      const stored = await blobs.put("render", out.blob);
+      assertAccountSession(owner);
+      if (!stored) toast.warning("成片未能保存在浏览器，请立即下载；关闭页面后需重新导出");
       save((cur) => ({ ...cur, ratio, model, rendered: { duration: total, size: out.blob.size, mime: out.mime, at: now() } }));
       toast.success("导出完成");
     } catch (e) { const err = e as Error; if (!ac.signal.aborted) toast.error(err.message || "导出失败"); else toast.info("已取消导出"); }

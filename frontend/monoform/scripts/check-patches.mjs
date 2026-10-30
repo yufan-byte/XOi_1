@@ -22,6 +22,11 @@ const UPSTREAM = join(ROOT, "upstream");
  * 新增补丁时**必须**同时更新这里，否则自检会报「未登记」。
  */
 const EXPECTED = [
+  {name:"route-input",files:["src/Viewport.jsx"],minCount:1,why:"点击路线、节点编辑与人物/相机分离"},
+  {name:"route-sampling",files:["src/previsMotion.js"],minCount:1,why:"密集绘线必须保留完整路径和终点"},
+  {name:"camera-route",files:["src/App.jsx"],minCount:1,why:"独立相机路线与人物路线不能混用"},
+  {name:"scene-vision",files:["src/App.jsx"],minCount:1,why:"识图必须走XOi用户模型、积分与任务隔离"},
+  {name:"empty-scene",files:["src/App.jsx"],minCount:1,why:"新场景不得自动添加示例人物"},
   {
     name: "storage-key",
     files: ["src/App.jsx"],
@@ -66,6 +71,9 @@ for (const file of files) {
 }
 
 const problems = [];
+const appSource=readFileSync(join(UPSTREAM,"src/App.jsx"),"utf8");
+for(const pattern of ["/api/model-config","/api/generate-scene","model-key.txt","LEGACY_PROJECT_STORAGE_KEY"]){if(appSource.includes(pattern))problems.push(`发现单机或旧公共存储入口 ${pattern}，Web 平台禁止直接带入`);}
+if(!/const initialObjects\s*=\s*\[\s*\]/.test(appSource))problems.push("新场景默认对象必须为空，不允许自动导入示例人物");
 
 for (const spec of EXPECTED) {
   const hits = found.get(spec.name);

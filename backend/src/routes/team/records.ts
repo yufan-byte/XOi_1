@@ -1,5 +1,5 @@
 import express from "express";
-import { membershipOf, records, teamOfOwner, TeamError } from "@/lib/team/store";
+import { membershipOf, records, teamForOwner, teamOfOwner, TeamError } from "@/lib/team/store";
 
 const router = express.Router();
 
@@ -7,7 +7,9 @@ router.get("/", async (req, res) => {
   const userId = Number((req as any).user?.id || 0);
   if (!userId) return res.status(401).json({ success: false, message: "请先登录" });
   try {
-    const own = await teamOfOwner(userId);
+    const requested = Number(req.query.teamId);
+    const scoped = Number.isSafeInteger(requested) && requested > 0 ? await teamForOwner(requested, userId) : null;
+    const own = scoped ?? (await teamOfOwner(userId));
     const membership = own ? null : await membershipOf(userId);
     const team = own ?? membership?.team;
     if (!team) return res.json({ success: true, data: { items: [], total: 0 } });

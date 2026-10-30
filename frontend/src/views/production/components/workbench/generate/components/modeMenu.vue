@@ -2,7 +2,7 @@
   <div class="studioParameters" aria-label="视频生成参数">
     <label class="parameterPill parameterModel">
       <span>模型</span>
-      <modelSelect v-model="modelParmas.model" type="video" size="small" :show-price-hint="false" />
+      <modelSelect v-model="modelParmas.model" type="video" size="small" :show-price-hint="false" show-logo show-channel />
     </label>
     <label class="parameterPill">
       <span>清晰度</span>
@@ -78,7 +78,7 @@ function normalizeDuration() {
 }
 .parameterPill,
 .parameterAudio {
-  min-height: 34px;
+  min-height: 44px;
   box-sizing: border-box;
   padding: 2px 9px;
   border: 1px solid var(--studio-line);
@@ -91,13 +91,13 @@ function normalizeDuration() {
   white-space: nowrap;
 }
 .parameterModel :deep(.modelSelectField) {
-  width: 185px;
+  width: 270px;
   max-width: 100%;
 }
 .parameterModel :deep(.modelSelectControl) {
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 4px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 3px 4px !important;
   border: 0 !important;
   border-radius: 999px !important;
   background: transparent !important;
@@ -107,7 +107,7 @@ function normalizeDuration() {
 }
 .studioParameters select {
   max-width: 200px;
-  height: 28px;
+  height: 38px;
   min-width: 58px;
   box-sizing: border-box;
   padding: 2px 3px;
@@ -122,7 +122,7 @@ function normalizeDuration() {
   display: flex;
   gap: 5px;
   align-items: center;
-  height: 34px;
+  height: 44px;
   padding: 3px 11px;
   color: var(--studio-muted);
   font-size: 11px;
@@ -140,7 +140,7 @@ function normalizeDuration() {
     gap: 9px;
   }
   .parameterModel :deep(.modelSelectField) {
-    width: 165px;
+    width: 235px;
   }
 }
 @media (max-width: 760px) {
@@ -148,7 +148,7 @@ function normalizeDuration() {
     font-size: 13px;
   }
   .parameterModel :deep(.modelSelectField) {
-    width: 175px;
+    width: 230px;
   }
 }
 </style>

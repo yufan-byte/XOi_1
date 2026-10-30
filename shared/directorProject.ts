@@ -65,6 +65,17 @@ export function assertNativeDirectorProject(
       camera.focalLength > 1000
     )
       throw new Error("摄影机数据无效");
+    if(camera.motionMode!==undefined&&!["manual","follow","route"].includes(camera.motionMode))throw new Error("摄影机运动方式无效");
+    if(camera.follow!=null){
+      const follow=camera.follow;
+      if(typeof follow!=="object"||typeof follow.targetId!=="string"||follow.targetId.length>160||follow.enabled!==undefined&&typeof follow.enabled!=="boolean")throw new Error("相机跟随设置无效");
+      for(const key of ["distance","height","lookHeight","focalLength","orbitDegrees","sideOffset"])if(follow[key]!==undefined&&(!Number.isFinite(follow[key])||Math.abs(follow[key])>1000))throw new Error("相机跟随参数无效");
+      if(follow.offset!==undefined&&!finiteVec(follow.offset))throw new Error("相机跟随偏移无效");
+    }
+    if(camera.route!=null){
+      const route=camera.route;
+      if(route.version!==1||typeof route.id!=="string"||!/^[\w-]{1,160}$/.test(route.id)||typeof route.enabled!=="boolean"||!Array.isArray(route.points)||route.points.length<2||route.points.length>128||!route.points.every(finiteVec)||!Number.isInteger(route.startFrame)||!Number.isInteger(route.endFrame)||route.startFrame<0||route.endFrame<=route.startFrame||route.endFrame>18000||!finiteVec(route.rotation)||!["fixed","tangent","target"].includes(route.orientation)||typeof route.targetId!=="string"||route.targetId.length>160)throw new Error("独立相机路线无效");
+    }
   };
   const checkKeys = (keys: any) => {
     if (!Array.isArray(keys) || keys.length > 4000)
@@ -79,6 +90,13 @@ export function assertNativeDirectorProject(
       )
         throw new Error("关键帧数据无效");
       previous = k.frame;
+    }
+  };
+  const checkRoutes=(routes:any)=>{
+    if(routes===undefined)return;
+    if(!routes||typeof routes!=="object"||Array.isArray(routes)||Object.keys(routes).length>120)throw new Error("人物路线无效");
+    for(const [id,route] of Object.entries(routes) as [string,any][]){
+      if(id.length>160||!route||!Array.isArray(route.points)||route.points.length<2||route.points.length>4000||!route.points.every(finiteVec)||!Number.isInteger(route.startFrame)||!Number.isInteger(route.endFrame)||route.startFrame<0||route.endFrame<=route.startFrame||route.endFrame>18000)throw new Error("人物路线节点或时间无效");
     }
   };
   for (const shot of project.shots) {
@@ -97,12 +115,15 @@ export function assertNativeDirectorProject(
     seen.add(shot.id);
     checkObjects(shot.objects);
     checkCamera(shot.camera);
+    checkRoutes(shot.routeTracks);
+    if(shot.camera.route?.endFrame>shot.fps*shot.durationSeconds)throw new Error("相机路线超出镜头时长");
     checkKeys(shot.keyframes || []);
     for (const keys of Object.values(shot.objectKeyframes || {}))
       checkKeys(keys);
   }
   checkObjects(project.objects);
   checkCamera(project.camera);
+  checkRoutes(project.routeTracks);
   checkKeys(project.keyframes || []);
   for (const keys of Object.values(project.objectKeyframes || {}))
     checkKeys(keys);

@@ -7,18 +7,25 @@ import {
   Unlock,
 } from 'lucide-react'
 import { MainViewport, CameraPreview } from './Viewport.jsx'
+import { sceneToMonoform } from './sceneToMonoform.js'
+import { pathToKeys, simplifyRoutePoints } from './previsMotion.js'
+import { CAMERA_SHOT_PRESETS, shotPreset, solveFollowCamera } from './cameraMotion.js'
 import { ShotsPanel } from './ShotsPanel.jsx'
+import { mergeRouteKeyframes, removeRouteOwnedKeyframes, routeOwnedKeyframe } from './routeOwnership.js'
 // XOI-PATCH:storage-key
-import { projectKey, poseKey } from '../../xoi/scene-key.js'
+import { projectKey, poseKey, sceneKey } from '../../xoi/scene-key.js'
+// XOI-PATCH:camera-route
+import {normalizeCameraRoute,buildCameraRoute,removeCameraRouteKeys,resolveRouteCamera,cameraPresetPoints,manualCameraPose,editableCameraPatch,cameraMotionMode} from '../../xoi/camera-route.js'
+import {CameraRoutePanel} from '../../xoi/CameraRoutePanel.jsx'
+// XOI-PATCH:scene-vision
+import {SceneImagePanel} from '../../xoi/SceneImagePanel.jsx'
+import {projectFingerprint} from '../../xoi/scene-client.js'
 import { JOINT_DEFINITIONS, JOINT_GROUPS, RIG_PRESET_GROUPS, RIG_PRESET_OPTIONS, cloneJointPose, interpolateJointPose, normalizePoseId, poseCanLoop, poseForObject, presetJoints, presetPhase, presetRoot } from './rig.js'
 
 const CAMERA_ID = '__shot_camera__'
-// XOI-PATCH:storage-key —— 上游是单项目（'monoform-project' 常量），本平台按 ?key= 做多项目隔离。
-// 只在模块顶层求值一次：iframe 生命周期内 key 不会变。见 ../../xoi/scene-key.js
+// XOI-PATCH:storage-key — verified per-account scene slot; no global migration.
 const PROJECT_STORAGE_KEY = projectKey()
-const LEGACY_PROJECT_STORAGE_KEY = 'stageframe-project'
 const CUSTOM_POSE_STORAGE_KEY = poseKey()
-// XOI-PATCH-END
 const PROJECT_VERSION = 16
 const DEFAULT_PROJECT_SETTINGS = {
   name: '未命名场景',
@@ -39,7 +46,6 @@ const DEFAULT_LIGHTING = {
 }
 const FPS_OPTIONS = [24, 25, 30]
 const FOCAL_LENGTH_PRESETS = [18, 24, 35, 50, 85, 120]
-const BRAND_MARK_URL = `${import.meta.env.BASE_URL}branding/monoform-mark.png`
 const ASPECT_RATIOS = [
   { value: '16:9', label: '16 : 9 · 横屏视频', ratio: 16 / 9 },
   { value: '9:16', label: '9 : 16 · 竖屏短视频', ratio: 9 / 16 },
@@ -79,6 +85,31 @@ const customAspectFrom = value => {
 }
 const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
+async function readJsonResponse(response, fallbackMessage = '服务没有返回有效 JSON') {
+  const raw = await response.text()
+  let data = null
+  if (raw.trim()) {
+    try { data = JSON.parse(raw) } catch { throw new Error(`${fallbackMessage}（响应格式错误）`) }
+  }
+  if (!response.ok) throw new Error(data?.error || `${fallbackMessage}（HTTP ${response.status}）`)
+  if (!data) throw new Error(`${fallbackMessage}（响应为空）`)
+  return data
+}
+
+async function fetchJsonResponse(url, options = {}, fallbackMessage = '请求失败', timeoutMs = 45000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal })
+    return await readJsonResponse(response, fallbackMessage)
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error(`${fallbackMessage}（${Math.round(timeoutMs / 1000)} 秒超时）`)
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function exportDimensionsForAspect(aspectRatio) {
   const ratio = aspectValue(aspectRatio)
   const even = value => Math.max(2, Math.round(value / 2) * 2)
@@ -87,20 +118,8 @@ function exportDimensionsForAspect(aspectRatio) {
     : { width: even(1280 * ratio), height: 1280 }
 }
 
-const initialObjects = [
-  {
-    id: 'actor-lead', name: '人物 · 主角', type: 'person', bodyType: 'standard', pose: 'walk',
-    poseTime: presetPhase('walk'), continuousMotion: false, position: [-1.25, 0, 0.3], rotation: [0, 0.25, 0], scale: [1, 1, 1], color: '#e8e3d8', joints: presetJoints(),
-  },
-  {
-    id: 'block-stage', name: '平台', type: 'box',
-    position: [1.4, 0.45, -0.8], rotation: [0, -0.18, 0], scale: [2.8, 0.9, 2.1], color: '#9a968c',
-  },
-  {
-    id: 'block-step', name: '台阶', type: 'box',
-    position: [2.9, 0.18, 0.55], rotation: [0, -0.18, 0], scale: [1.7, 0.36, 1.1], color: '#77746d',
-  },
-]
+// XOI-PATCH:empty-scene
+const initialObjects = []
 
 const DEFAULT_CAMERA_POSITION = [7.4, 4.6, 8.2]
 const LEGACY_DEFAULT_CAMERA_TARGET = [0.2, 1.2, 0]
@@ -109,6 +128,7 @@ const initialCamera = {
   rotation: cameraRotationToward(DEFAULT_CAMERA_POSITION, LEGACY_DEFAULT_CAMERA_TARGET),
   focalLength: 42,
   aspectRatio: '16:9',
+  route: null,
 }
 const DEFAULT_REFERENCE = {
   image: '',
@@ -183,10 +203,28 @@ function normalizeCamera(camera = {}) {
   const rotation = Array.isArray(camera.rotation)
     ? finiteVector3(camera.rotation, initialCamera.rotation)
     : cameraRotationToward(position, camera.target || LEGACY_DEFAULT_CAMERA_TARGET)
+  const sourceFollow = camera.follow && typeof camera.follow === 'object' ? camera.follow : null
+  const follow = sourceFollow ? {
+    enabled: sourceFollow.enabled !== false,
+    targetId: String(sourceFollow.targetId || ''),
+    shot: Object.prototype.hasOwnProperty.call(CAMERA_SHOT_PRESETS, sourceFollow.shot) ? sourceFollow.shot : 'medium',
+    distance: clamp(Number(sourceFollow.distance) || shotPreset(sourceFollow.shot).distance, 1, 40),
+    height: clamp(Number(sourceFollow.height) || shotPreset(sourceFollow.shot).height, 0.2, 20),
+    lookHeight: clamp(Number(sourceFollow.lookHeight) || shotPreset(sourceFollow.shot).lookHeight, 0, 10),
+    offset: finiteVector3(sourceFollow.offset, [0, shotPreset(sourceFollow.shot).height, shotPreset(sourceFollow.shot).distance]),
+    focalLength: clamp(Number(sourceFollow.focalLength) || shotPreset(sourceFollow.shot).focalLength, 18, 120),
+    unit: 'character-height',
+    orbitDegrees: clamp(Number(sourceFollow.orbitDegrees) || 0, -180, 180),
+    sideOffset: clamp(Number(sourceFollow.sideOffset) || 0, -10, 10),
+  } : null
   return {
     position,
     rotation,
     focalLength: clamp(Number(camera.focalLength) || initialCamera.focalLength, 18, 120),
+    shot: Object.prototype.hasOwnProperty.call(CAMERA_SHOT_PRESETS, camera.shot) ? camera.shot : null,
+    follow,
+    route: normalizeCameraRoute(camera.route),
+    motionMode: ['manual','follow','route'].includes(camera.motionMode) ? camera.motionMode : undefined,
     aspectRatio: ASPECT_RATIOS.some(option => option.ratio && option.value === camera.aspectRatio) || CUSTOM_ASPECT_PATTERN.test(String(camera.aspectRatio || ''))
       ? camera.aspectRatio
       : initialCamera.aspectRatio,
@@ -199,18 +237,30 @@ function normalizeCameraKeyframes(keys = [], fallbackCamera = initialCamera) {
     const position = finiteVector3(key.position, fallbackCamera.position)
     return {
       frame: normalizeFrameNumber(key.frame),
+      source: key.source === 'camera-route' ? 'camera-route' : 'manual',
+      routeId: typeof key.routeId === 'string' ? key.routeId : undefined,
       interpolation: normalizeInterpolation(key.interpolation),
       position,
       rotation: Array.isArray(key.rotation)
         ? finiteVector3(key.rotation, fallbackCamera.rotation)
         : cameraRotationToward(position, key.target || LEGACY_DEFAULT_CAMERA_TARGET),
       focalLength: clamp(Number(key.focalLength) || fallbackCamera.focalLength, 18, 120),
+      shot: Object.prototype.hasOwnProperty.call(CAMERA_SHOT_PRESETS, key.shot) ? key.shot : null,
+      followEnabled: typeof key.followEnabled === 'boolean' ? key.followEnabled : null,
+      followTargetId: key.followTargetId ? String(key.followTargetId) : '',
+      followShot: Object.prototype.hasOwnProperty.call(CAMERA_SHOT_PRESETS, key.followShot) ? key.followShot : null,
+      followDistance: Number.isFinite(Number(key.followDistance)) ? clamp(Number(key.followDistance), 1, 40) : null,
+      followHeight: Number.isFinite(Number(key.followHeight)) ? clamp(Number(key.followHeight), 0.2, 20) : null,
+      followLookHeight: Number.isFinite(Number(key.followLookHeight)) ? clamp(Number(key.followLookHeight), 0, 10) : null,
+      followOffset: Array.isArray(key.followOffset) ? finiteVector3(key.followOffset, [0, 2.8, 5.2]) : null,
+      followOrbitDegrees: key.followOrbitDegrees == null ? null : clamp(Number(key.followOrbitDegrees) || 0, -180, 180),
+      followSideOffset: key.followSideOffset == null ? null : clamp(Number(key.followSideOffset) || 0, -10, 10),
     }
   }))
 }
 
 function normalizeReference(reference = {}) {
-  const image = typeof reference.image === 'string' && /^data:image\/(?:png|jpe?g|webp);base64,/i.test(reference.image)
+  const image = typeof reference.image === 'string' && (/^data:image\/(?:png|jpe?g|webp);base64,/i.test(reference.image)||/^\/oss\/canvas-files\/\d+\/[a-f0-9]{32}\.(?:png|jpe?g)$/.test(reference.image))
     ? reference.image
     : ''
   return {
@@ -312,6 +362,22 @@ function normalizeObjectTracks(tracks = {}) {
   }))]))
 }
 
+function normalizeRouteTracks(tracks = {}) {
+  if (!tracks || typeof tracks !== 'object') return {}
+  return Object.fromEntries(Object.entries(tracks).map(([id, route]) => [id, {
+    ...route,
+    points: Array.isArray(route?.points) ? route.points.filter(p => Array.isArray(p) && p.length >= 3).map(p => p.slice(0, 3).map(Number)) : [],
+    startFrame: normalizeFrameNumber(route?.startFrame),
+    endFrame: normalizeFrameNumber(route?.endFrame),
+    visible: route?.visible !== false,
+    loopMotion: route?.loopMotion !== false,
+    keyframes: Array.isArray(route?.keyframes)
+      ? route.keyframes.map(value => normalizeFrameNumber(value)).filter((value, index, list) => list.indexOf(value) === index)
+      : [],
+    keyframesOwned: route?.keyframesOwned === true,
+  }]).filter(([, route]) => route.points.length >= 2))
+}
+
 const cloneProjectValue = value => JSON.parse(JSON.stringify(value))
 const defaultShotName = index => `镜头 ${String(index + 1).padStart(2, '0')}`
 
@@ -332,6 +398,7 @@ function normalizeShot(shot, index, fallback) {
   const camera = normalizeCamera(shot?.camera || fallback.camera)
   let keyframes = normalizeCameraKeyframes(shot?.keyframes ?? fallback.keyframes ?? [], camera)
   let objectKeyframes = normalizeObjectTracks(shot?.objectKeyframes || shot?.characterKeyframes || fallback.objectKeyframes || {})
+  const routeTracks = normalizeRouteTracks(shot?.routeTracks || fallback.routeTracks || {})
   const timing = normalizeProjectSettings({
     fps: shot?.fps ?? shot?.settings?.fps ?? fallback.settings.fps,
     durationSeconds: shot?.durationSeconds ?? shot?.settings?.durationSeconds ?? fallback.settings.durationSeconds,
@@ -357,7 +424,22 @@ function normalizeShot(shot, index, fallback) {
     reference: normalizeReference(shot?.reference || fallback.reference),
     keyframes,
     objectKeyframes,
+    routeTracks,
   }
+}
+
+function isUntouchedStarterBlock(object, id, name, position, rotation, scale, color) {
+  if (!object || object.id !== id || object.type !== 'box' || object.name !== name) return false
+  const same = (a, b, epsilon = 1e-6) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((value, index) => Math.abs(Number(value) - Number(b[index])) <= epsilon)
+  return same(object.position, position) && same(object.rotation, rotation) && same(object.scale, scale) && object.color === color && object.generatedScene !== true && object.sourceSceneId === undefined
+}
+
+function removeUntouchedStarterBlocks(objects) {
+  if (!Array.isArray(objects)) return objects
+  return objects.filter(object => !(
+    isUntouchedStarterBlock(object, 'block-stage', '平台', [1.4, 0.45, -0.8], [0, -0.18, 0], [2.8, 0.9, 2.1], '#9a968c') ||
+    isUntouchedStarterBlock(object, 'block-step', '台阶', [2.9, 0.18, 0.55], [0, -0.18, 0], [1.7, 0.36, 1.1], '#77746d')
+  ))
 }
 
 function normalizeProjectData(data) {
@@ -379,6 +461,7 @@ function normalizeProjectData(data) {
     reference: data.reference || firstShot?.reference || DEFAULT_REFERENCE,
     keyframes: data.keyframes || [],
     objectKeyframes: data.objectKeyframes || data.characterKeyframes || {},
+    routeTracks: data.routeTracks || {},
   }
   const rawShots = Array.isArray(data.shots) && data.shots.length ? data.shots : [{
     id: 'shot-01',
@@ -391,6 +474,7 @@ function normalizeProjectData(data) {
     lighting: fallback.lighting,
     keyframes: fallback.keyframes,
     objectKeyframes: fallback.objectKeyframes,
+    routeTracks: fallback.routeTracks,
   }]
   const shots = rawShots.slice(0, 30).map((shot, index) => {
     const legacyShotDuration = Number(shot?.durationSeconds ?? shot?.settings?.durationSeconds)
@@ -413,25 +497,24 @@ function normalizeProjectData(data) {
     reference: activeShot.reference,
     keyframes: activeShot.keyframes,
     objectKeyframes: activeShot.objectKeyframes,
+    routeTracks: activeShot.routeTracks,
   }
 }
 
 function readCachedProject() {
   try {
     const current = localStorage.getItem(PROJECT_STORAGE_KEY)
-    const legacy = current ? null : localStorage.getItem(LEGACY_PROJECT_STORAGE_KEY)
-    const serialized = current || legacy
+    const serialized = current
     const data = JSON.parse(serialized || 'null')
     const normalized = normalizeProjectData(data)
     if (!normalized) return null
-    if (!current && legacy) localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(normalized))
     return normalized
   } catch {
     return null
   }
 }
 
-function projectData({ settings, objects, camera, lighting, reference, keyframes, objectKeyframes, shots, activeShotId }) {
+function projectData({ settings, objects, camera, lighting, reference, keyframes, objectKeyframes, routeTracks, shots, activeShotId }) {
   const normalizedSettings = normalizeProjectSettings(settings)
   const sourceShots = shots?.length ? shots : [{ id: 'shot-01', name: '镜头 01' }]
   const resolvedActiveShotId = sourceShots.some(shot => shot.id === activeShotId) ? activeShotId : sourceShots[0].id
@@ -447,6 +530,7 @@ function projectData({ settings, objects, camera, lighting, reference, keyframes
     reference,
     keyframes,
     objectKeyframes,
+    routeTracks,
   }
   const serializedShots = sourceShots.map(shot => shot.id === resolvedActiveShotId ? liveShot : shot)
   return {
@@ -460,6 +544,24 @@ function projectData({ settings, objects, camera, lighting, reference, keyframes
     reference,
     keyframes,
     objectKeyframes,
+    routeTracks,
+  }
+}
+
+function followAtCameraKeyframe(baseFollow, key) {
+  if (!key || !baseFollow) return baseFollow
+  if (key.followEnabled === false) return null
+  return {
+    ...baseFollow,
+    enabled: key.followEnabled === true ? true : baseFollow.enabled,
+    targetId: key.followTargetId || baseFollow.targetId,
+    shot: key.followShot || key.shot || baseFollow.shot,
+    distance: key.followDistance ?? baseFollow.distance,
+    height: key.followHeight ?? baseFollow.height,
+    lookHeight: key.followLookHeight ?? baseFollow.lookHeight,
+    offset: key.followOffset || baseFollow.offset,
+    orbitDegrees: key.followOrbitDegrees ?? baseFollow.orbitDegrees ?? 0,
+    sideOffset: key.followSideOffset ?? baseFollow.sideOffset ?? 0,
   }
 }
 
@@ -474,11 +576,24 @@ function cameraAtFrame(keyframes, frame, aspectRatio = '16:9') {
   const left = sorted[rightIndex - 1]
   const right = sorted[rightIndex]
   const t = segmentAmount(left, (frame - left.frame) / Math.max(1, right.frame - left.frame))
+  const followOffset = left.followOffset && right.followOffset
+    ? left.followOffset.map((value, index) => lerp(value, right.followOffset[index], t))
+    : (t < 0.5 ? left.followOffset : right.followOffset)
   return {
     position: left.position.map((value, index) => lerp(value, right.position[index], t)),
     rotation: left.rotation.map((value, index) => lerpAngle(value, right.rotation[index], t)),
     focalLength: lerp(left.focalLength, right.focalLength, t),
     aspectRatio,
+    shot: t < 0.5 ? left.shot : right.shot,
+    followEnabled: t < 0.5 ? left.followEnabled : right.followEnabled,
+    followTargetId: t < 0.5 ? left.followTargetId : right.followTargetId,
+    followShot: t < 0.5 ? left.followShot : right.followShot,
+    followDistance: left.followDistance != null && right.followDistance != null ? lerp(left.followDistance, right.followDistance, t) : (t < 0.5 ? left.followDistance : right.followDistance),
+    followHeight: left.followHeight != null && right.followHeight != null ? lerp(left.followHeight, right.followHeight, t) : (t < 0.5 ? left.followHeight : right.followHeight),
+    followLookHeight: left.followLookHeight != null && right.followLookHeight != null ? lerp(left.followLookHeight, right.followLookHeight, t) : (t < 0.5 ? left.followLookHeight : right.followLookHeight),
+    followOffset,
+    followOrbitDegrees: left.followOrbitDegrees != null && right.followOrbitDegrees != null ? lerpAngle(left.followOrbitDegrees * Math.PI / 180, right.followOrbitDegrees * Math.PI / 180, t) * 180 / Math.PI : (t < 0.5 ? left.followOrbitDegrees : right.followOrbitDegrees),
+    followSideOffset: left.followSideOffset != null && right.followSideOffset != null ? lerp(left.followSideOffset, right.followSideOffset, t) : (t < 0.5 ? left.followSideOffset : right.followSideOffset),
   }
 }
 
@@ -649,9 +764,10 @@ function AssetCard({ icon: Icon, title, subtitle, onClick, previewClass = '' }) 
   )
 }
 
-function SceneList({ objects, selectedId, onSelect, onToggleVisible, onToggleLock }) {
+function SceneList({ objects, selectedId, onSelect, onToggleVisible, onToggleLock, onClearCanvas }) {
   return (
     <div className="scene-list">
+      <div className="scene-list-toolbar"><span>场景对象 · {objects.length}</span><button type="button" className="clear-canvas-button" onClick={onClearCanvas} disabled={!objects.length} title="删除画布中的全部对象，保留主摄像机"><Trash2 size={12} /> 清空画布</button></div>
       <div className={`scene-row ${selectedId === CAMERA_ID ? 'is-selected' : ''}`} onClick={() => onSelect(CAMERA_ID)}>
         <Camera size={14} /><span>主摄像机</span><i className="status-dot live" />
       </div>
@@ -667,7 +783,21 @@ function SceneList({ objects, selectedId, onSelect, onToggleVisible, onToggleLoc
   )
 }
 
-function LeftSidebar({ objects, selectedId, onSelect, onAddPerson, onAddPrimitive, onImport, onToggleVisible, onToggleLock, shots, activeShotId, onSelectShot, onAddShot, onDuplicateShot, onDeleteShot, onRenameShot, onCaptureShot }) {
+function CameraMotionPanel({camera,currentFrame,fps,onUpdateCamera,onAddKeyframe,onOpenCameraView,onConfigure}) {
+  const mode=cameraMotionMode(camera)
+  const labels={manual:'手动摆放 / 关键帧',route:'沿相机路线移动',follow:'跟随人物移动'}
+  return <div className="camera-motion-panel">
+    <div className="section-kicker">镜头运动 · 当前 {(currentFrame/fps).toFixed(2)} 秒</div>
+    <strong>{labels[mode]}</strong>
+    <p>本镜头连续拍摄一段动作。人物走位与相机运动分别设置；换角度拍同一段动作，可在“镜头”中添加同场景机位。</p>
+    <button type="button" onClick={onConfigure}>配置相机运动 →</button>
+    <button type="button" onClick={onOpenCameraView}>查看摄像机画面</button>
+    <label>焦距<input type="range" min="18" max="120" value={camera.focalLength} onChange={event=>onUpdateCamera({focalLength:Number(event.target.value)})}/><output>{Math.round(camera.focalLength)} mm</output></label>
+    {mode==='manual'&&<><button type="button" className="camera-motion-key" onClick={onAddKeyframe}>在当前帧记录镜头关键帧</button><small>先定位时间轴，调整相机位置与角度，再记录关键帧。自动运镜参数统一在右侧设置。</small></>}
+  </div>
+}
+
+function LeftSidebar({ objects, selectedId, onSelect, onAddPerson, onAddPrimitive, onImport, sceneTool, onToggleVisible, onToggleLock, shots, activeShotId, onSelectShot, onAddShot, onDuplicateShot, onDeleteShot, onRenameShot, onCaptureShot, camera, currentFrame, fps, onUpdateCamera, onAddCameraKeyframe, onOpenCameraView, onConfigureCamera, onClearCanvas }) {
   const [tab, setTab] = useState('assets')
   const inputRef = useRef(null)
   return (
@@ -676,10 +806,11 @@ function LeftSidebar({ objects, selectedId, onSelect, onAddPerson, onAddPrimitiv
         <button className={tab === 'assets' ? 'is-active' : ''} onClick={() => setTab('assets')}>资源库</button>
         <button className={tab === 'scene' ? 'is-active' : ''} onClick={() => setTab('scene')}>场景层级</button>
         <button className={tab === 'shots' ? 'is-active' : ''} onClick={() => setTab('shots')}>镜头</button>
+        <button className={tab === 'motion' ? 'is-active' : ''} onClick={() => setTab('motion')}>镜头运动</button>
       </div>
-      {tab === 'assets' ? (
-        <div className="assets-scroll">
-          <div className="section-kicker">人物体型</div>
+        <div className="assets-scroll" style={{display:tab==='assets'?undefined:'none'}} aria-hidden={tab!=='assets'}>
+          {sceneTool}
+          <div className="section-kicker section-gap">人物体型</div>
           <AssetCard icon={UserRound} title="标准人物" subtitle="中性比例 · 可换动作" onClick={() => onAddPerson('standard')} previewClass="person-preview" />
           <AssetCard icon={UserRound} title="女性人体" subtitle="窄肩宽髋 · 真人比例" onClick={() => onAddPerson('female')} previewClass="person-preview female" />
           <AssetCard icon={UserRound} title="男性人体" subtitle="宽肩躯干 · 真人比例" onClick={() => onAddPerson('male')} previewClass="person-preview male" />
@@ -704,14 +835,15 @@ function LeftSidebar({ objects, selectedId, onSelect, onAddPerson, onAddPrimitiv
           </button>
           <input ref={inputRef} className="visually-hidden" type="file" accept=".glb,.gltf" onChange={onImport} />
         </div>
-      ) : tab === 'scene' ? (
-        <SceneList objects={objects} selectedId={selectedId} onSelect={onSelect} onToggleVisible={onToggleVisible} onToggleLock={onToggleLock} />
-      ) : <ShotsPanel shots={shots} activeShotId={activeShotId} onSelect={onSelectShot} onAdd={onAddShot} onDuplicate={onDuplicateShot} onDelete={onDeleteShot} onRename={onRenameShot} onCapture={onCaptureShot} />}
+      {tab === 'assets' ? null : tab === 'scene' ? (
+        <SceneList objects={objects} selectedId={selectedId} onSelect={onSelect} onToggleVisible={onToggleVisible} onToggleLock={onToggleLock} onClearCanvas={onClearCanvas} />
+
+      ) : tab==='shots' ? <ShotsPanel shots={shots} activeShotId={activeShotId} onSelect={onSelectShot} onAdd={onAddShot} onDuplicate={onDuplicateShot} onDelete={onDeleteShot} onRename={onRenameShot} onCapture={onCaptureShot} /> : <CameraMotionPanel camera={camera} objects={objects} currentFrame={currentFrame} fps={fps} onUpdateCamera={onUpdateCamera} onAddKeyframe={onAddCameraKeyframe} onOpenCameraView={onOpenCameraView} onConfigure={onConfigureCamera}/>}
     </aside>
   )
 }
 
-function Inspector({ selected, camera, selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
+function Inspector({ selected, camera, cameraTools, objects = [], selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
   if (!selected) {
     return <aside className="right-sidebar panel empty-inspector"><MousePointer2 size={24} /><span>选择场景中的物体</span></aside>
   }
@@ -743,6 +875,7 @@ function Inspector({ selected, camera, selectedJoint, customPoses, onSelectJoint
         </div>
       </div>
       <div className="inspector-scroll">
+        {isCamera && cameraTools}
         {!isCamera && selected.locked && <div className="locked-banner"><Lock size={12} /> 已锁定空间变换</div>}
         <div className="inspector-section">
           <div className="section-title"><span>变换</span><ChevronDown size={14} /></div>
@@ -994,7 +1127,29 @@ function CameraAnglePanel({ camera, onChange, onClose, onLevel }) {
   )
 }
 
-function Timeline({ currentFrame, fps, totalFrames, onOpenSettings, onSeek, playing, onTogglePlay, keyframes, onAddKeyframe, onDeleteKeyframe, objectTrack, onAddObjectKeyframe, onDeleteObjectKeyframe, selectedKeyframe, onSelectKeyframe, onMoveKeyframe, onCopyKeyframe, onPasteKeyframe, onDeleteSelectedKeyframe, onChangeInterpolation, hasClipboard }) {
+function CameraKeyframeEditor({ keyframe, camera, objects = [], onChange }) {
+  if (!keyframe) return null
+  const followEnabled = cameraMotionMode(camera)==='follow'
+  const targetId = keyframe.followTargetId || camera.follow?.targetId || objects.find(object => object.type === 'person')?.id || ''
+  const followShot = keyframe.followShot || camera.follow?.shot || keyframe.shot || 'medium'
+  const preset = shotPreset(followShot)
+  const update = patch => onChange?.(followEnabled?{followEnabled:true,followTargetId:targetId,...patch}:patch)
+  return <div className="camera-key-editor" aria-label="镜头关键帧参数">
+    <div className="camera-key-editor-title">镜头关键帧参数</div>
+    <small>{followEnabled?'跟随参数关键帧 · 相机运动方式统一在右侧切换。':'手动相机关键帧 · 跟随人物可在右侧“相机运动”中开启。'}</small>
+    <label className="select-field"><span>景别</span><select value={followEnabled ? followShot : (keyframe.shot || 'medium')} onChange={event => { const shot = event.target.value; const next = shotPreset(shot); update(followEnabled ? { followShot: shot, shot, followDistance: next.distance, followHeight: next.height, followLookHeight: next.lookHeight, focalLength: next.focalLength } : { shot, focalLength: next.focalLength }) }}>{Object.entries(CAMERA_SHOT_PRESETS).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}</select></label>
+    {followEnabled && <>
+      <label className="select-field"><span>跟随对象</span><select value={targetId} onChange={event => update({ followTargetId: event.target.value })}>{objects.filter(object => object.type === 'person').map(object => <option key={object.id} value={object.id}>{object.name}</option>)}</select></label>
+      <label className="range-field"><span>跟随距离</span><input type="range" min="1" max="20" step="0.1" value={keyframe.followDistance ?? preset.distance} onChange={event => update({ followDistance: Number(event.target.value) })} /><output>{Number(keyframe.followDistance ?? preset.distance).toFixed(1)} H</output></label>
+      <label className="range-field"><span>跟随高度</span><input type="range" min="0.2" max="10" step="0.1" value={keyframe.followHeight ?? preset.height} onChange={event => update({ followHeight: Number(event.target.value) })} /><output>{Number(keyframe.followHeight ?? preset.height).toFixed(1)} H</output></label>
+      <label className="range-field"><span>环绕角度</span><input type="range" min="-180" max="180" step="1" value={keyframe.followOrbitDegrees ?? 0} onChange={event => update({ followOrbitDegrees: Number(event.target.value) })} /><output>{Math.round(keyframe.followOrbitDegrees ?? 0)}°</output></label>
+      <label className="range-field"><span>左右偏移</span><input type="range" min="-10" max="10" step="0.1" value={keyframe.followSideOffset ?? 0} onChange={event => update({ followSideOffset: Number(event.target.value) })} /><output>{Number(keyframe.followSideOffset ?? 0).toFixed(1)} H</output></label>
+    </>}
+    <label className="range-field"><span>焦距</span><input type="range" min="18" max="120" step="1" value={keyframe.focalLength ?? 42} onChange={event => update({ focalLength: Number(event.target.value) })} /><output>{Math.round(keyframe.focalLength ?? 42)} mm</output></label>
+  </div>
+}
+
+function Timeline({ camera, currentFrame, fps, totalFrames, objects = [], onChangeCameraKeyframe, onOpenSettings, onSeek, playing, onTogglePlay, keyframes, onAddKeyframe, onDeleteKeyframe, objectTrack, onAddObjectKeyframe, onDeleteObjectKeyframe, selectedKeyframe, onSelectKeyframe, onMoveKeyframe, onCopyKeyframe, onPasteKeyframe, onDeleteSelectedKeyframe, onChangeInterpolation, hasClipboard }) {
   const [dragging, setDragging] = useState(null)
   const rulerFrames = useMemo(() => [...new Set(Array.from({ length: 6 }, (_, index) => Math.round(totalFrames * index / 5)))], [totalFrames])
   const scrub = useCallback((event, rect) => {
@@ -1071,6 +1226,7 @@ function Timeline({ currentFrame, fps, totalFrames, onOpenSettings, onSeek, play
         <button type="button" className="timeline-settings-button" onClick={onOpenSettings} title="设置时间轴时长和帧率"><Settings2 size={12} /> 时间轴设置</button>
         <div className="track-label camera-track-label"><Camera size={13} /><span>主摄像机</span></div>
         <div className="camera-track-slot">{renderTrack(keyframes, 'camera', onDeleteKeyframe)}</div>
+        <CameraKeyframeEditor camera={camera} keyframe={selectedKeyframe?.kind === 'camera' ? keyframes.find(key => key.frame === selectedKeyframe.frame) : null} objects={objects} onChange={onChangeCameraKeyframe} />
         <button className="keyframe-button camera-keyframe-button" onClick={onAddKeyframe}><Plus size={13} /> 镜头关键帧</button>
         {objectTrack && (
           <>
@@ -1240,7 +1396,7 @@ export default function App() {
   }])
   const [activeShotId, setActiveShotId] = useState(() => startupProject?.activeShotId || 'shot-01')
   const [objects, setObjects] = useState(() => startupProject?.objects || initialObjects)
-  const [selectedId, setSelectedId] = useState(() => startupProject?.objects?.[0]?.id || 'actor-lead')
+  const [selectedId, setSelectedId] = useState(() => startupProject?.objects?.[0]?.id || CAMERA_ID)
   const [selectedJoint, setSelectedJoint] = useState('mixamorigSpine2')
   const [transformMode, setTransformMode] = useState('translate')
   const [transformSpace, setTransformSpace] = useState('world')
@@ -1251,6 +1407,9 @@ export default function App() {
   const [reference, setReference] = useState(() => normalizeReference(startupProject?.reference))
   const [keyframes, setKeyframes] = useState(() => startupProject?.keyframes || initialKeyframes)
   const [characterKeyframes, setCharacterKeyframes] = useState(() => startupProject?.objectKeyframes || startupProject?.characterKeyframes || initialCharacterKeyframes)
+  const [routeTracks, setRouteTracks] = useState(() => startupProject?.routeTracks || {})
+  const [routeEditMode, setRouteEditMode] = useState(false)
+  const [routeEditPoints, setRouteEditPoints] = useState([])
   const [objectDrafts, setObjectDrafts] = useState({})
   const [currentFrame, setCurrentFrame] = useState(0)
   const [selectedKeyframe, setSelectedKeyframe] = useState(null)
@@ -1272,6 +1431,24 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [viewFocusRequest, setViewFocusRequest] = useState(null)
   const [toast, setToast] = useState('')
+  const [sceneReferenceImage, setSceneReferenceImage] = useState('')
+  const [drawRoute, setDrawRoute] = useState(false)
+  const [routeTarget,setRouteTarget]=useState('actor')
+  const [routeInputMode,setRouteInputMode]=useState('draw')
+  const [routeDraftPoints,setRouteDraftPoints]=useState([])
+  const [cameraRouteDraft,setCameraRouteDraft]=useState({height:1.6,endSecond:5,orientation:'fixed',targetId:''})
+  useEffect(()=>{
+    if(camera.route)setCameraRouteDraft({height:camera.route.points[0][1],endSecond:camera.route.endFrame/settings.fps,orientation:camera.route.orientation,targetId:camera.route.targetId})
+  },[activeShotId,camera.route?.id,settings.fps])
+  const routeTransformBefore=useRef(null)
+  useEffect(() => {
+    if(drawRoute){routeTransformBefore.current=transformMode;setTransformMode('select');setLightingPanelOpen(false);setCameraAnglePanelOpen(false);setPlaying(false)}
+    else if(routeTransformBefore.current){setTransformMode(routeTransformBefore.current==='select'?'translate':routeTransformBefore.current);routeTransformBefore.current=null}
+  },[drawRoute])
+  const [routeEndSecond, setRouteEndSecond] = useState(5)
+  const [routeLoopMotion, setRouteLoopMotion] = useState(true)
+  const [routeNotice, setRouteNotice] = useState('')
+  useEffect(() => () => { if (sceneReferenceImage) URL.revokeObjectURL(sceneReferenceImage) }, [sceneReferenceImage])
   const [saveStatus, setSaveStatus] = useState(startupProject ? '已恢复自动保存' : '自动保存已开启')
   const [, setHistoryVersion] = useState(0)
   const loadRef = useRef(null)
@@ -1302,7 +1479,8 @@ export default function App() {
     reference,
     keyframes,
     objectKeyframes: characterKeyframes,
-  } : shot), [activeShotId, camera, characterKeyframes, keyframes, lighting, objects, reference, settings.durationSeconds, settings.fps, settings.loopPlayback, shots])
+    routeTracks,
+  } : shot), [activeShotId, camera, characterKeyframes, keyframes, lighting, objects, reference, routeTracks, settings.durationSeconds, settings.fps, settings.loopPlayback, shots])
   const maxKeyframeFrame = useMemo(() => keyframeMaxFrame(keyframes, characterKeyframes), [characterKeyframes, keyframes])
   const selectedKeyframeInfo = useMemo(() => {
     if (!selectedKeyframe) return null
@@ -1310,15 +1488,40 @@ export default function App() {
     const key = track?.find(item => item.frame === selectedKeyframe.frame)
     return key ? { ...selectedKeyframe, interpolation: normalizeInterpolation(key.interpolation) } : null
   }, [characterKeyframes, keyframes, selectedKeyframe])
-  const animatedCamera = useMemo(() => keyframes.length ? cameraAtFrame(keyframes, currentFrame, camera.aspectRatio) : camera, [keyframes, currentFrame, camera])
-  const isAnimating = playing || exporting
   const hasObjectAnimation = useMemo(() => Object.values(characterKeyframes).some(track => track?.length), [characterKeyframes])
+  const isAnimating = playing || exporting
+  const activeCameraKeys=useMemo(()=>camera.route?.enabled?keyframes:keyframes.filter(key=>key.source!=='camera-route'),[keyframes,camera.route?.enabled])
   const animatedObjects = useMemo(() => {
     const framedObjects = hasObjectAnimation ? objectsAtFrame(objects, characterKeyframes, currentFrame, fps) : objects
     return framedObjects.map(object => objectDrafts[object.id] || object)
   }, [hasObjectAnimation, objects, characterKeyframes, currentFrame, fps, objectDrafts])
+  const animatedCamera = useMemo(() => {
+    const base = activeCameraKeys.length ? cameraAtFrame(activeCameraKeys, currentFrame, camera.aspectRatio) : camera
+    if(camera.route?.enabled)return resolveRouteCamera({...base,follow:null},camera.route,animatedObjects)
+    if(camera.motionMode==='manual')return {...base,follow:null}
+    const keyFollow = base.followEnabled === true ? {
+      enabled: true,
+      targetId: base.followTargetId,
+      shot: base.followShot || base.shot || 'medium',
+      distance: base.followDistance ?? shotPreset(base.followShot || base.shot || 'medium').distance,
+      height: base.followHeight ?? shotPreset(base.followShot || base.shot || 'medium').height,
+      lookHeight: base.followLookHeight ?? shotPreset(base.followShot || base.shot || 'medium').lookHeight,
+      offset: base.followOffset || [0, base.followHeight ?? 2.8, base.followDistance ?? 5.2],
+      focalLength: base.focalLength,
+    } : null
+    const follow = camera.motionMode==='follow'&&base.followEnabled!==true ? camera.follow : followAtCameraKeyframe(camera.follow || keyFollow, base)
+    if (!follow?.enabled || !follow.targetId) return { ...base, follow }
+    const target = animatedObjects.find(object => object.id === follow.targetId)
+    if (!target) return { ...base, follow }
+    const frameFollow = { ...follow, shot: base.followEnabled===true?(base.followShot||follow.shot):follow.shot }
+    return { ...base, ...solveFollowCamera(target, base, frameFollow), follow }
+  }, [activeCameraKeys, currentFrame, camera, animatedObjects])
   const inspectorSelected = useMemo(() => selectedId === CAMERA_ID ? selected : animatedObjects.find(object => object.id === selectedId), [animatedObjects, selected, selectedId])
-  const displayCamera = isAnimating ? animatedCamera : camera
+  const displayCamera = camera.route?.enabled || animatedCamera.follow?.enabled || isAnimating ? animatedCamera : camera
+  const updateCameraFromUI = useCallback(patch => {
+    if(patch.position||patch.rotation||patch.follow!==undefined)setPlaying(false)
+    setCamera(current=>editableCameraPatch(current,displayCamera,patch))
+  }, [displayCamera])
   const previewAspect = aspectValue(displayCamera.aspectRatio)
   const previewAspectClass = previewAspect >= 16 / 9 ? 'is-wide' : 'is-tall'
   const exportDimensions = useMemo(() => exportDimensionsForAspect(camera.aspectRatio), [camera.aspectRatio])
@@ -1330,9 +1533,10 @@ export default function App() {
     reference,
     keyframes,
     objectKeyframes: characterKeyframes,
+    routeTracks,
     shots,
     activeShotId,
-  }), [settings, objects, camera, lighting, reference, keyframes, characterKeyframes, shots, activeShotId])
+  }), [settings, objects, camera, lighting, reference, keyframes, characterKeyframes, routeTracks, shots, activeShotId])
 
   useEffect(() => {
     currentFrameRef.current = currentFrame
@@ -1408,6 +1612,8 @@ export default function App() {
     setReference(normalized.reference)
     setKeyframes(normalized.keyframes)
     setCharacterKeyframes(normalized.objectKeyframes)
+    setRouteTracks(normalized.routeTracks || {})
+    setRouteEditMode(false)
     setObjectDrafts({})
     setSelectedKeyframe(null)
     setPlaying(false)
@@ -1478,24 +1684,24 @@ export default function App() {
     setObjectDrafts({})
     setCurrentFrame(nextFrame)
     currentFrameRef.current = nextFrame
-    if (keyframes.length) setCamera(cameraAtFrame(keyframes, nextFrame, camera.aspectRatio))
-  }, [keyframes, camera.aspectRatio, totalFrames])
+    if (activeCameraKeys.length) setCamera(current=>({...current,...cameraAtFrame(activeCameraKeys, nextFrame, current.aspectRatio)}))
+  }, [activeCameraKeys, camera.aspectRatio, totalFrames])
 
   const togglePlayback = useCallback(() => {
     setPlaying(wasPlaying => {
       if (wasPlaying) {
         const pausedFrame = currentFrameRef.current
-        if (keyframes.length) setCamera(cameraAtFrame(keyframes, pausedFrame, camera.aspectRatio))
+        if (activeCameraKeys.length) setCamera(current=>({...current,...cameraAtFrame(activeCameraKeys, pausedFrame, current.aspectRatio)}))
       }
       if (!wasPlaying && currentFrameRef.current >= totalFrames) {
         setCurrentFrame(0)
         currentFrameRef.current = 0
-        if (keyframes.length) setCamera(cameraAtFrame(keyframes, 0, camera.aspectRatio))
+        if (activeCameraKeys.length) setCamera(current=>({...current,...cameraAtFrame(activeCameraKeys, 0, current.aspectRatio)}))
       }
       if (!wasPlaying) setObjectDrafts({})
       return !wasPlaying
     })
-  }, [keyframes, camera.aspectRatio, totalFrames])
+  }, [activeCameraKeys, camera.aspectRatio, totalFrames])
 
   useEffect(() => {
     if (!playing) { playStartRef.current = null; return }
@@ -1510,7 +1716,7 @@ export default function App() {
         } else {
           setCurrentFrame(totalFrames)
           currentFrameRef.current = totalFrames
-          if (keyframes.length) setCamera(cameraAtFrame(keyframes, totalFrames, camera.aspectRatio))
+          if (activeCameraKeys.length) setCamera(current=>({...current,...cameraAtFrame(activeCameraKeys, totalFrames, current.aspectRatio)}))
           setPlaying(false)
           return
         }
@@ -1521,10 +1727,14 @@ export default function App() {
     }
     frameId = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frameId)
-  }, [playing, keyframes, camera.aspectRatio, fps, totalFrames, settings.loopPlayback])
+  }, [playing, activeCameraKeys, camera.aspectRatio, fps, totalFrames, settings.loopPlayback])
 
   useEffect(() => {
     const onKeyDown = event => {
+      if (drawRoute) {
+        if (event.key === 'Escape') { event.preventDefault(); setDrawRoute(false);setRouteEditMode(false);setRouteDraftPoints([]);setTransformMode('translate') }
+        return
+      }
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
       if (event.key.toLowerCase() === 'w') setTransformMode('translate')
       if (event.key.toLowerCase() === 'e') setTransformMode('rotate')
@@ -1538,7 +1748,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedId, objects, togglePlayback, undo, redo, focusSelected])
+  }, [selectedId, objects, togglePlayback, undo, redo, focusSelected, drawRoute])
 
   useEffect(() => {
     if (!toast) return
@@ -1601,6 +1811,7 @@ export default function App() {
     reference,
     keyframes,
     objectKeyframes: characterKeyframes,
+    routeTracks,
   })
 
   const applyShotState = shot => {
@@ -1615,10 +1826,17 @@ export default function App() {
     setReference(normalizeReference(shot.reference))
     setKeyframes(cloneProjectValue(shot.keyframes || []))
     setCharacterKeyframes(cloneProjectValue(shot.objectKeyframes || {}))
+    setRouteTracks(cloneProjectValue(shot.routeTracks || {}))
+    setRouteEditMode(false)
+    setDrawRoute(false);setRouteDraftPoints([])
+    setRouteEditPoints([])
     setCurrentFrame(0)
     currentFrameRef.current = 0
     setActiveShotId(shot.id)
     setSelectedId(shot.objects?.[0]?.id || CAMERA_ID)
+    setCameraView(false)
+    setCameraAnglePanelOpen(false)
+    setTransformMode('translate')
   }
 
   const switchShot = shotId => {
@@ -1643,15 +1861,16 @@ export default function App() {
       durationSeconds: settings.durationSeconds,
       loopPlayback: settings.loopPlayback,
       objects: cloneProjectValue(objects),
-      camera: cloneProjectValue(camera),
+      camera: { ...manualCameraPose(camera,displayCamera), route:null },
       lighting: cloneProjectValue(lighting),
-      reference: cloneProjectValue(DEFAULT_REFERENCE),
+      reference: cloneProjectValue(reference),
       keyframes: [],
-      objectKeyframes: {},
+      objectKeyframes: cloneProjectValue(characterKeyframes),
+      routeTracks: cloneProjectValue(routeTracks),
     }
     setShots(list => [...list.map(shot => shot.id === activeShotId ? liveShotRecord(shot, thumbnail || shot.thumbnail) : shot), nextShot])
     applyShotState(nextShot)
-    setToast(`已新建“${nextShot.name}” · 场景已复制，关键帧和参考图为空`)
+    setToast(`已新建“${nextShot.name}” · 沿用场景与人物动作，可调整新机位`)
   }
 
   const duplicateShot = shotId => {
@@ -1726,6 +1945,23 @@ export default function App() {
     reader.readAsDataURL(file)
     event.target.value = ''
   }
+  async function currentSceneScope(){
+    if(playing||exporting||capturingImage)throw Error('请先暂停预演或等待导出完成，再提交识图任务')
+    const project=latestProjectRef.current||currentProject
+    return {sceneId:sceneKey(),shotId:project.activeShotId,revision:window.xoiDirectorScene?.revision||0,fingerprint:await projectFingerprint(project)}
+  }
+  async function applySceneImageResult(result){
+    if(playing||exporting||capturingImage)throw Error('请先暂停预演或等待导出完成，再应用识图结果')
+    const owner=localStorage.getItem('xoi_session'),before=latestProjectRef.current||currentProject
+    if(result.scope?.sceneId!==sceneKey()||result.scope?.shotId!==before.activeShotId)throw Error('请回到生成任务对应的场景和镜头后应用，当前工程保留')
+    if(!before.shots.some(shot=>shot.id===result.scope.shotId))throw Error('原任务的来源镜头已移除，请先导出识别结果；当前工程保留')
+    const beforeFingerprint=await projectFingerprint(before)
+    if(before.shots.length>=30)throw Error('每个场景最多30个镜头，请先整理镜头，识别结果保留')
+    const mapped=sceneToMonoform(result.scene,[],`scene-${uid()}`)
+    const shot={id:`shot-${uid()}`,name:uniqueShotName(before.shots,String(result.scene.title||'场景图白模').slice(0,28)),thumbnail:'',fps:settings.fps,durationSeconds:settings.durationSeconds,loopPlayback:false,objects:mapped.objects,camera:normalizeCamera(mapped.camera?{...mapped.camera,follow:null,route:null}:initialCamera),lighting:normalizeLighting(lighting),reference:normalizeReference({...DEFAULT_REFERENCE,image:result.imageUrl,name:String(result.scene.title||'场景图原图').slice(0,80),visible:false,includeInExport:false}),keyframes:[],objectKeyframes:{},routeTracks:{}}
+    if(beforeFingerprint!==await projectFingerprint(latestProjectRef.current||currentProject)||latestProjectRef.current!==before||owner!==localStorage.getItem('xoi_session'))throw Error('导入期间场景或账号已变化，请重新核对；原工程与识图结果保留')
+    flushHistory();setShots([...before.shots,shot]);applyShotState(shot);setViewFocusRequest({position:[0,0,0],height:1.5,distance:22,nonce:Date.now()});setToast('已导入为独立场景镜头，保留原镜头；当前为可自由操作的编辑视角')
+  }
   const updateObjectById = (id, patch) => {
     setObjectDrafts(drafts => {
       if (!characterKeyframes[id]?.length) {
@@ -1738,6 +1974,22 @@ export default function App() {
       return source ? { ...drafts, [id]: { ...source, ...patch } } : drafts
     })
     setObjects(list => list.map(object => object.id === id ? { ...object, ...patch } : object))
+  }
+  const clearCanvas = () => {
+    if (!objects.length) return
+    if (!window.confirm(`确定清空画布中的 ${objects.length} 个对象？主摄像机和镜头关键帧会保留。`)) return
+    setObjects([])
+    setCharacterKeyframes({})
+    setRouteTracks({})
+    setObjectDrafts({})
+    setCamera(current => ({ ...current, follow: null }))
+    setKeyframes(keys => keys.map(key => ({ ...key, followEnabled: false, followTargetId: '', followShot: null, followDistance: null, followHeight: null, followLookHeight: null, followOffset: null, followOrbitDegrees: null, followSideOffset: null })))
+    setSelectedId(CAMERA_ID)
+    setSelectedKeyframe(null)
+    setDrawRoute(false)
+    setRouteEditMode(false)
+    setRouteEditPoints([])
+    setToast(`已清空画布 · 删除 ${objects.length} 个对象`)
   }
   const updateSelected = patch => updateObjectById(selectedId, patch)
   const groundSelected = () => {
@@ -1767,11 +2019,8 @@ export default function App() {
     setCameraAnglePanelOpen(false)
   }
   const levelCameraHorizon = () => {
-    setCamera(current => {
-      const rotation = Array.isArray(current.rotation) ? [...current.rotation] : [0, 0, 0]
-      rotation[2] = 0
-      return { ...current, rotation }
-    })
+    const rotation=[...displayCamera.rotation];rotation[2]=0
+    updateCameraFromUI({rotation})
     setToast('摄像机翻滚已归零 · 地面水平线已校正')
   }
   const collapseViewOptions = () => {
@@ -1816,6 +2065,9 @@ export default function App() {
     const source = objects.find(object => object.id === selectedId)
     if (source?.locked) { setToast('物体已锁定，请先解除锁定'); return }
     setObjects(list => list.filter(object => object.id !== selectedId))
+    setPlaying(false)
+    setRouteTracks(tracks=>{const next={...tracks};delete next[selectedId];return next})
+    if(camera.follow?.targetId===selectedId)setCamera(current=>({...current,follow:null,motionMode:'manual',position:[...displayCamera.position],rotation:[...displayCamera.rotation]}))
     setCharacterKeyframes(tracks => {
       const next = { ...tracks }
       delete next[selectedId]
@@ -1839,14 +2091,16 @@ export default function App() {
       if (!sourceTrack?.length) return tracks
       return {
         ...tracks,
-        [id]: sourceTrack.map(key => ({ ...key, position: [key.position[0] + 0.6, key.position[1], key.position[2] + 0.6] })),
+        [id]: sourceTrack.map(key => ({ ...key, ...(key.source==='route'?{routeId:id}:{}), position: [key.position[0] + 0.6, key.position[1], key.position[2] + 0.6] })),
       }
     })
+    if(routeTracks[source.id])setRouteTracks(tracks=>({...tracks,[id]:{...cloneProjectValue(tracks[source.id]),id,points:tracks[source.id].points.map(p=>[p[0]+.6,p[1],p[2]+.6])}}))
     setSelectedId(id)
   }
   const addKeyframe = () => {
     const existing = keyframes.find(key => key.frame === currentFrame)
-    const next = { frame: currentFrame, interpolation: normalizeInterpolation(existing?.interpolation), position: [...camera.position], rotation: [...camera.rotation], focalLength: camera.focalLength }
+    const next = { frame: currentFrame, source:'manual', interpolation: normalizeInterpolation(existing?.interpolation), position: [...displayCamera.position], rotation: [...displayCamera.rotation], focalLength: camera.focalLength, shot: camera.follow?.enabled ? camera.follow.shot : (camera.shot || null), followEnabled: camera.follow?.enabled === true, followTargetId: camera.follow?.targetId || '', followShot: camera.follow?.shot || null, followDistance: camera.follow?.distance ?? null, followHeight: camera.follow?.height ?? null, followLookHeight: camera.follow?.lookHeight ?? null, followOffset: camera.follow?.offset ? [...camera.follow.offset] : null, followOrbitDegrees: camera.follow?.orbitDegrees ?? 0, followSideOffset: camera.follow?.sideOffset ?? 0 }
+    if(camera.route?.enabled)setCamera(c=>({...c,route:{...c.route,enabled:false},motionMode:'manual'}))
     setKeyframes(list => [...list.filter(key => key.frame !== currentFrame), next].sort((a, b) => a.frame - b.frame))
     setSelectedKeyframe({ kind: 'camera', frame: currentFrame, trackId: null })
     setToast(`已记录第 ${currentFrame} 帧`)
@@ -1855,11 +2109,141 @@ export default function App() {
     setKeyframes(list => list.filter(key => key.frame !== frame))
     if (selectedKeyframe?.kind === 'camera' && selectedKeyframe.frame === frame) setSelectedKeyframe(null)
   }
+  function commitCameraRoute(points,previous,overrides={}){
+    try{
+      const endFrame=previous?.endFrame??Math.round(Number(cameraRouteDraft.endSecond)*fps)
+      if(endFrame>totalFrames||endFrame<=currentFrame&&!previous)throw Error('结束时间必须晚于当前帧，且不超过镜头时长')
+      const options={id:previous?.id||camera.route?.id||`camera-${uid()}`,startFrame:previous?.startFrame??currentFrame,endFrame,orientation:cameraRouteDraft.orientation,targetId:cameraRouteDraft.targetId,rotation:[...displayCamera.rotation],...previous,...overrides,enabled:true}
+      if(options.orientation==='target'&&!objects.some(o=>o.id===options.targetId))throw Error('请选择相机要看向的人物或物体')
+      const built=buildCameraRoute(points,options,camera,keyframes)
+      flushHistory();setKeyframes(built.keys);setCamera(current=>({...current,follow:null,motionMode:'route',route:built.route}));setRouteEditPoints(built.route.points);setRouteNotice('相机路线已更新 · 人物路线保持原样');setToast('相机路线已应用，可撤销');return true
+    }catch(error){setRouteNotice(error.message);setToast(error.message);return false}
+  }
+  function startCameraDraw(edit=false){
+    setPlaying(false);setSelectedId(CAMERA_ID);setRouteTarget('camera');setRouteDraftPoints([]);setRouteNotice('');setCameraView(false);setDrawRoute(true);setRouteEditMode(edit&&Boolean(camera.route));
+    if(!edit){const start=currentFrame>=totalFrames?0:currentFrame;if(start!==currentFrame)setCurrentFrame(start);setCameraRouteDraft(d=>({...d,endSecond:Number(d.endSecond)>start/fps&&Number(d.endSecond)<=settings.durationSeconds?Number(d.endSecond):Math.min(settings.durationSeconds,start/fps+3)}));}
+    if(edit&&camera.route){setRouteEditPoints(camera.route.points.map(p=>[...p]));setCameraRouteDraft(d=>({...d,orientation:camera.route.orientation,targetId:camera.route.targetId,endSecond:camera.route.endFrame/fps}));}
+  }
+  function changeCameraMode(mode){
+    if(mode==='route'){
+      if(!camera.route){startCameraDraw();return}
+      setPlaying(false);setDrawRoute(false);setRouteEditMode(false);setCameraView(false);setTransformMode('translate');setSelectedId(CAMERA_ID)
+      setCamera(current=>({...current,motionMode:'route',follow:null,route:{...current.route,enabled:true}}));return
+    }
+    setPlaying(false);setDrawRoute(false);setRouteEditMode(false);setRouteDraftPoints([]);setRouteEditPoints([]);setSelectedId(CAMERA_ID);setCameraView(false);setTransformMode('translate')
+    const target=objects.find(o=>o.id===cameraRouteDraft.targetId&&o.type==='person')||objects.find(o=>o.type==='person')
+    if(mode==='follow'&&!target){setToast('先添加人物，再开启相机跟随');return}
+    const preset=shotPreset('medium')
+    setCamera(current=>({...manualCameraPose(current,displayCamera),motionMode:mode,follow:mode==='follow'?{...preset,...current.follow,enabled:true,targetId:target.id,shot:current.follow?.shot||'medium'}:null}))
+  }
+  function clearCameraRoute(){
+    flushHistory();setKeyframes(keys=>removeCameraRouteKeys(keys,camera.route));setCamera(current=>({...current,position:[...displayCamera.position],rotation:[...displayCamera.rotation],route:null,follow:null,motionMode:'manual'}));setDrawRoute(false);setRouteEditMode(false);setRouteDraftPoints([]);setRouteEditPoints([]);setPlaying(false);setCameraView(false);setTransformMode('translate');setToast('仅清除相机路线，人物与手动关键帧保留')
+  }
+  function patchCameraRouteDraft(patch){
+    if(patch.nodeHeight&&camera.route){
+      const {index,height}=patch.nodeHeight;if(!Number.isFinite(height)||height<.2||height>30)return
+      commitCameraRoute(camera.route.points.map((p,i)=>i===index?[p[0],height,p[2]]:p),camera.route);return
+    }
+    setCameraRouteDraft(d=>({...d,...patch}))
+  }
+  function applyCameraPreset(kind){
+    if(kind==='follow'){changeCameraMode('follow');return}
+    try{
+      const target=objects.find(o=>o.id===cameraRouteDraft.targetId)||objects.find(o=>o.type==='person')||objects[0]
+      const points=cameraPresetPoints(kind,displayCamera,target)
+      commitCameraRoute(points,undefined,{orientation:'target',targetId:target.id})
+    }catch(error){setToast(error.message)}
+  }
+  const startRouteEdit = () => {
+    if (activeObject?.type !== 'person' || activeObject.locked) { setToast('请先选中未锁定且有轨迹的角色'); return }
+    setRouteTarget('actor');setRouteDraftPoints([])
+    const saved = routeTracks[activeObject.id]
+    if (!saved) { setToast('该角色还没有可编辑轨迹'); return }
+    setRouteEditPoints(saved.points.map(point => [...point]))
+    setRouteLoopMotion(saved.loopMotion !== false)
+    setCameraView(false);setDrawRoute(true);setRouteEditMode(true)
+  }
+  const clearRouteForObject = objectId => {
+    const route = routeTracks[objectId]
+    setRouteTracks(tracks => {
+      const next = { ...tracks }
+      delete next[objectId]
+      return next
+    })
+    setCharacterKeyframes(tracks => {
+      const remaining = removeRouteOwnedKeyframes(tracks[objectId] || [], route || { id: objectId })
+      if (remaining.length) return { ...tracks, [objectId]: remaining }
+      const next = { ...tracks }
+      delete next[objectId]
+      return next
+    })
+    if (activeObject?.id === objectId) {
+      setDrawRoute(false)
+      setRouteEditMode(false)
+      setRouteEditPoints([])
+    }
+    setToast('已清除当前角色轨迹，手动关键帧已保留')
+  }
+  const onRouteAction = () => {
+    if (drawRoute) { setDrawRoute(false); setRouteEditMode(false); return }
+    if(selectedId===CAMERA_ID){startCameraDraw();return}
+    if (activeObject?.type !== 'person'||activeObject.locked) { setToast('请先选中未锁定的角色'); return }
+    setRouteTarget('actor');setRouteDraftPoints([])
+    setRouteNotice('')
+    const start=currentFrame>=totalFrames?0:currentFrame;if(start!==currentFrame)setCurrentFrame(start)
+    setRouteEndSecond(Math.min(settings.durationSeconds,start/fps+3))
+    if (routeTracks[activeObject.id]) { startRouteEdit() } else { setCameraView(false); setDrawRoute(true); setRouteEditMode(false) }
+  }
+  const updateRoutePoint = useCallback((index, point) => {
+    if(routeTarget==='camera'){
+      if(!routeEditMode||!camera.route)return
+      const points=camera.route.points.map((p,i)=>i===index?[point[0],p[1],point[2]]:p)
+      commitCameraRoute(points,{...camera.route});return
+    }
+    if (!routeEditMode || !activeObject || activeObject.locked) return
+    const current = routeTracks[activeObject.id]
+    if (!current?.points?.[index]) return
+    if((characterKeyframes[activeObject.id]||[]).some(key=>key.frame>=current.startFrame&&key.frame<=current.endFrame&&!routeOwnedKeyframe(key,current))){setRouteNotice('这段路线已有手动帧，不能用节点编辑覆盖；原动画保留');return}
+    const points = current.points.map((item, itemIndex) => itemIndex === index ? [...point] : [...item])
+    setRouteEditPoints(points)
+    const template = { ...objectKeyframeFromObject(activeObject, current.startFrame), continuousMotion: current.loopMotion !== false }
+    const keys = pathToKeys(points, current.startFrame, current.endFrame, template).map(key => ({ ...key, source: 'route', routeId: activeObject.id }))
+    setRouteTracks(tracks => ({ ...tracks, [activeObject.id]: { ...current, points, keyframes: keys.map(key => key.frame), keyframesOwned: true } }))
+    setCharacterKeyframes(tracks => ({ ...tracks, [activeObject.id]: uniqueSortedKeyframes(mergeRouteKeyframes(tracks[activeObject.id] || [], keys, { ...current, keyframesOwned: true })) }))
+  }, [routeEditMode, activeObject, routeTracks,routeTarget,camera.route,keyframes])
+  const finishDrawRoute = points => {
+    if(!routeEditMode&&routeInputMode==='draw')points=simplifyRoutePoints(points)
+    if(routeTarget==='camera'){
+      const ready=points.map(p=>[p[0],clamp(Number(cameraRouteDraft.height)||1.6,.2,30),p[2]])
+      if(commitCameraRoute(ready,routeEditMode&&camera.route?camera.route:undefined)){setDrawRoute(false);setRouteEditMode(false);setTransformMode('translate')}
+      return
+    }
+    const actor=objects.find(item=>item.id===selectedId && item.type==='person')
+    if(!actor||actor.locked){setRouteNotice('请先选中未锁定的角色');setDrawRoute(false);return}
+    try{
+      const saved = routeTracks[actor.id]
+      if(points.length>128)points=pathToKeys(points,0,127,{rotation:actor.rotation},128).map(key=>key.position)
+      const startFrame = routeEditMode && saved ? saved.startFrame : currentFrame
+      const endFrame = routeEditMode && saved ? saved.endFrame : Math.round(Number(routeEndSecond)*fps)
+      if(endFrame<=startFrame||endFrame>totalFrames)throw Error('路线结束时间必须晚于开始时间，且不能超过镜头时长')
+      if((characterKeyframes[actor.id]||[]).some(key=>key.frame>=startFrame&&key.frame<=endFrame&&!routeOwnedKeyframe(key,saved||{})))throw Error('该时间段有手动角色关键帧，请调整路线时间或先整理冲突帧；原动画保留')
+      const template={...objectKeyframeFromObject(actor,startFrame),continuousMotion:routeLoopMotion}
+      const keys=pathToKeys(points,startFrame,endFrame,template).map(key=>({...key,source:'route',routeId:actor.id}))
+      const route = { id: actor.id, points: points.map(point => [...point]), startFrame, endFrame, visible: true, loopMotion: routeLoopMotion, keyframes: keys.map(key => key.frame), keyframesOwned: true }
+      const saveRoute = { ...route, points: route.points.map(point => [...point]) }
+      setRouteTracks(tracks => ({ ...tracks, [actor.id]: saveRoute }))
+      setRouteEditPoints(route.points)
+      setCharacterKeyframes(tracks=>({ ...tracks,[actor.id]:uniqueSortedKeyframes(mergeRouteKeyframes(tracks[actor.id]||[], keys, { ...(saved || route), keyframesOwned: true })) }))
+      setRouteNotice(`已绘制 ${keys.length} 帧 · ${startFrame} → ${endFrame}`)
+      setToast(`已为“${actor.name}”生成 ${keys.length} 个轨迹关键帧`)
+      setDrawRoute(false)
+    }catch(error){setRouteNotice(error.message||'画轨迹失败')}
+  }
   const addObjectKeyframe = () => {
     if (!activeObject) return
     const source = objectDrafts[activeObject.id] || activeObject
     const existing = characterKeyframes[activeObject.id]?.find(key => key.frame === currentFrame)
-    const next = { ...objectKeyframeFromObject(source, currentFrame), interpolation: normalizeInterpolation(existing?.interpolation) }
+    const next = { ...objectKeyframeFromObject(source, currentFrame), interpolation: normalizeInterpolation(existing?.interpolation), source: 'manual' }
     setCharacterKeyframes(tracks => ({
       ...tracks,
       [activeObject.id]: [...(tracks[activeObject.id] || []).filter(key => key.frame !== currentFrame), next].sort((a, b) => a.frame - b.frame),
@@ -1885,12 +2269,14 @@ export default function App() {
     if (selectedKeyframe?.kind === 'object' && selectedKeyframe.trackId === activeObject.id && selectedKeyframe.frame === frame) setSelectedKeyframe(null)
   }
   const moveKeyframe = ({ kind, trackId, fromFrame, toFrame }) => {
+    const track=kind==='camera'?keyframes:characterKeyframes[trackId]||[]
+    if(toFrame!==fromFrame&&track.some(key=>key.frame===toFrame)){setToast('目标帧已有关键帧，未覆盖，请换一个空位置');return}
     const move = list => {
       const source = list.find(key => key.frame === fromFrame)
       if (!source) return list
-      return [...list.filter(key => key.frame !== fromFrame && key.frame !== toFrame), { ...source, frame: toFrame }].sort((a, b) => a.frame - b.frame)
+      return [...list.filter(key => key.frame !== fromFrame && key.frame !== toFrame), { ...source, frame: toFrame, source:'manual' }].sort((a, b) => a.frame - b.frame)
     }
-    if (kind === 'camera') setKeyframes(move)
+    if (kind === 'camera') {setKeyframes(move);if(camera.route?.enabled)setCamera(c=>({...c,motionMode:'manual',route:{...c.route,enabled:false}}))}
     else setCharacterKeyframes(tracks => ({ ...tracks, [trackId]: move(tracks[trackId] || []) }))
     setSelectedKeyframe({ kind, trackId, frame: toFrame })
     seekToFrame(toFrame)
@@ -1918,10 +2304,15 @@ export default function App() {
       setSelectedKeyframe({ kind: 'camera', frame: currentFrame, trackId: null })
     } else {
       if (!activeObject) { setToast('请先选择要粘贴关键帧的物体'); return }
-      setCharacterKeyframes(tracks => ({ ...tracks, [activeObject.id]: [...(tracks[activeObject.id] || []).filter(key => key.frame !== currentFrame), next].sort((a, b) => a.frame - b.frame) }))
+      setCharacterKeyframes(tracks => ({ ...tracks, [activeObject.id]: [...(tracks[activeObject.id] || []).filter(key => key.frame !== currentFrame), { ...next, source: 'manual' }].sort((a, b) => a.frame - b.frame) }))
       setSelectedKeyframe({ kind: 'object', frame: currentFrame, trackId: activeObject.id })
     }
     setToast(`关键帧已粘贴到第 ${currentFrame} 帧`)
+  }
+  const changeSelectedCameraKey = patch => {
+    if (!selectedKeyframeInfo || selectedKeyframeInfo.kind !== 'camera') return
+    setKeyframes(list => list.map(key => key.frame === selectedKeyframeInfo.frame ? { ...key, ...patch } : key))
+    setCurrentFrame(selectedKeyframeInfo.frame)
   }
   const deleteSelectedKeyframe = () => {
     if (!selectedKeyframeInfo) return
@@ -1929,7 +2320,7 @@ export default function App() {
     else if (activeObject?.id === selectedKeyframeInfo.trackId) deleteObjectKeyframe(selectedKeyframeInfo.frame)
   }
   const saveProject = ({ download = false } = {}) => {
-    const data = projectData({ settings, objects, camera, lighting, reference, keyframes, objectKeyframes: characterKeyframes, shots, activeShotId })
+    const data = projectData({ settings, objects, camera, lighting, reference, keyframes, objectKeyframes: characterKeyframes, routeTracks, shots, activeShotId })
     const serialized = JSON.stringify(data)
     let cached = true
     try { localStorage.setItem(PROJECT_STORAGE_KEY, serialized) } catch { cached = false }
@@ -1964,6 +2355,10 @@ export default function App() {
       if (!canvas || canvas.width !== width || canvas.height !== height) throw new Error('截图画面初始化失败')
       await nextPaint()
       const blob = await new Promise((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error('PNG 生成失败')), 'image/png'))
+      // Notify the embedding canvas host so the frame can be inserted directly as a canvas image node.
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: 'monoform', type: 'export', key:sceneKey(), kind: 'image', blob, width, height }, location.origin)
+      }
       const link = document.createElement('a')
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
       link.href = URL.createObjectURL(blob)
@@ -1987,7 +2382,7 @@ export default function App() {
     exportLockRef.current = true
     const nextExportFrameCount = totalFrames
     const originalFrame = currentFrameRef.current
-    const originalCamera = keyframes.length ? cameraAtFrame(keyframes, originalFrame, camera.aspectRatio) : camera
+    const originalCamera = activeCameraKeys.length ? {...camera,...cameraAtFrame(activeCameraKeys, originalFrame, camera.aspectRatio)} : camera
     let output
 
     setPlaying(false)
@@ -2040,6 +2435,10 @@ export default function App() {
       const buffer = output.target.buffer
       if (!buffer) throw new Error('MP4 文件生成失败')
       const blob = new Blob([buffer], { type: 'video/mp4' })
+      // Notify the embedding canvas host so the video can be inserted directly as a canvas video node.
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: 'monoform', type: 'export', key:sceneKey(), kind: 'video', blob }, location.origin)
+      }
       const link = document.createElement('a')
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
       link.href = URL.createObjectURL(blob)
@@ -2081,6 +2480,10 @@ export default function App() {
         setReference(loaded.reference)
         setKeyframes(loaded.keyframes)
         setCharacterKeyframes(loaded.objectKeyframes)
+        setRouteTracks(loaded.routeTracks || {})
+        setRouteEditMode(false)
+        setRouteEditPoints([])
+        setDrawRoute(false)
         setObjectDrafts({})
         setSelectedKeyframe(null)
         setCurrentFrame(0)
@@ -2098,7 +2501,7 @@ export default function App() {
     const resetObjects = cloneProjectValue(initialObjects)
     const resetCamera = cloneProjectValue(initialCamera)
     setSettings({ ...DEFAULT_PROJECT_SETTINGS })
-    setShots([{ id: 'shot-01', name: '镜头 01', thumbnail: '', fps: DEFAULT_PROJECT_SETTINGS.fps, durationSeconds: DEFAULT_PROJECT_SETTINGS.durationSeconds, loopPlayback: DEFAULT_PROJECT_SETTINGS.loopPlayback, objects: resetObjects, camera: resetCamera, lighting: cloneProjectValue(DEFAULT_LIGHTING), reference: cloneProjectValue(DEFAULT_REFERENCE), keyframes: [], objectKeyframes: {} }])
+    setShots([{ id: 'shot-01', name: '镜头 01', thumbnail: '', fps: DEFAULT_PROJECT_SETTINGS.fps, durationSeconds: DEFAULT_PROJECT_SETTINGS.durationSeconds, loopPlayback: DEFAULT_PROJECT_SETTINGS.loopPlayback, objects: resetObjects, camera: resetCamera, lighting: cloneProjectValue(DEFAULT_LIGHTING), reference: cloneProjectValue(DEFAULT_REFERENCE), keyframes: [], objectKeyframes: {}, routeTracks: {} }])
     setActiveShotId('shot-01')
     setObjects(resetObjects)
     setCamera(resetCamera)
@@ -2106,6 +2509,10 @@ export default function App() {
     setReference(cloneProjectValue(DEFAULT_REFERENCE))
     setKeyframes(initialKeyframes)
     setCharacterKeyframes(initialCharacterKeyframes)
+    setRouteTracks({})
+    setRouteEditMode(false)
+    setRouteEditPoints([])
+    setDrawRoute(false)
     setObjectDrafts({})
     setSelectedKeyframe(null)
     setCurrentFrame(0)
@@ -2117,16 +2524,12 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell" aria-busy={exporting || capturingImage}>
+    <main className={`app-shell ${drawRoute ? 'is-route-mode' : ''}`} aria-busy={exporting || capturingImage}>
       <header className="topbar">
-        {/* XOI-PATCH:brand —— 顶栏换成 XOi 品牌（原来这里是 MONOFORM 的方形图标 + 英文名） */}
-        <div className="brand-mark">
-          <div><strong>XOi</strong><small>导演工作台 · 3D 预演</small></div>
-        </div>
-        {/* XOI-PATCH-END */}
-        <nav className="top-actions">
-          <button onClick={resetProject}><Plus size={14} /> 新建</button>
-          <button onClick={() => loadRef.current?.click()}><FolderOpen size={14} /> 打开</button>
+        {/* XOI-PATCH:brand */}
+        <div className="brand-mark"><div><strong>XOi</strong><small>导演工作台 · 3D 预演</small></div></div>
+        <nav className="top-actions xoi-handoff-actions">
+          <button title="导入工程到当前场景，可撤销；建议先导出备份" onClick={() => loadRef.current?.click()}><FolderOpen size={14} /> 导入工程</button>
           <button onClick={() => saveProject()}><Save size={14} /> 保存</button>
           <input ref={loadRef} className="visually-hidden" type="file" accept=".json" onChange={loadProject} />
           <span className="top-divider" />
@@ -2142,7 +2545,7 @@ export default function App() {
       </header>
 
       <div className="workspace">
-        <LeftSidebar objects={objects} selectedId={selectedId} onSelect={setSelectedId} onAddPerson={addPerson} onAddPrimitive={addPrimitive} onImport={importModel} onToggleVisible={id => updateObjectById(id, { visible: objects.find(item => item.id === id)?.visible === false })} onToggleLock={id => updateObjectById(id, { locked: !objects.find(item => item.id === id)?.locked })} shots={displayedShots} activeShotId={activeShotId} onSelectShot={switchShot} onAddShot={addShot} onDuplicateShot={duplicateShot} onDeleteShot={deleteShot} onRenameShot={renameShot} onCaptureShot={captureShotThumbnail} />
+        <LeftSidebar objects={objects} selectedId={selectedId} onSelect={setSelectedId} onAddPerson={addPerson} onAddPrimitive={addPrimitive} onImport={importModel} sceneTool={<SceneImagePanel key={activeShotId} sceneId={sceneKey()} shotId={activeShotId} getScope={currentSceneScope} onApply={applySceneImageResult}/>} onToggleVisible={id => updateObjectById(id, { visible: objects.find(item => item.id === id)?.visible === false })} onToggleLock={id => updateObjectById(id, { locked: !objects.find(item => item.id === id)?.locked })} shots={displayedShots} activeShotId={activeShotId} onSelectShot={switchShot} onAddShot={addShot} onDuplicateShot={duplicateShot} onDeleteShot={deleteShot} onRenameShot={renameShot} onCaptureShot={captureShotThumbnail} camera={camera} currentFrame={currentFrame} fps={fps} onUpdateCamera={updateCameraFromUI} onAddCameraKeyframe={addKeyframe} onOpenCameraView={openCameraView} onConfigureCamera={()=>{setSelectedId(CAMERA_ID);setCameraView(false);setTransformMode('translate')}} onClearCanvas={clearCanvas} />
         <section className="viewport-shell">
           <div className="viewport-toolbar floating-panel">
             <ToolButton icon={MousePointer2} label="选择" active={!['translate', 'rotate', 'scale'].includes(transformMode)} onClick={() => setTransformMode('select')} shortcut="Q" />
@@ -2150,10 +2553,23 @@ export default function App() {
             <ToolButton icon={Move3D} label="移动" active={transformMode === 'translate'} onClick={() => setTransformMode('translate')} shortcut="W" />
             <ToolButton icon={RotateCw} label="旋转" active={transformMode === 'rotate'} onClick={() => setTransformMode('rotate')} shortcut="E" />
             <ToolButton icon={BoxSelect} label="缩放" active={transformMode === 'scale'} onClick={() => setTransformMode('scale')} shortcut="R" />
+            <ToolButton icon={Move3D} label={selectedId===CAMERA_ID?'画相机路线':routeTracks[activeObject?.id]?'编辑人物路线':'画人物路线'} active={drawRoute} onClick={onRouteAction} />
             <span />
             <ToolButton icon={Axis3D} label={transformSpace === 'world' ? '世界坐标' : '局部坐标'} active={transformSpace === 'local'} disabled={transformMode === 'select'} onClick={() => setTransformSpace(space => space === 'world' ? 'local' : 'world')} />
             <ToolButton icon={Magnet} label={snapEnabled ? '关闭吸附' : '开启吸附'} active={snapEnabled} disabled={transformMode === 'select'} onClick={() => setSnapEnabled(value => !value)} />
           </div>
+          {drawRoute && <div className="route-draw-panel floating-panel" data-route-kind={routeTarget}>
+            <strong>{routeTarget==='camera'?'相机路线':'人物路线'} · {routeEditMode?'拖动节点调整':'绘制路线'}</strong>
+            <span>{routeEditMode?'拖动路线上的控制点，调整后可直接试播。':routeInputMode==='draw'?'按住并拖动绘制，松开即完成。':'点击地面放置控制点，完成后生成平滑路线。'}</span>
+            {!routeEditMode&&<><label>绘制方式 <select aria-label="路线输入方式" value={routeInputMode} onChange={e=>{setRouteInputMode(e.target.value);setRouteDraftPoints([])}}><option value="draw">自由拖绘</option><option value="click">点击控制点</option></select></label>
+              <label>结束时间 <input aria-label="路线结束时间" type="number" min={(currentFrame+1)/fps} max={settings.durationSeconds} step="0.1" value={routeTarget==='camera'?cameraRouteDraft.endSecond:routeEndSecond} onChange={event=>routeTarget==='camera'?setCameraRouteDraft(d=>({...d,endSecond:Number(event.target.value)})):setRouteEndSecond(Number(event.target.value))}/> 秒</label>
+              {routeInputMode==='click'&&<div className="route-button-row"><button type="button" disabled={!routeDraftPoints.length} onClick={()=>setRouteDraftPoints(p=>p.slice(0,-1))}>撤销末点</button><button type="button" disabled={routeDraftPoints.length<2} onClick={()=>finishDrawRoute(routeDraftPoints)}>完成路线</button></div>}
+            </>}
+            {routeTarget==='actor'&&!routeEditMode&&<label className="route-loop-toggle"><input type="checkbox" checked={routeLoopMotion} onChange={event=>setRouteLoopMotion(event.target.checked)}/><span>沿途循环人物动作</span></label>}
+            {routeEditMode&&<button type="button" onClick={()=>routeTarget==='camera'?clearCameraRoute():clearRouteForObject(selectedId)}>清除这条路线</button>}
+            <button type="button" onClick={()=>{setDrawRoute(false);setRouteEditMode(false);setRouteDraftPoints([]);setTransformMode('translate')}}>{routeEditMode?'完成调整':'取消绘制'}</button>
+            <small>Esc 退出 · 路线完成后请试播检查遮挡</small>{routeNotice&&<small role="status">{routeNotice}</small>}
+          </div>}
           <div className="viewport-mode-help">
             {transformMode === 'select' && 'Q 选择 / 人物摆姿 · 重叠处优先当前对象 · Alt 选择前层'}
             {transformMode === 'translate' && `W 整体移动 · ${transformSpace === 'world' ? '世界坐标' : '局部坐标'} · ${snapEnabled ? '0.1 格吸附' : '自由移动'}`}
@@ -2176,12 +2592,45 @@ export default function App() {
             )}
           </div>
           {lightingPanelOpen && <LightingPanel lighting={lighting} onChange={setLighting} onClose={() => setLightingPanelOpen(false)} />}
-          {cameraView && cameraAnglePanelOpen && <CameraAnglePanel camera={camera} onChange={patch => setCamera(current => ({ ...current, ...patch }))} onClose={() => setCameraAnglePanelOpen(false)} onLevel={levelCameraHorizon} />}
+          {cameraView && cameraAnglePanelOpen && <CameraAnglePanel camera={displayCamera} onChange={updateCameraFromUI} onClose={() => setCameraAnglePanelOpen(false)} onLevel={levelCameraHorizon} />}
           <div className="viewport-label"><strong>{cameraView ? '摄像机视角' : '编辑视角'}</strong><span>{cameraView ? `${aspectLabel(displayCamera.aspectRatio)} · 正在查看场景中的主摄像机` : '固定观察相机 · 可查看并调整场景中的主摄像机'}</span></div>
+          {sceneReferenceImage && <div className="scene-reference-thumbnail"><img src={sceneReferenceImage} alt="本次场景图原图" /><span>原图对照 · 检查结构、空间和比例</span><button type="button" onClick={() => setSceneReferenceImage('')} aria-label="关闭原图对照">×</button></div>}
           <ViewportAspectPicker value={camera.aspectRatio} onChange={aspectRatio => setCamera(current => ({ ...current, aspectRatio }))} />
           <ReferenceOverlay reference={reference} onChange={setReference} onToast={setToast} cameraMode={cameraView} cameraAspect={previewAspect}>
             <div className="viewport-canvas-layer">
-              <MainViewport key={cameraView ? 'shot-view' : 'scene-view'} cameraView={cameraView} cameraAspect={previewAspect} editorCameraData={editorView} onEditorCameraChange={captureEditorView} objects={animatedObjects} animationTime={currentFrame / fps} selectedId={selectedId} activeJoint={selectedJoint} onSelect={setSelectedId} onJointSelect={(objectId, jointId) => { setSelectedId(objectId); setSelectedJoint(jointId) }} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onUpdateObject={updateObjectById} cameraData={displayCamera} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} lighting={lighting} showGrid={showGrid} focusRequest={viewFocusRequest} referenceVisible={Boolean(reference.image && reference.visible)} />
+              <MainViewport
+                key={cameraView ? 'shot-view' : 'scene-view'}
+                cameraView={cameraView}
+                cameraAspect={previewAspect}
+                editorCameraData={editorView}
+                onEditorCameraChange={captureEditorView}
+                objects={animatedObjects}
+                animationTime={currentFrame / fps}
+                selectedId={selectedId}
+                activeJoint={selectedJoint}
+                onSelect={setSelectedId}
+                onJointSelect={(objectId, jointId) => { setSelectedId(objectId); setSelectedJoint(jointId) }}
+                transformMode={transformMode}
+                transformSpace={transformSpace}
+                snapEnabled={snapEnabled}
+                groundRequest={groundRequest}
+                onUpdateObject={updateObjectById}
+                cameraData={displayCamera}
+                onUpdateCamera={updateCameraFromUI}
+                lighting={lighting}
+                showGrid={showGrid}
+                focusRequest={viewFocusRequest}
+                referenceVisible={Boolean(reference.image && reference.visible)}
+                drawRoute={drawRoute}
+                routePoints={drawRoute&&!routeEditMode?routeDraftPoints:routeEditMode?routeEditPoints:selectedId===CAMERA_ID?(camera.route?.enabled?camera.route.points:[]):(routeTracks[activeObject?.id]?.visible === false ? [] : (routeTracks[activeObject?.id]?.points || []))}
+                routeKind={drawRoute?routeTarget:selectedId===CAMERA_ID?'camera':'actor'}
+                routeInputMode={routeInputMode}
+                routeDraftPoints={routeDraftPoints}
+                onRouteDraftChange={setRouteDraftPoints}
+                routeEditMode={routeEditMode}
+                onUpdateRoutePoint={updateRoutePoint}
+                onCompleteRoute={finishDrawRoute}
+              />
             </div>
           </ReferenceOverlay>
           <div className="navigation-hint"><span><MousePointer2 size={12} /> 点击物体选择</span>{cameraView ? <><span>主摄像机画面</span><span>网格仅辅助 · 不进入导出</span></> : <><span>空白处左键旋转</span><span>右键平移</span><span>滚轮缩放</span></>}</div>
@@ -2198,18 +2647,21 @@ export default function App() {
               <div className={`monitor-canvas ${previewAspectClass}`} style={{ '--preview-aspect': previewAspect }}>
                 <CameraPreview objects={animatedObjects} animationTime={currentFrame / fps} cameraData={displayCamera} cameraAspect={previewAspect} lighting={lighting} backgroundCanvas={monitorReferenceBackground} onCanvasReady={canvas => { monitorCanvasRef.current = canvas }} />
                 <span className="safe-frame" />
-                <span className="owner-watermark" aria-label="XOi 品牌标识" title="XOi"><b>XOi</b></span>
+                <span className="owner-watermark" aria-label="XOi 品牌标识"><b>XOi</b></span>
                 <span className="monitor-timecode">{timecodeAtFrame(currentFrame, fps)}</span>
                 <span className="monitor-focal">{Math.round(displayCamera.focalLength)} mm · {aspectLabel(displayCamera.aspectRatio)}</span>
               </div>
             </div>}
           </div>
         </section>
-        <Inspector selected={inspectorSelected} camera={camera} selectedJoint={selectedJoint} customPoses={customPoses} onSelectJoint={setSelectedJoint} onUpdateObject={updateSelected} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} onDelete={deleteSelected} onDuplicate={duplicateSelected} onFocus={focusSelected} onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })} onGround={groundSelected} onResetRotation={resetSelectedRotation} onResetScale={resetSelectedScale} onSaveCustomPose={saveCustomPose} onApplyCustomPose={applyCustomPose} onDeleteCustomPose={deleteCustomPose} />
+        <Inspector selected={inspectorSelected} camera={{...camera,position:displayCamera.position,rotation:displayCamera.rotation,focalLength:displayCamera.focalLength}} cameraTools={<CameraRoutePanel onUpdateCamera={updateCameraFromUI} camera={camera} objects={objects} draft={cameraRouteDraft} onDraft={patchCameraRouteDraft} onMode={changeCameraMode} onDraw={()=>startCameraDraw()} onEdit={()=>startCameraDraw(true)} onClear={clearCameraRoute} onPreset={applyCameraPreset} drawing={drawRoute&&routeTarget==='camera'} currentFrame={currentFrame} fps={fps} totalFrames={totalFrames}/>} objects={objects} selectedJoint={selectedJoint} customPoses={customPoses} onSelectJoint={setSelectedJoint} onUpdateObject={updateSelected} onUpdateCamera={updateCameraFromUI} onDelete={deleteSelected} onDuplicate={duplicateSelected} onFocus={focusSelected} onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })} onGround={groundSelected} onResetRotation={resetSelectedRotation} onResetScale={resetSelectedScale} onSaveCustomPose={saveCustomPose} onApplyCustomPose={applyCustomPose} onDeleteCustomPose={deleteCustomPose} />
         <Timeline
+          camera={camera}
           currentFrame={currentFrame}
           fps={fps}
           totalFrames={totalFrames}
+          objects={objects}
+          onChangeCameraKeyframe={changeSelectedCameraKey}
           onOpenSettings={() => setSettingsOpen(true)}
           onSeek={seekToFrame}
           playing={playing}

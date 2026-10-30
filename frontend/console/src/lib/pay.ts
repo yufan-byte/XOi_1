@@ -69,7 +69,7 @@ export async function requestPay(body: { amount: number; payment_method: string;
   const res = await fetch("/api/user/pay", {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${a.accessToken}`, "New-Api-User": String(a.user.id) },
+    headers: { "Content-Type": "application/json", ...(a.accessToken ? { Authorization: `Bearer ${a.accessToken}` } : {}), "New-Api-User": String(a.user.id) },
     body: JSON.stringify(body),
   });
   const text = await res.text();

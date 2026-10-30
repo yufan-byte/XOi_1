@@ -4,7 +4,7 @@
     <p>{{ identityState === 'checking' ? '确认登录身份后载入你的场景。' : identityError }}</p>
     <button v-if="identityState === 'error'" type="button" @click="loadDirectorIdentity">重新验证</button>
   </main>
-  <main v-else-if="isLibrary" class="director3d-library">
+  <main v-else-if="isLibrary || !currentProject" class="director3d-library">
     <section class="director-library-hero">
       <div class="director-library-grid" aria-hidden="true"></div>
       <div class="director-library-copy">
@@ -13,7 +13,7 @@
         <p>在场景里安排演员、机位与时间线，预演镜头节奏，再导出分镜画面或视频。</p>
         <div class="director-library-actions">
           <button class="director-library-primary" type="button" @click="createProject">＋ 新建场景</button>
-          <button class="director-library-secondary" type="button" @click="openLatestProject">继续上次创作 <span>→</span></button>
+          <button v-if="projects.length" class="director-library-secondary" type="button" @click="openLatestProject">继续上次创作 <span>→</span></button>
         </div>
         <div class="director-library-flow" aria-label="导演台工作流程">
           <span>01 搭建场景</span><i>›</i><span>02 演员调度</span><i>›</i><span>03 镜头预演</span>
@@ -32,11 +32,12 @@
         </div>
         <button class="director-library-text-action" type="button" @click="createProject">＋ 新建场景</button>
       </div>
+      <p v-if="librarySyncMessage" role="status">{{ librarySyncMessage }} <button type="button" @click="loadDirectorIdentity">重新读取</button></p>
       <div class="director-project-library-grid">
-        <article v-for="project in sortedProjects" :key="project.id" class="director-project-library-card" role="button" tabindex="0" @click="openProject(project.id)" @keydown.enter="openProject(project.id)">
+        <article v-for="project in pagedProjects" :key="project.id" class="director-project-library-card" role="button" tabindex="0" @click="openProject(project.id)" @keydown.enter="openProject(project.id)">
           <div class="director-project-card-actions">
             <button type="button" @click.stop="openRenameProject(project.id)">重命名</button>
-            <button class="director-project-card-delete" type="button" :disabled="projects.length === 1" @click.stop="openDeleteProject(project.id)">删除</button>
+            <button class="director-project-card-delete" type="button" @click.stop="openDeleteProject(project.id)">删除</button>
           </div>
           <span class="director-project-card-scene">3D</span>
           <span class="director-project-card-preview">
@@ -48,6 +49,12 @@
           <span class="director-project-card-open">打开 →</span>
         </article>
       </div>
+      <div v-if="!projects.length" class="director-library-empty">
+        <h3>还没有场景</h3>
+        <p>新建一个空白场景，开始安排演员、布景和机位。</p>
+        <button class="director-library-primary" type="button" @click="createProject">＋ 新建场景</button>
+      </div>
+      <Pager v-model:page="projectPage" :total="sortedProjects.length" :page-size="PROJECT_PAGE_SIZE" unit="个场景" />
     </section>
 
     <div v-if="projectAction === 'rename'" class="director-library-delete-mask">
@@ -90,16 +97,11 @@
     <!-- 宿主工具条：XOi 自己的动作都放这里，靠 iframe 让位（而不是浮在 monoform 面板上）。
          之前把按钮绝对定位在 right:16px，会压住右侧属性面板的标题行和眼睛/锁定/复制/删除图标。 -->
     <div class="director-rail" role="toolbar" aria-label="XOi 工具条">
-      <button class="rail-btn" type="button" title="AI 导演助理：搭场景 / 人物走位 / 镜头运镜" @click="skillsPanelRef?.toggle()">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 3.9 3.9 1.6-3.9 1.6L8 12.5 6.4 8.6 2.5 7l3.9-1.6z" fill="currentColor" /></svg>
-        <span>导演助理</span>
-      </button>
       <button class="rail-btn" type="button" title="把当前镜头带到画布继续制作" @click="sendCurrentShot('image')">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h8M2 8h8M2 12h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none" /><path d="M11 9.4l3.2 2.6L11 14.6z" fill="currentColor" /></svg>
         <span>带到画布</span>
       </button>
     </div>
-    <DirectorSkillsPanel ref="skillsPanelRef" hide-trigger :key="`skills-${activeProjectId}`" :project-id="activeProjectId" :owner-id="ownerId" :project-name="currentProject?.name || '未命名场景'" :get-iframe="() => iframeRef" />
     <iframe
       ref="iframeRef"
       :key="activeProjectId"
@@ -189,7 +191,7 @@
         <footer class="project-dialog-footer">
           <button class="project-footer-button" type="button" @click="goToLibrary">返回导演台库</button>
           <button class="project-footer-button" type="button" @click="() => openRenameProject()">重命名当前场景</button>
-          <button class="project-footer-button danger" type="button" :disabled="projects.length === 1" @click="() => openDeleteProject()">删除当前场景</button>
+          <button class="project-footer-button danger" type="button" @click="() => openDeleteProject()">删除当前场景</button>
         </footer>
 
         <div v-if="projectAction" class="project-action-mask">
@@ -219,12 +221,14 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from "vue";
+import { sessionSignal } from "@/utils/session";
 import { useRoute, useRouter } from "vue-router";
-import DirectorSkillsPanel from "@/components/director/DirectorSkillsPanel.vue";
+import Pager from "@/components/Pager.vue";
 import {MessagePlugin} from "tdesign-vue-next";
 import {directorShotPackage} from "@/utils/directorHandoff";
 import {importDirectorProject} from "@/utils/directorScene";
 import {repairLegacyWalkingEndRotations} from "../../../../shared/directorMotion";
+import {writeBrowserHandoff} from "../../../../shared/browserHandoff";
 import directorLibraryHero from "@/assets/director3d/director-library-hero-v2.png";
 import directorProjectPreview from "@/assets/director3d/director-project-preview-v2.png";
 
@@ -239,8 +243,6 @@ interface MonoformExport {
 }
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
-/** AI 导演助理面板：触发器在宿主工具条上，面板本身由组件渲染 */
-const skillsPanelRef = ref<{ toggle: () => void } | null>(null);
 const loading = ref(true);
 const exportCard = ref<MonoformExport | null>(null);
 
@@ -279,6 +281,7 @@ function handleDirectorKeydown(event: KeyboardEvent) {
 }
 const identityState = ref<"checking" | "ready" | "error">("checking");
 const identityError = ref("");
+const librarySyncMessage = ref("");
 const ownerId = ref("");
 const verifiedToken = ref("");
 const projectsStorageKey = () => `director3d-projects-v2:u${ownerId.value}`;
@@ -295,13 +298,12 @@ function getInitialProjects(): DirectorProject[] {
   } catch {
     // 本账号的新场景从空白开始，旧公共工程归属不明，不自动迁移。
   }
-  return [{ id: `director3d-u${ownerId.value}-${crypto.randomUUID()}`, name: "1号场景", createdAt: Date.now() }];
+  return [];
 }
 
 const projects = ref<DirectorProject[]>([]);
 const activeProjectId = ref("");
 const projectPanelVisible = ref(false);
-const emptyOnFirstLoad = new Set<string>();
 const projectAction = ref<"rename" | "delete" | null>(null);
 const projectActionTargetId = ref<string | null>(null);
 const projectNameDraft = ref("");
@@ -309,29 +311,51 @@ const projectBarMetrics = ref({ width: "228px", height: "56px" });
 const isLibrary = computed(() => !route.query.scene);
 const sortedProjects = computed(() => [...projects.value].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)));
 
+/** 导演台场景库分页：每页 12 个（网格 3–4 列）；新建/删除场景后回到第一页。 */
+const PROJECT_PAGE_SIZE = 12;
+const projectPage = ref(1);
+const pagedProjects = computed(() => {
+  const start = (projectPage.value - 1) * PROJECT_PAGE_SIZE;
+  return sortedProjects.value.slice(start, start + PROJECT_PAGE_SIZE);
+});
+watch(() => sortedProjects.value.length, () => { projectPage.value = 1; });
+
+let identityRevision = 0;
 async function loadDirectorIdentity() {
+  const revision = ++identityRevision;
   identityState.value = "checking";
   try {
-    const token = localStorage.getItem("token") || "";
+    const token = sessionSignal() || "";
     if (!token) throw new Error("请先登录后使用白模预演工作台");
-    const response = await fetch("/api/auth/me", { headers: { Authorization: token }, cache: "no-store" });
+    const response = await fetch("/api/auth/me", { credentials: "same-origin", headers: {"X-Xoi-Expected-User": token.split(":")[0]}, cache: "no-store" });
     if (!response.ok) throw new Error("登录身份验证失败，请重新登录");
     const data = await response.json();
+    if (revision !== identityRevision) return;
     const userId = Number(data?.user?.id);
     if (!Number.isSafeInteger(userId) || userId <= 0) throw new Error("账号身份无效");
-    if (localStorage.getItem("token") !== token) throw new Error("账号已切换，请重新验证");
+    if (sessionSignal() !== token || String(userId) !== token.split(":")[0]) throw new Error("账号已切换，请重新验证");
     ownerId.value = String(userId);
     verifiedToken.value = token;
     const hadLocal=!!localStorage.getItem(projectsStorageKey());
     projects.value = getInitialProjects();
+    librarySyncMessage.value = "";
     try {
       const remote:DirectorProject[]=[];
-      for(let offset=0;offset<200;offset+=50){const response=await fetch(`/api/director-scenes?offset=${offset}`,{headers:{Authorization:token},signal:AbortSignal.timeout(5000)});if(!response.ok)break;const {data:rows}=await response.json();if(!Array.isArray(rows))break;remote.push(...rows.filter((r:any)=>isOwnedProjectId(r.id)).map((r:any)=>({id:r.id,name:r.title||'导演场景',createdAt:Number(r.updatedAt),updatedAt:Number(r.updatedAt)})));if(rows.length<50)break;}
-      if(localStorage.getItem('token')!==token)throw new Error('账号已切换');
-      if(remote.length)projects.value=[...remote,...(hadLocal?projects.value.filter(p=>!remote.some(r=>r.id===p.id)):[])];
-    }catch{/* Keep offline local drafts. Native editor reports sync status separately. */}
+      for(let offset=0;offset<200;offset+=50){const response=await directorRequest(`/api/director-scenes?offset=${offset}`);if(!response.ok)throw new Error('场景目录暂不可用');const {data:rows}=await response.json();assertDirectorOwner(token);if(!Array.isArray(rows))throw new Error('场景目录格式无效');remote.push(...rows.filter((r:any)=>isOwnedProjectId(r.id)).map((r:any)=>({id:r.id,name:r.title||'导演场景',createdAt:Number(r.updatedAt),updatedAt:Number(r.updatedAt)})));if(rows.length<50)break;}
+      if(sessionSignal()!==token)throw new Error('账号已切换');
+      const locals: DirectorProject[]=[];
+      for(const local of hadLocal?projects.value:[]){
+        if(remote.some(row=>row.id===local.id))continue;
+        const meta=localStorage.getItem(`xoi-director-cloud-v1:${local.id}`);
+        if(meta){const response=await directorRequest(`/api/director-scenes/${encodeURIComponent(local.id)}`);if(response.status===410)continue;if(!response.ok&&response.status!==404)throw new Error('场景状态尚未确认');}
+        locals.push(local);
+      }
+      projects.value=[...remote,...locals];
+    }catch{if(revision!==identityRevision)return;librarySyncMessage.value="云端目录暂不可用，当前仅显示本机记录；云端场景仍保留。";}
+    assertDirectorOwner(token);
+    if (revision !== identityRevision) return;
     const savedId = localStorage.getItem(activeProjectStorageKey());
-    activeProjectId.value = projects.value.some((project) => project.id === savedId) ? savedId! : projects.value[0].id;
+    activeProjectId.value = projects.value.some((project) => project.id === savedId) ? savedId! : projects.value[0]?.id || "";
     const scene = Array.isArray(route.query.scene) ? route.query.scene[0] : route.query.scene;
     if (scene && !projects.value.some((project) => project.id === scene)) {
       if(isOwnedProjectId(scene)&&localStorage.getItem(`monoform-project-${scene}`)){projects.value.push({id:scene,name:'导演场景',createdAt:Date.now()});activeProjectId.value=scene;}
@@ -342,6 +366,7 @@ async function loadDirectorIdentity() {
     persistProjectState();
     identityState.value = "ready";
   } catch (error) {
+    if (revision !== identityRevision) return;
     ownerId.value = "";
     verifiedToken.value = "";
     projects.value = [];
@@ -352,7 +377,8 @@ async function loadDirectorIdentity() {
 }
 
 function guardAccountChange() {
-  if (identityState.value === "ready" && localStorage.getItem("token") !== verifiedToken.value) {
+  if (identityState.value === "ready" && sessionSignal() !== verifiedToken.value) {
+    dismissExport();
     identityState.value = "checking";
     projects.value = [];
     activeProjectId.value = "";
@@ -380,11 +406,24 @@ watch(
 
 function persistProjectState() {
   if (!ownerId.value) return;
+  assertDirectorOwner();
   localStorage.setItem(projectsStorageKey(), JSON.stringify(projects.value));
-  localStorage.setItem(activeProjectStorageKey(), activeProjectId.value);
+  if(activeProjectId.value)localStorage.setItem(activeProjectStorageKey(), activeProjectId.value);
+  else localStorage.removeItem(activeProjectStorageKey());
+}
+
+function assertDirectorOwner(token = verifiedToken.value) {
+  if (!token || sessionSignal() !== token || token.split(":")[0] !== ownerId.value) throw new Error("账号已切换，请重新打开导演台");
+}
+async function directorRequest(path: string, init: RequestInit = {}) {
+  const token = verifiedToken.value; assertDirectorOwner(token);
+  const headers = new Headers(init.headers); headers.set("X-Xoi-Expected-User", ownerId.value);
+  const response = await fetch(path, {...init, headers, credentials: "same-origin", cache: "no-store", signal: init.signal || AbortSignal.timeout(15000)});
+  assertDirectorOwner(token); return response;
 }
 
 function openProject(id: string) {
+  assertDirectorOwner();
   const project = projects.value.find((item) => item.id === id);
   if (!project) return;
   project.updatedAt = Date.now();
@@ -423,10 +462,10 @@ function formatProjectDate(timestamp: number) {
 
 function createProject() {
   if (identityState.value !== "ready") return;
+  assertDirectorOwner();
   const nextNumber = projects.value.length + 1;
   const id = `director3d-u${ownerId.value}-${crypto.randomUUID()}`;
   projects.value.push({ id, name: `${nextNumber}号场景`, createdAt: Date.now(), updatedAt: Date.now() });
-  emptyOnFirstLoad.add(id);
   activeProjectId.value = id;
   loading.value = true;
   projectPanelVisible.value = false;
@@ -435,6 +474,8 @@ function createProject() {
 }
 
 function switchProject(id: string) {
+  assertDirectorOwner();
+  if (!projects.value.some(project => project.id === id)) return;
   if (id === activeProjectId.value) {
     projectPanelVisible.value = false;
     return;
@@ -458,7 +499,8 @@ async function confirmRenameProject() {
   const project = projects.value.find((item) => item.id === projectActionTargetId.value);
   const name = projectNameDraft.value.trim();
   if (!project || !name) return;
-  try{const response=await fetch(`/api/director-scenes/${project.id}`,{headers:{Authorization:verifiedToken.value}});if(response.ok){const {data}=await response.json();const saved=await fetch(`/api/director-scenes/${project.id}`,{method:'PUT',headers:{Authorization:verifiedToken.value,'Content-Type':'application/json'},body:JSON.stringify({revision:data.revision,title:name,payload:data.payload})});if(!saved.ok)throw new Error('场景已更新，请刷新后重试');}else if(response.status!==404)throw new Error('云端场景尚未确认，请重试');}
+  const token = verifiedToken.value;
+  try{const response=await directorRequest(`/api/director-scenes/${project.id}`);if(response.ok){const {data}=await response.json();assertDirectorOwner(token);const saved=await directorRequest(`/api/director-scenes/${project.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:data.revision,title:name,payload:data.payload})});if(!saved.ok)throw new Error('场景已更新，请刷新后重试');}else if(response.status!==404)throw new Error('云端场景尚未确认，请重试');assertDirectorOwner(token);}
   catch(e:any){MessagePlugin.warning(e.message);return;}
   project.name = name;
   projectActionTargetId.value = null;
@@ -467,21 +509,22 @@ async function confirmRenameProject() {
 }
 
 function openDeleteProject(id = currentProject.value?.id) {
-  if (!id || !projects.value.some((project) => project.id === id) || projects.value.length <= 1) return;
+  if (!id || !projects.value.some((project) => project.id === id)) return;
   projectActionTargetId.value = id;
   projectAction.value = "delete";
 }
 
 async function confirmDeleteProject() {
   const project = deleteProjectTarget.value;
-  if (!project || projects.value.length <= 1) return;
-  try{const response=await fetch(`/api/director-scenes/${project.id}`,{headers:{Authorization:verifiedToken.value}});if(response.ok){const {data}=await response.json();const removed=await fetch(`/api/director-scenes/${project.id}`,{method:'DELETE',headers:{Authorization:verifiedToken.value,'Content-Type':'application/json'},body:JSON.stringify({revision:data.revision})});if(!removed.ok)throw new Error('云端删除未确认，请重新核对');}else if(![404,410].includes(response.status))throw new Error('云端场景尚未确认，本机工程保留');}catch(e:any){MessagePlugin.warning(e.message);return;}
+  if (!project) return;
+  const token = verifiedToken.value;
+  try{const response=await directorRequest(`/api/director-scenes/${project.id}`);if(response.ok){const {data}=await response.json();assertDirectorOwner(token);const removed=await directorRequest(`/api/director-scenes/${project.id}`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:data.revision})});if(!removed.ok)throw new Error('云端删除未确认，请重新核对');}else if(![404,410].includes(response.status))throw new Error('云端场景尚未确认，本机工程保留');assertDirectorOwner(token);}catch(e:any){MessagePlugin.warning(e.message);return;}
   localStorage.removeItem(`monoform-project-${project.id}`);
   localStorage.removeItem(`monoform-custom-poses-${project.id}`);
   const currentIndex = projects.value.findIndex((item) => item.id === project.id);
   projects.value.splice(currentIndex, 1);
   if (activeProjectId.value === project.id) {
-    activeProjectId.value = projects.value[Math.max(0, currentIndex - 1)].id;
+    activeProjectId.value = projects.value[Math.max(0, currentIndex - 1)]?.id || "";
   }
   loading.value = true;
   projectActionTargetId.value = null;
@@ -489,7 +532,7 @@ async function confirmDeleteProject() {
   projectPanelVisible.value = false;
   persistProjectState();
   if (!isLibrary.value) {
-    void router.replace({ path: "/director3d", query: { scene: activeProjectId.value } });
+    void router.replace(activeProjectId.value ? { path: "/director3d", query: { scene: activeProjectId.value } } : {path: "/director3d"});
   }
 }
 
@@ -531,7 +574,7 @@ function onIframeLoad() {
   // through the normal editor path so local and cloud state stay in sync.
   let repairAttempts=0;
   const repairLegacyWalk=async()=>{
-    if(projectId!==activeProjectId.value)return;
+    if(projectId!==activeProjectId.value || sessionSignal()!==verifiedToken.value)return;
     const raw=localStorage.getItem(`monoform-project-${projectId}`);
     if(!raw&&repairAttempts++<40){window.setTimeout(repairLegacyWalk,100);return;}
     try{
@@ -540,26 +583,7 @@ function onIframeLoad() {
     }catch{if(repairAttempts++<40)window.setTimeout(repairLegacyWalk,100);}
   };
   window.setTimeout(repairLegacyWalk,100);
-  if (!emptyOnFirstLoad.has(projectId)) {
-    loading.value = false;
-    return;
-  }
-
-  // MONOFORM 本身首开会放入示例人物。对刚创建的文件自动点一次其内部“新建”，
-  // 复用它已有的初始化逻辑，得到真正没有物体和关键帧的空场景。
-  let attempts = 0;
-  const initializeEmptyScene = () => {
-    const buttons = iframeRef.value?.contentDocument?.querySelectorAll<HTMLButtonElement>(".top-actions button");
-    const newButton = buttons && Array.from(buttons).find((button) => button.textContent?.trim() === "新建");
-    if (!newButton && attempts++ < 40) {
-      window.setTimeout(initializeEmptyScene, 50);
-      return;
-    }
-    newButton?.click();
-    emptyOnFirstLoad.delete(projectId);
-    loading.value = false;
-  };
-  initializeEmptyScene();
+  loading.value = false;
 }
 
 function formatBytes(bytes: number): string {
@@ -570,7 +594,7 @@ function formatBytes(bytes: number): string {
 
 // MONOFORM 出站协议仅两条：{source:'monoform', type:'export', kind:'image'|'video', blob, width?, height?}
 async function handleMessage(event: MessageEvent) {
-  if (identityState.value !== "ready" || event.origin !== window.location.origin || event.source !== iframeRef.value?.contentWindow) return;
+  if (identityState.value !== "ready" || sessionSignal()!==verifiedToken.value || event.origin !== window.location.origin || event.source !== iframeRef.value?.contentWindow) return;
   const data = event.data;
   if(data?.source==='monoform'&&data.type==='send-shot'&&data.key===activeProjectId.value){await sendCurrentShot(data.mode==='video'?'video':'image');return;}
   if (!data || data.source !== "monoform" || data.type !== "export" || !data.blob) {
@@ -623,7 +647,8 @@ function downloadExport() {
 let handingOff=false;
 async function sendCurrentShot(mode:"image"|"video"="image"){
  if(handingOff)return;handingOff=true;const close=mode==='image'?MessagePlugin.loading({content:'正在保存当前镜头并准备画布…',duration:0}):undefined;
- try{const {graph}=await directorShotPackage(iframeRef.value,activeProjectId.value,ownerId.value,currentProject.value?.name||'导演场景',undefined,{mode});localStorage.setItem('xoi_canvas_graph_v1',JSON.stringify(graph));sessionStorage.setItem('xoi_director_return_scene_v1',activeProjectId.value);await router.push({path:'/canvas',query:{source:'xoi',graph:'1',from:'director3d'}});}
+ const token=verifiedToken.value, sceneId=activeProjectId.value;
+ try{const {graph}=await directorShotPackage(iframeRef.value,sceneId,ownerId.value,currentProject.value?.name||'导演场景',undefined,{mode});assertDirectorOwner(token);if(sceneId!==activeProjectId.value)throw new Error('场景已切换');writeBrowserHandoff(sessionStorage,token,'canvas-graph',graph);sessionStorage.setItem('xoi_director_return_scene_v1',sceneId);await router.push({path:'/canvas',query:{source:'xoi',graph:'1',from:'director3d'}});}
  catch(e:any){if(e.name==='AbortError')MessagePlugin.info(e.message||'已取消，原场景保留');else MessagePlugin.error(e.message||'带入失败，原场景保留');}
  finally{handingOff=false;if(close)(await close).close();}
 }
@@ -632,6 +657,7 @@ const sendBlockedHint = "若需绑定当前镜头版本，请使用顶部更多�
 // 走与 sendToCanvas.ts 相同的 import 协议：?import=<encodedJSON>&source=xoi&from=<page>
 // dataURL 由画布侧统一经上传接口转成后端 URL
 async function sendExportToCanvas() {
+  const token=verifiedToken.value; assertDirectorOwner(token);
   const card = exportCard.value;
   if (!card || card.kind !== "image") return;
   const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -640,6 +666,7 @@ async function sendExportToCanvas() {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(card.blob);
   });
+  assertDirectorOwner(token);
   const importData = encodeURIComponent(
     JSON.stringify([{ src: dataUrl, name: card.fileName }]),
   );
@@ -654,6 +681,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  identityRevision++;
   window.removeEventListener("keydown", handleDirectorKeydown);
   window.removeEventListener("message", handleMessage);
   window.removeEventListener("storage", guardAccountChange);
@@ -663,6 +691,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.director-library-empty { padding: 54px 20px; text-align: center; border: 1px dashed #d8dbe2; border-radius: 16px; background: #fff; }
+.director-library-empty p { color: #777; margin: 12px 0 24px; }
 .director-identity-gate {
   min-height: calc(100vh - 64px);
   display: flex;

@@ -376,14 +376,16 @@ async function withTimeout<T>(timeoutSeconds: number, run: (signal: AbortSignal)
 }
 
 function isTransientStatus(status: number) {
-    return status === 429 || status === 502 || status === 503 || status === 504;
+    // 500 一并视为瞬态：网关会把上游连接闪断（unexpected EOF）包装成 500 "do request failed"，
+    // 且这类失败上游已退款，重试一次不会造成重复计费。
+    return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
 }
 
 function retryDelay(attempt: number) {
     return 700 * attempt;
 }
 
-async function requestWithTransientRetry(run: () => Promise<Response>, retries = 0) {
+async function requestWithTransientRetry(run: () => Promise<Response>, retries = 1) {
     let lastError: unknown;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
         try {
@@ -1051,6 +1053,37 @@ export async function pollCanvasImageTaskStatus(taskId: string): Promise<CanvasI
     return syncCanvasImageTask(payload.data);
 }
 
+/** 参考图内嵌 JSON 前的兜底压缩：大图（手机原片/高清截图）base64 后可能超过
+ * 任务接口 13MB 的 body 上限，直接 413「图片任务创建失败」。生成/编辑模型用不到
+ * 原始分辨率，超过预算就降采样重编码为 JPEG；已达标或无法安全重编码的原样返回。 */
+const REFERENCE_DATAURL_MAX_BYTES = 3 * 1024 * 1024;
+async function compactReferenceDataUrl(dataUrl: string): Promise<string> {
+    if (!/^data:image\/(png|jpe?g|webp|bmp)/i.test(dataUrl) || dataUrl.length * 0.75 <= REFERENCE_DATAURL_MAX_BYTES) return dataUrl;
+    try {
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const element = new Image();
+            element.onload = () => resolve(element);
+            element.onerror = () => reject(new Error("参考图解码失败"));
+            element.src = dataUrl;
+        });
+        const width = image.naturalWidth || 1, height = image.naturalHeight || 1;
+        for (const [maxEdge, quality] of [[2048, 0.92], [1600, 0.88], [1280, 0.82]] as const) {
+            const scale = Math.min(1, maxEdge / Math.max(width, height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(width * scale));
+            canvas.height = Math.max(1, Math.round(height * scale));
+            const context = canvas.getContext("2d");
+            if (!context) return dataUrl;
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            const candidate = canvas.toDataURL("image/jpeg", quality);
+            if (candidate.length * 0.75 <= REFERENCE_DATAURL_MAX_BYTES || maxEdge === 1280) return candidate;
+        }
+        return dataUrl;
+    } catch {
+        return dataUrl;
+    }
+}
+
 async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], params: ImageRequestParams, options: CanvasImageTaskOptions): Promise<RequestInit> {
     assertImageReferencesSupported(config.model, references);
     const taskChannelId = channelIdForActiveModel(config);
@@ -1074,7 +1107,7 @@ async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: num
                     const publicUrl = publicHttpUrl(url);
                     if (publicUrl) return publicUrl;
                 }
-                return imageToDataUrl(ref);
+                return compactReferenceDataUrl(await imageToDataUrl(ref));
             }),
         );
         const body: Record<string, unknown> = {
@@ -1090,7 +1123,7 @@ async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: num
         };
     }
     if (config.apiMode === "chat" && !isZhipuImageModel(config.model)) {
-        const inputImageDataUrls = references.length ? await Promise.all(references.map((image) => imageToDataUrl(image))) : [];
+        const inputImageDataUrls = references.length ? await Promise.all(references.map((image) => imageToDataUrl(image).then(compactReferenceDataUrl))) : [];
         return {
             method: "POST",
             headers: jsonHeaders,
@@ -1098,7 +1131,7 @@ async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: num
         };
     }
     if (config.apiMode === "responses" && !isZhipuImageModel(config.model)) {
-        const inputImageDataUrls = references.length ? await Promise.all(references.map((image) => imageToDataUrl(image))) : [];
+        const inputImageDataUrls = references.length ? await Promise.all(references.map((image) => imageToDataUrl(image).then(compactReferenceDataUrl))) : [];
         const body: Record<string, unknown> = {
             model: config.model,
             input: createResponsesInput(config, withSystemPrompt(config, prompt), inputImageDataUrls),
@@ -1124,7 +1157,7 @@ async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: num
         if(usesAccountProxy(config)){
             // The account gateway accepts URL/data-URL references in JSON. Keep the
             // same verifiable envelope instead of switching to an unbounded upload.
-            const images=await Promise.all(references.map(async ref=>publicHttpUrl(ref.url||ref.dataUrl||"")||await imageToDataUrl(ref)));
+            const images=await Promise.all(references.map(async ref=>publicHttpUrl(ref.url||ref.dataUrl||"")||await compactReferenceDataUrl(await imageToDataUrl(ref))));
             const request:Record<string,unknown>={model:config.model,prompt:withPromptGuard(config,withSystemPrompt(config,prompt)),n:1,images};
             applyImageGenerationParams(request,config,params);
             return {method:"POST",headers:jsonHeaders,body:JSON.stringify({endpoint:"/images/generations",...meta,request})};

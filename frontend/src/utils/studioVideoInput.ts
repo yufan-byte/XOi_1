@@ -17,16 +17,17 @@ export interface StudioVideoModeChoice {
   value: string;
   label: string;
   description: string;
+  glyph: string;
 }
 
 const MODE_META: Record<string, Omit<StudioVideoModeChoice, "value">> = {
-  text: { label: "文生视频", description: "只发送文字描述，适合从零创作镜头" },
-  textToVideo: { label: "文生视频", description: "只发送文字描述，适合从零创作镜头" },
-  singleImage: { label: "首帧", description: "用一张画面确定开场构图，再生成动作与运镜" },
-  multiReference: { label: "全能参考", description: "同时参考角色、场景、图片或音视频素材" },
-  startEndRequired: { label: "首尾帧", description: "固定开场与结尾画面，由模型补全中间运动" },
-  endFrameOptional: { label: "首帧 + 尾帧", description: "首帧必选，尾帧可选；适合控制动作落点" },
-  startFrameOptional: { label: "尾帧 + 首帧", description: "尾帧必选，首帧可选；适合倒推镜头运动" },
+  text: { label: "文生视频", description: "只发送文字描述，适合从零创作镜头", glyph: "✦" },
+  textToVideo: { label: "文生视频", description: "只发送文字描述，适合从零创作镜头", glyph: "✦" },
+  singleImage: { label: "首帧", description: "用一张画面确定开场构图，再生成动作与运镜", glyph: "▣" },
+  multiReference: { label: "全能参考", description: "同时参考角色、场景、图片或音视频素材", glyph: "◇" },
+  startEndRequired: { label: "首尾帧", description: "固定开场与结尾画面，由模型补全中间运动", glyph: "◫" },
+  endFrameOptional: { label: "首帧 + 尾帧", description: "首帧必选，尾帧可选；适合控制动作落点", glyph: "◫" },
+  startFrameOptional: { label: "尾帧 + 首帧", description: "尾帧必选，首帧可选；适合倒推镜头运动", glyph: "◫" },
 };
 
 export function parseStudioVideoMode(value: string): string | string[] {
@@ -49,10 +50,10 @@ export function studioVideoModeChoice(value: string, fallbackLabel = ""): Studio
   const parsed = parseStudioVideoMode(value);
   if (Array.isArray(parsed)) {
     const parts = parsed.map(referencePartLabel);
-    return { value, label: parts.length > 1 ? "多素材" : parts[0] || "素材参考", description: `支持 ${parts.join(" + ")}，按选择顺序发送` };
+    return { value, label: parts.length > 1 ? "多素材" : parts[0] || "素材参考", description: `支持 ${parts.join(" + ")}，按选择顺序发送`, glyph: "◇" };
   }
   const meta = MODE_META[parsed];
-  return meta ? { value, ...meta } : { value, label: fallbackLabel || parsed, description: "按当前模型声明的参考方式生成" };
+  return meta ? { value, ...meta } : { value, label: fallbackLabel || parsed, description: "按当前模型声明的参考方式生成", glyph: "◆" };
 }
 
 export function studioVideoModeChoices(modes: Array<string | string[]>): StudioVideoModeChoice[] {

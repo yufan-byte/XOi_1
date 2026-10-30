@@ -1,4 +1,5 @@
 import axios from "@/utils/axios";
+import { sessionSignal } from "@/utils/session";
 import projectStore from "@/stores/project";
 import settingStore from "@/stores/setting";
 import { useChat } from "@/utils/useChat";
@@ -224,25 +225,30 @@ function makeProductionAgentStore(projectId: string, scope: number) {
     async function getFlowData() {
       const version = ++flowRequestVersion;
       const episode = episodesId.value;
-      const token = localStorage.getItem("token");
+      const token = sessionSignal();
       const { data } = await axios.post("/production/getFlowData", {
         projectId: projectId,
         episodesId: episode,
       });
-      if (version !== flowRequestVersion || episode !== episodesId.value || token !== localStorage.getItem("token")) return;
+      if (version !== flowRequestVersion || episode !== episodesId.value || token !== sessionSignal()) return;
       applyingServerFlow = true;
       try { flowData.value = data; } finally { applyingServerFlow = false; }
     }
-    async function batchGenerateStoryboard(allIds: number[], compulsory: boolean = false) {
+    async function batchGenerateStoryboard(allIds: number[], compulsory: boolean = false, useCurrentImage = false) {
       if (!flowData.value.reviewState?.tableApproved) throw new Error('请先在导演总览中审核导演计划和分镜表，再生成分镜画面');
+      accountBoundary.assert(owner);
+      const requestedEpisode = episodesId.value;
       try {
         const { data, message } = await axios.post("/production/storyboard/batchGenerateImage", {
-          scriptId: episodesId.value,
+          scriptId: requestedEpisode,
           projectId: projectId,
           storyboardIds: allIds,
           concurrentCount: settingStore().otherSetting.assetsBatchGenereateSize,
           compulsory,
+          useCurrentImage,
         });
+        accountBoundary.assert(owner);
+        if (episodesId.value !== requestedEpisode) return data;
         // 后端在「有分镜拿不到角色/场景参考图」时会用 message 带出处警（不是默认的“成功”）。
         // 以前这种情形是静默 filter 掉参考图，AI 凭空生成、UI 一个字都不提示。
         if (message && message !== "成功") {
@@ -488,7 +494,7 @@ function makeProductionAgentStore(projectId: string, scope: number) {
     async function getHistory() {
       const version = ++historyRequestVersion;
       const episode = episodesId.value;
-      const token = localStorage.getItem("token");
+      const token = sessionSignal();
       loadingHistory.value = true;
       try {
         const { data } = await axios.post(`/agents/getMemory`, {
@@ -496,7 +502,7 @@ function makeProductionAgentStore(projectId: string, scope: number) {
           episodesId: episode,
           agentType: "productionAgent",
         });
-        if (version !== historyRequestVersion || episode !== episodesId.value || token !== localStorage.getItem("token")) return;
+        if (version !== historyRequestVersion || episode !== episodesId.value || token !== sessionSignal()) return;
         messages.value = [...defMsg, ...data];
       } finally {
         if (version === historyRequestVersion) loadingHistory.value = false;

@@ -127,9 +127,9 @@ export function CanvasNodeMaskEditDialog({
         setSubmitting(true);
         try {
             onConfirm({ prompt: nextPrompt, markedDataUrl: await buildMarkedReference(dataUrl, canvas), model, channelId });
-        } catch {
+        } catch (error) {
             setSubmitting(false);
-            setError("生成标记参考图失败");
+            setError(error instanceof Error ? `生成标记参考图失败：${error.message}` : "生成标记参考图失败");
         }
     };
 

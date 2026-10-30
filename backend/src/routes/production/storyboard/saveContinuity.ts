@@ -1,3 +1,4 @@
+import { userFacingError } from "@/utils/userFacingError";
 import express from "express";
 import { z } from "zod";
 import u from "@/utils";
@@ -12,5 +13,5 @@ export default router.post("/", validateFields({
   continuity: continuitySchema, expectedContinuity: continuitySchema.nullable(), applySceneLayout: z.boolean().optional(),
 }), async (req, res) => {
   try { res.json(success(await saveStoryboardContinuity(u.db, req.body))); }
-  catch (e) { res.status(409).json(error(u.error(e).message)); }
+  catch (e) { res.status(409).json(error(userFacingError(e, "保存连续性设置失败，请稍后重试"))); }
 });

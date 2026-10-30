@@ -1,4 +1,5 @@
 import { DIRECTOR_SKILLS } from "../../../../../shared/directorSkills";
+import { promptGuardMessage, screenPromptText } from "@upstream/lib/prompt-guard";
 import { backendJson } from "@/xoi/backend";
 import { getOwnerTag, ownerDbName } from "@/xoi/owner";
 import localforage from "localforage";
@@ -7,6 +8,18 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     const result = await backendJson<{ code: number; data: T; message?: string }>(path, { method: "POST", json: body || {} });
     if (result.code !== 200 && result.code !== 0) throw new Error(result.message || "技能读取失败");
     return result.data;
+}
+
+/** /api/skills/* 家族返回 {success, data}；同源 cookie 鉴权，普通登录用户即可读。 */
+async function skillsGet<T>(path: string): Promise<T> {
+    const result = await backendJson<{ success: boolean; data: T; message?: string }>(path, { method: "GET" });
+    if (result?.success === false) throw new Error(result.message || "技能读取失败");
+    return result.data;
+}
+
+/** 非 /api/skills 家族的管理员兼容读取（老通道，普通用户会 403，仅作回落）。 */
+async function legacySkillContent(path: string): Promise<string> {
+    return apiPost<string>("/api/setting/skillManagement/getSkillContent", { path });
 }
 
 export const AGENT_SKILL_CONTENT_MAX_LENGTH = 20_000;
@@ -32,6 +45,21 @@ export type AgentSkill = {
 type SystemSkillMetadata = { path: string; name?: string; description?: string; hasFiles?: boolean };
 
 export async function fetchSystemAgentSkills() {
+    // 优先走 /api/skills/catalog（登录即可读）——旧通道挂在 requireAdmin 后面，
+    // 普通用户整段 403，技能弹窗只剩内置短技能，系统级 SKILL.md 技能全部不可见。
+    try {
+        const catalogData = await skillsGet<unknown>("/api/skills/catalog");
+        const items = (Array.isArray((catalogData as { items?: unknown[] })?.items) ? (catalogData as { items: Array<string | SystemSkillMetadata> }).items : catalogData as Array<string | SystemSkillMetadata>) || [];
+        const remote = items.flatMap((entry, sort): AgentSkill[] => {
+            const metadata = typeof entry === "string" ? { path: entry } : entry;
+            const path = metadata?.path || "";
+            if (!/(?:^|\/)SKILL\.md$/i.test(path) && !/^community\/[^/]+\.md$/i.test(path)) return [];
+            const director = DIRECTOR_SKILLS.find(skill => path === `purchased/director/${skill.id}/SKILL.md`);
+            const fallback = /(?:^|\/)SKILL\.md$/i.test(path) ? path.split("/").at(-2) || "系统技能" : path.split("/").pop()?.replace(/\.md$/i, "") || path;
+            return [{ id: path, ownerUserId: "", source: "system", name: director?.name || metadata.name || fallback, description: director?.description || metadata.description || "选用后读取工作流", coverUrl: "", coverStorageKey: "", content: "", enabled: true, sort, createdAt: "", updatedAt: "", hasFiles: metadata.hasFiles ?? /\/SKILL\.md$/i.test(path) }];
+        });
+        if (remote.length) return [...BUILTIN_SAFE_SKILLS, ...remote];
+    } catch { /* 回落到旧管理员通道 */ }
     try {
         const catalog = await apiPost<Array<string | SystemSkillMetadata>>("/api/setting/skillManagement/getSkillList", { metadataOnly: true });
         const remote = catalog.flatMap((entry, sort): AgentSkill[] => {
@@ -51,7 +79,13 @@ export async function fetchSystemAgentSkills() {
 export async function resolveAgentSkillContent(skill: AgentSkill): Promise<AgentSkill> {
     if (skill.content.trim()) return skill;
     if (skill.source !== "system" || (!/(?:^|\/)SKILL\.md$/i.test(skill.id) && !/^community\/[^/]+\.md$/i.test(skill.id))) throw new Error(`技能「${skill.name}」没有可用正文`);
-    const content = await apiPost<string>("/api/setting/skillManagement/getSkillContent", { path: skill.id });
+    let content = "";
+    try {
+        // 普通登录用户通道；同源 cookie 鉴权。
+        content = await skillsGet<string>(`/api/skills/content?path=${encodeURIComponent(skill.id)}`);
+    } catch {
+        content = await legacySkillContent(skill.id);
+    }
     if (typeof content !== "string" || !content.trim()) throw new Error(`技能「${skill.name}」正文为空`);
     return { ...skill, content };
 }
@@ -67,7 +101,14 @@ const BUILTIN_SAFE_SKILLS: AgentSkill[] = [
 export async function fetchSystemAgentSkillFile(id: string, path: string) {
     if (!/\/SKILL\.md$/i.test(id) || !path || /^[\\/]/.test(path) || path.split(/[\\/]/).includes("..")) throw new Error("只能读取当前技能目录内的辅助文件");
     const root = id.replace(/\/SKILL\.md$/i, "");
-    return { path, kind: "file" as const, content: await apiPost<string>("/api/setting/skillManagement/getSkillContent", { path: `${root}/${path}` }), sort: 0 };
+    const rel = `${root}/${path}`;
+    let content = "";
+    try {
+        content = await skillsGet<string>(`/api/skills/content?path=${encodeURIComponent(rel)}`);
+    } catch {
+        content = await legacySkillContent(rel);
+    }
+    return { path, kind: "file" as const, content, sort: 0 };
 }
 
 function userLibrary() {
@@ -87,6 +128,8 @@ export async function saveUserAgentSkill(token: string, patch: Partial<AgentSkil
         content: patch.content?.trim() || "", enabled: true, sort: previous?.sort || 0, createdAt: previous?.createdAt || now, updatedAt: now,
     };
     if (!skill.content || Array.from(skill.content).length > AGENT_SKILL_CONTENT_MAX_LENGTH) throw new Error("技能内容须在 1–20000 字之间");
+    const guard = screenPromptText(`${skill.name} ${skill.description} ${skill.content}`);
+    if (!guard.ok) throw new Error(promptGuardMessage(guard));
     await userLibrary().setItem("items", [skill, ...items.filter(item => item.id !== skill.id)]);
     return skill;
 }

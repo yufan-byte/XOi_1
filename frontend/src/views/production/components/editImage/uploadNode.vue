@@ -3,8 +3,8 @@
     <Handle type="source" :position="Position.Right" style="z-index: 999999" />
     <div class="data">
       <div class="title ac">
-        <i-pic theme="outline" size="16" fill="#000000" />
-        <span style="margin-left: 5px; color: #4b4b4b">Image</span>
+        <span class="nodeGlyph">▧</span>
+        <strong>参考图片</strong><small>连接到画面生成</small>
       </div>
       <div class="imageBox">
         <t-image
@@ -24,8 +24,8 @@
         </t-image>
         <t-dropdown :options="options" @click="clickHandler">
           <div class="upload ac">
-            <i-upload theme="outline" size="18" fill="#fff" />
-            <span style="margin-left: 5px; color: #fff">{{ $t("workbench.production.editImage.upload") }}</span>
+            <i-upload theme="outline" size="14" />
+            <span style="margin-left: 5px">更换参考</span>
           </div>
           <template #content>
             <div class="fc ac" style="gap: 6px">
@@ -34,14 +34,10 @@
             </div>
           </template>
         </t-dropdown>
-        <t-popup :content="$t('workbench.production.save')">
-          <t-button theme="primary" size="small" class="keepBottomLeftBtn" v-if="currentImageUrl" @click="handleKeep">
-            <template #icon><i-save /></template>
-          </t-button>
-        </t-popup>
+        <button type="button" class="keepBottomLeftBtn" v-if="currentImageUrl" @click="handleKeep">采用这张</button>
         <t-tooltip theme="primary" :content="$t('workbench.production.editImage.deleteNode')">
           <div class="remove ac" @click="removeFn">
-            <i-delete theme="outline" size="18" fill="#fff" />
+            <i-delete theme="outline" size="15" />
           </div>
         </t-tooltip>
       </div>
@@ -192,4 +188,14 @@ async function getStoryboardImage() {
     }
   }
 }
+</style>
+<style lang="scss" scoped>
+.uploadNode .data { padding:10px; box-sizing:border-box; border:1px solid #e8e2dc; border-radius:15px; background:#fff; box-shadow:0 8px 24px rgba(45,34,26,.08); }
+.uploadNode .data .title { height:32px; padding:0 2px 8px; gap:8px; }
+.nodeGlyph { display:grid; place-items:center; width:25px; height:25px; border-radius:8px; background:#f4eee9; color:#b65a35; font-size:14px; }
+.uploadNode .title strong { color:#3b3430; font-size:12px; }.uploadNode .title small { margin-left:auto; color:#a99d93; font-size:10px; }
+.uploadNode .data .imageBox { overflow:hidden; height:230px; border:0; border-radius:10px; background:#f5f2ef; }
+.uploadNode .data .imageBox .upload,.uploadNode .data .imageBox .remove { color:#5c514a; background:#fffffff0; box-shadow:0 2px 8px #32211514; border-radius:8px; cursor:pointer; }
+.uploadNode .data .imageBox .remove:hover { background:#fff1ee; color:#bd4e3a; }
+.uploadNode .data .imageBox .keepBottomLeftBtn { padding:6px 9px; border:0; border-radius:7px; background:#ffffffeb; color:#a04a2d; font-size:10px; cursor:pointer; }
 </style>

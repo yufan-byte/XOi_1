@@ -104,7 +104,7 @@
                     </div>
                     <t-image-viewer v-else-if="row.src" :images="[row.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
                       <template #trigger="{ open }">
-                        <img :src="row.src" :alt="row.name" class="mediaImg" loading="lazy" @click="row.src && getBigImageUrl(row, open())" />
+                        <img :src="thumbUrl(row.src, 320)" :alt="row.name" class="mediaImg" loading="lazy" @click="row.src && getBigImageUrl(row, open())" />
                       </template>
                     </t-image-viewer>
                     <div v-else class="mediaState empty"><t-icon name="image" size="26px" /><span>暂无图片</span></div>
@@ -138,7 +138,7 @@
                         :class="{ selected: selectedSubRowKeys.includes(sub.id) }"
                         :title="sub.name + (sub.prompt ? ' · ' + sub.prompt.slice(0, 40) : '')"
                         @click.stop="toggleSubSelect(sub.id)">
-                        <img v-if="sub.src" :src="sub.src" alt="" loading="lazy" />
+                        <img v-if="sub.src" :src="thumbUrl(sub.src, 240)" alt="" loading="lazy" />
                         <t-icon v-else name="image" />
                       </button>
                       <span v-if="row.sonAssets.length > 5" class="sonMore">+{{ row.sonAssets.length - 5 }}</span>
@@ -155,7 +155,7 @@
                     <t-checkbox class="cardCheck" :checked="selectedRowKeys.includes(row.id)" @click.stop @change="toggleCardSelect(row.id)" />
                     <t-image-viewer v-if="getMediaType(row.src) === 'image' && row.src" :images="[row.src]" :closeOnEscKeydown="true" :closeOnOverlay="true">
                       <template #trigger="{ open }">
-                        <img :src="row.src" :alt="row.name" class="mediaImg" loading="lazy" @click="open()" />
+                        <img :src="thumbUrl(row.src, 320)" :alt="row.name" class="mediaImg" loading="lazy" @click="open()" />
                       </template>
                     </t-image-viewer>
                     <div v-else-if="getMediaType(row.src) === 'video'" class="mediaState video" @click="openMediaPreview(row.src, row.name)">
@@ -286,6 +286,9 @@ import dayjs from "dayjs";
 import modelSelect from "@/components/modelSelect.vue";
 import { useFileDialog } from "@vueuse/core";
 import axios from "@/utils/axios";
+import {takeBrowserHandoff} from "../../../../shared/browserHandoff";
+import {sessionSignal} from "@/utils/session";
+import { thumbUrl } from "@/utils/mediaUrl";
 import type { TabValue } from "tdesign-vue-next";
 import addAssets from "./components/addAssets.vue";
 import addAudioAssets from "./components/addAudioAssets.vue";
@@ -329,16 +332,13 @@ const audioFormData = ref({
 async function checkCanvasSaveResult() {
   // 与角景共享同一 localStorage 键『canvas_save_result』；doSave 据 ?from 定点回归后由各页消费。
   try {
-    const raw = localStorage.getItem('canvas_save_result')
-    if (!raw) return
-    const result = JSON.parse(raw)
+    const result = takeBrowserHandoff<{images: Array<{id?: number;src?: string}>;timestamp: number}>(sessionStorage,sessionSignal(),'canvas-result');
+    if (!result) return
     if (Date.now() - result.timestamp > 5 * 60 * 1000) {
-      localStorage.removeItem('canvas_save_result')
       return
     }
-    localStorage.removeItem('canvas_save_result') // 先清，防重复处理 / 异常残留
     if (!result.images || result.images.length === 0) return
-    window.$message?.success(`已从画布返回 ${result.images.length} 张图片，正在更新…`)
+    window.$message?.info(`已从画布返回 ${result.images.length} 张图片，正在保存为候选…`)
     await Promise.all(
       (result.images as Array<{ id?: number; src?: string }>).map(async (img) => {
         if (!img.id || !img.src) return
@@ -346,24 +346,18 @@ async function checkCanvasSaveResult() {
         try { filePath = new URL(filePath, window.location.origin).pathname } catch { /* 已是相对路径 */ }
         if (filePath.startsWith('/oss/')) filePath = filePath.slice(4) // getSmallImageUrl→getFileUrl 会自动加回 /oss/
         try {
-          const { data } = await axios.post('/assetsGenerate/saveCanvasResult', { id: img.id, filePath })
-          const target = tableData.value.find((i) => i.id === img.id)
-          if (target && data.imageId) {
-            target.filePath = filePath
-            target.imageId = data.imageId
-            target.state = '已完成'
-            target.src = filePath // UI 即时切到新图（沿用 pollingImageAssets 做法）
-          }
+          await axios.post('/assetsGenerate/saveCanvasResult', { id: img.id, filePath, projectId: Number(project.value?.id), candidateOnly: true })
         } catch (e) {
           console.error('保存画布结果失败:', e)
+          throw e;
         }
       }),
     )
-    window.$message?.success('画布结果已保存')
+    window.$message?.success('画布结果已保存为候选图，原图未替换。请打开资产查看并选择采用。')
     await loadCurrentTabData() // 重拉以同步子资产 / 分页计数 / 最新状态
   } catch (e) {
     console.error('检查画布保存结果失败:', e)
-    localStorage.removeItem('canvas_save_result')
+    window.$message?.error('部分画布结果未确认保存，请核对素材；未保存的原图保留');
   }
 }
 

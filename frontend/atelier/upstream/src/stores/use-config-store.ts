@@ -103,7 +103,9 @@ export const defaultConfig: AiConfig = {
     model: "gpt-image-2",
     imageModel: "gpt-image-2",
     videoModel: "grok-imagine-video",
-    textModel: "gpt-5.5",
+    // 出厂默认置空：XOi 的画布模型一律以服务端 /api/config 为准，
+    // 留一个写死的 "gpt-5.5" 会让新设备/新用户绕过运营推荐位（默认落到贵价模型）。
+    textModel: "",
     audioModel: "gpt-4o-mini-tts",
     audioVoice: "alloy",
     audioFormat: "mp3",

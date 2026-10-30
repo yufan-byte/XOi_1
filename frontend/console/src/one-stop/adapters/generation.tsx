@@ -8,6 +8,7 @@ import { formatYuan, formatPoints } from "../../../../src/utils/points";
 import {checkDailySpendReminder} from '../../../../src/utils/dailySpend';
 import {useActionConfirmation} from './action-confirmation';
 import type { ComicProject } from "../comic/types";
+import { generationScope } from "./isolation-keys";
 export type Operation =
   | "bible"
   | "intent"
@@ -43,16 +44,18 @@ export type Generate = {
 type Handler = (input: Generate) => Promise<any>;
 const handlers = new Map<string, Handler>();
 const textListeners=new Map<string,(text:string)=>void>();
-export function observeGenerationText(id:string,listener:(text:string)=>void){textListeners.set(id,listener);return()=>{if(textListeners.get(id)===listener)textListeners.delete(id);};}
+export function observeGenerationText(id:string,listener:(text:string)=>void){const key=generationScope(accountKey(),id);textListeners.set(key,listener);return()=>{if(textListeners.get(key)===listener)textListeners.delete(key);};}
 export function runProjectGeneration(p: Pick<ComicProject, "id">, operation: Operation, options: Partial<Generate> = {}) {
-  const handler = handlers.get(p.id);
+  const handler = handlers.get(generationScope(accountKey(), p.id));
   if (!handler) throw new Error("请在项目工作区内生成");
   return handler({ ...options, projectId: p.id, operation });
 }
 const api = <T,>(path: string, body?: unknown) =>
   oneStopRequest<T>("/api/one-stop/generation/" + path, body === undefined ? {} : { method: "POST", body: JSON.stringify(body) });
 export async function recoverExistingVideo(p: ComicProject, upstreamId: string) {
+  const owner = accountKey();
   const jobs = await api<any[]>("jobs?projectId=" + encodeURIComponent(p.id));
+  if (accountKey() !== owner) throw new Error("账号已切换");
   const job = jobs.find((j) => j.upstreamId === upstreamId);
   if (!job) return { kind: "later" as const, message: "没有找到当前账号对应的原任务，请在后台任务列表核对" };
   const result = await api<any>("jobs/" + job.id + "/recover", {});
@@ -85,21 +88,26 @@ export function GenerationPanel({
     lastRead = useRef(0),
     reading = useRef(false),
     owner = accountKey();
+  const scope = generationScope(owner, projectId);
+  const epochRef = useRef({scope});
+  if (epochRef.current.scope !== scope) epochRef.current = {scope};
+  const epoch = epochRef.current;
+  const valid = () => mounted.current && epochRef.current === epoch && accountKey() === owner;
   const projectCallback = useRef(onProject),
     busyCallback = useRef(onBusy);
   projectCallback.current = onProject;
   busyCallback.current = onBusy;
   const read = async () => {
-    if (reading.current) return;
+    if (!valid() || reading.current) return;
     reading.current = true;
     lastRead.current = Date.now();
     try {
       const next = await api<any[]>("jobs?projectId=" + encodeURIComponent(projectId));
-      if (!mounted.current || accountKey() !== owner) return;
+      if (!valid()) return;
       setConnectionError(false);
       setJobs(next);
       const streamed=next.find(j=>j.status==='running'&&j.pendingStep?.operation==='novel'&&typeof j.partialText==='string');
-      if(streamed)textListeners.get(projectId)?.(streamed.partialText);
+      if(streamed)textListeners.get(scope)?.(streamed.partialText);
       void checkDailySpendReminder();
       const active = next.some((j) => ["queued", "running"].includes(j.status)) || !!(pending.current?.id && !next.some(j=>j.id===pending.current?.id));
       // Keep the editing fence until the final document is read, including reloads
@@ -107,9 +115,9 @@ export function GenerationPanel({
       if (active || hasActive.current || pending.current?.id) {
         const col = collection<ComicProject>("comic");
         const p = await col.open(projectId);
-        if (p && mounted.current) projectCallback.current(p);
+        if (p && valid()) projectCallback.current(p);
       }
-      if(!mounted.current||accountKey()!==owner)return;
+      if(!valid())return;
       hasActive.current = active;
       busyCallback.current(active || next.some((j) => j.status === "unknown"));
       const current = pending.current,
@@ -122,29 +130,32 @@ export function GenerationPanel({
         } else current.reject(new Error(finished.error || "任务已停止，请核对原任务和积分明细"));
       }
     } catch (e) {
-      if (mounted.current && accountKey() === owner) setConnectionError(true);
+      if (valid()) setConnectionError(true);
       throw e;
     } finally {
-      reading.current = false;
+      if (valid()) reading.current = false;
     }
   };
   useEffect(() => {
     mounted.current = true;
+    reading.current = false; preparing.current = false; hasActive.current = false; lastRead.current = 0;
+    setJobs([]); setQuote(undefined); setLoading(false); setSubmitting(false);
     const handler: Handler = async (input) => {
       if (pending.current || preparing.current) throw new Error("已有生成操作待确认或执行，请先查看原任务");
-      if (accountKey() !== owner) throw new Error("账号已切换");
+      if (!valid() || input.projectId !== projectId) throw new Error("账号或项目已切换");
       setLoading(true);
       preparing.current = true;
       setError("");
       try {
         await collection<ComicProject>("comic").flush(projectId);
+        if (!valid()) throw new Error("账号或项目已切换");
         const q = await api<any>("quote", input);
-        if (!mounted.current) throw new Error("工作区已关闭");
+        if (!valid()) throw new Error("工作区已关闭或切换");
         if(q.automatic){
           return await new Promise((resolve,reject)=>{
             const current={input,resolve,reject,owner,clientId:crypto.randomUUID(),id:undefined as string|undefined};pending.current=current;
             busyCallback.current(true);
-            void api<any>('jobs',{request:input,revision:q.revision,points:q.free?.001:q.defaultPoints,clientId:current.clientId,automatic:true}).then(async job=>{current.id=job.id;hasActive.current=true;lastRead.current=0;await read();}).catch(e=>{if(!current.id){pending.current=undefined;busyCallback.current(false);reject(e);}});
+            void api<any>('jobs',{request:input,revision:q.revision,points:q.free?.001:q.defaultPoints,clientId:current.clientId,automatic:true}).then(async job=>{if(!valid()||pending.current!==current)return;current.id=job.id;hasActive.current=true;lastRead.current=0;await read();}).catch(e=>{if(!current.id){if(valid()&&pending.current===current){pending.current=undefined;busyCallback.current(false);}reject(e);}});
           });
         }
         setQuote(q);
@@ -153,11 +164,10 @@ export function GenerationPanel({
           pending.current = { input, resolve, reject, owner, clientId: crypto.randomUUID() };
         });
       } finally {
-        preparing.current = false;
-        if (mounted.current) setLoading(false);
+        if (valid()) { preparing.current = false; setLoading(false); }
       }
     };
-    handlers.set(projectId, handler);
+    handlers.set(scope, handler);
     void read().catch(() => {});
     const timer = setInterval(() => {
       const delay = document.hidden ? 15000 : hasActive.current ? 2500 : 30000;
@@ -166,7 +176,7 @@ export function GenerationPanel({
     return () => {
       mounted.current = false;
       clearInterval(timer);
-      if (handlers.get(projectId) === handler) handlers.delete(projectId);
+      if (handlers.get(scope) === handler) handlers.delete(scope);
       pending.current?.reject(new Error("已离开工作区；已提交的任务继续在后台运行，请从任务列表找回"));
       pending.current = undefined;
     };
@@ -183,6 +193,7 @@ export function GenerationPanel({
   const submit = async () => {
     const current = pending.current;
     if (!current || submitting) return;
+    if (!valid() || current.owner !== owner || current.input.projectId !== projectId) return;
     setSubmitting(true);
     setError("");
     try {
@@ -192,6 +203,7 @@ export function GenerationPanel({
         points: quote.free ? 0.001 : points,
         clientId: current.clientId,
       });
+      if (!valid() || pending.current !== current) return;
       current.id = result.id;
       hasActive.current=true;
       lastRead.current=0;
@@ -297,7 +309,7 @@ export function GenerationPanel({
                       .then(async (r) => {
                         toast.info(r.url ? "原视频已找回，没有重新生成" : r.message);
                         const p = await collection<ComicProject>("comic").open(projectId);
-                        if (p) projectCallback.current(p);
+                        if (p && valid()) projectCallback.current(p);
                         await read();
                       })
                       .catch((e) => toast.error(e.message))

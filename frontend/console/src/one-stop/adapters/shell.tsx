@@ -7,19 +7,21 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft, Bot, CircleHelp, Clapperboard, Coins, CreditCard, Film, LayoutGrid, LogOut, Mail,
-  PanelLeftClose, PanelLeftOpen, Search, Scissors, Star, Wallet, Download,
+  PanelLeftClose, PanelLeftOpen, Search, Scissors, Star, Wallet, Download, ReceiptText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getSelf, logout } from "@/lib/api";
 import { Avatar } from "@/components/ui/avatar";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/components/ui/dropdown";
+import { UsageDialog } from "@/components/shell/dialogs/usage-dialog";
 import { useCatalog, useSelf, type StandaloneModelWithHealth } from "./queries";
 import { collection, flushCollections } from "./collections";
 import { accountKey, oneStopRequest } from "./request";
 import { useStudio, PAGE_OF, MODALITY_LABEL, type Modality } from "../studio/store";
 import { ModelIcon, SideDrawer } from "../studio/ui";
 import { useInbox, unreadCount } from "../studio/inbox";
+import { studioModelGroup } from "../studio/model-groups";
 
 type ModalityTab = Modality | "all" | "mine";
 const TABS: ModalityTab[] = ["all", "chat", "image", "video", "audio", "mine"];
@@ -39,19 +41,7 @@ const PROVIDER_LABELS: Record<string, string> = {
  * 50 多条线路错误折叠成一个入口。这里保留调用 id，不改计费和路由，只修正展示分组。
  */
 function panelGroupOf(m: StandaloneModelWithHealth) {
-  const source = `${m.id} ${m.name}`.toLowerCase();
-  if (/seedance|即梦/.test(source)) {
-    const official = /guanzhuan|官转|(?:^|[-_.])gz(?:[-_.]|$)|official/.test(source);
-    const version = source.match(/(?:seedance|即梦)[-_ ]?(\d(?:[._-]\d)?)/)?.[1]?.replace(/[_-]/g, ".") || "";
-    const billing = String(m.billingUnit) === "per_second" ? "按秒" : "按次";
-    return {
-      key: `seedance:${official ? "official" : version || "other"}:${billing}`,
-      label: official ? "seedance · 官转" : `seedance${version || ""} · ${billing}`,
-      priority: official ? 2 : version.startsWith("2.5") ? (billing === "按秒" ? 0 : 1) : version.startsWith("2.0") ? (billing === "按次" ? 3 : 4) : 5,
-    };
-  }
-  const series = m.series || m.name;
-  return { key: `${m.category}:${series}`, label: series, priority: 20 };
+  return studioModelGroup(m);
 }
 
 function providerLabel(m: StandaloneModelWithHealth) {
@@ -223,6 +213,8 @@ function TopBar({ onTopup }: { onTopup: () => void }) {
   const { data: self } = useSelf();
   const location = useLocation();
   const [drawer, setDrawer] = useState<"mail" | "help" | null>(null);
+  /** 积分明细（/api/log/self 的真实扣费流水）：头像菜单和余额卡都能打开 */
+  const [usageOpen, setUsageOpen] = useState(false);
   const name = (self as { display_id?: string; username?: string; email?: string } | undefined)?.display_id
     || (self as { username?: string } | undefined)?.username
     || (self as { email?: string } | undefined)?.email || "XOi 用户";
@@ -274,13 +266,15 @@ function TopBar({ onTopup }: { onTopup: () => void }) {
             <div className="px-2.5 pb-2 pt-1.5">
               <div className="truncate text-[13px] font-semibold text-foreground">{name}</div>
               <div className="truncate text-[11px] text-muted-foreground">{email || "一站式故事工作区"}</div>
-              <div className="mt-2 flex h-9 items-center justify-between rounded-xl border border-[#e9b10c38] bg-[#e9b10c17] px-2.5">
+              <button type="button" onClick={() => setUsageOpen(true)} title="查看积分明细：每条生成扣了多少"
+                className="mt-2 flex h-9 w-full items-center justify-between rounded-xl border border-[#e9b10c38] bg-[#e9b10c17] px-2.5 transition-colors hover:bg-[#e9b10c22]">
                 <span className="text-[11px] font-medium text-muted-foreground">算力余额</span>
                 <span className="flex items-center gap-1 font-mono text-[12px] font-bold tabular-nums text-[#c28a09]"><Wallet size={12} />{balance == null ? "…" : `${balance} 积分`}</span>
-              </div>
+              </button>
             </div>
             <div className="my-1 h-px bg-foreground/[0.06]" />
             <DropdownItem onSelect={() => setDrawer("mail")}><Mail size={15} />站内邮箱{mail > 0 && <span className="ml-auto rounded-full bg-danger px-1.5 text-[10px] font-bold text-white">{mail}</span>}</DropdownItem>
+            <DropdownItem onSelect={() => setUsageOpen(true)}><ReceiptText size={15} />积分明细</DropdownItem>
             <DropdownItem onSelect={() => setDrawer("help")}><CircleHelp size={15} />帮助中心</DropdownItem>
             <DropdownItem onSelect={onTopup}><CreditCard size={15} />充值</DropdownItem>
             <ReturnDirectorItem />
@@ -288,6 +282,7 @@ function TopBar({ onTopup }: { onTopup: () => void }) {
           </DropdownContent>
         </Dropdown>
       </div>
+      <UsageDialog open={usageOpen} onOpenChange={setUsageOpen} />
       <MailDrawer open={drawer === "mail"} onOpenChange={(v) => setDrawer(v ? "mail" : null)} />
       <HelpDrawer open={drawer === "help"} onOpenChange={(v) => setDrawer(v ? "help" : null)} path={location.pathname} onTopup={onTopup} />
     </header>

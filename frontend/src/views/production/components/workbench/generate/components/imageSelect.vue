@@ -86,7 +86,7 @@
       {{ mode === "singleImage" && imageList.length ? "更换参考" : $t("workbench.generate.addReference") }}
     </div>
 
-    <t-dialog v-model:visible="sourceOpen" header="选择本次参考来源" :footer="false" width="460px" attach="body">
+    <t-dialog v-model:visible="sourceOpen" header="选择本次参考来源" :footer="false" width="460px" attach="body" :z-index="3200">
       <div class="referenceSources">
         <button
           type="button"
@@ -111,13 +111,14 @@
       :header="$t('workbench.generate.selectStoryboard')"
       :footer="false"
       width="800px"
-      placement="center">
+      placement="center"
+      :z-index="3200">
       <div class="storyboardGrid">
         <div class="storyboardItem" v-for="sb in storyboardList" :key="sb.id" @click="pickStoryboard(sb)">
           <div class="imageTitleWrap" v-if="sb?.index != null">
             {{ `P${sb?.index + 1}` }}
           </div>
-          <img v-if="sb.src" :src="sb.src" />
+          <img v-if="sb.src" :src="thumbUrl(sb.src, 320)" loading="lazy" decoding="async" />
           <div v-else class="textBox ac jc">
             <t-tooltip theme="primary" :content="sb?.videoDesc || ''">
               <span style="font-size: 20px">{{ `分镜 ${sb?.index + 1 || ""}` }}</span>
@@ -135,6 +136,7 @@ import "@/views/production/components/workbench/type/type";
 import assetsCheck, { type AssetType, type ClipMediaType } from "@/utils/assetsCheck";
 import type { StudioReferenceAllowance } from "@/utils/studioVideoInput";
 import axios from "@/utils/axios";
+import { thumbUrl } from "@/utils/mediaUrl";
 
 const props = defineProps<{
   mode: VideoMode;
@@ -250,6 +252,7 @@ async function chooseAssets() {
       : ["role", "tool", "scene", "clip"],
     clipMediaTypes: multiple ? mixedClipMediaTypes.value : ["image"],
     multiple,
+    zIndex: 3200,
   });
 
   if (!alive || !assets.length) return;

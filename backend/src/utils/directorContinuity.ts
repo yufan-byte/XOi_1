@@ -10,7 +10,7 @@ export const continuitySchema = z.object({
   spatialLayout: z.string().max(4000).optional().describe('固定布景的世界空间关系，换机位不得改变床、门窗、桌子与道具布局'),
   repairNotes: z.string().max(4000).optional().describe('用户确认的局部修正要求，保持其他设定不变'),
   anchorStoryboardId: z.number().int().positive().nullable().optional(),
-  imageHistory: z.array(z.object({ filePath: z.string().max(1000), createdAt: z.number().nonnegative() })).max(12).optional(),
+  imageHistory: z.array(z.object({ filePath: z.string().max(1000), createdAt: z.number().nonnegative() })).max(100).optional(),
   review: z.object({
     sourceSignature: z.string().max(100), kind: z.enum(['image', 'video']), checkedAt: z.number().nonnegative(), manual: z.boolean().optional(),
     summary: z.string().max(3000), issues: z.array(z.object({ category: z.string().max(100), severity: z.enum(['warning', 'error']), evidence: z.string().max(2000), suggestion: z.string().max(2000) })).max(20),

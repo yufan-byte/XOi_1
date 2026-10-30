@@ -39,21 +39,35 @@
           <strong>先定全片规则，再逐镜拆解。这里不生成图片或视频。</strong>
         </div>
         <ol>
-          <li :class="{ done: flowData.reviewState?.planApproved, current: document === 'scriptPlan' }" @click="document = 'scriptPlan'">
-            <b>1</b><span><strong>确认导演计划</strong><small>锁定房间布局、人物位置和叙事规则</small></span>
+          <li
+            :class="missionClass(1)"
+            role="button" tabindex="0" @keydown.enter.prevent="handleMissionStep(1)" @keydown.space.prevent="handleMissionStep(1)"
+            :aria-current="planningPhase === 1 ? 'step' : undefined"
+            @click="handleMissionStep(1)">
+            <b>{{ flowData.reviewState?.planApproved ? "✓" : "1" }}</b><span><strong>确认导演计划</strong><small>锁定房间布局、人物位置和叙事规则</small><em>{{ missionStatus(1) }}</em></span>
           </li>
-          <li :class="{ done: flowData.reviewState?.tableApproved, current: document === 'storyboardTable' }" @click="document = 'storyboardTable'">
-            <b>2</b><span><strong>确认分镜表</strong><small>逐镜写清画面、时长、动作和前后承接</small></span>
+          <li
+            :class="missionClass(2)"
+            role="button" tabindex="0" @keydown.enter.prevent="handleMissionStep(2)" @keydown.space.prevent="handleMissionStep(2)"
+            :aria-current="planningPhase === 2 ? 'step' : undefined"
+            @click="handleMissionStep(2)">
+            <b>{{ flowData.reviewState?.tableApproved ? "✓" : "2" }}</b><span><strong>确认分镜表</strong><small>逐镜写清画面、时长、动作和前后承接</small><em>{{ missionStatus(2) }}</em></span>
           </li>
-          <li :class="{ current: flowData.reviewState?.tableApproved }">
-            <b>3</b><span><strong>创建镜头记录</strong><small>确认文字后，才进入分镜图预览与制作</small></span>
+          <li
+            :class="missionClass(3)"
+            role="button" tabindex="0" @keydown.enter.prevent="handleMissionStep(3)" @keydown.space.prevent="handleMissionStep(3)"
+            :aria-current="planningPhase === 3 ? 'step' : undefined"
+            :aria-disabled="!flowData.reviewState?.tableApproved"
+            @click="handleMissionStep(3)">
+            <b>{{ flowData.reviewState?.tableApproved && flowData.storyboard.length ? "✓" : "3" }}</b><span><strong>{{ flowData.storyboard.length ? "进入分镜画面" : "创建镜头记录" }}</strong><small>{{ flowData.storyboard.length ? `已有 ${flowData.storyboard.length} 个镜头，可继续预览与制作` : "确认文字后，整理为可制作的镜头记录" }}</small><em>{{ missionStatus(3) }}</em></span>
           </li>
         </ol>
         <div class="missionNow">
           <span>现在做什么</span>
           <p>{{ currentTask }}</p>
-          <button v-if="document === 'scriptPlan' && flowData.reviewState?.planApproved" type="button" @click="document = 'storyboardTable'">继续检查分镜表 →</button>
-          <button v-else-if="document === 'storyboardTable' && flowData.reviewState?.tableApproved" type="button" @click="prepareShots">{{ flowData.storyboard.length ? '核对已有镜头记录' : '根据分镜表创建镜头' }} →</button>
+          <button v-if="planningPhase === 1" type="button" @click="document = 'scriptPlan'">查看导演计划 →</button>
+          <button v-else-if="planningPhase === 2" type="button" @click="document = 'storyboardTable'">继续检查分镜表 →</button>
+          <button v-else type="button" @click="handleMissionStep(3)">{{ flowData.storyboard.length ? '进入分镜画面' : '根据分镜表创建镜头' }} →</button>
         </div>
       </section>
       <div class="documentGuide">
@@ -76,7 +90,9 @@
         <span>
           {{ flowData.reviewState?.tableApproved ? "可进入画面预览；缺失的镜头记录仍需补齐。" : "确认表中的时长、场景和动作承接，再继续制作。" }}
         </span>
-        <button type="button" @click="emit('next')">查看分镜画面 →</button>
+        <button type="button" :disabled="!flowData.reviewState?.tableApproved" @click="handleMissionStep(3)">
+          {{ !flowData.reviewState?.tableApproved ? "确认分镜表后继续" : flowData.storyboard.length ? "查看分镜画面 →" : "创建镜头记录 →" }}
+        </button>
       </div>
     </main>
     <t-drawer
@@ -109,16 +125,42 @@ const { flowData } = storeToRefs(store);
 const emit = defineEmits<{ next: [] }>();
 const document = ref<"scriptPlan" | "storyboardTable">(flowData.value.reviewState?.planApproved ? "storyboardTable" : "scriptPlan");
 const referencesOpen = ref(false);
-const currentTask = computed(() => {
-  if (document.value === "scriptPlan") {
-    return flowData.value.reviewState?.planApproved
-      ? "导演计划已确认。继续到分镜表，检查每个镜头是否遵守同一套空间和人物规则。"
-      : "阅读或编辑导演计划，重点核对床、门、窗、人物站位等固定关系；确认无误后，在下方卡片中点击“确认导演计划”。";
-  }
-  return flowData.value.reviewState?.tableApproved
-    ? "分镜表已确认。把它整理成镜头记录后，再进入分镜图预览；预览只负责看画面与衔接。"
-    : "逐镜检查拍什么、几秒、动作从哪里开始到哪里结束，以及怎样接上一镜；确认无误后，在下方卡片中点击“确认分镜表”。";
+const planningPhase = computed<1 | 2 | 3>(() => {
+  if (!flowData.value.reviewState?.planApproved) return 1;
+  if (!flowData.value.reviewState?.tableApproved) return 2;
+  return 3;
 });
+const currentTask = computed(() => {
+  if (planningPhase.value === 1)
+    return "阅读或编辑导演计划，重点核对床、门、窗、人物站位等固定关系；确认无误后，在下方卡片中点击“确认导演计划”。";
+  if (planningPhase.value === 2)
+    return "逐镜检查拍什么、几秒、动作从哪里开始到哪里结束，以及怎样接上一镜；确认无误后，在下方卡片中点击“确认分镜表”。";
+  return flowData.value.storyboard.length
+    ? `规划已完成，已有 ${flowData.value.storyboard.length} 个镜头记录。下一步进入分镜画面，预览整集并检查穿帮和衔接。`
+    : "导演计划和分镜表均已确认。现在将文字分镜整理为镜头记录，再进入分镜画面预览。";
+});
+function missionClass(step: 1 | 2 | 3) {
+  const done = step === 1 ? Boolean(flowData.value.reviewState?.planApproved) : step === 2 ? Boolean(flowData.value.reviewState?.tableApproved) : Boolean(flowData.value.reviewState?.tableApproved && flowData.value.storyboard.length);
+  const selected = (step === 1 && document.value === "scriptPlan") || (step === 2 && document.value === "storyboardTable");
+  return { done, current: planningPhase.value === step, selected, locked: step === 3 && !flowData.value.reviewState?.tableApproved };
+}
+function missionStatus(step: 1 | 2 | 3) {
+  if (step === 3 && planningPhase.value === 3 && flowData.value.storyboard.length) return "可继续";
+  if (step < planningPhase.value) return "已完成";
+  if (step === planningPhase.value) return "当前步骤";
+  return "待前一步确认";
+}
+function handleMissionStep(step: 1 | 2 | 3) {
+  if (step === 1) return void (document.value = "scriptPlan");
+  if (step === 2) return void (document.value = "storyboardTable");
+  if (!flowData.value.reviewState?.tableApproved) {
+    document.value = "storyboardTable";
+    window.$message.warning("请先确认分镜表，再创建镜头记录");
+    return;
+  }
+  if (flowData.value.storyboard.length) emit("next");
+  else prepareShots();
+}
 function selectDocument(value: string) {
   if (value === "assets" || value === "script") referencesOpen.value = true;
   else document.value = value === "scriptPlan" ? "scriptPlan" : "storyboardTable";
@@ -243,13 +285,20 @@ defineExpose({ selectDocument });
 .missionTitle > span { color:var(--studio-accent); font-size:10px; font-weight:700; letter-spacing:.12em; }
 .missionTitle strong { color:var(--studio-text); font-size:14px; }
 .planningMission ol { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0; padding:0; list-style:none; }
-.planningMission li { display:flex; align-items:flex-start; gap:9px; padding:11px; border:1px solid #e8e0da; border-radius:10px; background:#fff; color:#81776f; cursor:pointer; }
-.planningMission li.current { border-color:#d78869; background:#fff3e9; color:#633724; }
+.planningMission li { position:relative; display:flex; align-items:flex-start; gap:9px; padding:11px; border:1px solid #e8e0da; border-radius:10px; background:#fff; color:#81776f; cursor:pointer; transition:border-color .18s ease,background .18s ease,box-shadow .18s ease; }
+.planningMission li:hover:not(.locked) { border-color:#d8b8a6; box-shadow:0 5px 15px rgba(94,57,35,.06); }
+.planningMission li.current { border-color:#c9572e; background:#fff3e9; color:#633724; box-shadow:0 0 0 1px rgba(201,87,46,.08); }
+.planningMission li.selected:not(.current) { border-color:#9d948d; background:#fff; box-shadow:inset 0 0 0 1px #f1ece8; }
+.planningMission li.done:not(.current) { color:#557665; background:#f7fbf8; }
 .planningMission li.done > b { background:#529878; color:#fff; }
+.planningMission li.locked { cursor:not-allowed; opacity:.55; }
 .planningMission li > b { display:grid; place-items:center; width:22px; height:22px; flex:none; border-radius:7px; background:#eee9e4; font-size:10px; }
 .planningMission li span { display:flex; min-width:0; flex-direction:column; gap:3px; }
 .planningMission li strong { font-size:12px; }
 .planningMission li small { color:#938980; font-size:10px; line-height:1.55; }
+.planningMission li em { margin-top:3px; color:#9b8f86; font-size:9px; font-style:normal; }
+.planningMission li.current em { color:#c24f2a; font-weight:700; }
+.planningMission li.done:not(.current) em { color:#4f8d70; }
 .missionNow { display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid #eadfd7; }
 .missionNow > span { flex:none; padding:4px 7px; border-radius:6px; background:#ce582f; color:#fff; font-size:10px; }
 .missionNow p { flex:1; margin:0; color:#6f6259; font-size:11px; line-height:1.7; }
@@ -286,6 +335,7 @@ defineExpose({ selectDocument });
   cursor: pointer;
   white-space: nowrap;
 }
+.documentNext button:disabled { cursor:not-allowed; opacity:.5; }
 .planningReferences {
   display: grid;
   gap: 22px;

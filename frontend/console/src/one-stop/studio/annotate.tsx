@@ -49,10 +49,10 @@ export function AnnotateDialog({ open, onOpenChange, src, onDone, initialTool = 
     octx.fillStyle = "#000"; octx.fillRect(0, 0, out.width, out.height); octx.globalCompositeOperation = "destination-out"; octx.drawImage(m, 0, 0);
     onDone({ kind: "inpaint", image, mask: out.toDataURL("image/png") }); onOpenChange(false);
   };
-  const tabs: [Tool, string, string][] = [["annotate", "标注", "圈出要改的地方，整图连同标注作为参考"], ["inpaint", "局部重绘", "只重绘涂抹的区域，其它地方原样保留"]];
+  const tabs: [Tool, string, string][] = [["annotate", "标注", "圈出要改的地方，整图连同标注作为参考"], ["inpaint", "局部重绘", "标出希望修改的区域，模型会参考标记生成"]];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={inpaint ? "局部重绘" : "标注编辑"} description={inpaint ? "涂抹要修改的区域，生成时只重绘涂抹处、其余像素原样保留；提示词里写涂抹区域要改成什么" : "用画笔圈出要修改的区域，标注图会作为参考图送入模型，提示词里说明要怎么改"} className="w-[min(94vw,1000px)]">
+      <DialogContent title={inpaint ? "局部重绘" : "标注编辑"} description={inpaint ? "涂抹要修改的区域，标记图会作为参考送给模型；模型会尽量保持其他区域，结果不保证像素完全不变" : "用画笔圈出要修改的区域，标注图会作为参考图送入模型，提示词里说明要怎么改"} className="w-[min(94vw,1000px)]">
         <div className="flex flex-wrap items-center gap-2">
           <div role="tablist" aria-label="编辑方式" className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-card/60 p-0.5">
             {tabs.map(([k, label, desc]) => <button key={k} type="button" role="tab" aria-selected={tool === k} title={desc} onClick={() => setTool(k)} className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors", tool === k ? "bg-primary/15 text-primary shadow-[0_0_0_1px_var(--primary)]" : "text-muted-foreground hover:text-foreground")}>{k === "inpaint" ? <Wand2 size={12} /> : <Highlighter size={12} />}{label}</button>)}

@@ -38,11 +38,11 @@
     </div>
 
     <div v-else class="libGrid">
-      <div class="libCard" v-for="w in filteredWorks" :key="w.id">
+      <div class="libCard" v-for="w in pagedWorks" :key="w.id">
         <div class="libThumb" @click="openPreview(w)">
-          <img v-if="w.cover_url && w.cover_kind !== 'video'" :src="w.cover_url" loading="lazy" alt="" />
+          <img v-if="w.cover_url && w.cover_kind !== 'video'" :src="thumbUrl(w.cover_url, 480)" loading="lazy" alt="" />
           <template v-else-if="w.cover_url">
-            <img v-if="w.poster_url" :src="w.poster_url" loading="lazy" alt="分镜参考封面" />
+            <img v-if="w.poster_url" :src="thumbUrl(w.poster_url, 480)" loading="lazy" alt="分镜参考封面" />
             <div v-else class="libTextThumb">视频已生成</div>
             <span class="videoPreviewLabel">▶ 预览视频</span>
           </template>
@@ -60,6 +60,7 @@
         </div>
       </div>
     </div>
+    <Pager v-if="!loading && !loadError" v-model:page="workPage" :total="filteredWorks.length" :page-size="WORK_PAGE_SIZE" unit="件作品" />
 
     <!-- 预览 -->
     <t-dialog v-model:visible="previewVisible" :header="previewWork?.title || '作品预览'" width="720px" :footer="false">
@@ -84,7 +85,9 @@
  * mc_works（/api/works?scope=mine）留给「发布到灵感广场」，不在此 Tab。
  */
 import { ref, computed, watch } from "vue";
+import Pager from "@/components/Pager.vue";
 import axios from "@/utils/axios";
+import { thumbUrl } from "@/utils/mediaUrl";
 import { storeToRefs } from "pinia";
 import projectStore from "@/stores/project";
 import { downloadUrl, shortDate } from "./libraryShared";
@@ -183,6 +186,15 @@ const filteredWorks = computed(() => {
   });
   return list.sort((a, b) => (sortMode.value === "newest" ? (b.created_at ?? 0) - (a.created_at ?? 0) : (a.created_at ?? 0) - (b.created_at ?? 0)));
 });
+
+/** 作品库分页：图墙 4 列，每页 12 件（3 行）刚好一屏；筛选/搜索/排序变化时回到第一页。 */
+const WORK_PAGE_SIZE = 12;
+const workPage = ref(1);
+const pagedWorks = computed(() => {
+  const start = (workPage.value - 1) * WORK_PAGE_SIZE;
+  return filteredWorks.value.slice(start, start + WORK_PAGE_SIZE);
+});
+watch([searchText, kindFilter, projectFilter, sortMode], () => { workPage.value = 1; });
 
 /** 角标：来源优先（分镜图/分镜视频需要和资产图区分开） */
 function typeLabel(w: WorkRow) {

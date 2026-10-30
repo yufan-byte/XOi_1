@@ -16,7 +16,7 @@
     <div v-if="frames.length" class="overviewGrid">
       <article v-for="(frame, i) in frames" :key="frame.id" class="overviewCard">
         <button type="button" class="overviewImage" :aria-label="`放大分镜 S${number(i)}`" @click="openFrame(i)">
-          <img v-if="frame.src" :src="continuityImageUrl(frame.src)" :alt="`分镜 S${number(i)} · ${sceneName(frame)}`" />
+          <img v-if="frame.src" :src="thumbUrl(continuityImageUrl(frame.src), 480)" :alt="`分镜 S${number(i)} · ${sceneName(frame)}`" loading="lazy" decoding="async" />
           <div v-else class="overviewPlaceholder">
             <i-pic size="28" />
             <span>{{ frame.state === "生成中" ? "画面生成中" : "等待分镜画面" }}</span>
@@ -31,10 +31,12 @@
         </div>
         <footer>
           <button type="button" @click="inspect(frame.id)">对照衔接</button>
+          <button v-if="frame.src" type="button" class="editShotButton" @click="editImage(frame.id)">修改画面</button>
+          <button v-else type="button" class="editShotButton" @click="emit('image-canvas', frame.id)">制作画面</button>
           <button v-if="!(Number(frame.duration) > 0) || !(frame.videoDesc || frame.prompt)?.trim()" type="button" @click="emit('make', frame.id)">
             补齐镜头信息 →
           </button>
-          <button v-else type="button" @click="emit('generate', frame.id)">制作这一镜 →</button>
+          <button v-else type="button" @click="emit('generate', frame.id)">制作视频 →</button>
         </footer>
       </article>
     </div>
@@ -73,15 +75,18 @@
       </div>
     </t-dialog>
     <ContinuityInspector v-model:visible="inspectorOpen" :storyboard-id="inspectedId" />
+    <ShotImageEditor v-model:visible="editorOpen" :storyboard-id="inspectedId" @inspect="inspect" @canvas="emit('image-canvas', $event)" />
   </section>
 </template>
 <script setup lang="ts">
 import { computed, ref, onUnmounted, watch } from "vue";
 import productionAgentStore from "@/stores/productionAgent";
 import { continuityImageUrl } from "@/utils/continuityAnalysis";
+import { thumbUrl } from "@/utils/mediaUrl";
 import type { Storyboard } from "../../utils/flowBuilder";
 import ContinuityInspector from "../ContinuityInspector.vue";
-const emit = defineEmits<{ generate: [storyboardId?: number]; make: [storyboardId?: number] }>();
+import ShotImageEditor from "./ShotImageEditor.vue";
+const emit = defineEmits<{ generate: [storyboardId?: number]; make: [storyboardId?: number]; 'image-canvas': [storyboardId?: number] }>();
 const store = productionAgentStore();
 const frames = computed(() => store.flowData.storyboard || []);
 const assets = computed(() => store.flowData.assets.flatMap((a) => [a, ...(a.derive || [])]));
@@ -98,6 +103,7 @@ const viewerOpen = ref(false),
   index = ref(0),
   playing = ref(false),
   inspectorOpen = ref(false),
+  editorOpen = ref(false),
   inspectedId = ref<number>();
 const current = computed(() => frames.value[index.value]);
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -141,6 +147,10 @@ function openPlayer() {
 function inspect(id?: number) {
   inspectedId.value = id;
   inspectorOpen.value = true;
+}
+function editImage(id?: number) {
+  inspectedId.value = id;
+  editorOpen.value = true;
 }
 function openPlan() {
   window.dispatchEvent(new CustomEvent("production:studio-context", { detail: { node: "storyboardTable" } }));
@@ -294,6 +304,8 @@ onUnmounted(stop);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin: 0 16px;
   padding: 10px 0 12px;
   border-top: 1px solid var(--studio-line);
@@ -304,6 +316,13 @@ onUnmounted(stop);
   padding: 0;
   color: var(--studio-muted);
   font-size: 11px;
+}
+.overviewCard footer button.editShotButton {
+  padding: 6px 10px;
+  border: 1px solid #dd9d80;
+  border-radius: 7px;
+  background: #fff4ed;
+  color: #b94722;
 }
 .overviewCard footer button:last-child {
   color: var(--studio-accent);

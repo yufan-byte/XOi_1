@@ -30,9 +30,9 @@
     </div>
 
     <div v-else class="libGrid">
-      <div class="libCard" v-for="a in filteredAssets" :key="a.id">
+      <div class="libCard" v-for="a in pagedAssets" :key="a.id">
         <div class="libThumb" @click="openPreview(a)">
-          <img v-if="a.kind === 'image'" :src="urlOf(a)" loading="lazy" alt="" />
+          <img v-if="a.kind === 'image'" :src="thumbUrl(urlOf(a), 400)" loading="lazy" alt="" />
           <video v-else-if="a.kind === 'video'" :src="urlOf(a)" muted preload="metadata" />
           <audio v-else-if="a.kind === 'audio'" :src="urlOf(a)" controls preload="metadata" />
           <div v-else class="libTextThumb">{{ textExcerpt(a) }}</div>
@@ -51,6 +51,7 @@
         </div>
       </div>
     </div>
+    <Pager v-model:page="assetPage" :total="filteredAssets.length" :page-size="ASSET_PAGE_SIZE" unit="件素材" />
 
     <!-- 预览 -->
     <t-dialog v-model:visible="previewVisible" :header="previewAsset?.title || '素材预览'" width="720px" :footer="false">
@@ -80,12 +81,14 @@
  * ⚠️ 与 frontend/atelier/src/xoi/owner.ts 的分桶约定强耦合，改动需双侧同步。
  * Vue 侧只读 + 删除回写；新增/编辑仍在画布内进行。
  */
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import localforage from "localforage";
 import { MessagePlugin } from "tdesign-vue-next";
 import { useRouter } from "vue-router";
 import { downloadUrl, shortDate } from "./libraryShared";
+import { thumbUrl } from "@/utils/mediaUrl";
 import { sendToCanvas } from "@/utils/sendToCanvas";
+import Pager from "@/components/Pager.vue";
 
 interface CanvasAsset {
   id: string;
@@ -222,6 +225,15 @@ const filteredAssets = computed(() => {
     })
     .sort((x, y) => String(y.updatedAt || "").localeCompare(String(x.updatedAt || "")));
 });
+
+/** 画布素材分页：每页 12 件（与作品库一致，一屏 3 行）；切类型/搜索时回到第一页。 */
+const ASSET_PAGE_SIZE = 12;
+const assetPage = ref(1);
+const pagedAssets = computed(() => {
+  const start = (assetPage.value - 1) * ASSET_PAGE_SIZE;
+  return filteredAssets.value.slice(start, start + ASSET_PAGE_SIZE);
+});
+watch([searchText, kindFilter], () => { assetPage.value = 1; });
 
 const kindLabel = (kind: string) => (kind === "image" ? "图片" : kind === "video" ? "视频" : kind === "audio" ? "音频" : "文本");
 const textExcerpt = (a: CanvasAsset) => (a.data?.content || "").slice(0, 120) || "（空文本）";

@@ -83,7 +83,7 @@ export function ModelPicker({ config, value, channelId, capability, onChange, cl
     }
 
     return <Popover.Root open={open} onOpenChange={nextOpen => {
-        if (nextOpen && !channelOptions.length && config.channelMode === "local") { onMissingConfig?.(); return; }
+        if (nextOpen && !channelOptions.length && config.channelMode === "local" && onMissingConfig) { onMissingConfig(); return; }
         if (nextOpen) { setQuery(""); setShowAll(false); setBillingFilter("all"); setActiveIndex(-1); pricing.refresh(); window.dispatchEvent(new CustomEvent("model-picker-open", { detail: pickerId })); }
         setOpen(nextOpen);
     }}>

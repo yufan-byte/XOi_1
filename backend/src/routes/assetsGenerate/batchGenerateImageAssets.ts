@@ -7,6 +7,7 @@ import { error, success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
 import { isUsablePrompt } from "@/utils/promptQuality";
+import { createBatchImagePlaceholders } from "@/utils/assetImageCandidates";
 
 const router = express.Router();
 
@@ -44,9 +45,12 @@ const assetTypeConfig: Record<AssetType, AssetTypeConfig> = {
   },
 };
 
-function buildPrompt(cfg: AssetTypeConfig, artStyle: string, name: string, prompt: string): string {
+type Composition = "default" | "single" | "four-view" | "prompt";
+function buildPrompt(cfg: AssetTypeConfig, artStyle: string, name: string, prompt: string, composition: Composition = "default"): string {
+  const title = composition === "single" ? `单张${cfg.label}图` : composition === "four-view" ? `${cfg.label}四视图` : composition === "prompt" ? `${cfg.label}图` : cfg.promptTitle;
+  const ending = composition === "prompt" ? "请遵循上面的提示词构图和设计要求。" : `请严格按照要求生成${title}。`;
   return `
-    请根据以下参数生成${cfg.promptTitle}：
+    请根据以下参数生成${title}：
 
     **基础参数：**
     - 画风风格: ${artStyle || "未指定"}
@@ -55,29 +59,42 @@ function buildPrompt(cfg: AssetTypeConfig, artStyle: string, name: string, promp
     - 名称:${name},
     - 提示词:${prompt},
 
-    请严格按照系统规范生成${cfg.promptEnd}。
+    ${ending}
   `;
 }
 
 const requestSchema = {
   projectId: z.number(),
-  model: z.string(),
-  resolution: z.string(),
-  concurrentCount: z.number().int().min(1).optional(),
+  model: z.string().trim().min(1),
+  resolution: z.string().trim().min(1),
+  aspectRatio: z.string().regex(/^\d{1,2}:\d{1,2}$/).optional(),
+  composition: z.enum(["default", "single", "four-view", "prompt"]).optional(),
+  // 不替换当前定稿；新图进入该资产的历史候选，用户稍后选择采用。
+  candidateOnly: z.boolean().optional(),
+  concurrentCount: z.number().int().min(1).max(6).optional(),
   items: z.array(
     z.object({
       id: z.number(),
-      type: z.enum(["role", "scene", "tool", "storyboard"]),
+      type: z.enum(["role", "scene", "tool"]),
       name: z.string(),
       prompt: z.string(),
       base64: z.string().optional().nullable(),
+      model: z.string().trim().min(1).optional(),
+      resolution: z.string().trim().min(1).optional(),
+      aspectRatio: z.string().regex(/^\d{1,2}:\d{1,2}$/).optional(),
+      composition: z.enum(["default", "single", "four-view", "prompt"]).optional(),
     }),
-  ),
+  ).min(1).max(100),
 };
 
 export default router.post("/", validateFields(requestSchema), async (req, res) => {
   const userId = (req as any).user?.id;
-  const { projectId, model, resolution, concurrentCount, items } = req.body;
+  const { projectId, model, resolution, aspectRatio, composition, candidateOnly, concurrentCount, items } = req.body;
+
+  // 防止同一资产重复排队，避免重复计费和最后完成者覆盖前一个任务。
+  if (new Set(items.map((item: { id: number }) => item.id)).size !== items.length) {
+    return res.status(400).send(error("批次中包含重复资产，请检查后重试"));
+  }
 
   // 检查积分（每个资产扣一次）
   if (userId) {
@@ -103,24 +120,22 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
 
   // 1. 查询项目
   const project = await u.db("o_project").where("id", projectId).select("artStyle", "type", "intro").first();
-  if (!project) return res.status(500).send(error("项目为空"));
+  if (!project) return res.status(404).send(error("项目不存在"));
+
+  // 资源归属由统一 resourceScope 校验；此处再检查资产的真实类型，不能由请求伪造。
+  const assets = await u.db("o_assets").where("projectId", projectId).whereIn("id", items.map((item: { id: number }) => item.id)).select("id", "type");
+  const assetTypes = new Map(assets.map((asset) => [Number(asset.id), asset.type]));
+  if (items.some((item: { id: number; type: string }) => assetTypes.get(item.id) !== item.type)) {
+    return res.status(400).send(error("资产类型与当前项目中的记录不一致，请刷新后重试"));
+  }
 
   // 2. 逐条插入 o_image 占位记录，收集 imageId 列表
-  const totalNovelId: number[] = [];
-  for (const item of items) {
-    const [imageId] = await u.db("o_image").insert({
-      type: item.type,
-      state: "生成中",
-      assetsId: item.id,
-    });
-    await u.db("o_assets").where("id", item.id).update({ imageId });
-    totalNovelId.push(imageId);
-  }
+  const totalNovelId = await createBatchImagePlaceholders(u.db, projectId, items, !!candidateOnly);
 
   // 3. 后台异步并发生成，不阻塞响应
   const limit = pLimit(concurrentCount ?? 1);
 
-  const tasks = items.map((item: { id: number; type: string; name: string; prompt: string; base64: string | null | undefined }, index: number) =>
+  const tasks = items.map((item: { id: number; type: string; name: string; prompt: string; base64?: string | null; model?: string; resolution?: string; aspectRatio?: string; composition?: Composition }, index: number) =>
     limit(async () => {
       const imageId = totalNovelId[index];
       const data = await u.db("o_image").where("id", imageId).select("state").first();
@@ -128,22 +143,22 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
         return;
       }
       const cfg = assetTypeConfig[item.type as AssetType];
-      if (!cfg) return;
-
-      await u.db("o_assets").where("id", item.id).update({ imageId });
+      const itemModel = item.model || model;
+      const itemResolution = item.resolution || resolution;
+      const itemAspectRatio = (item.aspectRatio || aspectRatio || "16:9") as `${number}:${number}`;
 
       const imagePath = `/${projectId}/${cfg.dir}/${uuidv4()}.jpg`;
-      const userPrompt = buildPrompt(cfg, project.artStyle ?? "", item.name, item.prompt);
+      const userPrompt = buildPrompt(cfg, project.artStyle ?? "", item.name, item.prompt, item.composition || composition || "default");
       const describe = `生成${cfg.label}图，名称：${item.name}，提示词：${item.prompt}`;
       const relatedObjects = { id: item.id, projectId, type: cfg.label };
       try {
-        const aiImage = u.Ai.Image(model);
+        const aiImage = u.Ai.Image(itemModel);
         await aiImage.run(
           {
             prompt: userPrompt,
             referenceList: item.base64 ? [{ base64: item.base64, type: "image" }] : [],
-            size: resolution,
-            aspectRatio: "16:9",
+            size: itemResolution,
+            aspectRatio: itemAspectRatio,
           },
           {
             taskClass: cfg.taskClass,
@@ -152,10 +167,9 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
             relatedObjects: JSON.stringify(relatedObjects),
           },
         );
-        aiImage.save(imagePath);
+        await aiImage.save(imagePath);
 
         const imageData = await u.db("o_image").where("id", imageId).select("*").first();
-        if (!imageData) return res.status(500).send("资产已被删除");
         if (!imageData) return;
         if (imageData.state === "生成失败") return;
         await u
@@ -165,11 +179,10 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
             state: "已完成",
             filePath: imagePath,
             type: item.type,
-            model: model.split(/:(.+)/)[1],
-            resolution,
+            model: itemModel.split(/:(.+)/)[1] || itemModel,
+            resolution: itemResolution,
           });
 
-        await u.db("o_assets").where("id", item.id).update({ imageId });
       } catch (e: any) {
         await u
           .db("o_image")
@@ -196,5 +209,6 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
     }
   }
 
-  return res.status(200).send(success({ total: items.length, pointsDeducted, balance }));
+  return res.status(200).send(success({ total: items.length, pointsDeducted, balance, candidateOnly: !!candidateOnly,
+    images: items.map((item: { id: number }, index: number) => ({ assetsId: item.id, imageId: totalNovelId[index] })) }));
 });

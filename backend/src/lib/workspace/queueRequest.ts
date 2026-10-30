@@ -10,6 +10,9 @@ export function queueRequest(kind: MediaKind, body: Record<string, any>) {
           "width",
           "height",
           "resolution",
+          "exact_size",
+          "aspect_ratio",
+          "mode",
           "negative_prompt",
           "reference_images",
         ]
@@ -20,6 +23,7 @@ export function queueRequest(kind: MediaKind, body: Record<string, any>) {
             "duration",
             "resolution",
             "aspect_ratio",
+            "mode",
             "images",
             "videos",
             "audios",

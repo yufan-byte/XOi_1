@@ -2,8 +2,9 @@ import crypto from "node:crypto";
 import type { Knex } from "knex";
 import { withSecuritySchemaLock } from "@/utils/securitySchema";
 import { BILLING_ID_PATTERN } from "../../../../shared/billableOperations";
+import {historyMetadata} from "./mediaHistory";
 
-export type MediaKind = "image" | "video" | "audio" | "one-stop";
+export type MediaKind = "image" | "video" | "audio" | "one-stop" | "director-scene";
 export interface MediaJob {
   kind: MediaKind;
   taskId: string;
@@ -125,7 +126,7 @@ export class MediaQueue {
     clientId?: string,
   ) {
     if (
-      !["image", "video", "audio", "one-stop"].includes(kind) ||
+      !["image", "video", "audio", "one-stop", "director-scene"].includes(kind) ||
       !Number.isSafeInteger(userId) ||
       userId < 1 ||
       !BILLING_ID_PATTERN.test(billingId) ||
@@ -178,6 +179,7 @@ export class MediaQueue {
           status: "queued",
           payload: JSON.stringify({
             ...payload,
+            ...(["image","video","audio"].includes(kind)?{history:historyMetadata(kind,{...body,clientTaskId:clientId})}:{}),
             status: "queued",
             queuedAt: now,
             billingId,

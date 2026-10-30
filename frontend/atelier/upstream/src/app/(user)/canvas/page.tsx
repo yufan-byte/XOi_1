@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { App, Button } from "antd";
 import { Download, FileUp, Plus } from "lucide-react";
@@ -39,6 +39,23 @@ export default function CanvasPage() {
             String(project.title ?? "").toLowerCase().includes(keyword) || String(seqById.get(project.id) ?? "") === keyword.replace(/^#/, ""),
         );
     }, [projects, search, seqById]);
+
+    // 画布分页：3 列网格每页 12 个；搜索变化回到第一页。
+    const CANVAS_PAGE_SIZE = 12;
+    const [page, setPage] = useState(1);
+    const pageCount = Math.max(1, Math.ceil(visibleProjects.length / CANVAS_PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, page), pageCount);
+    const pagedProjects = useMemo(() => {
+        const start = (safePage - 1) * CANVAS_PAGE_SIZE;
+        return visibleProjects.slice(start, start + CANVAS_PAGE_SIZE);
+    }, [visibleProjects, safePage]);
+    useEffect(() => { setPage(1); }, [search]);
+    const pageWindow = useMemo(() => {
+        const picked = Array.from(new Set([1, pageCount, safePage - 1, safePage, safePage + 1])).filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+        const out: Array<number | "gap"> = [];
+        picked.forEach((n, index) => { if (index > 0 && n - (picked[index - 1] as number) > 1) out.push("gap"); out.push(n); });
+        return out;
+    }, [pageCount, safePage]);
 
     const enterProject = (id: string) => {
         router.push(`/canvas/${id}`);
@@ -120,11 +137,25 @@ export default function CanvasPage() {
                 {!hydrated ? (
                     <section className="flex min-h-[360px] items-center justify-center border-y border-stone-200 text-sm text-stone-500 dark:border-stone-800">正在加载画布...</section>
                 ) : visibleProjects.length ? (
-                    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                        {visibleProjects.map((project) => (
-                            <CanvasProjectCard key={project.id} project={project} seq={seqById.get(project.id)} />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                            {pagedProjects.map((project) => (
+                                <CanvasProjectCard key={project.id} project={project} seq={seqById.get(project.id)} />
+                            ))}
+                        </div>
+                        {pageCount > 1 ? (
+                            <nav aria-label="分页" className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200/70 pt-4 dark:border-stone-800">
+                                <span className="text-xs text-stone-500">共 {visibleProjects.length} 个画布 · 第 {safePage} / {pageCount} 页</span>
+                                <div className="flex items-center gap-1.5">
+                                    <Button size="small" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>上一页</Button>
+                                    {pageWindow.map((item, index) => item === "gap"
+                                        ? <span key={`gap-${index}`} className="px-1 text-xs text-stone-400">…</span>
+                                        : <Button key={item} size="small" type={item === safePage ? "primary" : "default"} aria-current={item === safePage ? "page" : undefined} onClick={() => setPage(item)}>{item}</Button>)}
+                                    <Button size="small" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}>下一页</Button>
+                                </div>
+                            </nav>
+                        ) : null}
+                    </>
                 ) : projects.length ? (
                     <section className="flex min-h-[260px] flex-col items-center justify-center rounded-[24px] border border-dashed border-stone-300 bg-white/70 text-center dark:border-stone-700 dark:bg-stone-950/60">
                         <h2 className="text-lg font-medium">没有匹配的画布</h2>

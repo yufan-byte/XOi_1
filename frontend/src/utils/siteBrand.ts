@@ -37,11 +37,20 @@ export async function refreshSiteBrand(){
   return inFlight;
 }
 /** Public metadata only; no persisted credentials, no model requests, no blocking bootstrap. */
+/** 品牌配置改动极少：启动拉一次，之后每 10 分钟兜底刷新；focus 触发的刷新限频 60s，避免高频打接口。 */
+const REFRESH_INTERVAL_MS=600_000;
+const FOCUS_MIN_GAP_MS=60_000;
 export function installSiteBrand(){
   void refreshSiteBrand();
-  const refresh=()=>{if(document.visibilityState==="visible")void refreshSiteBrand();};
+  let lastRefresh=Date.now();
+  const refresh=()=>{
+    if(document.visibilityState!=="visible")return;
+    if(Date.now()-lastRefresh<FOCUS_MIN_GAP_MS)return;
+    lastRefresh=Date.now();
+    void refreshSiteBrand();
+  };
   window.addEventListener("focus",refresh);document.addEventListener("visibilitychange",refresh);
-  const timer=window.setInterval(refresh,60_000);
+  const timer=window.setInterval(refresh,REFRESH_INTERVAL_MS);
   const title=document.querySelector("title");
   const observer=new MutationObserver(applyBrand);if(title)observer.observe(title,{childList:true,characterData:true,subtree:true});
   return ()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);document.removeEventListener("visibilitychange",refresh);observer.disconnect();};

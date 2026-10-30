@@ -100,18 +100,23 @@ test("dynamic capability cards supply real defaults, durations and reference lim
   assert.equal(JSON.stringify(publicModel(model, 1)).includes("unit_price_micro_usd"), false);
   assert.equal("inaccessible" in cards, false);
 });
-test("persisted model preferences fall back without selecting Agnes and return when the preferred line exists", () => {
+test("unavailable video preferences never silently switch to a different billed model", () => {
   const live = buildCatalog([
     { model_name: "agnes-video-v2.0", quota_type: 1, model_price: 0 },
     { model_name: "seedance2.0-line1", model_price: 1 },
     { model_name: "seedance2.5-line1-xoi", model_price: 2 },
   ]);
-  assert.equal(selectCatalogModel(live, "seedance2.0-line1-xoi", "video")?.modelName, "seedance2.0-line1");
-  assert.equal(selectCatalogModel(live, "missing-video", "video")?.modelName, "seedance2.5-line1-xoi");
+  assert.equal(selectCatalogModel(live, "seedance2.0-line1-xoi", "video"), undefined);
+  assert.equal(selectCatalogModel(live, "missing-video", "video"), undefined);
   assert.equal(selectCatalogModel(live, "agnes-video-missing", "video"), undefined);
   assert.equal(isAgnesModel("newapi:agnes-image-2.1-flash"), true);
   const restored = buildCatalog([...live.map(m => m.pricing), { model_name: "seedance2.0-line1-xoi", model_price: 1 }]);
   assert.equal(selectCatalogModel(restored, "seedance2.0-line1-xoi", "video")?.modelName, "seedance2.0-line1-xoi");
+});
+test("dedicated line refuses unverified 1080p rather than quoting the default tier", () => {
+  const [model] = buildCatalog([{ model_name: "seedance2.0-line1-xoi", billing_expr: 'u("seconds") * 0.583333' }]);
+  assert.ok(quoteModel(model, { seconds: 5, resolution: "720p" }).yuan > 0);
+  assert.throws(() => quoteModel(model, { seconds: 5, resolution: "1080p" }), /计费尚未核实/);
 });
 test("upstream primary metadata is recommended but local XOi merchandising keeps higher priority", () => {
   const models = buildCatalog([

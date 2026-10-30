@@ -7,14 +7,35 @@ import { Toaster } from "sonner";
 import "./styles/globals.css";
 
 import { AuthStage } from "@/components/signup/auth-stage";
-import { hasSession } from "@/lib/api";
+import { hasSession, loadAuth } from "@/lib/api";
+import { bootstrapConsoleSession } from "@/lib/session";
 import { installSupportBridge } from "@/lib/support";
 const AdminApp = lazy(() => import("@/components/reseller/admin-app"));
 const AgentApplyPage = lazy(() => import("@/components/reseller/admin-routes").then(m => ({ default: m.AgentApplyPage })));
 const TopupStandalone = lazy(() => import("@/components/shell/topup-standalone").then(m => ({ default: m.TopupStandalone })));
 const UsageStandalone = lazy(() => import("@/components/shell/usage-standalone").then(m => ({ default: m.UsageStandalone })));
 const TeamPage = lazy(() => import("@/components/team/team-page").then(m => ({ default: m.TeamPage })));
+
+/**
+ * 团队功能管理员闸门：批量建号/密码下发/Excel 导出属高危能力，只允许 XOi 管理员进入。
+ * 双重校验：scope 来自服务端 /api/reseller/me（防本地角色残留伪造），role 来自登录态；
+ * 任一不满足都重定向回控制台首页（未登录/无权限的最终处理由 /reseller/* 的 AdminGate 接管）。
+ * 真正的拦截在后端 /api/team*（requireAdmin），这里只是避免普通用户看到一屏报错。
+ */
+function TeamAdminGate() {
+    const me = useResellerMe();
+    const isAdmin = (loadAuth()?.user.role ?? 0) >= 10;
+    // scope 查询未落定时先等一等（否则 me.data 为 undefined 会误判成无权限，管理员也被弹走）
+    if (!me.isSuccess && !me.isError) {
+        return <ResellerShell><div className="grid h-dvh place-items-center text-sm text-muted-foreground">正在验证团队权限…</div></ResellerShell>;
+    }
+    const allowed = isAdmin && me.data?.scope === "platform";
+    return allowed
+        ? <ResellerShell><TeamPage embedded /></ResellerShell>
+        : <Navigate to="/reseller/overview" replace />;
+}
 import { ResellerShell } from "@/components/reseller/shell";
+import { useResellerMe } from "@/lib/reseller/client";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrandProvider } from "@/components/shell/brand-provider";
 import { ManagementAppearance } from "@/components/shell/management-appearance";
@@ -96,7 +117,10 @@ function LoggedInGateway({ children }: { children: React.ReactNode }) {
  * BrandProvider 负责白标（品牌名 / 副标题 / 皮肤 class / 隐藏被禁用的模型）；
  * 它自己有完整的默认 context，缺了不会崩，但品牌会退回硬编码默认值、且代理侧白标配置不生效。
  */
-createRoot(document.getElementById("root")!).render(
+const root = createRoot(document.getElementById("root")!);
+// F3：先把会话信号补齐（老 token 迁移 / cookie 回填）再渲染。
+// 否则 hasSession() 在第一帧就判定「未登录」，已登录用户会被闪到登录页。
+void bootstrapConsoleSession().finally(() => root.render(
     <StrictMode>
         <QueryClientProvider client={queryClient}>
             {/* CrashScreen 放在 Provider 之外、路由之内：Provider 自身出错也能看到堆栈，而不是一片黑屏 */}
@@ -127,8 +151,10 @@ createRoot(document.getElementById("root")!).render(
                                         只要求登录态；复用造物 TopupDialog（new-api 支付/卡密） */}
                                     <Route path="/topup" element={<TopupStandalone />} />
                                     <Route path="/usage" element={<UsageStandalone />} />
-                                    {/* 团队空间：套统一管理壳（侧栏/顶栏/会话初始化），普通团队成员同样可看 */}
-                                    <Route path="/team" element={<ResellerShell><TeamPage embedded /></ResellerShell>} />
+                                    {/* 团队空间：仅管理员（批量下发密码属高危能力，2026-10-28 收紧）。
+                                        /team 是「我的团队」列表（搜索+分页），/team/:teamId 是单个团队的独立工作区 */}
+                                    <Route path="/team" element={<TeamAdminGate />} />
+                                    <Route path="/team/:teamId" element={<TeamAdminGate />} />
                                     <Route path="/reseller/*" element={<AdminApp />} />
                                     <Route path="/agent-apply" element={<AgentApplyPage />} />
                                     {/* 根路径进后台首页：/console/ 若落进下面的通配登录页，已登录用户会被
@@ -147,4 +173,4 @@ createRoot(document.getElementById("root")!).render(
             <ThemedToaster />
         </QueryClientProvider>
     </StrictMode>,
-);
+));

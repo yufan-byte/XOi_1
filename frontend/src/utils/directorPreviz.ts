@@ -1,5 +1,6 @@
 import { readDirectorMP4, assertDirectorVideo } from "../../../shared/directorPreviz";
 import type { DirectorCheckpoint } from "./directorHandoff";
+import { sessionSignal } from "./session";
 
 export function videoTransferControls() {
   const controller = new AbortController(),
@@ -173,7 +174,7 @@ export async function exportNativePreviz(iframe: HTMLIFrameElement, saved: Direc
 }
 /** Dispose before navigation so native pagehide cannot save a temporary export camera. */
 export async function restoreAfterPreviz(iframe: HTMLIFrameElement, sceneId: string, saved: DirectorCheckpoint, token: string) {
-  if (!iframe.isConnected || localStorage.getItem("token") !== token || new URL(iframe.src, location.href).searchParams.get("key") !== sceneId)
+  if (!iframe.isConnected || sessionSignal() !== token || new URL(iframe.src, location.href).searchParams.get("key") !== sceneId)
     return;
   (iframe.contentWindow as any)?.xoiDirectorScene?.prepareRestore();
   localStorage.setItem("monoform-project-" + sceneId, JSON.stringify(saved.project));
@@ -183,7 +184,7 @@ export async function restoreAfterPreviz(iframe: HTMLIFrameElement, sceneId: str
   iframe.src = url.href;
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline) {
-    if (!iframe.isConnected || localStorage.getItem("token") !== token) return;
+    if (!iframe.isConnected || sessionSignal() !== token) return;
     const doc = iframe.contentDocument;
     if (
       doc &&

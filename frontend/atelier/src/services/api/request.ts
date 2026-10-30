@@ -1,4 +1,5 @@
 import axios from "axios";
+import {getVerifiedToken,assertCanvasAccount} from "@/xoi/owner";
 
 export type ApiParams = Record<string, string | string[] | number | number[] | undefined>;
 
@@ -22,23 +23,36 @@ export function serializeApiParams(params?: ApiParams) {
     return queryParams;
 }
 
+/**
+ * 只有**真凭据**（JWT：三段点分）才放进 Authorization。
+ *
+ * F3 之后宿主会话信号（`uid:nonce`）也会被上游当成 token 传进来 —— 它不是凭据，
+ * 拼成 `Bearer <信号>` 只会让后端在 header 上验签失败；这类请求一律交给同源
+ * httpOnly cookie 认证。
+ */
+function credentialHeaders(token?: string) {
+    const value = String(token || "").trim();
+    return value && value.split(".").length === 3 ? { Authorization: `Bearer ${value}` } : undefined;
+}
+
 export async function apiGet<T>(url: string, params?: ApiParams, token?: string) {
     return apiRequest<T>({
         url,
         method: "GET",
         params: params || undefined,
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        headers: credentialHeaders(token),
     });
 }
 
 export async function apiPost<T>(url: string, body?: unknown, token?: string) {
+    const credential = credentialHeaders(token);
     return apiRequest<T>({
         url,
         method: "POST",
         data: body ?? {},
         headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(credential || {}),
         },
     });
 }
@@ -47,11 +61,12 @@ export async function apiDelete<T>(url: string, token?: string) {
     return apiRequest<T>({
         url,
         method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        headers: credentialHeaders(token),
     });
 }
 
 async function apiRequest<T>(config: { url: string; method: "GET" | "POST" | "DELETE"; params?: ApiParams; data?: unknown; headers?: Record<string, string> }) {
+    if (getVerifiedToken()) config.headers = {...config.headers,"X-Xoi-Expected-User":assertCanvasAccount().split(":")[0]};
     let response;
     try {
         response = await axios.request<ApiResponse<T>>({
@@ -66,6 +81,7 @@ async function apiRequest<T>(config: { url: string; method: "GET" | "POST" | "DE
     } catch {
         throw new Error("接口连接失败，请确认后端服务已启动");
     }
+    if (getVerifiedToken()) assertCanvasAccount();
 
     const result = response.data;
     if (!result || typeof result !== "object") {

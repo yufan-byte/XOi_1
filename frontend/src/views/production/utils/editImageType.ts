@@ -46,8 +46,8 @@ export interface CleanEdge {
 // ===== 默认边样式 =====
 export const DEFAULT_EDGE_OPTIONS = {
   type: "removeLine" as const,
-  animated: true,
-  style: { stroke: "#00000" },
+  animated: false,
+  style: { stroke: "#b7a89d", strokeWidth: 1.6 },
 };
 
 // ===== 默认生成节点数据 =====

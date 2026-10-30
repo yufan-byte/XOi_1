@@ -1,4 +1,4 @@
-import { fetchBinaryWithLimit } from "@/utils/safeUrl";
+import { fetchBinaryWithLimit, validateOutboundUrl } from "@/utils/safeUrl";
 import { sharedRateLimiter } from "@/middleware/sharedRateLimiter";
 import { safeInlineMediaType } from "@/utils/mediaSecurity";
 import { DurableTasks } from "@/lib/workspace/tasks";
@@ -21,6 +21,8 @@ import { canvasVideoRequest } from "@/utils/canvasVideoRequest";
 import {getGatewayRequestContext} from "@/lib/gateway/context";
 import {mediaQueue,registerMediaHandler,runQueuedRoute} from "@/lib/workspace/mediaQueueRuntime";
 import {queueRequest} from "@/lib/workspace/queueRequest";
+import { assertCurrentMediaOwner, signedProviderMedia } from "@/utils/privateMediaRuntime";
+import { authorizeMediaReference, localMediaReference } from "@/utils/mediaReferencePolicy";
 
 /**
  * Infinite Canvas 依赖的 API stubs
@@ -401,7 +403,13 @@ router.post("/canvas-llm", async (req, res) => {
       apiMessages.push({ role: "system", content: system_prompt });
     }
     for (const m of messages) {
-      apiMessages.push({ role: m.role || "user", content: m.content || m });
+      const content = Array.isArray(m.content) ? await Promise.all(m.content.map(async (part: any) => {
+        if (part?.type !== "image_url") return part;
+        const url = part.image_url?.url;
+        const path = await authorizeMediaReference(url, assertCurrentMediaOwner);
+        return path ? {...part, image_url: {...part.image_url, url: await u.oss.getImageBase64(path)}} : part;
+      })) : m.content || m;
+      apiMessages.push({ role: m.role || "user", content });
     }
     if (message) {
       // 如果有图片，构建多模态消息
@@ -409,8 +417,10 @@ router.post("/canvas-llm", async (req, res) => {
         const content: any[] = [{ type: "text", text: message }];
         for (const img of images) {
           // 兼容两种格式：字符串 URL 或 {url: string} 对象
-          const url = typeof img === 'string' ? img : img.url;
+          let url = typeof img === 'string' ? img : img.url;
           if (url) {
+            const path = await authorizeMediaReference(url, assertCurrentMediaOwner);
+            if (path) url = await u.oss.getImageBase64(path);
             content.push({ type: "image_url", image_url: { url } });
           }
         }
@@ -450,7 +460,7 @@ router.post("/canvas-llm", async (req, res) => {
     });
   } catch (e: any) {
     console.error("[canvas-llm] 请求错误:", e.message);
-    res.status(500).json({ error: `LLM 请求失败: ${e.message}` });
+    res.status(e.status === 403 ? 403 : e.status === 400 ? 400 : 500).json({ error: `LLM 请求失败: ${e.message}` });
   }
 });
 
@@ -475,6 +485,10 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
     if (!prompt) {
       return res.status(400).json({ error: "提示词不能为空" });
     }
+    if (!Array.isArray(reference_images ?? []) || (reference_images?.length ?? 0) > 32)
+      return res.status(400).json({error: "参考图片格式或数量无效"});
+    for (const img of reference_images ?? [])
+      await authorizeMediaReference(typeof img === "string" ? img : img?.base64 || img?.url, assertCurrentMediaOwner);
 
     // 解析尺寸：优先使用 width/height，否则解析 size 字符串（如 "1024x1024"）
     let width = wParam;
@@ -488,6 +502,7 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
     }
 
     if ([width,height].some(value=>value!==undefined&&(!Number.isSafeInteger(value)||value<1||value>8192)))return res.status(400).json({error:"图片尺寸须为 1–8192 的整数"});
+    if (rest.exact_size !== undefined && (typeof rest.exact_size !== "string" || !/^\d{2,4}x\d{2,4}$/.test(rest.exact_size) || rest.exact_size !== `${width}x${height}`)) return res.status(400).json({error:"图片尺寸参数不一致"});
     // ── 计费重构（serene-splashing-pebble.md · 配套评审探针对抗审视）─────────
     // 把原嵌于异步 IIFE 内部的 modelKey/pricingCtx 解析上移至此提交同步段：
     //   既供 ctx-aware atomic-reserve 定价命中 o_points_price_override 差异化倍率，
@@ -604,8 +619,9 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
       return true;
     }
 
-    clearTimeout(watchdogTimerRef.timer);                   // 弃占位启用真看守钟(B 图耗时短维持原 5min 阈值合理)
-    watchdogTimerRef.timer = setTimeout(() => void finalizeFail("图片生成超时（6分钟）").catch(console.error), 6 * 60 * 1000);
+    clearTimeout(watchdogTimerRef.timer);
+    // 必须晚于网关的 10 分钟超时，避免上游仍在运行时提前判失败。
+    watchdogTimerRef.timer = setTimeout(() => void finalizeFail("图片生成超时（11分钟），结果待核对").catch(console.error), 11 * 60 * 1000);
 
     // Worker awaits completion; waiting is persisted before any upstream request.
     await (async () => {
@@ -613,9 +629,10 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
         const aiImage = u.Ai.Image(modelKey as any);
 
         // 构建参考图清单白名单桥接
-        const referenceList = (reference_images || []).map((img: any) => ({
-          type: "image" as const,
-          base64: img.base64 || img.url || "",
+        const referenceList = await Promise.all((reference_images || []).map(async (img: any) => {
+          const value = typeof img === "string" ? img : img.base64 || img.url || "";
+          const path = await authorizeMediaReference(value, assertCurrentMediaOwner);
+          return {type: "image" as const, base64: path ? await u.oss.getImageBase64(path) : value};
         }));
 
         // 计算宽高比(gcd 规约化送上游避免非法浮点比例遭拒收)
@@ -623,14 +640,37 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
         const h = height || 1024;
         const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
         const g = gcd(w, h);
-        const aspectRatio = `${w / g}:${h / g}` as any;
+        const aspectRatio = typeof rest.aspect_ratio === "string" && /^(?:auto|\d{1,2}:\d{1,2})$/.test(rest.aspect_ratio) ? rest.aspect_ratio : `${w / g}:${h / g}` as any;
 
-        await aiImage.run({
-          prompt,
-          referenceList,
-          size: imageGenerationTier(size,w,h,rest.resolution),
-          aspectRatio,
-        });
+        // 上游「do request failed」等网络层瞬态失败自动重试一次：
+        // 积分只在提交时预扣一次，这里重试不会双扣；超时类错误不重试（上游可能已在出图）。
+        const TRANSIENT_UPSTREAM_ERROR = /do request failed|ECONN|socket hang up|network|rate.?limit|429|50[234]/i;
+        let runError: unknown = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            await aiImage.run({
+              prompt,
+              referenceList,
+              size: imageGenerationTier(size,w,h,rest.resolution),
+              aspectRatio,
+              ...(rest.exact_size ? { exactSize: rest.exact_size } : {}),
+              ...(["text-to-image", "image-edit", "multi-reference"].includes(rest.mode) ? { inputMode: rest.mode } : {}),
+            });
+            runError = null;
+            break;
+          } catch (runErr: any) {
+            runError = runErr;
+            const message = String(runErr?.message || "");
+            const isTimeout = runErr?.isTimeout || /等待 \d+ 分钟|\d+ 分钟未返回|timeout of/i.test(message);
+            if (attempt === 0 && !isTimeout && TRANSIENT_UPSTREAM_ERROR.test(message)) {
+              console.warn(`[canvas-image] 任务 ${taskId} 上游瞬态失败，3 秒后自动重试: ${message}`);
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              continue;
+            }
+            throw runErr;
+          }
+        }
+        if (runError) throw runError;
 
         // 保存图片落盘 + 拼 OSS 同源代理 URL(Vite/nginx 反代到位规避 download-output 死链)
         const imagePath = `/canvas/generated/${taskId}.jpg`;
@@ -655,7 +695,9 @@ const canvasImageTaskCreate = async (req: any, res: any) => {
         console.error("[canvas-image] 生成错误:", e.message);
         // 超时先反查造物绘图记录（对标造物 genImage 的 recoverImageCall）：
         // 我们放弃了，上游可能已出图并计费 —— 命中就把图找回落盘，而不是让钱白花。
-        if (/等待 5 分钟|timeout of \d+ms exceeded/i.test(String(e?.message || ""))) {
+        // 超时判定要覆盖三种来源：我们自己的中文超时文案、axios 原生超时、
+        // 以及网关拦截器把 AbortSignal 超时还原后的错误（含「5 分钟未返回」+ isTimeout 标记）。
+        if (e?.isTimeout || /等待 \d+ 分钟|\d+ 分钟未返回|长时间未返回|timeout of \d+ms exceeded/i.test(String(e?.message || ""))) {
           try {
             const recovered = await recoverLateImage({ model: String(modelKey), userId: Number(userId), taskId, since: Date.now() - 330_000 });
             if (recovered) {
@@ -821,7 +863,7 @@ const videoDeliveredMarkers = new Set<string>();
 
 // timeoutGuard:超过约15分钟仍未完成任务交由 finalizeFail 裁决(agnes 自身10min 上限留充足余裕给下载/OSS 落盘降假阴率);
 //   fired 后经 CAS 闸门核验是否已落盘,命中则升格 succeeded-delivered-late 不退款防反向白嫖
-const CANVAS_VIDEO_TIMEOUT_MS = 15 * 60 * 1000;
+const CANVAS_VIDEO_TIMEOUT_MS = 34 * 60 * 1000;
 
 // 画布生成器旁边的积分预览：复用管理员配置的基础价/供应商覆写，不在前端复制计费规则。
 router.get("/canvas-video-pricing", async (req, res) => {
@@ -837,20 +879,28 @@ router.get("/canvas-video-pricing", async (req, res) => {
 
 // images(ref对象)/videos(str)/audios(str) 三类不同维度统一收敛为 AiVideo.referenceList 期望的 {type,base64}[];
 // 支持三种来源:dataURL(直送剥前缀)、本仓 /oss/<rel>(经 u.oss.getImageBase64 取字节目名虽 Image 实通用 reader 含 mp3/mp4 mime dict)、https 公网直链(fetch 抓 buffer 转 base64)。
+function providerMediaOrigin() {
+  const base = process.env.XOI_PUBLIC_BASE_URL || process.env.ossURL;
+  if (!base) throw Object.assign(new Error("此线路需要公网素材域名，请管理员配置 XOI_PUBLIC_BASE_URL，未提交上游"), {status: 400});
+  const url = validateOutboundUrl(base, false);
+  if (url.protocol !== "https:") throw Object.assign(new Error("公网素材域名必须使用 HTTPS"), {status: 400});
+  return url.origin;
+}
 async function resolveCanvasMediaRef(
   rawUrl: string,
-  hintType: "image" | "audio" | "video"
+  hintType: "image" | "audio" | "video",
+  requireUrl = false,
 ): Promise<{ type: "image" | "audio" | "video"; base64: string; url?: string } | null> {
   if (!rawUrl || typeof rawUrl !== "string") return null;
   try {
     if (/^data:/i.test(rawUrl)) {
       const stripped = rawUrl.replace(/^data:[^;]*;base64,/i, "");
-      return { type: hintType, base64: stripped === rawUrl ? rawUrl : stripped };
+      return { type: hintType, base64: hintType === "image" ? rawUrl : (stripped === rawUrl ? rawUrl : stripped) };
     }
-    if (/^\/oss\//i.test(rawUrl)) {
-      const rel = "/" + rawUrl.split("/").slice(2).join("/");
+    const rel = await authorizeMediaReference(rawUrl, assertCurrentMediaOwner);
+    if (rel) {
       const dataUrl = await u.oss.getImageBase64(rel);
-      return { type: hintType, base64: String(dataUrl).replace(/^data:[^;]+;base64,/i, "") };
+      return { type: hintType, base64: hintType === "image" ? String(dataUrl) : String(dataUrl).replace(/^data:[^;]+;base64,/i, ""), ...(requireUrl ? {url: providerMediaOrigin() + await signedProviderMedia("/oss" + rel)} : {}) };
     }
     if (/^https?:\/\//i.test(rawUrl)) {
       const { buffer: buf } = await fetchBinaryWithLimit(rawUrl);
@@ -899,6 +949,11 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     const body = req.body || {};
     const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
     if (!prompt) return res.status(400).json({ error: "提示词不能为空", message: "提示词不能为空" });
+    for (const key of ["images", "videos", "audios"]) {
+      const list = body[key] ?? [];
+      if (!Array.isArray(list) || list.length > 32) return res.status(400).json({error: "参考素材格式或数量无效"});
+      for (const item of list) await authorizeMediaReference(typeof item === "string" ? item : item?.url, assertCurrentMediaOwner);
+    }
 
     // ① 定位 vendor/model —— 兼容纯 modelName 与 `${vendorId}:${modelName}` 两形态(忽略不可靠的 provider_id 占位字段如 comfly/volcengine)
     const rawModelField =
@@ -929,6 +984,7 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     if (cfg!.vendorId !== "newapi") return res.status(400).json({ error: "视频生成只允许使用 NewAPI 模型", message: "视频生成只允许使用 NewAPI 模型" });
 
     if (/^seedance2\.[05]-(line1(?:-fast)?|full(?:-fast)?)(?:-xoi)?$/.test(String(vm.modelName))) {
+      if ([...(body.images || []), ...(body.videos || []), ...(body.audios || [])].some(item => localMediaReference(typeof item === "string" ? item : item.url))) providerMediaOrigin();
       const enums = vm.enums || {};
       const resolution = String(body.resolution || "").toLowerCase().replace(/^(480|720|1080)$/, "$1p");
       const duration = Number(body.duration);
@@ -1028,7 +1084,7 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
     }
 
     clearTimeout(watchdogTimerRef.timer);                   // 弃占位启用真看守钟
-    watchdogTimerRef.timer = setTimeout(() => void finalizeFail("视频生成超时(>15 分钟)").catch(console.error), CANVAS_VIDEO_TIMEOUT_MS);
+    watchdogTimerRef.timer = setTimeout(() => void finalizeFail("视频生成超时（34分钟），结果待核对").catch(console.error), CANVAS_VIDEO_TIMEOUT_MS);
 
     await (async () => {
       try {
@@ -1046,7 +1102,7 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
         ];
         const refs = (
           await Promise.all(
-            candItems.map(async (c) => resolveCanvasMediaRef(String(c.url ?? ""), c.kind))
+            candItems.map(async (c) => resolveCanvasMediaRef(String(c.url ?? ""), c.kind, /^seedance2\.[05]-(line1(?:-fast)?|full(?:-fast)?)(?:-xoi)?$/.test(String(vm.modelName))))
           )
         ).filter(Boolean) as Array<{ type: "image" | "audio" | "video"; base64: string }>;
         if (refs.length !== candItems.length) throw new Error("参考素材读取失败，任务未提交到上游，请检查素材后重试");
@@ -1085,7 +1141,8 @@ const canvasVideoTaskCreate = async (req: any, res: any) => {
           aspectRatio: normaliseCanvasAspect(body.aspect_ratio).ratio,
           prompt,
           audio: typeof vm.audio === "boolean" ? vm.audio : Boolean(body.generate_audio),
-          mode: Array.isArray(vm.mode) ? vm.mode : [],
+          mode: body.mode === "first-last" ? ["startEndRequired"] : Array.isArray(vm.mode) ? vm.mode : [],
+          ...(body.mode === "first-frame" ? { frameMode: "first-frame" } : {}),
         };
         if (refs.length > 0) runCfg.referenceList = refs;
 
@@ -1338,8 +1395,9 @@ router.get("/download-output", async (req, res) => {
 
     return res.status(400).json({ error: "不支持的 URL 格式" });
   } catch (e: any) {
+    // 安全（2026-10-26 审计 R-E）：不把原始 e.message 回给前端（可能夹带内部路径/上游细节），细节只进服务端日志。
     console.error("[download-output] 错误:", e.message);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: "下载服务暂时不可用，请稍后重试" });
   }
 });
 

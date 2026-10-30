@@ -46,6 +46,8 @@ const MAX_AGENT_RUN_MS = 6 * 60_000;
 export type CanvasAgentRuntimeEvent = {
     status: CanvasAssistantMessageStatus;
     label: string;
+    /** 思考型模型思维链增量（90ms 批量）；到达时 status 恒为 thinking，UI 追加到 message.reasoning。 */
+    reasoningDelta?: string;
 };
 
 export type RunCanvasAgentInput = {
@@ -106,16 +108,24 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
     let contextCheckpoint = input.contextCheckpoint;
     // Skill 全文曾把 system prompt 撑到 40KB+（单份 4 万字的 Skill 也照塞），是请求体超网关 80KB 红线的主因。
     // 这里每份只注入前 6000 字、总量 16000 字封顶，剩余内容按需再取。
+    // 人物/捏脸类方法论依赖完整模板与范例（截尾即失效），单独放宽到 12000 字。
     const SKILL_CONTENT_CHAR_LIMIT = 6_000;
+    const SKILL_CONTENT_CHAR_LIMIT_CHARACTER = 12_000;
     const SKILL_TOTAL_CHAR_BUDGET = 16_000;
+    const SKILL_TOTAL_CHAR_BUDGET_CHARACTER = 24_000;
+    const isCharacterSkill = (skill: { name?: string; content?: string }) =>
+        /捏脸|搓脸|定妆|角色脸|人物设定|character[-_ ]?face|原创角色|虚拟人/i.test(String(skill.name || "")) ||
+        /捏脸九步法|一个强项，两个辅助|三庭五眼/.test(String(skill.content || "").slice(0, 4000));
     const activeSkillContents = (() => {
         if (!input.activeSkillContents?.length) return undefined;
         let total = 0;
         const parts: string[] = [];
         input.activeSkillContents.forEach((skill, index) => {
-            if (total >= SKILL_TOTAL_CHAR_BUDGET) return;
+            const character = isCharacterSkill(skill);
+            const perLimit = character ? SKILL_CONTENT_CHAR_LIMIT_CHARACTER : SKILL_CONTENT_CHAR_LIMIT;
+            if (total >= (character ? SKILL_TOTAL_CHAR_BUDGET_CHARACTER : SKILL_TOTAL_CHAR_BUDGET)) return;
             let content = String(skill.content || "");
-            if (content.length > SKILL_CONTENT_CHAR_LIMIT) content = `${content.slice(0, SKILL_CONTENT_CHAR_LIMIT)}…（${skill.name} 其余 ${content.length - SKILL_CONTENT_CHAR_LIMIT} 字已省略）`;
+            if (content.length > perLimit) content = `${content.slice(0, perLimit)}…（${skill.name} 其余 ${content.length - perLimit} 字已省略）`;
             total += content.length;
             parts.push(`【Skill ${index + 1}：${skill.name}（${skill.source === "system" ? `系统 Skill ID：${skill.id}` : "用户 Skill"}）】\n${content}`);
         });
@@ -200,11 +210,28 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         // Switch to a complete concise contract instead of repeatedly summarizing an empty history.
         if (overBudget()) systemPrompt = compactPrompt();
 
+        // 思考过程旁路：SSE reasoning 增量 90ms 批量上报，避免每个 token 触发一次 UI 更新。
+        // await 结束后同步 flush 保住最后一批尾巴；flush 恒早于下一步 onEvent，无状态回跳。
+        let pendingReasoningFlush: (() => void) | null = null;
+        const flushPendingReasoning = () => { pendingReasoningFlush?.(); pendingReasoningFlush = null; };
         const requestTurn = () => {
             if (overBudget()) {
                 console.warn("[canvas-agent] 输入预算不足", { model: textConfig.model, limit: inputTokenLimit, promptBytes: new TextEncoder().encode(buildFullPrompt()).length, historyBytes: new TextEncoder().encode(JSON.stringify(protocolMessages)).length, inputTokens: estimateCanvasAgentInputTokens({ systemPrompt: buildFullPrompt(), messages: protocolMessages, tools }) });
                 throw new Error("本轮内容仍超过模型输入上限，已在调用前停止。画布内容已保留，请把长稿放入文字节点后引用，或减少本轮引用的节点。");
             }
+            let reasoningBuffer = "";
+            let reasoningTimer: ReturnType<typeof setTimeout> | null = null;
+            const emitReasoning = () => {
+                reasoningTimer = null;
+                if (!reasoningBuffer) return;
+                const delta = reasoningBuffer;
+                reasoningBuffer = "";
+                input.onEvent?.({ status: "thinking", label: "正在思考", reasoningDelta: delta });
+            };
+            pendingReasoningFlush = () => {
+                if (reasoningTimer) { clearTimeout(reasoningTimer); reasoningTimer = null; }
+                emitReasoning();
+            };
             return requestCanvasAgentTurn({
                 config: textConfig,
                 systemPrompt,
@@ -212,12 +239,23 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
                 tools: agentTools,
                 toolMode,
                 signal: input.signal,
+                onDelta: input.onEvent ? (delta) => {
+                    if (typeof delta.reasoning !== "string" || !delta.reasoning) return;
+                    reasoningBuffer += delta.reasoning;
+                    if (!reasoningTimer) reasoningTimer = setTimeout(emitReasoning, 90);
+                } : undefined,
             });
         };
         let turn: Awaited<ReturnType<typeof requestCanvasAgentTurn>>;
         try {
             turn = await requestTurn();
+            flushPendingReasoning();
+            // 非流式线路（glm/mimo 等）在完成后一次性返回完整思维链：补进消息供折叠查看。
+            if (turn.reasoningContent !== undefined) {
+                input.onEvent?.({ status: "thinking", label: "思考完成", reasoningDelta: turn.reasoningContent });
+            }
         } catch (error) {
+            flushPendingReasoning();
             if (hasExecutedActions && isEmptyCanvasAgentFollowupError(error)) {
                 const reply = lastActionReply || "本轮画布操作已经完成，结果已保留。";
                 protocolMessages = [...protocolMessages, { role: "assistant" as const, content: reply }];
@@ -227,6 +265,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
             systemPrompt = buildCanvasAgentSkillPrompt(state.phase, input.userText, context, activeSkillContents, contextCheckpoint, skillFileToolAvailable);
             try {
                 turn = await requestTurn();
+                flushPendingReasoning();
             } catch (retryError) {
                 if (hasExecutedActions && isEmptyCanvasAgentFollowupError(retryError)) {
                     const reply = lastActionReply || "本轮画布操作已经完成，结果已保留。";

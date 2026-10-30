@@ -7,9 +7,7 @@
         position: 'absolute',
         transform: `translate(-50%, -50%) translate(${path[1]}px,${path[2]}px)`,
       }">
-      <div class="remove c">
-        <i-close theme="outline" size="32" @click="remove(id)" />
-      </div>
+      <button type="button" class="remove" title="移除这条参考连线" aria-label="移除这条参考连线" @click="remove(id)">×</button>
     </div>
   </EdgeLabelRenderer>
 </template>
@@ -57,9 +55,12 @@ function remove(id) {
 
 <style lang="scss" scoped>
 .remove {
+  width: 22px; height: 22px; display:grid; place-items:center; padding:0;
+  border:1px solid #ded5ce; border-radius:50%; background:#fff; color:#a99a8f;
+  font-size:16px; line-height:1; opacity:.25; transition:opacity .18s,color .18s;
   cursor: pointer;
   &:hover {
-    color: red !important;
+    opacity:1; color:#c9553c;
   }
 }
 </style>

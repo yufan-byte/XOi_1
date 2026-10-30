@@ -19,11 +19,12 @@ function ownsScene(key, userId) {
 }
 
 export async function verifyIdentity() {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("xoi_session");
   if (!token) throw new Error("请先登录");
 
   const response = await fetch("/api/auth/me", {
-    headers: { Authorization: token },
+    credentials: "same-origin",
+    headers: { "X-Xoi-Expected-User": token.split(":")[0] },
     cache: "no-store",
   });
   if (!response.ok) throw new Error("登录身份验证失败");
@@ -34,22 +35,26 @@ export async function verifyIdentity() {
     throw new Error("登录身份无效");
   }
   // 校验期间账号可能被切换（另一个标签页退出登录）
-  if (localStorage.getItem("token") !== token) {
+  if (localStorage.getItem("xoi_session") !== token || String(userId) !== token.split(":")[0]) {
     throw new Error("账号已切换，请重新打开工程");
   }
 
   const key = sceneKey();
-  // 独立开发/预览（无 ?key=）时不做归属校验，此时只写 draft 槽位
-  if (key && !ownsScene(key, userId)) {
+  // Web 工作台必须从当前账号的场景入口打开，不使用共享草稿槽位。
+  if (!key || !ownsScene(key, userId)) {
     throw new Error("这个工程不属于当前账号，或是尚未归属的旧工程");
   }
 
   // 账号一旦变化立即重载，避免上一个账号的场景继续留在屏幕上
   const checkAccount = () => {
-    if (localStorage.getItem("token") !== token) location.reload();
+    if (localStorage.getItem("xoi_session") !== token) {
+      document.getElementById("root")?.replaceChildren();
+      location.reload();
+    }
   };
   window.addEventListener("storage", checkAccount);
   window.addEventListener("focus", checkAccount);
+  window.addEventListener("pageshow", checkAccount);
   setInterval(() => {
     if (!document.hidden) checkAccount();
   }, 5000);

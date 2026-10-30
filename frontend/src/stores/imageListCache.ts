@@ -1,5 +1,7 @@
 import "@/views/production/components/workbench/type/type";
 import axios from "@/utils/axios";
+import { sessionUserId } from "@/utils/session";
+import { accountBoundary } from "@/utils/accountBoundary";
 
 /**
  * 图片列表缓存 Pinia Store
@@ -50,8 +52,8 @@ function toCachedItems(items: (UploadItem | TrackMedia)[]): CachedUploadItem[] {
   }));
 }
 
-export default defineStore(
-  "imageListCache",
+const makeImageListCacheStore = (userId: string) => defineStore(
+  `imageListCache:${userId}`,
   () => {
     const cacheData = ref<ImageListCacheData>({});
 
@@ -309,3 +311,12 @@ export default defineStore(
   },
   { persist: { pick: ["cacheData"] } },
 );
+const stores = new Map<string, ReturnType<typeof makeImageListCacheStore>>();
+accountBoundary.subscribe(() => stores.clear());
+export default function imageListCacheStore() {
+  const userId = sessionUserId();
+  if (!userId) throw new Error("请重新登录后打开素材草稿");
+  let store = stores.get(userId);
+  if (!store) { store = makeImageListCacheStore(userId); stores.set(userId, store); }
+  return store();
+}

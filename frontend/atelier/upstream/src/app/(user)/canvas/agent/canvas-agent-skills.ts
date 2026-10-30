@@ -53,7 +53,7 @@ export function canvasAgentSkillKeys(phase: CanvasAgentPhase, userText: string, 
     if (fullProject && ["intake", "concept", "script", "breakdown"].includes(phase)) return ["workflow", "script"];
     if (currentPhase === "audio" || /独立音频|音色|配音|朗读|语音|旁白音频/.test(text)) return ["audio"];
     if (currentPhase === "video" || /视频|运镜|一镜到底|让.+动起来/.test(text)) return ["video", ...(fullProject || continuing ? ["workflow" as const] : [])];
-    if (["references", "storyboard"].includes(currentPhase) || /图片|生图|改图|图像|角色图|肖像|海报|产品图|场景图|分镜图|故事板|设定图|设定表|四视图/.test(text)) return ["image", ...(/分镜|故事板/.test(text) ? ["script" as const] : [])];
+    if (["references", "storyboard"].includes(currentPhase) || /图片|生图|改图|图像|角色图|肖像|人像|人物|角色|捏脸|定妆|海报|产品图|场景图|分镜图|故事板|设定图|设定表|四视图/.test(text)) return ["image", ...(/分镜|故事板/.test(text) ? ["script" as const] : [])];
     if (["concept", "script", "breakdown"].includes(currentPhase) || /故事|剧情|剧本|脚本|文案|对白|分镜|提示词/.test(text)) return ["script"];
     // A selected node is relevant only when the current request refers to it.
     if (/这个|选中|刚才那个/.test(text)) {

@@ -28,7 +28,14 @@ export const modelPresentations: Record<string, ModelPresentation> = {
   "seedance2.0-line1-fast": { name: "即梦 Fast", description: "低成本试镜头与分镜预览 · 按秒计费", recommendation: "备用线路 · 省预算", rank: 56, referenceLatencySeconds: 400, rateResolutions: ["480p", "720p"] },
   "seedance-2.0-fast-2": { name: "即梦 2.0 Fast 2", description: "XOi 置顶的即梦 2.0 按次线路", recommendation: "XOi 置顶", rank: 55, featured: true },
   "wan3.0-720p-3": { name: "通义万相 3.0", description: "造物重点推荐 · 按秒线路", recommendation: "视频备选", rank: 50 },
-  "deepseek-v4-flash": { name: "DeepSeek V4 Flash", description: "故事构思、分集整理与日常改写", recommendation: "日常创作", rank: 100 },
+  // 文本默认模型口径（2026-10-27 实测）：
+  // · deepseek-v4-flash 在造物上游（channel #6）持续 429，已从可见列表停用；
+  // · deepseek-v4.1-flash 是思考模型，thinking/reasoning_effort/enable_thinking 三个开关
+  //   上游全不认，2048 输出预算会被思维链吃光（正文 0 字、单次 148s 撞前端 150s 超时），
+  //   不适合当画布 Agent 默认；
+  // · glm-5.3-flash 不思考、正文直出、稳定，作为画布默认「日常创作」。
+  "glm-5.3-flash": { name: "GLM 5.3 Flash", description: "不思考直出，画布 Agent 与日常改写首选", recommendation: "日常创作", rank: 100 },
+  "deepseek-v4.1-flash": { name: "DeepSeek V4.1 Flash", description: "思考模型 · 思维链会占用输出预算，长任务建议配 GLM", recommendation: "备选", rank: 95 },
   "gpt-5.6-sol": { name: "GPT 5.6 Sol", description: "综合写作与结构化创作任务", recommendation: "综合创作", rank: 90 },
   "claude-sonnet-4-6": { name: "Claude Sonnet 4.6", description: "长文梳理与剧本细节打磨", recommendation: "剧本打磨", rank: 80 },
   "claude-fable-5": { name: "Claude Fable 5 · 官方专线", description: "官方稳定线路 · 长文与复杂推理", recommendation: "官方专线", rank: 85 },

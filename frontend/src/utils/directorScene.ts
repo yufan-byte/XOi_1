@@ -18,7 +18,7 @@ export async function sceneFingerprint(raw: string, currentFrame = 0): Promise<s
     }
     const camera=project.camera;
     if(camera&&["position","rotation"].every(k=>Array.isArray(camera[k])&&camera[k].every((v:number,i:number)=>Math.abs(v-expected[k][i])<1e-6))&&Math.abs(camera.focalLength-expected.focalLength)<1e-6){
-      const canonical={position:keys[0].position,rotation:keys[0].rotation,focalLength:keys[0].focalLength,aspectRatio:camera.aspectRatio};
+      const canonical={position:keys[0].position,rotation:keys[0].rotation,focalLength:keys[0].focalLength,aspectRatio:camera.aspectRatio,...Object.fromEntries(['follow','route','motionMode','shot'].filter(k=>k in camera).map(k=>[k,camera[k]]))};
       project.camera=canonical;const shot=project.shots?.find((s:any)=>s.id===project.activeShotId);if(shot)shot.camera=structuredClone(canonical);
     }
   }

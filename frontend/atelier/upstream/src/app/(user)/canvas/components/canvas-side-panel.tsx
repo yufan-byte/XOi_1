@@ -8,6 +8,7 @@ import { motion } from "motion/react";
 
 import { AssetFormModal } from "@/components/assets/asset-form-modal";
 import { PromptDetailDialog } from "@/components/prompts/prompt-detail-dialog";
+import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
@@ -227,10 +228,19 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                             const hasImage = isCanvasImageNodeType(node.type) && node.metadata?.content;
                             const active = selectedNodeIds.has(node.id);
                             return (
-                                <div key={node.id} className={cn("relative flex items-center rounded-lg transition", depth && "ml-5", active ? "" : "hover:bg-black/5 dark:hover:bg-white/5")} style={active ? { background: theme.toolbar.activeBg } : undefined}>
+                                <div
+                                    key={node.id}
+                                    className={cn("relative flex items-center rounded-lg transition", depth && "ml-5", active ? "" : "hover:bg-black/5 dark:hover:bg-white/5")}
+                                    style={active ? { background: theme.toolbar.activeBg } : undefined}
+                                >
                                     {depth ? <span className="pointer-events-none absolute -left-3 top-[calc(-50%-0.4rem)] h-[calc(100%+0.4rem)] w-3 rounded-bl-md border-b border-l opacity-45" style={{ borderColor: theme.node.stroke }} /> : null}
                                     {node.type === CanvasNodeType.Group && hasChildren ? (
-                                        <button type="button" onClick={() => setCollapsedGroups((current) => (current.has(node.id) ? new Set([...current].filter((id) => id !== node.id)) : new Set(current).add(node.id)))} className="ml-1 grid size-6 shrink-0 place-items-center opacity-55 transition hover:opacity-100" aria-label={node.title}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCollapsedGroups((current) => (current.has(node.id) ? new Set([...current].filter((id) => id !== node.id)) : new Set(current).add(node.id)))}
+                                            className="ml-1 grid size-6 shrink-0 place-items-center opacity-55 transition hover:opacity-100"
+                                            aria-label={node.title}
+                                        >
                                             <ChevronRight className={cn("size-3.5 transition-transform", !collapsedGroups.has(node.id) && "rotate-90")} />
                                         </button>
                                     ) : null}
@@ -304,7 +314,9 @@ function MyAssetsTab({ theme, onAdd, onAssetDragStart, onAssetDragEnd }: { theme
     return (
         <>
             <div className="flex items-center gap-4 px-3 pb-2">
-                {ASSET_TYPE_OPTIONS.map((option) => <AssetSourceTab key={option.value || "all"} label={option.label} active={type === option.value} theme={theme} onClick={() => setType(option.value)} />)}
+                {ASSET_TYPE_OPTIONS.map((option) => (
+                    <AssetSourceTab key={option.value || "all"} label={option.label} active={type === option.value} theme={theme} onClick={() => setType(option.value)} />
+                ))}
             </div>
             <div className="flex items-center gap-2 px-3 pb-2">
                 <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索素材" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
@@ -314,7 +326,15 @@ function MyAssetsTab({ theme, onAdd, onAssetDragStart, onAssetDragEnd }: { theme
                 </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-                {filtered.length ? <div className="grid grid-cols-2 gap-2 px-1 pt-1">{filtered.map((asset) => <AssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />)}</div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />}
+                {filtered.length ? (
+                    <div className="grid grid-cols-2 gap-2 px-1 pt-1">
+                        {filtered.map((asset) => (
+                            <AssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />
+                        ))}
+                    </div>
+                ) : (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />
+                )}
             </div>
         </>
     );
@@ -340,22 +360,76 @@ function LibraryAssetsTab({ theme, onAssetDragStart, onAssetDragEnd }: { theme: 
                 <Select size="small" variant="borderless" className="w-16" value={type} onChange={setType} options={ASSET_TYPE_OPTIONS} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-                {query.isLoading ? <div className="flex justify-center pt-16"><Spin size="small" /></div> : items.length ? <div className="grid grid-cols-2 gap-2 px-1 pt-1">{items.map((asset) => <LibraryAssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />)}</div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />}
-                {query.data?.total && query.data.total > ASSET_PAGE_SIZE ? <Pagination className="mt-3 flex justify-center" size="small" current={page} pageSize={ASSET_PAGE_SIZE} total={query.data.total} showSizeChanger={false} onChange={setPage} /> : null}
+                {query.isLoading ? (
+                    <div className="flex justify-center pt-16">
+                        <Spin size="small" />
+                    </div>
+                ) : items.length ? (
+                    <div className="grid grid-cols-2 gap-2 px-1 pt-1">
+                        {items.map((asset) => (
+                            <LibraryAssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />
+                        ))}
+                    </div>
+                ) : (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />
+                )}
+                {query.data?.total && query.data.total > ASSET_PAGE_SIZE ? (
+                    <Pagination className="mt-3 flex justify-center" size="small" current={page} pageSize={ASSET_PAGE_SIZE} total={query.data.total} showSizeChanger={false} onChange={setPage} />
+                ) : null}
             </div>
         </>
     );
 }
 
 function AssetDragCard({ asset, theme, onAssetDragStart, onAssetDragEnd }: { asset: Asset; theme: CanvasTheme; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void }) {
-    return <DraggableAssetCard theme={theme} title={asset.title} payload={assetPayload(asset)} kind={asset.kind} imageUrl={asset.kind === "text" ? asset.coverUrl : asset.kind === "image" ? asset.coverUrl || asset.data.dataUrl : asset.kind === "video" ? asset.coverUrl || asset.data.url : ""} text={asset.kind === "text" ? asset.data.content : ""} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />;
+    return (
+        <DraggableAssetCard
+            theme={theme}
+            title={asset.title}
+            payload={assetPayload(asset)}
+            kind={asset.kind}
+            imageUrl={asset.kind === "text" ? asset.coverUrl : asset.kind === "image" ? asset.coverUrl || asset.data.dataUrl : asset.kind === "video" ? asset.coverUrl || asset.data.url : ""}
+            text={asset.kind === "text" ? asset.data.content : ""}
+            onAssetDragStart={onAssetDragStart}
+            onAssetDragEnd={onAssetDragEnd}
+        />
+    );
 }
 
 function LibraryAssetDragCard({ asset, theme, onAssetDragStart, onAssetDragEnd }: { asset: AssetLibraryItem; theme: CanvasTheme; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void }) {
-    return <DraggableAssetCard theme={theme} title={asset.title} payload={libraryPayload(asset)} kind={asset.type} imageUrl={asset.coverUrl || asset.url} text={asset.content || asset.description} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />;
+    return (
+        <DraggableAssetCard
+            theme={theme}
+            title={asset.title}
+            payload={libraryPayload(asset)}
+            kind={asset.type}
+            imageUrl={asset.coverUrl || asset.url}
+            text={asset.content || asset.description}
+            onAssetDragStart={onAssetDragStart}
+            onAssetDragEnd={onAssetDragEnd}
+        />
+    );
 }
 
-function DraggableAssetCard({ theme, title, payload, kind, imageUrl, text, onAssetDragStart, onAssetDragEnd }: { theme: CanvasTheme; title: string; payload: InsertAssetPayload; kind: "text" | "image" | "video" | "audio"; imageUrl: string; text: string; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void }) {
+function DraggableAssetCard({
+    theme,
+    title,
+    payload,
+    kind,
+    imageUrl,
+    text,
+    onAssetDragStart,
+    onAssetDragEnd,
+}: {
+    theme: CanvasTheme;
+    title: string;
+    payload: InsertAssetPayload;
+    kind: "text" | "image" | "video" | "audio";
+    imageUrl: string;
+    text: string;
+    onAssetDragStart: (payload: InsertAssetPayload) => void;
+    onAssetDragEnd: () => void;
+}) {
     return (
         <div
             draggable
@@ -369,15 +443,51 @@ function DraggableAssetCard({ theme, title, payload, kind, imageUrl, text, onAss
             className="group relative aspect-square cursor-grab overflow-hidden rounded-xl border transition duration-200 hover:-translate-y-0.5 hover:shadow-lg active:cursor-grabbing"
             style={{ borderColor: theme.node.stroke, background: theme.node.panel }}
         >
-            {kind === "text" ? imageUrl ? <div className="flex size-full flex-col"><img src={imageUrl} alt={title} className="h-1/2 w-full object-cover" /><div className="h-1/2 overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[11px] leading-snug opacity-80">{text}</div></div> : <div className="size-full overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[11px] leading-snug opacity-80">{text}</div> : kind === "audio" ? <span className="grid size-full place-items-center"><Music2 className="size-8 opacity-45" /></span> : imageUrl ? kind === "video" ? <video src={imageUrl + "#t=0.1"} muted playsInline preload="metadata" className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" /> : <img src={imageUrl} alt={title} className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" /> : <span className="grid size-full place-items-center"><FileText className="size-8 opacity-45" /></span>}
+            {kind === "text" ? (
+                imageUrl ? (
+                    <div className="flex size-full flex-col">
+                        <img src={imageUrl} alt={title} className="h-1/2 w-full object-cover" />
+                        <div className="h-1/2 overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[11px] leading-snug opacity-80">{text}</div>
+                    </div>
+                ) : (
+                    <div className="size-full overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[11px] leading-snug opacity-80">{text}</div>
+                )
+            ) : kind === "audio" ? (
+                <span className="grid size-full place-items-center">
+                    <Music2 className="size-8 opacity-45" />
+                </span>
+            ) : imageUrl ? (
+                kind === "video" ? (
+                    <video src={imageUrl + "#t=0.1"} muted playsInline preload="metadata" className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" />
+                ) : (
+                    <img src={imageUrl} alt={title} className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" />
+                )
+            ) : (
+                <span className="grid size-full place-items-center">
+                    <FileText className="size-8 opacity-45" />
+                </span>
+            )}
         </div>
     );
 }
 
 function assetPayload(asset: Asset): InsertAssetPayload {
     if (asset.kind === "text") return { kind: "text", content: asset.data.content, title: asset.title, assetId: asset.id, source: "asset" };
-    if (asset.kind === "image") return { kind: "image", dataUrl: asset.data.dataUrl, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, width: asset.data.width, height: asset.data.height, bytes: asset.data.bytes, mimeType: asset.data.mimeType, source: "asset" };
-    if (asset.kind === "video") return { kind: "video", url: asset.data.url, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, width: asset.data.width, height: asset.data.height, bytes: asset.data.bytes, mimeType: asset.data.mimeType, source: "asset" };
+    if (asset.kind === "image")
+        return {
+            kind: "image",
+            dataUrl: asset.data.dataUrl,
+            storageKey: asset.data.storageKey,
+            title: asset.title,
+            assetId: asset.id,
+            width: asset.data.width,
+            height: asset.data.height,
+            bytes: asset.data.bytes,
+            mimeType: asset.data.mimeType,
+            source: "asset",
+        };
+    if (asset.kind === "video")
+        return { kind: "video", url: asset.data.url, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, width: asset.data.width, height: asset.data.height, bytes: asset.data.bytes, mimeType: asset.data.mimeType, source: "asset" };
     return { kind: "audio", url: asset.data.url, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, bytes: asset.data.bytes, mimeType: asset.data.mimeType, durationMs: asset.data.durationMs, source: "asset" };
 }
 
@@ -389,33 +499,38 @@ function libraryPayload(asset: AssetLibraryItem): InsertAssetPayload {
 }
 
 const CanvasPromptsTab = memo(function CanvasPromptsTab({ theme, onInsert }: { theme: CanvasTheme; onInsert: (payload: InsertAssetPayload) => void }) {
-    const copyText = useCopyText();
-    const [keyword, setKeyword] = useState("");
-    const [expanded, setExpanded] = useState<Record<string, boolean>>({ system: true });
-    const [detail, setDetail] = useState<Prompt | null>(null);
-    const categoryQuery = useQuery({
-        queryKey: ["canvas-side-prompt-categories"],
-        queryFn: () => fetchPrompts({ page: 1, pageSize: 1 }),
-        retry: false,
-    });
-    const categories = useMemo(() => ["system", ...(categoryQuery.data?.categories.filter((category) => category !== "system") || [])], [categoryQuery.data?.categories]);
-
+    const [studioOpen, setStudioOpen] = useState(false);
     return (
-        <div className="flex h-full flex-col">
-            <div className="px-3 pb-2.5 pt-1">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索提示词" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+        <div className="flex h-full flex-col px-4 py-3">
+            <div className="rounded-2xl border p-4" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
+                <span className="grid size-10 place-items-center rounded-xl text-white" style={{ background: theme.toolbar.activeText }}>
+                    <BookOpen className="size-5" />
+                </span>
+                <h3 className="mt-4 text-base font-semibold">创作提示词控制台</h3>
+                <p className="mt-1.5 text-xs leading-5 opacity-55">快速模板、人物精细捏脸与你的自定义预设，统一在这里完成。</p>
+                <button
+                    type="button"
+                    onClick={() => setStudioOpen(true)}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-white transition active:scale-[0.98]"
+                    style={{ background: theme.toolbar.activeText }}
+                >
+                    打开提示词控制台
+                    <ChevronRight className="size-3.5" />
+                </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-                {categoryQuery.isLoading ? <div className="flex justify-center pt-16"><Spin size="small" /></div> : (
-                    <div className="space-y-2">
-                        {categories.map((category) => {
-                            const opened = Boolean(expanded[category]) || Boolean(keyword.trim());
-                            return <PromptGroup key={category} category={category} keyword={keyword} open={opened} theme={theme} onToggle={() => setExpanded((current) => ({ ...current, [category]: !current[category] }))} onView={setDetail} onInsert={onInsert} />;
-                        })}
+            <div className="mt-5 space-y-4 px-1">
+                {[
+                    ["快速开始", "按创作类型选择经过整理的模板"],
+                    ["精细控制", "人物结构、五官、妆造与光线逐项可调"],
+                    ["我的预设", "保存自己的设定，支持 JSON 导入导出"],
+                ].map(([title, description]) => (
+                    <div key={title} className="border-l pl-3" style={{ borderColor: theme.toolbar.activeText }}>
+                        <h4 className="text-xs font-semibold">{title}</h4>
+                        <p className="mt-1 text-[11px] leading-4 opacity-45">{description}</p>
                     </div>
-                )}
+                ))}
             </div>
-            <PromptDetailDialog prompt={detail} onClose={() => setDetail(null)} onCopy={(prompt) => copyText(prompt, "已复制提示词")} />
+            <PromptSelectDialog open={studioOpen} onOpenChange={setStudioOpen} onSelect={(prompt) => onInsert({ kind: "text", content: prompt, title: "人物角色设定" })} />
         </div>
     );
 });
@@ -424,17 +539,28 @@ async function fetchPromptCategory(category: string) {
     const first = await fetchPrompts({ category, page: 1, pageSize: 500 });
     if (first.total <= first.items.length) return first.items;
 
-    const pages = await Promise.all(
-        Array.from(
-            { length: Math.ceil(first.total / 500) - 1 },
-            (_, index) => fetchPrompts({ category, page: index + 2, pageSize: 500 }),
-        ),
-    );
+    const pages = await Promise.all(Array.from({ length: Math.ceil(first.total / 500) - 1 }, (_, index) => fetchPrompts({ category, page: index + 2, pageSize: 500 })));
 
     return [...first.items, ...pages.flatMap((page) => page.items)];
 }
 
-function PromptGroup({ category, keyword, open, theme, onToggle, onView, onInsert }: { category: string; keyword: string; open: boolean; theme: CanvasTheme; onToggle: () => void; onView: (prompt: Prompt) => void; onInsert: (payload: InsertAssetPayload) => void }) {
+function PromptGroup({
+    category,
+    keyword,
+    open,
+    theme,
+    onToggle,
+    onView,
+    onInsert,
+}: {
+    category: string;
+    keyword: string;
+    open: boolean;
+    theme: CanvasTheme;
+    onToggle: () => void;
+    onView: (prompt: Prompt) => void;
+    onInsert: (payload: InsertAssetPayload) => void;
+}) {
     const label = category === "system" ? "系统提示词" : category;
     const query = useQuery({
         queryKey: ["canvas-side-prompt-category", category],
@@ -459,7 +585,11 @@ function PromptGroup({ category, keyword, open, theme, onToggle, onView, onInser
             </button>
             {open ? (
                 <div className="space-y-1.5 px-1 pb-2 pt-1">
-                    {query.isLoading ? <div className="flex justify-center py-6"><Spin size="small" /></div> : query.isError ? (
+                    {query.isLoading ? (
+                        <div className="flex justify-center py-6">
+                            <Spin size="small" />
+                        </div>
+                    ) : query.isError ? (
                         <button type="button" onClick={() => void query.refetch()} className="block w-full py-4 text-center text-xs text-red-500 opacity-80 transition hover:opacity-100">
                             加载失败，点击重试
                         </button>
@@ -477,14 +607,30 @@ function PromptGroup({ category, keyword, open, theme, onToggle, onView, onInser
 function PromptRow({ item, theme, onView, onInsert }: { item: Prompt; theme: CanvasTheme; onView: () => void; onInsert: () => void }) {
     return (
         <div className="group relative flex items-center gap-2.5 rounded-lg px-2 py-2 transition hover:bg-black/5 dark:hover:bg-white/5">
-            {item.coverUrl ? <img src={item.coverUrl} alt="" className="size-10 shrink-0 rounded-md object-cover" loading="lazy" /> : <span className="grid size-10 shrink-0 place-items-center rounded-md" style={{ background: theme.node.panel }}><FileText className="size-4 opacity-50" /></span>}
+            {item.coverUrl ? (
+                <img src={item.coverUrl} alt="" className="size-10 shrink-0 rounded-md object-cover" loading="lazy" />
+            ) : (
+                <span className="grid size-10 shrink-0 place-items-center rounded-md" style={{ background: theme.node.panel }}>
+                    <FileText className="size-4 opacity-50" />
+                </span>
+            )}
             <button type="button" onClick={onView} className="min-w-0 flex-1 text-left">
                 <span className="block truncate text-sm font-medium leading-snug">{item.title}</span>
                 <span className="mt-0.5 block truncate text-xs leading-snug opacity-50">{item.prompt}</span>
             </button>
             <div className="flex shrink-0 flex-col items-center gap-0.5">
-                <button type="button" onClick={onView} className="grid size-6 place-items-center rounded-md opacity-60 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10" aria-label="查看详情"><Eye className="size-3.5" /></button>
-                <button type="button" onClick={onInsert} className="grid size-6 place-items-center rounded-md opacity-60 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10" style={{ color: theme.toolbar.activeText }} aria-label="插入画布"><Plus className="size-3.5" /></button>
+                <button type="button" onClick={onView} className="grid size-6 place-items-center rounded-md opacity-60 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10" aria-label="查看详情">
+                    <Eye className="size-3.5" />
+                </button>
+                <button
+                    type="button"
+                    onClick={onInsert}
+                    className="grid size-6 place-items-center rounded-md opacity-60 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10"
+                    style={{ color: theme.toolbar.activeText }}
+                    aria-label="插入画布"
+                >
+                    <Plus className="size-3.5" />
+                </button>
             </div>
         </div>
     );

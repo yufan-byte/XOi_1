@@ -7,16 +7,18 @@ import type { CatalogModel } from "@/lib/models";
 import { Button } from "@/components/ui/button";
 import { OmniDialog } from "./ui";
 import { voiceLibraryOf } from "../adapters/voices";
-import { accountKey } from "../adapters/request";
+import { accountKey, accountFetch, assertAccountSession } from "../adapters/request";
 import { cn } from "@/lib/utils";
 
 type BillingPreview = { label: string; model: string; modelId?: string; free?: boolean; quote?: { yuan: number } | null; budget: { defaultPoints: number; maxPoints: number; maxCalls: number; minutes: number } };
 
 async function audioFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  // F3：凭据走 httpOnly cookie（同源自动携带）；accountKey() 只做「有没有登录」的本地信号判断。
   const token = accountKey();
   if (!token) throw new Error("请先登录");
-  const res = await fetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), Authorization: token, "Content-Type": "application/json" }, cache: "no-store" });
+  const res = await accountFetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), "Content-Type": "application/json" } });
   const body = await res.json().catch(() => null);
+  assertAccountSession(token);
   if (!res.ok || body?.success === false) throw new Error(body?.message || body?.error || `请求失败（${res.status}）`);
   return ((body && typeof body === "object" && "data" in body ? body.data : body) ?? body) as T;
 }

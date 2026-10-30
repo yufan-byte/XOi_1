@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, ArrowUp, Bot, Copy, History, LoaderCircle, PanelRightClose, Paperclip, Plus, RotateCcw, Settings2, Sparkles, Square, Trash2, Upload } from "lucide-react";
-import { Button, Modal, Segmented, Switch, Tooltip } from "antd";
+import { Button, Modal, Switch, Tooltip } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { requestImageQuestion } from "@/services/api/image";
@@ -116,9 +116,11 @@ export function CanvasAgentPanel({ nodes, selectedNodeIds, sessions, activeSessi
         const loaded = await Promise.all(
             withPaths.map(async (skill) => {
                 try {
+                    // F3：凭据在 httpOnly cookie 里，同源请求自动携带；不再读 localStorage 拼 header。
                     const response = await fetch("/api/setting/skillManagement/getSkillContent", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json", Authorization: localStorage.getItem("token") || "" },
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "same-origin",
                         body: JSON.stringify({ path: skill.path }),
                     });
                     if (!response.ok) return null;
@@ -393,11 +395,11 @@ export function CanvasAgentPanel({ nodes, selectedNodeIds, sessions, activeSessi
             </div>
             <Modal title="Agent 设置" open={settingsOpen} centered width={520} onCancel={() => setSettingsOpen(false)} footer={<Button type="primary" onClick={() => setSettingsOpen(false)}>完成</Button>}>
                 <div className="flex items-center justify-between gap-6 py-2">
-                    <div><div className="text-sm font-medium">文本接口</div><div className="mt-1 text-xs opacity-55">选择 Chat Completions 或 Responses 接口</div></div>
-                    <Segmented value={agentConfig.textApiMode} options={[{ label: "Chat", value: "chat" }, { label: "Responses", value: "responses" }]} onChange={(textApiMode) => setAgentConfig((current) => ({ ...current, textApiMode: textApiMode as CanvasAgentConfig["textApiMode"] }))} />
+                    <div><div className="text-sm font-medium">文本接口</div><div className="mt-1 text-xs opacity-55">已按所选模型自动适配，无需设置</div></div>
+                    <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px]" style={{ background: theme.node.fill }}>自动</span>
                 </div>
                 <div className="flex items-center justify-between gap-6 py-2">
-                    <div><div className="text-sm font-medium">自动生成图片/视频/音频</div><div className="mt-1 text-xs opacity-55">允许 Agent 根据对话中的创作设置继续媒体工作流</div></div>
+                    <div><div className="text-sm font-medium">自动生成图片/视频/音频</div><div className="mt-1 text-xs opacity-55">开启后 Agent 直接提交生成（模型与比例按本画布设置）；关闭则只建节点等你点生成</div></div>
                     <Switch checked={agentConfig.autoGenerateMedia} onChange={(autoGenerateMedia) => setAgentConfig((current) => ({ ...current, autoGenerateMedia }))} />
                 </div>
                 <div className="mt-3 border-t pt-3 text-xs opacity-55" style={{ borderColor: theme.toolbar.border }}>

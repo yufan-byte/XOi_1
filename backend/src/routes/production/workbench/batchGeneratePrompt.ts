@@ -1,3 +1,4 @@
+import { userFacingError } from "@/utils/userFacingError";
 import express from "express";
 import { resolveTextModelKey } from "@/utils/textModel";
 import u from "@/utils";
@@ -237,7 +238,7 @@ export default router.post(
 
       res.status(200).send(success({ message: "开始生成提示词", pointsDeducted, balance }));
     } catch (e) {
-      res.status(400).send(error(u.error(e).message));
+      res.status(400).send(error(userFacingError(e, "提示词生成失败，请稍后重试")));
     }
   },
 );

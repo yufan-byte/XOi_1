@@ -1564,8 +1564,8 @@
 /* 视觉收敛（白底版）：创作区白纸层级，靠描边与浅投影分层。 */
 [data-comic-ui] .cs-page {
   background:
-    radial-gradient(ellipse at 65% 0, rgba(122, 160, 247, 0.10), transparent 48%),
-    #ffffff;
+    radial-gradient(ellipse at 65% 0, rgba(255, 196, 121, 0.12), transparent 48%),
+    #fffdfa;
 }
 [data-comic-ui] .cs-flow > .cs-inner {
   background: #ffffff;
@@ -1590,8 +1590,8 @@
 }
 [data-comic-ui] .cs-hero::before {
   background:
-    linear-gradient(180deg, rgba(230, 232, 237, 0.12) 0%, rgba(230, 232, 237, 0.08) 38%, rgba(230, 232, 237, 0.72) 100%),
-    url("/one-stop/brand/hero-dawn-v2.png") center 43% / cover no-repeat;
+    linear-gradient(180deg, rgba(255, 250, 242, 0.10) 0%, rgba(255, 250, 242, 0.04) 44%, rgba(255, 252, 247, 0.72) 100%),
+    url("/one-stop/brand/one-stop-story-dawn-v1.png") center 48% / cover no-repeat;
 }
 
 /* Hero final pass: keep the dawn artwork edge-to-edge; no side feathering or white vignette. */
@@ -1601,8 +1601,8 @@
   width: 100vw !important;
   transform: translateX(-50%) !important;
   background:
-    linear-gradient(180deg, rgba(230, 232, 237, 0.02) 0%, rgba(230, 232, 237, 0.02) 62%, rgba(230, 232, 237, 0.38) 100%),
-    url("/one-stop/brand/hero-dawn-v2.png") center 43% / cover no-repeat !important;
+    linear-gradient(180deg, rgba(255, 251, 244, 0.06) 0%, rgba(255, 251, 244, 0.02) 58%, rgba(255, 253, 249, 0.56) 100%),
+    url("/one-stop/brand/one-stop-story-dawn-v1.png") center 48% / cover no-repeat !important;
   mask: none !important;
   -webkit-mask: none !important;
   opacity: 1 !important;
@@ -1680,48 +1680,61 @@
   }
 }
 
-/* 最终对比度校准（置于文件末尾，覆盖所有分支的浅色卡片定义）。
-   创作卡保留 2px 暖色环带供流光扫过：纸面色只落在内层，外圈不再用硬边框。 */
+/* 最终视觉校准：以暖白纸面替代整块蓝灰底，让创作框融入日出故事场景。 */
 [data-comic-ui] .cs-flow > .cs-inner {
-  background: #e1e4ea;
+  background: rgba(255, 252, 247, 0.94);
+  backdrop-filter: blur(18px) saturate(1.06);
 }
 [data-comic-ui] .cs-flow {
-  background: linear-gradient(180deg, #c4cfea, #a8b8dc);
+  background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(116,145,210,.72) 55%, rgba(242,174,105,.78));
   border: 0;
+  box-shadow:
+    0 24px 54px -26px rgba(78, 67, 54, 0.34),
+    0 2px 8px rgba(80, 90, 112, 0.08);
 }
 [data-comic-ui] .cs-title input {
-  color: #2f333d;
+  color: #34302c;
 }
 [data-comic-ui] .cs-title input::placeholder,
 [data-comic-ui] .cs-composer textarea::placeholder {
-  color: #6a707f;
+  color: #8d8982;
 }
 [data-comic-ui] .cs-composer textarea {
   min-height: 92px;
-  background: #dadde5;
-  color: #2f333d;
+  background: rgba(255, 255, 255, 0.70);
+  color: #3d3934;
+  box-shadow: inset 0 1px 0 rgba(105, 92, 74, 0.06);
 }
 [data-comic-ui] .cs-story-count {
-  color: #707686;
+  color: #9a958c;
 }
 [data-comic-ui] .cs-model-section {
-  border-top-color: #c9cdd7;
+  border-top-color: #e9e1d7;
 }
 [data-comic-ui] .cs-model-heading {
-  color: #5a6172;
+  color: #665f57;
 }
 [data-comic-ui] .cs-model-heading small {
-  color: #6f7686;
+  color: #8e867d;
+}
+[data-comic-ui] .cs-advanced-row {
+  border-top-color: #e9e1d7;
+  color: #736b63;
+}
+[data-comic-ui] .cs-fpill,
+[data-comic-ui] .cs-duration-select {
+  background: #f7f3ed;
+  border-color: #ebe2d7;
 }
 [data-comic-ui] .cs-create-footer {
-  background: #cfd3dc;
-  border-top-color: #bdc1cc;
+  background: rgba(248, 243, 236, 0.92);
+  border-top-color: #e7ddd1;
 }
 [data-comic-ui] .cs-create-footer > span {
-  color: #4e5564;
+  color: #665f57;
 }
 [data-comic-ui] .cs-create-footer small {
-  color: #686e7e;
+  color: #8d857c;
 }
 
 /* 项目工作台（阶段编辑器）外框：与首页同一套圆角面板 */

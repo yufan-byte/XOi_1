@@ -161,7 +161,7 @@ function removeVersion() {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 150px;
+  min-height: 340px;
   color: var(--studio-text);
 }
 .previewHeader {
@@ -169,11 +169,11 @@ function removeVersion() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 7px;
+  margin-bottom: 10px;
   flex: none;
 }
 .previewHeader > strong {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.2px;
 }
@@ -190,7 +190,7 @@ function removeVersion() {
   border: 0;
   background: transparent;
   color: var(--studio-muted);
-  padding: 4px 10px;
+  padding: 6px 13px;
   border-radius: 7px;
   font: inherit;
   font-size: 12px;
@@ -204,23 +204,33 @@ function removeVersion() {
 .previewScreen {
   flex: 1;
   height: auto;
-  min-height: 100px;
+  min-height: 270px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 7px;
+  margin-bottom: 10px;
   min-width: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--studio-line) 72%, transparent);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--studio-white) 92%, transparent), transparent 58%),
+    color-mix(in srgb, var(--studio-field) 62%, var(--studio-white));
 }
 .previewMedia {
   position: relative;
+  width: auto;
   max-width: 100%;
-  height: 100%;
+  height: calc(100% - 24px);
+  max-height: 304px;
+  aspect-ratio: 16 / 9;
   display: flex;
   align-items: center;
   justify-content: center;
   min-width: 0;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 14px;
+  box-shadow: 0 18px 44px -28px #20150e8a;
 }
 .previewMedia > video,
 .previewMedia > img {
@@ -229,7 +239,7 @@ function removeVersion() {
   height: 100%;
   max-width: 100%;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: 14px;
   background: #171719;
 }
 .previewEmpty {
@@ -273,7 +283,7 @@ function removeVersion() {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  min-height: 28px;
+  min-height: 34px;
   flex: none;
   font-size: 12px;
 }
@@ -379,10 +389,10 @@ function removeVersion() {
 }
 @media (max-width: 1000px) {
   .previewScreen {
-    height: clamp(240px, 43vh, 450px);
+    height: clamp(240px, 38vh, 360px);
   }
   .previewHeader > strong {
-    font-size: 14px;
+    font-size: 16px;
   }
 }
 @media (max-width: 760px) {

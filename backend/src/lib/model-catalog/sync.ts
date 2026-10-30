@@ -90,7 +90,8 @@ export async function syncUpstreamPricing(policy: { quarantineExistingUnsupporte
         console.warn(`[upstream-sync] ${channel.name || channel.id} 参数目录暂不可用，保留最近参数`);
       }
       const source = rows.filter(row => names.has(row.model_name));
-      if (!source.length) throw new Error(`造物渠道 ${channel.name || channel.id} 没有可用模型`);
+      if (!names.size) throw new Error(`造物渠道 ${channel.name || channel.id} 的令牌没有返回可用模型，已保留现有配置`);
+      if (!source.length) throw new Error(`造物渠道 ${channel.name || channel.id} 的令牌可见 ${names.size} 个模型，但公开价格目录未包含这些型号；已保留现有目录与价格，专线价格需通过账号核对`);
       const upstreamGroup = upstreamGroupForChannel(channel);
       const upstreamFactor = Number(pricing.data.group_ratio?.[upstreamGroup] ?? factorOverrides[upstreamGroup]);
       if (!Number.isFinite(upstreamFactor) || upstreamFactor <= 0) {
@@ -140,9 +141,31 @@ export async function syncUpstreamPricing(policy: { quarantineExistingUnsupporte
         maps = buildPricingOptions(working, item.source, item.upstreamFactor);
         working = Object.fromEntries(Object.entries(maps).map(([key, value]) => [key, JSON.stringify(value)]));
       }
+      /**
+       * 写之前先按**本实例已装插件**的真实能力过滤表达式（详见 plugin-usage.ts）。
+       *
+       * 上游表达式是给造物自家插件写的（billing_aspect_ratio / billing_resolution …），
+       * 而我们这边同一个模型可能还由官方插件服务（只声明 seconds / resolution …）。
+       * 只要有一条表达式不被某个插件接受，整份 billing_expr 就被 400 打回，
+       * 连带 ModelRatio 与参数卡片一起停止更新 —— 这就是此前目录长期不同的原因。
+       */
+      // 计费表达式/模式不参与本轮同步（实测结论，见 plugin-usage.ts 顶部注释）：
+      // 网关只接受「模式与表达式成对、且对每个服务该模型的插件都合法」的状态，
+      // 而这两项只能一个一个 key 地 PUT，无法原子成对修改 —— 只要有一条历史脏数据，
+      // 连 ModelRatio 都会被 400 拒掉，整个目录永久停更。
+      // 表达式由维护脚本处理（backend/scripts/fix-gateway-billing.ts），
+      // 这里只保证「价格倍率 + 模型目录 + 参数卡片」能稳定同步。
+      delete maps["billing_setting.billing_expr"];
+      delete maps["billing_setting.billing_mode"];
+
       changes = Object.entries(maps)
         .filter(([key, value]) => JSON.stringify(value) !== (options[key] || "{}"))
-        .sort(([a], [b]) => Number(b === "billing_setting.billing_expr") - Number(a === "billing_setting.billing_expr"));
+        // 顺序很重要：先写 billing_mode、再写 billing_expr。
+        // 表达式先写的话，中间态里「模式还是 tiered_expr、表达式已经没了」会被网关判成
+        // "billing expression is required"，整批同样写不进去。
+        .sort(([a], [b]) =>
+          Number(b === "billing_setting.billing_mode") - Number(a === "billing_setting.billing_mode") ||
+          Number(b === "billing_setting.billing_expr") - Number(a === "billing_setting.billing_expr"));
       const previousOptions = JSON.stringify(Object.fromEntries(changes.map(([key]) => [key, options[key] || "{}"])));
       for (const item of sources) {
         await db.query(

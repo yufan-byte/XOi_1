@@ -4,6 +4,7 @@ import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, us
 import {
     History,
     Bot,
+    BrainCircuit,
     Clapperboard,
     Copy,
     Cpu,
@@ -24,7 +25,7 @@ import {
     Video,
     X,
 } from "lucide-react";
-import { App, AutoComplete, Button, Dropdown, Modal, Segmented, Switch, Tooltip } from "antd";
+import { App, AutoComplete, Button, Dropdown, Modal, Switch, Tooltip } from "antd";
 import { useReducedMotion } from "motion/react";
 import { nanoid } from "nanoid";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -536,7 +537,18 @@ export function CanvasAssistantPanel({
                 getContext: getAgentContext,
                 executeAction: (action, signal = controller.signal) => executeCanvasTool(action, messageReferenceNodeIds, activeSkills, mode, signal),
                 signal: controller.signal,
-                onEvent: (event) => updateMessage(session.id, assistantId, { status: event.status, activity: event.label }),
+                onEvent: (event) => {
+                    if (event.reasoningDelta !== undefined) {
+                        const current = sessionsRef.current.find((item) => item.id === session.id)?.messages.find((item) => item.id === assistantId);
+                        updateMessage(session.id, assistantId, {
+                            status: event.status,
+                            activity: event.label,
+                            reasoning: (current?.reasoning || "") + event.reasoningDelta,
+                        });
+                        return;
+                    }
+                    updateMessage(session.id, assistantId, { status: event.status, activity: event.label });
+                },
                 onCheckpoint: (checkpoint) =>
                     updateSession(session.id, (current) => ({
                         ...current,
@@ -756,18 +768,14 @@ export function CanvasAssistantPanel({
                     {mode !== "codex" ? <div className="flex items-center justify-between gap-6 py-2">
                         <div className="min-w-0">
                             <div className="text-sm font-medium">文本接口</div>
-                            <div className="mt-1 text-xs leading-5 opacity-55">选择使用 Chat Completions 或 Responses 接口</div>
+                            <div className="mt-1 text-xs leading-5 opacity-55">已按所选模型自动适配：默认 Chat Completions，上游只支持 Responses 时自动切换，无需设置</div>
                         </div>
-                        <Segmented
-                            value={agentConfig.textApiMode}
-                            options={[{ label: "Chat", value: "chat" }, { label: "Responses", value: "responses" }]}
-                            onChange={(textApiMode) => onAgentConfigChange({ textApiMode: textApiMode as CanvasAgentConfig["textApiMode"] })}
-                        />
+                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px]" style={{ background: "rgba(0,0,0,.05)" }}>自动</span>
                     </div> : null}
                     <div className="flex items-center justify-between gap-6 py-2">
                         <div className="min-w-0">
                             <div className="text-sm font-medium">自动生成图片/视频/音频</div>
-                            <div className="mt-1 text-xs leading-5 opacity-55">开启后，Agent 可直接提交图片/视频/音频生成，无需再次确认</div>
+                            <div className="mt-1 text-xs leading-5 opacity-55">开启后 Agent 会直接提交生成任务（模型、比例、时长按「本画布模型」的设置）；关闭则只建好节点等你点生成</div>
                         </div>
                         <Switch checked={agentConfig.autoGenerateMedia} onChange={(autoGenerateMedia) => onAgentConfigChange({ autoGenerateMedia })} />
                     </div>
@@ -912,6 +920,7 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode
                                 {message.role === "assistant" ? <AssistantMarkdown components={markdownComponents}>{message.text}</AssistantMarkdown> : <UserMessageContent message={message} showSkills={showSkills} />}
                             </div>
                         ) : null}
+                        {message.role === "assistant" && message.reasoning ? <ReasoningTrace text={message.reasoning} running={running} /> : null}
                         {running ? <ImageGenerationPending compact label={message.activity || "正在执行"} className="w-[250px] rounded-2xl border" /> : null}
                         {!running && message.text ? (
                             <div className="flex gap-1">
@@ -923,6 +932,38 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode
                 );
             })}
         </>
+    );
+}
+
+/** 思考型模型思维链：生成中默认展开、自动滚到最新一行；完成后折叠成小条可再点开。 */
+function ReasoningTrace({ text, running }: { text: string; running: boolean }) {
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const [open, setOpen] = useState(running);
+    const endRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        setOpen(running);
+    }, [running]);
+    useEffect(() => {
+        if (open && running) endRef.current?.scrollIntoView({ block: "nearest" });
+    }, [text, open, running]);
+    return (
+        <div className="w-[250px] overflow-hidden rounded-2xl border" style={{ borderColor: theme.node.stroke, background: theme.node.fill, color: theme.node.text }}>
+            <button
+                type="button"
+                className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs opacity-70 transition hover:opacity-100"
+                onClick={() => setOpen((value) => !value)}
+            >
+                <BrainCircuit className="size-3.5 shrink-0" />
+                <span className="truncate">{running ? "深度思考中…" : "思考过程"}</span>
+                <span className="ml-auto shrink-0 opacity-70">{open ? "收起" : "展开"}</span>
+            </button>
+            {open ? (
+                <div className="max-h-44 overflow-y-auto whitespace-pre-wrap px-3 pb-2 text-xs leading-5 opacity-80">
+                    {text}
+                    <div ref={endRef} />
+                </div>
+            ) : null}
+        </div>
     );
 }
 

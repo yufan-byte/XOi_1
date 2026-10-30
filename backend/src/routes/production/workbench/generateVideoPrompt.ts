@@ -1,3 +1,4 @@
+import { userFacingError } from "@/utils/userFacingError";
 import express from "express";
 import { resolveTextModelKey } from "@/utils/textModel";
 import u from "@/utils";
@@ -224,7 +225,7 @@ export default router.post(
           state: "生成失败",
           reason: u.error(e).message,
         });
-      res.status(400).send(error(u.error(e).message));
+      res.status(400).send(error(userFacingError(e, "提示词生成失败，请稍后重试")));
     }
   },
 );

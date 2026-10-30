@@ -237,6 +237,11 @@ test("repaint and restore keep prior images, enforce project ownership and do no
     assert.equal(result.spatialLayout, c.spatialLayout);
     assert.equal(result.imageHistory?.[0].filePath, "/7/original.jpg");
     await assert.rejects(
+      saveStoryboardImageVersion(db, 7, 11, 2, "/7/original.jpg", true, { expectedFilePath: "7/stale.jpg" }),
+      /其他操作更新/,
+    );
+    assert.equal((await db("o_storyboard").first()).filePath, "/7/repaint.jpg");
+    await assert.rejects(
       saveStoryboardImageVersion(db, 8, 11, 2, "/7/original.jpg", true),
       /不属于/,
     );

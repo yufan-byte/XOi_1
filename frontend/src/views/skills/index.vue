@@ -1,47 +1,78 @@
 <template>
   <main class="sk-page">
     <header class="sk-head">
-      <div>
+      <div class="sk-head-text">
         <h1>Skill 市场</h1>
-        <p>228 个内置创作技能 + 社区分享；安装后即可在 Agent 智能创作的技能选择器中使用。</p>
+        <p>228 个内置创作技能 + 社区分享；安装后即可在画布智能体与 Agent 创作的技能选择器中使用。</p>
       </div>
       <div class="sk-head-actions">
         <button class="sk-btn" @click="showImport = true">导入 Skill</button>
-        <button class="sk-btn dark" @click="showCreate = true">＋ 创建 Skill</button>
+        <button class="sk-btn primary" @click="showCreate = true">＋ 创建 Skill</button>
       </div>
     </header>
 
-    <div class="sk-tabs">
-      <button v-for="t in TABS" :key="t.key" class="sk-tab" :class="{ active: tab === t.key }" @click="tab = t.key">{{ t.label }}</button>
-      <input v-model="keyword" class="sk-search" type="search" placeholder="搜索名称 / 描述…" />
-    </div>
-
-    <div class="sk-pills">
-      <button class="sk-pill" :class="{ active: categoryId === '' }" @click="categoryId = ''">全部分类</button>
-      <button v-for="c in categories" :key="c.id" class="sk-pill" :class="{ active: categoryId === c.id }" @click="categoryId = c.id">{{ c.label }}</button>
-    </div>
-
-    <div v-if="!loading" class="sk-grid">
-      <article v-for="s in visible" :key="s.id" class="sk-card" @click="open(s)">
-        <div class="sk-cover">
-          <!-- 228 个内置封面里有 2 个是 mp4，用 <img> 必裂，按后缀换 <video>（preload=metadata 只取首帧） -->
-          <video v-if="isVideo(s.cover)" :src="s.cover" muted playsinline preload="metadata" @error="onCoverError" />
-          <img v-else :src="s.cover" :alt="s.name" loading="lazy" decoding="async" @error="onCoverError" />
+    <div class="sk-body">
+      <!-- 分类侧栏 -->
+      <aside class="sk-side">
+        <div class="sk-side-title">分类</div>
+        <nav class="sk-cats">
+          <button class="sk-cat" :class="{ active: categoryId === '' }" @click="categoryId = ''">
+            <span class="sk-cat-label">全部分类</span>
+            <span class="sk-cat-count">{{ items.length }}</span>
+          </button>
+          <button v-for="c in categoriesWithCount" :key="c.id" class="sk-cat" :class="{ active: categoryId === c.id }" @click="categoryId = c.id">
+            <span class="sk-cat-label">{{ c.label }}</span>
+            <span class="sk-cat-count">{{ c.count }}</span>
+          </button>
+        </nav>
+        <div v-if="installedCount" class="sk-side-note">
+          已安装 <strong>{{ installedCount }}</strong> 个技能，可在画布智能体的技能选择器中启用。
         </div>
-        <div class="sk-card-body">
-          <strong>{{ s.name }}</strong>
-          <p>{{ s.description }}</p>
-          <div class="sk-card-meta">
-            <span>{{ s.author || "官方" }}</span>
-            <span v-if="installedSet.has(s.id)" class="sk-installed">已安装</span>
-            <button v-if="installedSet.has(s.id)" class="sk-remove" :disabled="removingId === s.id" @click.stop="uninstall(s)">{{ removingId === s.id ? "移除中" : "移除" }}</button>
-            <button class="sk-save" :class="{ on: savedIds.has(s.id) }" @click.stop="toggleSave(s)">{{ savedIds.has(s.id) ? "★" : "☆" }}</button>
+      </aside>
+
+      <!-- 主区 -->
+      <section class="sk-main">
+        <div class="sk-toolbar">
+          <div class="sk-tabs">
+            <button v-for="t in TABS" :key="t.key" class="sk-tab" :class="{ active: tab === t.key }" @click="tab = t.key">{{ t.label }}</button>
           </div>
+          <input v-model="keyword" class="sk-search" type="search" placeholder="搜索名称 / 描述…" />
         </div>
-      </article>
+
+        <div v-if="!loading && visible.length" class="sk-grid">
+          <article v-for="s in visible" :key="s.id" class="sk-card" @click="open(s)">
+            <div class="sk-cover">
+              <!-- 228 个内置封面里有 2 个是 mp4，用 <img> 必裂，按后缀换 <video>（preload=metadata 只取首帧） -->
+              <video v-if="isVideo(s.cover)" :src="s.cover" muted playsinline preload="metadata" @error="onCoverError" />
+              <img v-else :src="s.cover" :alt="s.name" loading="lazy" decoding="async" @error="onCoverError" />
+              <span v-if="installedSet.has(s.id)" class="sk-badge">已安装</span>
+            </div>
+            <div class="sk-card-body">
+              <div class="sk-card-title-row">
+                <strong>{{ s.name }}</strong>
+                <button class="sk-save" :class="{ on: savedIds.has(s.id) }" :title="savedIds.has(s.id) ? '取消收藏' : '收藏'" @click.stop="toggleSave(s)">{{ savedIds.has(s.id) ? "★" : "☆" }}</button>
+              </div>
+              <p>{{ s.description }}</p>
+              <div class="sk-card-meta">
+                <span class="sk-chip" v-if="s.categoryLabel">{{ s.categoryLabel }}</span>
+                <span class="sk-author">{{ s.author || "官方" }}</span>
+                <button v-if="installedSet.has(s.id)" class="sk-remove" :disabled="removingId === s.id" @click.stop="uninstall(s)">{{ removingId === s.id ? "移除中" : "移除" }}</button>
+              </div>
+            </div>
+          </article>
+        </div>
+        <div v-if="loading" class="sk-loading">
+          <span class="sk-spinner" />加载中…
+        </div>
+        <div v-if="!loading && visible.length === 0" class="sk-empty">
+          <div class="sk-empty-icon">🧩</div>
+          <p>{{ tab === "market" ? "没有匹配的 Skill，换个关键词或分类试试" : "这里还空空的" }}</p>
+        </div>
+        <div v-if="!loading && visible.length < filtered.length" class="sk-more">
+          <button class="sk-btn" @click="visibleCount += 30">加载更多（{{ visible.length }} / {{ filtered.length }}）</button>
+        </div>
+      </section>
     </div>
-    <div v-else class="sk-loading">加载中…</div>
-    <div v-if="!loading && visible.length === 0" class="sk-empty">{{ tab === "market" ? "没有匹配的 Skill" : "这里还空空的" }}</div>
 
     <!-- 详情 -->
     <Teleport to="body">
@@ -51,7 +82,7 @@
             <button class="sk-close" @click="detail = null">✕</button>
             <div class="sk-dialog-head">
               <video v-if="isVideo(detail.cover)" class="sk-dialog-cover" :src="detail.cover" controls autoplay muted loop playsinline @error="onCoverError" />
-              <img v-else class="sk-dialog-cover" :src="detail.cover" :alt="detail.name" @error="onCoverError" />
+              <img v-else class="sk-dialog-cover" :src="detail.cover" :alt="detail.name" loading="lazy" decoding="async" @error="onCoverError" />
               <div class="sk-dialog-info">
                 <h2>{{ detail.name }}</h2>
                 <p>{{ detail.description }}</p>
@@ -84,7 +115,7 @@
             <input v-model="importCode" class="sk-input" placeholder="例如 A3K7M2QP" maxlength="12" />
             <div class="sk-mini-actions">
               <button class="sk-btn" @click="showImport = false">取消</button>
-              <button class="sk-btn dark" :disabled="importing || !importCode.trim()" @click="doImport">{{ importing ? "导入中…" : "导入" }}</button>
+              <button class="sk-btn primary" :disabled="importing || !importCode.trim()" @click="doImport">{{ importing ? "导入中…" : "导入" }}</button>
             </div>
           </section>
         </div>
@@ -104,7 +135,7 @@
             </div>
             <div class="sk-mini-actions">
               <button class="sk-btn" @click="showCreate = false">取消</button>
-              <button class="sk-btn dark" :disabled="creating || !form.name.trim() || !form.body.trim()" @click="doCreate">{{ creating ? "保存中…" : "保存" }}</button>
+              <button class="sk-btn primary" :disabled="creating || !form.name.trim() || !form.body.trim()" @click="doCreate">{{ creating ? "保存中…" : "保存" }}</button>
             </div>
           </section>
         </div>
@@ -186,6 +217,16 @@ const filtered = computed(() => {
   return items.value.filter((s) => (!kw || s.name.toLowerCase().includes(kw) || s.description.toLowerCase().includes(kw)) && (!categoryId.value || s.categoryId === categoryId.value));
 });
 const visible = computed(() => filtered.value.slice(0, visibleCount.value));
+/** 分类侧栏带计数：只显示当前列表里真实有条目的分类，避免一排空分类 */
+const categoriesWithCount = computed(() => {
+  const counts = new Map<string, number>();
+  for (const s of items.value) counts.set(s.categoryId, (counts.get(s.categoryId) || 0) + 1);
+  return categories.value
+    .filter((c) => counts.get(c.id))
+    .map((c) => ({ ...c, count: counts.get(c.id) || 0 }))
+    .sort((a, b) => b.count - a.count);
+});
+const installedCount = computed(() => items.value.filter((s) => installedSet.value.has(s.id)).length);
 
 /** 内置条目 cover_url 已是 /skills/covers/...；服务端条目没有封面时用占位渐变 */
 function normalize(raw: any, fromServer: boolean): SkItem {
@@ -307,7 +348,7 @@ async function install(s: SkItem) {
     localStorage.setItem(installedMetaKey.value, JSON.stringify(list));
     installedSet.value = new Set([...installedSet.value, s.id]);
     localStorage.setItem(installedIdsKey.value, JSON.stringify([...installedSet.value]));
-    MessagePlugin.success("已安装，去 Agent 智能创作的技能选择器里启用吧");
+    MessagePlugin.success("已安装，去画布智能体的技能选择器里启用吧");
   } catch (e: any) {
     MessagePlugin.error(e?.response?.data?.message || "安装失败（需要登录）");
   } finally {
@@ -347,7 +388,6 @@ async function toggleSave(s: SkItem) {
   try {
     await axios.post("/skills/save", { skillId: s.id, on });
   } catch {
-    savedIds.value = savedIds.value; // 回滚太复杂，失败时静默（下次打开会刷新）
     MessagePlugin.error("收藏失败（需要登录）");
     const back = new Set(savedIds.value);
     if (on) back.delete(s.id); else back.add(s.id);
@@ -387,41 +427,76 @@ async function doCreate() {
 </script>
 
 <style lang="scss" scoped>
-.sk-page { max-width: 1280px; margin: 0 auto; padding: 30px 28px 60px; }
-.sk-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
-.sk-head h1 { margin: 0; font-size: 26px; font-weight: 750; letter-spacing: -.02em; color: #1d1d1f; }
-.sk-head p { margin: 6px 0 0; color: #7c7c80; font-size: 13px; }
+.sk-page { max-width: 1320px; margin: 0 auto; padding: 34px 28px 70px; }
+
+/* ===== 头部 ===== */
+.sk-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 22px; border-bottom: 1px solid #ececf0; }
+.sk-head-text h1 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 27px; font-weight: 760; letter-spacing: -.02em; color: #1d1d1f; }
+.sk-head-text h1::before { content: ""; width: 6px; height: 24px; border-radius: 3px; background: linear-gradient(180deg, #ff9b45, #f26432); }
+.sk-head-text p { margin: 7px 0 0; color: #7c7c80; font-size: 13px; }
 .sk-head-actions { display: flex; gap: 10px; }
-.sk-btn { padding: 10px 18px; border: 1px solid #e0e0e4; border-radius: 12px; background: #fff; color: #333; font-size: 13px; font-weight: 600; cursor: pointer; }
-.sk-btn.dark { border-color: #1d1d1f; background: #1d1d1f; color: #fff; }
-.sk-btn:disabled { opacity: .55; cursor: default; }
-.sk-tabs { display: flex; align-items: center; gap: 10px; margin-top: 24px; }
-.sk-tab { padding: 9px 20px; border: 1px solid #e5e5ea; border-radius: 13px; background: #fff; color: #333; font-size: 14px; font-weight: 600; cursor: pointer; }
-.sk-tab.active { border-color: #1d1d1f; background: #1d1d1f; color: #fff; }
-.sk-search { flex: 1; max-width: 300px; margin-left: auto; padding: 9px 14px; border: 1px solid #e5e5ea; border-radius: 13px; background: #fff; font-size: 13px; outline: none; }
-.sk-search:focus { border-color: #1d1d1f; }
-.sk-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.sk-pill { padding: 5px 14px; border: 1px solid #e8e8ec; border-radius: 99px; background: #fff; color: #555; font-size: 12.5px; cursor: pointer; }
-.sk-pill.active { border-color: #f57400; color: #f57400; font-weight: 600; }
-.sk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; margin-top: 20px; }
-.sk-card { overflow: hidden; border: 1px solid #ececf0; border-radius: 16px; background: #fff; cursor: pointer; transition: transform .18s, box-shadow .18s; }
-.sk-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,.09); }
-.sk-cover { aspect-ratio: 16/10; background: #f4f4f6; }
+.sk-btn { padding: 10px 18px; border: 1px solid #e0e0e4; border-radius: 12px; background: #fff; color: #333; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.sk-btn:hover { border-color: #d0d0d6; box-shadow: 0 3px 10px rgba(0, 0, 0, .05); }
+.sk-btn.primary { border: 0; background: linear-gradient(135deg, #ff9b45, #f26432); color: #fff; }
+.sk-btn.primary:hover { box-shadow: 0 6px 18px rgba(242, 100, 50, .32); }
+.sk-btn:disabled { opacity: .55; cursor: default; box-shadow: none; }
+
+/* ===== 主体：侧栏 + 内容 ===== */
+.sk-body { display: flex; gap: 26px; margin-top: 24px; align-items: flex-start; }
+.sk-side { position: sticky; top: 20px; width: 196px; flex: none; padding: 16px 14px; border: 1px solid #ececf0; border-radius: 16px; background: #fff; }
+.sk-side-title { padding: 0 8px 10px; color: #9a9aa0; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; }
+.sk-cats { display: flex; flex-direction: column; gap: 2px; max-height: calc(100vh - 220px); overflow-y: auto; }
+.sk-cat { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; cursor: pointer; text-align: left; transition: background .15s; }
+.sk-cat:hover { background: #f6f6f8; }
+.sk-cat.active { background: linear-gradient(135deg, rgba(255, 155, 69, .14), rgba(242, 100, 50, .12)); }
+.sk-cat-label { overflow: hidden; color: #444; font-size: 13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.sk-cat.active .sk-cat-label { color: #d95f24; font-weight: 650; }
+.sk-cat-count { flex: none; min-width: 22px; padding: 1px 7px; border-radius: 99px; background: #f1f1f4; color: #8a8a90; font-size: 11px; font-weight: 600; text-align: center; }
+.sk-cat.active .sk-cat-count { background: rgba(242, 100, 50, .18); color: #d95f24; }
+.sk-side-note { margin-top: 14px; padding: 10px 10px 2px; border-top: 1px dashed #ececf0; color: #9a9aa0; font-size: 11.5px; line-height: 1.6; }
+.sk-side-note strong { color: #d95f24; }
+
+/* ===== 工具条 ===== */
+.sk-main { flex: 1; min-width: 0; }
+.sk-toolbar { display: flex; align-items: center; gap: 14px; }
+.sk-tabs { display: flex; gap: 4px; padding: 4px; border: 1px solid #e8e8ec; border-radius: 13px; background: #f7f7f9; }
+.sk-tab { padding: 7px 18px; border: 0; border-radius: 10px; background: transparent; color: #666; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.sk-tab.active { background: #fff; color: #1d1d1f; box-shadow: 0 2px 8px rgba(0, 0, 0, .08); }
+.sk-search { flex: 1; max-width: 340px; margin-left: auto; padding: 9px 15px; border: 1px solid #e5e5ea; border-radius: 13px; background: #fff; font-size: 13px; outline: none; transition: border-color .15s, box-shadow .15s; }
+.sk-search:focus { border-color: #ff9b45; box-shadow: 0 0 0 3px rgba(255, 155, 69, .15); }
+
+/* ===== 卡片网格 ===== */
+.sk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 16px; margin-top: 18px; }
+.sk-card { overflow: hidden; border: 1px solid #ececf0; border-radius: 16px; background: #fff; cursor: pointer; transition: transform .18s, box-shadow .18s, border-color .18s; }
+.sk-card:hover { transform: translateY(-3px); border-color: #f3c9a8; box-shadow: 0 14px 34px rgba(0, 0, 0, .09); }
+.sk-cover { position: relative; aspect-ratio: 16/10; background: #f4f4f6; }
 .sk-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sk-cover video { width: 100%; height: 100%; object-fit: cover; display: block; background: #101013; }
-.sk-card-body { padding: 11px 13px 12px; }
-.sk-card-body strong { display: block; overflow: hidden; color: #222; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.sk-badge { position: absolute; left: 10px; top: 10px; padding: 3px 9px; border-radius: 99px; background: rgba(18, 161, 80, .92); color: #fff; font-size: 11px; font-weight: 650; box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
+.sk-card-body { padding: 12px 14px 13px; }
+.sk-card-title-row { display: flex; align-items: center; gap: 6px; }
+.sk-card-title-row strong { flex: 1; min-width: 0; overflow: hidden; color: #222; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
 .sk-card-body p { display: -webkit-box; margin: 5px 0 0; color: #8b8b90; font-size: 12px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.sk-card-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: #9a9aa0; font-size: 11.5px; }
-.sk-card-meta span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sk-installed { color: #12a150; font-weight: 600; }
-.sk-remove { padding: 2px 7px; border: 0; border-radius: 7px; background: #f3f3f5; color: #777; font-size: 11px; cursor: pointer; }
+.sk-card-meta { display: flex; align-items: center; gap: 8px; margin-top: 9px; color: #9a9aa0; font-size: 11.5px; }
+.sk-chip { flex: none; max-width: 40%; overflow: hidden; padding: 2px 8px; border-radius: 6px; background: #f6f1ec; color: #b06a35; font-size: 10.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.sk-author { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk-remove { flex: none; padding: 2px 8px; border: 0; border-radius: 7px; background: #f3f3f5; color: #777; font-size: 11px; cursor: pointer; transition: all .15s; }
 .sk-remove:hover { background: #fff0eb; color: #c94722; }
 .sk-remove:disabled { opacity: .55; cursor: default; }
-.sk-save { border: 0; background: transparent; color: #b9b9c0; font-size: 15px; cursor: pointer; }
+.sk-save { flex: none; border: 0; background: transparent; color: #c4c4ca; font-size: 15px; cursor: pointer; transition: transform .12s, color .15s; }
+.sk-save:hover { transform: scale(1.18); }
 .sk-save.on { color: #f7b500; }
-.sk-loading, .sk-empty { padding: 80px 0; text-align: center; color: #999; font-size: 14px; }
-.sk-mask { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 24px; background: rgba(12,12,14,.55); backdrop-filter: blur(10px); }
+
+/* ===== 状态 ===== */
+.sk-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 90px 0; color: #999; font-size: 14px; }
+.sk-spinner { width: 18px; height: 18px; border: 2.5px solid #eee; border-top-color: #ff9b45; border-radius: 50%; animation: sk-spin .7s linear infinite; }
+@keyframes sk-spin { to { transform: rotate(360deg); } }
+.sk-empty { padding: 80px 0; text-align: center; color: #999; font-size: 14px; }
+.sk-empty-icon { margin-bottom: 10px; font-size: 34px; opacity: .6; }
+.sk-more { display: flex; justify-content: center; margin-top: 22px; }
+
+/* ===== 弹窗 ===== */
+.sk-mask { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 24px; background: rgba(12, 12, 14, .55); backdrop-filter: blur(10px); }
 .sk-dialog { position: relative; display: flex; flex-direction: column; width: min(860px, 100%); max-height: 88vh; overflow: hidden; border-radius: 20px; background: #fff; }
 .sk-dialog-head { display: flex; gap: 18px; padding: 24px 26px 18px; border-bottom: 1px solid #f0f0f2; }
 .sk-dialog-cover { width: 190px; height: 118px; flex: none; border-radius: 12px; object-fit: cover; background: #f4f4f6; }
@@ -430,9 +505,10 @@ async function doCreate() {
 .sk-dialog-info p { display: -webkit-box; margin: 0; color: #6f6f75; font-size: 13px; line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .sk-dialog-meta { display: flex; gap: 12px; color: #9a9aa0; font-size: 12px; }
 .sk-dialog-actions { display: flex; align-items: center; gap: 12px; margin-top: auto; }
-.sk-primary { padding: 10px 20px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #ff8a1f, #f57400); color: #fff; font-size: 13.5px; font-weight: 650; cursor: pointer; }
+.sk-primary { padding: 10px 20px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #ff9b45, #f26432); color: #fff; font-size: 13.5px; font-weight: 650; cursor: pointer; transition: box-shadow .15s; }
+.sk-primary:hover { box-shadow: 0 6px 18px rgba(242, 100, 50, .32); }
 .sk-primary.remove { border: 1px solid #e2e2e6; background: #fff; color: #555; }
-.sk-primary.remove:hover { border-color: #f1b6a7; background: #fff7f4; color: #bd3f20; }
+.sk-primary.remove:hover { border-color: #f1b6a7; background: #fff7f4; color: #bd3f20; box-shadow: none; }
 .sk-primary:disabled { opacity: .6; cursor: default; }
 .sk-install-note { color: #999; font-size: 11.5px; }
 .sk-dialog-body { flex: 1; overflow-y: auto; padding: 6px 26px 24px; }
@@ -440,13 +516,21 @@ async function doCreate() {
 .sk-mini.wide { width: min(560px, 100%); max-height: 88vh; overflow-y: auto; }
 .sk-mini h2 { margin: 0 0 6px; font-size: 18px; font-weight: 720; color: #1c1c1e; }
 .sk-mini > p { margin: 0 0 16px; color: #7c7c80; font-size: 13px; }
-.sk-input { width: 100%; margin-bottom: 12px; padding: 10px 13px; border: 1px solid #e2e2e6; border-radius: 11px; font-size: 13.5px; outline: none; box-sizing: border-box; }
-.sk-input:focus { border-color: #1d1d1f; }
+.sk-input { width: 100%; margin-bottom: 12px; padding: 10px 13px; border: 1px solid #e2e2e6; border-radius: 11px; font-size: 13.5px; outline: none; box-sizing: border-box; transition: border-color .15s, box-shadow .15s; }
+.sk-input:focus { border-color: #ff9b45; box-shadow: 0 0 0 3px rgba(255, 155, 69, .15); }
 .sk-form label { display: block; margin-bottom: 12px; color: #444; font-size: 13px; font-weight: 600; }
 .sk-form textarea { width: 100%; padding: 10px 13px; border: 1px solid #e2e2e6; border-radius: 11px; font: 13px/1.6 ui-monospace, monospace; outline: none; resize: vertical; box-sizing: border-box; }
-.sk-form textarea:focus, .sk-form .sk-input:focus { border-color: #1d1d1f; }
+.sk-form textarea:focus { border-color: #ff9b45; box-shadow: 0 0 0 3px rgba(255, 155, 69, .15); }
 .sk-mini-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.sk-close { position: absolute; right: 14px; top: 14px; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px; background: rgba(180,180,186,.18); color: #555; font-size: 15px; cursor: pointer; }
+.sk-close { position: absolute; right: 14px; top: 14px; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px; background: rgba(180, 180, 186, .18); color: #555; font-size: 15px; cursor: pointer; }
 .sk-fade-enter-active, .sk-fade-leave-active { transition: opacity .2s; }
 .sk-fade-enter-from, .sk-fade-leave-to { opacity: 0; }
+
+/* 窄屏：侧栏折叠成横向滚动条 */
+@media (max-width: 900px) {
+  .sk-body { flex-direction: column; }
+  .sk-side { position: static; width: 100%; }
+  .sk-cats { flex-direction: row; flex-wrap: wrap; max-height: none; }
+  .sk-side-note { display: none; }
+}
 </style>

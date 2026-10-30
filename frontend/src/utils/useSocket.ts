@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import { io, Socket } from "socket.io-client";
+import { sessionToken } from "./session";
 
 export interface SocketEventMap {
   //scriptAgent
@@ -34,7 +35,8 @@ export function useSocket<T extends SocketEventMap = SocketEventMap>(url = "", a
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 10000,
-      auth: { token: localStorage.getItem("token"), ...authOptions },
+      // F3：有内存凭据就用它握手；刷新后内存为空，交给后端从同源 cookie 里取（socket/index.ts 已支持）。
+      auth: { token: sessionToken() || undefined, ...authOptions },
     });
 
     socket.on("connect", () => (connected.value = true));

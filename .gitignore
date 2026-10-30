@@ -20,6 +20,13 @@ data/serve/
 !.env.example
 !.env.docker.example
 
+# 敏感文件防御性忽略（2026-10-26 审计 R-F：防未来手滑提交，当前这些文件并不存在）
+**/secrets.json
+*.secret.*
+config/secret*
+*.pem
+*.key
+
 # 日志
 logs/
 *.log

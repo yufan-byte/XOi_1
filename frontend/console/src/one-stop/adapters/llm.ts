@@ -1,4 +1,6 @@
 import type { CatalogModel } from "@/lib/models";
+import { authHeaders, sessionSignal } from "@/lib/session";
+import { accountFetch, assertAccountSession } from "./request";
 
 /**
  * 服务端目录默认模型 = 该类别列表的第一个（/api/model-catalog 已按推荐度排序）。
@@ -20,11 +22,14 @@ export type MsgContent = string | Array<{ type: "text"; text: string } | { type:
 export type Msg = { role: "system" | "user" | "assistant"; content: MsgContent };
 export interface ChatResult { content: string }
 type BudgetPreview = { label: string; model: string; modelId?: string; free?: boolean; quote?: { yuan: number } | null; budget: { defaultPoints: number; maxPoints: number; maxCalls: number; minutes: number } };
-let llmBudget: { id: string; expiresAt: number } | null = null;
-const token = () => localStorage.getItem("token") || "";
+let llmBudget: { id: string; expiresAt: number; owner: string; model: string } | null = null;
+// F3：凭据在 httpOnly cookie 里（或本页内存），手工拼 header 一律走 authHeaders()。
+const token = () => sessionSignal();
 async function llmApi<T>(path: string, init?: RequestInit & { billingId?: string }): Promise<T> {
-  const res = await fetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), Authorization: token(), "Content-Type": "application/json", ...(init?.billingId ? { "X-Xoi-Billing-Id": init.billingId } : {}) }, cache: "no-store" });
+  const owner = assertAccountSession();
+  const res = await accountFetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), ...authHeaders(), "Content-Type": "application/json", ...(init?.billingId ? { "X-Xoi-Billing-Id": init.billingId } : {}) } });
   const body = await res.json().catch(() => null);
+  assertAccountSession(owner);
   if (!res.ok || body?.success === false) throw new Error(body?.error || body?.message || `请求失败（${res.status}）`);
   return (body && typeof body === "object" && "data" in body && typeof body.data === "object" ? body.data : body) as T;
 }
@@ -48,16 +53,20 @@ function confirmBudget(preview: BudgetPreview): Promise<number | null> {
   });
 }
 async function ensureLlmBudget(model: string, inputLength: number, signal?: AbortSignal): Promise<string> {
-  if (llmBudget && Date.now() < llmBudget.expiresAt) return llmBudget.id;
+  const owner = token();
+  if (!owner) throw new Error("请先登录");
+  if (llmBudget && llmBudget.owner === owner && llmBudget.model === model && Date.now() < llmBudget.expiresAt) return llmBudget.id;
   const preview = await llmApi<BudgetPreview>("/api/billing/preview", { method: "POST", body: JSON.stringify({ path: "/api/canvas-llm", body: { model, inputLength } }) });
   if (!preview?.budget) throw new Error("计费信息暂不可用，本次未调用");
   const freeOnly = preview.free === true && preview.quote?.yuan === 0 && !!preview.modelId;
   const points = freeOnly ? 0.001 : await confirmBudget(preview);
   if (points == null) throw new Error("已取消，未调用模型");
   signal?.throwIfAborted?.();
+  assertAccountSession(owner);
   const authorized = await llmApi<{ id: string }>("/api/billing/authorize", { method: "POST", body: JSON.stringify({ path: "/api/canvas-llm", points, model: preview.modelId, freeOnly, automatic: freeOnly }) });
   if (!/^[0-9a-f-]{36}$/.test(authorized?.id || "")) throw new Error("预算授权失败，未调用模型");
-  llmBudget = { id: authorized.id, expiresAt: Date.now() + Math.max(1, preview.budget.minutes - 1) * 60_000 };
+  if (token() !== owner) throw new Error("账号已切换，请重新打开页面");
+  llmBudget = { id: authorized.id, owner, model, expiresAt: Date.now() + Math.max(1, preview.budget.minutes - 1) * 60_000 };
   return authorized.id;
 }
 export async function chat(model: string, messages: Msg[], opts: { temperature?: number; signal?: AbortSignal; json?: boolean; reasoning_effort?: string } = {}): Promise<ChatResult> {

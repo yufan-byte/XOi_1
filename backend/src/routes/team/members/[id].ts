@@ -1,9 +1,10 @@
 import express from "express";
-import { memberAction, teamOfOwner, TeamError, type MemberAction, type Period } from "@/lib/team/store";
+import { memberAction, teamForOwner, teamOfOwner, TeamError, type MemberAction, type Period } from "@/lib/team/store";
 import { QUOTA_PER_UNIT } from "@/utils/quota";
-import {memberActionInput} from "@/lib/team/inputs";
-import {trackedTeamOperation} from "@/lib/team/managementRuntime";
-import {TeamManagementError} from "@/lib/team/management";
+import { memberActionInput } from "@/lib/team/inputs";
+import { trackedTeamOperation } from "@/lib/team/managementRuntime";
+import { TeamManagementError } from "@/lib/team/management";
+import { requireSudo, SudoError } from "@/lib/team/sudo";
 
 const router = express.Router({ mergeParams: true });
 
@@ -11,16 +12,21 @@ router.patch("/", async (req, res) => {
   const userId = Number((req as any).user?.id || 0);
   if (!userId) return res.status(401).json({ success: false, message: "请先登录" });
   const memberId = Number((req.params as Record<string, string | undefined>).id);
-  const parsed=memberActionInput.safeParse(req.body);
-  if(!parsed.success)return res.status(400).json({success:false,message:"成员操作参数无效，额度和权限开关需使用正确类型"});
-  const body=parsed.data;
+  const parsed = memberActionInput.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ success: false, message: "成员操作参数无效，额度和权限开关需使用正确类型" });
+  const body = parsed.data;
   try {
-    const team = await teamOfOwner(userId);
+    const requested = Number(req.query.teamId);
+    const team = Number.isSafeInteger(requested) && requested > 0 ? await teamForOwner(requested, userId) : await teamOfOwner(userId);
     if (!team) throw new TeamError("改密、停用和额度设置仅主账号可操作", 403);
     if (!Number.isSafeInteger(memberId) || memberId <= 0) throw new TeamError("成员不存在", 404);
     let action: MemberAction;
     switch (body.action) {
-      case "password": action = { action: "password", password: String(body.password ?? "") }; break;
+      case "password":
+        // 代成员设密码属于高风险动作：必须已通过管理员本人的密码二次确认。
+        await requireSudo(req.headers["x-xoi-sudo"], userId);
+        action = { action: "password", password: String(body.password ?? "") };
+        break;
       case "disable": case "enable": case "delete": action = { action: body.action }; break;
       case "update":
         action = {
@@ -31,12 +37,12 @@ router.patch("/", async (req, res) => {
         break;
       default: throw new TeamError("未知操作");
     }
-    const details=action.action==="update"?{nickname:action.nickname,limitQuota:action.limitQuota,period:action.period,canViewAll:action.canViewAll}:{};
-    await trackedTeamOperation(userId,`member.${action.action}`,memberId,details,()=>memberAction(team, memberId, action));
-    return res.json({ success: true });
+    const details = action.action === "update" ? { nickname: action.nickname, limitQuota: action.limitQuota, period: action.period, canViewAll: action.canViewAll } : {};
+    await trackedTeamOperation(userId, `member.${action.action}`, memberId, details, () => memberAction(team, memberId, action), team.id);
+    return res.json({ success: true, data: action.action === "password" ? { mustChangePassword: true } : undefined });
   } catch (error) {
-    if (error instanceof TeamError||error instanceof TeamManagementError) return res.status(error.status).json({ success: false, message: error.message });
-    console.error("[team/member] 操作失败",error instanceof Error?error.name:"error");
+    if (error instanceof TeamError || error instanceof TeamManagementError || error instanceof SudoError) return res.status(error.status).json({ success: false, message: error.message });
+    console.error("[team/member] 操作失败", error instanceof Error ? error.name : "error");
     return res.status(500).json({ success: false, message: "成员操作失败，请稍后重试" });
   }
 });

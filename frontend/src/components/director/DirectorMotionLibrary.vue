@@ -37,6 +37,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { sessionSignal } from "@/utils/session";
 import { MOTION_PRESETS, createMotionPath, createFollowDemo, hasObjectTravel, editMotionEndpoint, applyMotionToCurrent, replaceCurrentShot, type MotionId, type MotionStyle, type MotionPoint } from "../../../../shared/directorMotion";
 import { captureDirectorScene, type DirectorSnapshot, type NativeDirectorProject } from "@/utils/directorScene";
 import DirectorFramingPreview from "./DirectorFramingPreview.vue";
@@ -44,7 +45,7 @@ const props=defineProps<{projectId:string;ownerId:string;projectName:string;getI
 const emit=defineEmits<{apply:[project:NativeDirectorProject,fingerprint:string,name:string];error:[message:string];"update:modelValue":[id:string]}>();
 const snapshot=shallowRef<DirectorSnapshot|null>(null),points=ref<MotionPoint[]>([]),reading=ref(false),appliedSignature=ref("");
 const presetId=ref<MotionId>("push"),targetId=ref(""),duration=ref(5),distance=ref(5.5),amount=ref(1),direction=ref<1|-1>(1),style=ref<MotionStyle>("calm"),follow=ref(false),framing=ref<'subject'|'scene'>('subject'),shotSize=ref<'close'|'medium'|'wide'|'custom'>('medium'),error=ref("");
-let disposed=false,revision=0,previewTimer:ReturnType<typeof setTimeout>|undefined;const token=localStorage.getItem("token");
+let disposed=false,revision=0,previewTimer:ReturnType<typeof setTimeout>|undefined;const token=sessionSignal();
 const needsTravel=computed(()=>presetId.value==='follow'&&!hasSubjectMotion.value&&selectedObject.value?.type==='person'&&!selectedObject.value?.locked);
 const ready=computed(()=>!!snapshot.value&&(points.value.length>=2||needsTravel.value));
 const framingShot=computed<any>(()=>({subjectId:targetId.value,framing:framing.value==='subject'?"中景":"全景",durationSeconds:duration.value,camera:{keyframes:points.value}}));
@@ -77,7 +78,7 @@ async function readScene() {
   if(reading.value||props.disabled)return;
   const current=++revision;reading.value=true;appliedSignature.value="";
   try {
-    if(!token||localStorage.getItem("token")!==token)throw new Error("账号已切换，请重新打开导演台");
+    if(!token||sessionSignal()!==token)throw new Error("账号已切换，请重新打开导演台");
     const next=await captureDirectorScene(props.getIframe(),props.projectId,props.ownerId,props.projectName);
     if(disposed||current!==revision)return;
     if(!snapshot.value)duration.value=next.project.settings.durationSeconds;

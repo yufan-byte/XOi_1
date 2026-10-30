@@ -3,8 +3,8 @@
     <Handle type="target" :position="Position.Left" />
     <div class="data" @click="selectedFn">
       <div class="title ac">
-        <i-pic theme="outline" size="16" fill="#000000" />
-        <span class="titleText">{{ $t("workbench.production.editImage.imageGeneration") }}</span>
+        <span class="nodeGlyph">✦</span>
+        <span class="titleText">画面生成</span><small>{{ selected ? '点击收起设置' : '点击展开设置' }}</small>
       </div>
       <div class="image">
         <div v-if="generating" class="imageLoading">
@@ -21,19 +21,20 @@
           </t-image>
         </div>
         <t-dropdown :options="options" @click="clickHandler">
-          <div class="upload ac">
-            <i-upload theme="outline" size="18" fill="#fff" />
-            <span style="margin-left: 5px; color: #fff">{{ $t("workbench.production.editImage.upload") }}</span>
+          <div class="upload ac" @click.stop>
+            <i-upload theme="outline" size="14" />
+            <span style="margin-left: 5px">更换图片</span>
           </div>
         </t-dropdown>
         <t-tooltip theme="primary" :content="$t('workbench.production.editImage.deleteNode')">
-          <div class="remove ac" @click="removeNodes(props.id)">
-            <i-delete theme="outline" size="18" fill="#fff" />
+          <div class="remove ac" @click.stop="removeNodes(props.id)">
+            <i-delete theme="outline" size="15" />
           </div>
         </t-tooltip>
       </div>
     </div>
     <div v-show="selected" class="parameter" @wheel.stop @mousedown.stop>
+      <div class="parameterHeading"><strong>画面描述</strong><span>连入的图片会作为生成参考</span></div>
       <div class="imageRefs f w">
         <div v-for="(item, index) in data.references" :key="index" class="refThumb">
           <t-image :src="item.image" fit="cover" class="refImg" />
@@ -44,7 +45,7 @@
       </div>
       <div class="operate ac jb">
         <div class="ac">
-          <modelSelect v-model="data.model" type="image" size="small" />
+          <modelSelect v-model="data.model" type="image" size="small" compact :capability="data.references.length ? 'reference' : ''" :reference-count="data.references.length" />
           <t-select v-model="data.ratio" class="paramSelect ml-5" size="small" :placeholder="$t('workbench.production.editImage.ratio')">
             <t-option value="16:9" label="16:9" />
             <t-option value="9:16" label="9:16" />
@@ -58,16 +59,8 @@
         </div>
 
         <div class="f" style="gap: 5px; margin-left: 5px">
-          <t-popup :content="$t('workbench.production.editImage.generateBtn')">
-            <t-button theme="primary" size="small" class="generateBtn" :disabled="generating" :loading="generating" @click="handleGenerate">
-              <template #icon><i-arrow-up /></template>
-            </t-button>
-          </t-popup>
-          <t-popup :content="$t('workbench.production.save')">
-            <t-button theme="primary" size="small" class="keepBtn" :disabled="generating" :loading="generating" @click="handleKeep">
-              <template #icon><i-save /></template>
-            </t-button>
-          </t-popup>
+          <t-button theme="primary" size="small" class="generateBtn" :disabled="generating" :loading="generating" @click="handleGenerate">生成</t-button>
+          <t-button variant="outline" size="small" class="keepBtn" :disabled="generating || !data.generatedImage" @click="handleKeep">采用画面</t-button>
         </div>
       </div>
     </div>
@@ -87,6 +80,7 @@ import type { Storyboard } from "../../utils/flowBuilder";
 import openAssetsSelector from "@/utils/assetsCheck";
 import { useFileDialog } from "@vueuse/core";
 import projectStore from "@/stores/project";
+import { accountBoundary } from "@/utils/accountBoundary";
 const { project } = storeToRefs(projectStore());
 const openStoryboardCheck = inject<() => Promise<Storyboard[]>>("openStoryboardCheck")!;
 const { open, onChange, onCancel } = useFileDialog({ multiple: false, reset: true, accept: ".png,.jpg,.jpeg" });
@@ -94,8 +88,14 @@ const { open, onChange, onCancel } = useFileDialog({ multiple: false, reset: tru
 const selected = ref(true);
 const generating = ref(false);
 const episodesId = inject<Ref<number>>("episodesId")!;
+const owner = accountBoundary.capture();
+const ownerEpisode = episodesId.value;
+function assertNodeContext() {
+  accountBoundary.assert(owner);
+  if (Number(project.value?.id) !== props.projectId || episodesId.value !== ownerEpisode) throw new Error("项目或分集已切换，请重新打开画布");
+}
 
-const emit = defineEmits(["keep"]);
+const emit = defineEmits(["keep", "image-change"]);
 const { removeNodes } = useVueFlow("editImage");
 
 const options = [
@@ -173,6 +173,7 @@ async function getStoryboardImage() {
 }
 // 生成
 async function handleGenerate() {
+  try { assertNodeContext(); } catch (e) { return window.$message.error((e as Error).message); }
   if (!props.data.model) return window.$message.error($t("workbench.production.editImage.selectModel"));
   if (!props.data.quality) return window.$message.error($t("workbench.production.editImage.selectQuality"));
   if (!props.data.ratio) return window.$message.error($t("workbench.production.editImage.selectRatio"));
@@ -186,7 +187,9 @@ async function handleGenerate() {
       prompt: props.data.prompt,
       projectId: props.projectId,
     });
+    assertNodeContext();
     props.data.generatedImage = data.url;
+    emit("image-change");
   } catch (e) {
     return window.$message.error((e as any)?.message || $t("workbench.production.editImage.generateFailed"));
   } finally {
@@ -199,9 +202,9 @@ function handleKeep() {
   emit("keep", props.data.generatedImage);
 }
 onMounted(() => {
-  props.data.model = project.value?.imageModel ?? "";
-  props.data.quality = project.value?.imageQuality ?? "";
-  props.data.ratio = project.value?.videoRatio ?? "16:9";
+  if (!props.data.model) props.data.model = project.value?.imageModel ?? "";
+  if (!props.data.quality) props.data.quality = project.value?.imageQuality ?? "";
+  if (!props.data.ratio) props.data.ratio = project.value?.videoRatio ?? "16:9";
 });
 </script>
 
@@ -376,4 +379,18 @@ onMounted(() => {
     transform: rotate(360deg);
   }
 }
+</style>
+<style lang="scss" scoped>
+.generatedNode .data { padding:10px; box-sizing:border-box; border:1px solid #e8ded7; border-radius:15px; background:#fff; box-shadow:0 8px 24px rgba(45,34,26,.09); }
+.generatedNode .data .title { height:32px; padding:0 2px 8px; gap:8px; }.generatedNode .data .title .titleText { margin:0; color:#3b3430; font-size:12px; font-weight:650; }.generatedNode .data .title small { margin-left:auto; color:#aa9d92; font-size:10px; }
+.nodeGlyph { display:grid; place-items:center; width:25px; height:25px; border-radius:8px; background:#fff0e6; color:#d45e30; font-size:14px; }
+.generatedNode .data .image { height:230px; overflow:hidden; border-radius:10px; background:#f5f2ef; }
+.generatedNode .data .image .imageWrapper :deep(.nodeImage) { border:1px solid transparent; border-radius:9px; }.generatedNode .data .image .imageWrapper :deep(.nodeImage.selected) { border-color:#d9936f; }
+.generatedNode .data .image .upload,.generatedNode .data .image .remove { color:#5c514a; background:#fffffff0; border-radius:8px; box-shadow:0 2px 8px #32211514; cursor:pointer; }.generatedNode .data .image .remove:hover { background:#fff1ee; color:#bd4e3a; }
+.generatedNode .parameter { width:500px; padding:12px; box-sizing:border-box; border:1px solid #e6ded8; border-radius:15px; background:#fffffffa; box-shadow:0 14px 40px #34291d1a; }
+.parameterHeading { display:flex; align-items:baseline; justify-content:space-between; color:#423a35; font-size:12px; }.parameterHeading span { color:#aa9c92; font-size:10px; }
+.generatedNode .parameter .imageRefs { gap:6px; padding:10px 0 4px; }.generatedNode .parameter .imageRefs .refThumb { margin-left:0; }.generatedNode .parameter .imageRefs .refThumb .refImg { width:40px; height:40px; border:1px solid #eee7e1; border-radius:8px; }
+.generatedNode .parameter .text { height:150px; max-height:300px; margin-top:5px; border:1px solid #f0e9e4; border-radius:10px; background:#fbfaf9; }
+.generatedNode .parameter .operate { gap:8px; height:auto; padding:10px 0 0; }.generatedNode .parameter .operate > div:first-child { min-width:0; flex:1; }.generatedNode .parameter .operate .modelSelectField { min-width:120px; max-width:180px; }.generatedNode .parameter .operate .paramSelect { min-width:74px; width:74px; }
+.generatedNode .parameter .operate .generateBtn { --td-brand-color:#c9532d; --td-brand-color-hover:#a94322; }
 </style>

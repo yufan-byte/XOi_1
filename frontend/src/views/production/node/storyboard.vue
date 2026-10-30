@@ -1,17 +1,42 @@
 <template>
   <t-card class="storyboard" :class="{ fluid: standalone }">
-    <div class="titleBar" :class="{ dragHandle: !standalone, pr: !standalone }">
+    <div v-if="!standalone" class="titleBar" :class="{ dragHandle: !standalone, pr: !standalone }">
       <DirectorNodeHeading node-id="storyboard" step="05" label="STORYBOARD" :title="standalone ? '分镜图制作' : '分镜台'" description="逐镜确认构图、画面与时长" />
       <Handle v-if="!standalone" :id="props.handleIds!.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
       <Handle v-if="!standalone" :id="props.handleIds!.source" type="source" :position="Position.Right" style="right: calc(-1 * var(--td-comp-paddingLR-xl))" />
     </div>
-    <div class="content nowheel nodrag">
+    <div v-if="standalone" class="shotMaking">
+      <header class="makingHeader">
+        <div><span>STORYBOARD</span><h2>制作本集分镜画面</h2><p>先确认画面描述与角色场景，再逐镜生成；满意后去整集预览，检查前后衔接。</p></div>
+        <div class="makingCount"><strong>{{ storyboard.filter(s => s.src).length }} / {{ storyboard.length }}</strong><small>画面已生成</small></div>
+      </header>
+      <div v-if="storyboard.length" class="makingBatch">
+        <label><input type="checkbox" :checked="selectedIds.length === storyboard.length && storyboard.length > 0" @change="selectedIds.length === storyboard.length ? selectedIds = [] : selectAll()" /> 全选</label>
+        <button type="button" @click="selectUnfinished">选择未出图</button><span>已选 {{ selectedIds.length }} 镜</span>
+        <button type="button" class="makingBatchGenerate" :disabled="!selectedIds.length || generateLoading" @click="batchGenerateImage">{{ generateLoading ? '提交中…' : '生成选中的分镜图' }}</button>
+        <small>已出图的镜头被选中时会重画，原图保留在历史中。</small>
+      </div>
+      <div v-if="storyboard.length" class="makingGrid">
+        <article v-for="(item, index) in storyboard" :key="item.id" class="makingCard">
+          <div class="makingImage">
+            <img v-if="item.src" :src="item.src" :alt="`分镜 S${String(index + 1).padStart(2, '0')}`" />
+            <div v-else class="makingEmpty"><i-pic size="28" /><span>{{ item.state === '生成中' ? '正在生成画面' : item.state === '生成失败' ? '生成失败，可重试' : '待生成画面' }}</span></div>
+            <label class="makingCheck"><input v-model="selectedIds" type="checkbox" :value="item.id" :aria-label="`选择分镜 ${index + 1}`" /> S{{ String(index + 1).padStart(2, '0') }}</label>
+            <span class="makingState">{{ item.state === '生成中' ? '生成中' : item.state === '生成失败' ? '生成失败' : item.src ? '已出图' : '待出图' }}</span>
+          </div>
+          <div class="makingCopy"><div><strong>镜头 {{ String(index + 1).padStart(2, '0') }}</strong><small>{{ item.duration ? `${item.duration} 秒` : '时长待定' }}</small></div><p :title="item.prompt || item.videoDesc">{{ item.prompt || item.videoDesc || '还没有画面描述，请先编辑镜头信息。' }}</p><div class="makingRefs">{{ referenceSummary(item) }}</div></div>
+          <footer><button type="button" @click="editInfo(item)">镜头信息</button><button type="button" @click="openContinuity(item.id!)">检查衔接</button><button type="button" @click="openHistory(item.id!)">历史画面 {{ item.continuity?.imageHistory?.length || 0 }}</button><button v-if="item.src" type="button" class="makingMain" @click="openQuickEdit(item.id!)">修改画面</button><button v-else type="button" class="makingMain" :disabled="item.state === '生成中'" @click="regenerateOne(item)">{{ item.state === '生成中' ? '生成中' : '生成画面' }}</button><button v-if="item.src" type="button" class="makingCanvas" @click="sendFrameToCanvas(item, index)">在无限画布编辑 ↗</button></footer>
+        </article>
+      </div>
+      <div v-else class="makingNoShots"><strong>还没有镜头记录</strong><p>先完成并确认分镜表，再创建镜头记录。</p></div>
+    </div>
+    <div v-else class="content nowheel nodrag">
       <t-empty v-if="!storyboard.length" style="margin-top: 16px"></t-empty>
       <t-checkbox-group v-model="selectedIds">
         <div class="frameGrid">
           <template v-for="(item, index) in visibleFrames" :key="item.id">
             <div class="frameItem" @mouseenter="setHoveredFrame(index)" @mouseleave="setHoveredFrame(null)">
-              <div class="addBetween addBetween--left" :class="{ expanded: hoveredIndex === index }">
+              <div v-if="false" class="addBetween addBetween--left" :class="{ expanded: hoveredIndex === index }">
                 <t-button
                   theme="primary"
                   variant="outline"
@@ -40,14 +65,14 @@
                     :src="item.src"
                     fit="contain"
                     class="frameImg"
-                    @click="editStoryboaryImage(item, [item.src])">
+                    @click="sendFrameToCanvas(item, storyboard.indexOf(item))">
                     <template #overlayContent>
                       <div class="imageToolsWrap show">
                         <ImageTools :style="{ transform: `scale(${styleMaxSize})` }" :src="item.src" position="br" />
                       </div>
                     </template>
                   </t-image>
-                  <div v-else class="generatingPlaceholder" @click="editStoryboaryImage(item, [])">
+                  <div v-else class="generatingPlaceholder" @click="item.state !== '生成中' && regenerateOne(item)">
                     <t-loading v-if="item.state === '生成中' || regenerating.has(item.id!)" size="small" />
                     <t-tooltip v-else-if="item.state == '生成失败'" :content="item?.reason">
                       <span style="color: #ff4d4f">生成失败</span>
@@ -84,7 +109,7 @@
                   </div>
                 </div>
               </div>
-              <div class="addBetween addBetween--right" :class="{ expanded: hoveredIndex === index }">
+              <div v-if="false" class="addBetween addBetween--right" :class="{ expanded: hoveredIndex === index }">
                 <t-button
                   theme="primary"
                   variant="outline"
@@ -129,9 +154,19 @@
         </t-button>
       </div>
     </div>
-    <editImage v-model="visible" v-if="visible" :flowData="currentRow" type="storyboard" @save="save" />
+    <editImage v-model="visible" v-if="visible" :flowData="currentRow" type="storyboard" @save="saveFromCanvas" />
     <storyboardReview v-model:visible="reviewVisible" :storyboard="storyboard" />
     <ContinuityInspector v-model:visible="continuityVisible" :storyboard-id="continuityFrameId" />
+    <ShotImageEditor v-model:visible="quickEditVisible" :storyboard-id="continuityFrameId" @inspect="openContinuity" @canvas="openCanvasById" />
+    <t-dialog v-model:visible="historyVisible" header="历史画面" :footer="false" width="min(900px, 94vw)" attach="body">
+      <div v-if="historyFrame" class="historyPanel">
+        <p>选择一张图片预览，满意后点击采用。采用后，当前画面也会保留在历史中。</p>
+        <div class="historyPreview"><img v-if="historySelection" :src="historyImageUrl(historySelection.filePath)" alt="所选历史画面" /><img v-else-if="historyFrame.src" :src="historyFrame.src" alt="当前采用的画面" /><span>{{ historySelection ? '历史画面预览 · 尚未替换' : '当前采用的画面' }}</span></div>
+        <div v-if="historyFrame.continuity?.imageHistory?.length" class="historyGrid"><button v-for="(version, i) in historyFrame.continuity.imageHistory" :key="version.filePath" type="button" :class="{ selected: historySelection?.filePath === version.filePath }" @click="historySelection = version"><img :src="historyImageUrl(version.filePath)" :alt="`历史画面 ${i + 1}`" /><span>历史 {{ i + 1 }} · {{ new Date(version.createdAt).toLocaleString() }}</span></button></div>
+        <p v-else>暂无历史画面。重新生成或从画布送回图片后，可在这里选择。</p>
+        <div class="historyActions"><button type="button" @click="historyVisible = false">关闭</button><button type="button" class="historyAdopt" :disabled="!historySelection || historySaving || historyFrame.state === '生成中'" @click="adoptHistory">{{ historySaving ? '正在采用…' : '采用所选画面' }}</button></div>
+      </div>
+    </t-dialog>
     <t-image-viewer
       v-model:visible="previewVisible"
       v-if="previewVisible"
@@ -154,10 +189,16 @@ import type { AssetItem, Storyboard } from "../utils/flowBuilder";
 import projectStore from "@/stores/project";
 import productionAgentStore from "@/stores/productionAgent";
 import ContinuityInspector from '../components/ContinuityInspector.vue';
+import ShotImageEditor from '../components/workbench/ShotImageEditor.vue';
+import { sendProjectImageToCanvas } from '@/utils/sendToCanvas';
 const continuityVisible = ref(false), continuityFrameId = ref<number>();
 function openContinuity(id: number) { continuityFrameId.value = id; continuityVisible.value = true; }
+const quickEditVisible = ref(false);
+function openQuickEdit(id: number) { continuityFrameId.value = id; quickEditVisible.value = true; }
 const { project } = storeToRefs(projectStore());
 const { episodesId } = storeToRefs(productionAgentStore());
+const route = useRoute();
+const router = useRouter();
 
 const props = defineProps<{
   id?: string;
@@ -170,6 +211,34 @@ const props = defineProps<{
 }>();
 
 const storyboard = defineModel<Storyboard[]>({ required: true });
+const historyVisible = ref(false), historyId = ref<number>(), historySaving = ref(false);
+const historySelection = ref<{ filePath: string; createdAt: number } | null>(null);
+const historyFrame = computed(() => storyboard.value.find(frame => frame.id === historyId.value));
+let historyExpected: string | null = null;
+function historyImageUrl(value: string) { return value.startsWith('/oss/') ? value : `/oss/${value.replace(/^\/+/, '')}`; }
+function openHistory(id: number) { historyId.value = id; historySelection.value = null; historyExpected = storyboard.value.find(frame => frame.id === id)?.src || null; historyVisible.value = true; }
+async function adoptHistory() {
+  const frame = historyFrame.value, selection = historySelection.value;
+  if (!frame?.id || !selection || historySaving.value || frame.state === '生成中') return;
+  const id = frame.id, scriptId = episodesId.value, projectId = Number(project.value?.id);
+  historySaving.value = true;
+  try {
+    const { data } = await axios.post('/production/storyboard/restoreContinuityImage', { id, scriptId, projectId, filePath: selection.filePath, expectedUrl: historyExpected });
+    if (historyId.value !== id || episodesId.value !== scriptId || Number(project.value?.id) !== projectId) return;
+    frame.src = data.src; frame.state = '已完成'; frame.continuity = data.continuity;
+    historyExpected = data.src; historySelection.value = null;
+    window.$message.success('已采用所选画面，原画面已保留在历史中。');
+  } catch (e: any) { window.$message.error(e?.message || '采用失败，请刷新后重试'); }
+  finally { historySaving.value = false; }
+}
+watch(() => [route.query.canvasTarget, storyboard.value.map(frame => frame.id).join(',')] as const, ([raw]) => {
+  const id = Number(raw);
+  if (!props.standalone || !Number.isSafeInteger(id) || id <= 0 || !storyboard.value.some(frame => frame.id === id)) return;
+  openHistory(id);
+  window.$message.success('画布图片已保存到历史，可预览后采用。');
+  const { canvasTarget: _canvasTarget, ...query } = route.query;
+  void router.replace({ query });
+}, { immediate: true });
 
 const visible = ref(false);
 const previewVisible = ref(false);
@@ -220,6 +289,18 @@ function setHoveredFrame(index: number | null) {
 
 function selectAll() {
   selectedIds.value = storyboard.value.map((s) => s.id!).filter(Boolean);
+}
+function selectUnfinished() { selectedIds.value = storyboard.value.filter((s) => !s.src && s.state !== '生成中').map((s) => s.id!).filter(Boolean); }
+function referenceSummary(item: Storyboard) {
+  const refs = props.assetsData.flatMap(a => [a, ...(a.derive || [])]).filter(a => item.associateAssetsIds?.includes(a.id));
+  return refs.length ? `参考 · ${refs.map(a => a.name).join('、')}` : '未关联角色或场景参考';
+}
+function openCanvasById(id: number) { const index = storyboard.value.findIndex(frame => frame.id === id); if (index >= 0) void sendFrameToCanvas(storyboard.value[index], index); }
+async function sendFrameToCanvas(item: Storyboard, index: number) {
+  if (!item.id || !item.src || !project.value?.id || !episodesId.value) return;
+  const refs = props.assetsData.flatMap(a => [a, ...(a.derive || [])]).filter(a => item.associateAssetsIds?.includes(a.id) && a.src);
+  try { await sendProjectImageToCanvas({ kind: 'storyboard', projectId: Number(project.value.id), targetId: item.id, scriptId: episodesId.value }, [{ src: item.src, name: `分镜 S${String(index + 1).padStart(2, '0')}`, id: item.id, prompt: item.prompt || item.videoDesc || '' }, ...refs.map(a => ({ src: a.src, name: `参考 · ${a.name}` }))]); }
+  catch (e: any) { window.$message.error(e?.message || '发送到画布失败'); }
 }
 function handleDeleteSelected() {
   const dialog = DialogPlugin.confirm({
@@ -318,6 +399,7 @@ const currentRowStoryboardInfo = ref<{ id: number | null; insertAfterIndex: numb
   id: null,
   insertAfterIndex: null,
 });
+const currentRowOriginalUrl = ref<string | null>(null);
 const styleMaxSize = computed(() => {
   if (gridScale.value <= 1) return gridScale.value;
   else 1;
@@ -337,6 +419,7 @@ async function batchGenerateImage() {
   }
 }
 function editStoryboaryImage(item: Storyboard, images: string[], insertAfterIndex: number | null = null) {
+  currentRowOriginalUrl.value = insertAfterIndex == null ? item.src || null : null;
   currentRowStoryboardInfo.value = {
     id: insertAfterIndex == null ? item?.id! : null,
     insertAfterIndex,
@@ -414,16 +497,22 @@ async function save({ imageUrl, flowId }: { imageUrl: string; flowId: number }) 
 
   // 更新模式：更新对应分镜的 src
   const target = storyboard.value.find((s) => s.id === id);
+  const { data } = await axios.post("/production/storyboard/updateStoryboardUrl", {
+    id: id,
+    url: imageUrl,
+    flowId,
+    expectedUrl: currentRowOriginalUrl.value,
+  });
   if (target) {
     target.src = imageUrl;
     target.state = "已完成";
     target.flowId = flowId;
+    target.continuity = data.continuity;
   }
-  await axios.post("/production/storyboard/updateStoryboardUrl", {
-    id: id,
-    url: imageUrl,
-    flowId,
-  });
+}
+
+async function saveFromCanvas(payload: { imageUrl: string; flowId: number; onComplete: (failure?: unknown) => void }) {
+  try { await save(payload); payload.onComplete(); } catch (e) { payload.onComplete(e); }
 }
 
 async function removeFn(id: number) {
@@ -525,10 +614,41 @@ function editInfo(item: Storyboard) {
     },
   });
 }
-defineExpose({ editFrame: (id: number) => { const item = storyboard.value.find(frame => frame.id === id); if (item) editInfo(item); } });
+defineExpose({
+  editFrame: (id: number) => { const item = storyboard.value.find(frame => frame.id === id); if (item) editInfo(item); },
+  openImageCanvas: (id: number) => { const item = storyboard.value.find(frame => frame.id === id); if (item) editStoryboaryImage(item, item.src ? [item.src] : []); },
+});
 </script>
 
 <style lang="scss" scoped>
+.historyPanel { color: #3b342f; }
+.historyPanel > p { color: #93877e; line-height: 1.6; }
+.historyPreview { position: relative; display: grid; place-items: center; background: #f4f1ed; border-radius: 12px; min-height: 220px; overflow: hidden; }
+.historyPreview img { display: block; width: 100%; max-height: 360px; object-fit: contain; }
+.historyPreview span { position: absolute; left: 12px; bottom: 12px; padding: 5px 10px; color: white; background: #28211dcc; border-radius: 6px; font-size: 12px; }
+.historyGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; max-height: 230px; overflow: auto; margin-top: 16px; }
+.historyGrid button { padding: 5px; text-align: left; background: white; border: 1px solid #e9e2dc; border-radius: 9px; cursor: pointer; }
+.historyGrid button.selected { border: 2px solid #c74e24; padding: 4px; }
+.historyGrid img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 5px; }
+.historyGrid span { display: block; padding: 7px 2px 2px; color: #81766f; font-size: 11px; }
+.historyActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.historyActions button { padding: 9px 18px; background: white; border: 1px solid #e6ddd5; border-radius: 8px; cursor: pointer; }
+.historyActions .historyAdopt { color: white; background: #bd4b24; border-color: #bd4b24; }
+.historyActions button:disabled { opacity: .45; cursor: not-allowed; }
+.shotMaking { padding: 2px 3px 6px; color:#332d29; }
+.makingHeader { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; margin-bottom:22px; }
+.makingHeader span { color:#bc5a32; font-size:10px; font-weight:700; letter-spacing:.14em; }
+.makingHeader h2 { margin:7px 0; font-size:21px; font-weight:650; }
+.makingHeader p { margin:0; color:#93877f; font-size:12px; line-height:1.7; }
+.makingCount { display:flex; flex-direction:column; align-items:flex-end; gap:3px; white-space:nowrap; }.makingCount strong { font-size:18px; }.makingCount small { color:#a2978e; font-size:10px; }
+.makingBatch { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px; padding:12px 14px; border:1px solid #eee5df; border-radius:10px; background:#faf8f6; font-size:12px; }
+.makingBatch label { display:flex; align-items:center; gap:7px; cursor:pointer; }.makingBatch input,.makingCheck input { accent-color:#c6552e; }.makingBatch button { border:0; background:none; color:#a44e30; font:inherit; cursor:pointer; }.makingBatch span,.makingBatch small { color:#9a8c83; }.makingBatch small { font-size:10px; }.makingBatch .makingBatchGenerate { margin-left:auto; padding:8px 12px; border-radius:8px; background:#c6532e; color:#fff; }.makingBatch button:disabled { opacity:.45; cursor:not-allowed; }
+.makingGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }.makingCard { min-width:0; overflow:hidden; border:1px solid #eae2dc; border-radius:12px; background:#fff; box-shadow:0 4px 16px #36251908; }.makingImage { position:relative; aspect-ratio:16/9; overflow:hidden; background:#25211e; }.makingImage img { width:100%; height:100%; object-fit:contain; }.makingEmpty { display:flex; height:100%; flex-direction:column; justify-content:center; align-items:center; gap:8px; background:#f4f0ed; color:#a69b93; font-size:12px; }.makingCheck,.makingState { position:absolute; top:10px; padding:5px 8px; border-radius:6px; background:#211b18b8; color:white; font-size:10px; }.makingCheck { left:10px; display:flex; align-items:center; gap:6px; cursor:pointer; }.makingState { right:10px; }
+.makingCopy { padding:13px 14px 10px; }.makingCopy > div:first-child { display:flex; justify-content:space-between; align-items:center; }.makingCopy strong { font-size:13px; }.makingCopy small { color:#a79b92; font-size:11px; }.makingCopy p { display:-webkit-box; min-height:36px; margin:8px 0; overflow:hidden; color:#81756d; font-size:11px; line-height:1.65; -webkit-line-clamp:2; -webkit-box-orient:vertical; }.makingRefs { overflow:hidden; color:#a09288; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.makingCard footer { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin:0 14px; padding:10px 0 13px; border-top:1px solid #f1eae5; }.makingCard footer button { padding:5px 0; border:0; background:transparent; color:#8a7c72; font:inherit; font-size:11px; cursor:pointer; }.makingCard footer .makingMain { margin-left:auto; padding:6px 9px; border-radius:7px; background:#c6532e; color:#fff; }.makingCard footer button:disabled { opacity:.5; cursor:not-allowed; }.makingCard footer .makingCanvas { width:100%; color:#b35633; text-align:right; }
+.makingNoShots { padding:50px 15px; border:1px dashed #e4d9d0; border-radius:12px; text-align:center; color:#9d9085; }.makingNoShots strong { color:#62574f; }.makingNoShots p { font-size:12px; }
+@media(max-width:700px) { .makingHeader { align-items:flex-start; }.makingBatch .makingBatchGenerate { margin-left:0; }.makingGrid { grid-template-columns:1fr; } }
+@media(min-width:701px) and (max-width:1050px) { .makingGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .storyboard {
   min-width: 500px;
   max-width: 100vw;

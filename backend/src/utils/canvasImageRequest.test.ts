@@ -24,6 +24,8 @@ test("canvas image envelopes preserve model, pixel size, references and idempote
   ]);
   const queued = queueRequest("image", {
     ...parsed,
+    exact_size: "1792x1024",
+    aspect_ratio: "21:9",
     headers: { Authorization: "secret" },
     apiKey: "secret",
     reference_images: [
@@ -35,6 +37,8 @@ test("canvas image envelopes preserve model, pixel size, references and idempote
     ],
   });
   assert.doesNotMatch(JSON.stringify(queued), /secret|apiKey|Authorization/);
+  assert.equal(queued.exact_size, "1792x1024");
+  assert.equal(queued.aspect_ratio, "21:9");
 });
 test("unsupported image protocols, multi-image counts and malformed references fail before dispatch", () => {
   for (const body of [

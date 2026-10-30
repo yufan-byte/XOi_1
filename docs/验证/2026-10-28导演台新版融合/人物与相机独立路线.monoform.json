@@ -1,0 +1,544 @@
+{
+  "version": 16,
+  "settings": {
+    "name": "新版导演台验证",
+    "fps": 24,
+    "durationSeconds": 5,
+    "loopPlayback": false
+  },
+  "activeShotId": "qa-shot-1",
+  "shots": [
+    {
+      "id": "qa-shot-1",
+      "name": "人物曲线·相机直线",
+      "fps": 24,
+      "durationSeconds": 5,
+      "loopPlayback": false,
+      "objects": [
+        {
+          "id": "qa-actor",
+          "name": "验证演员",
+          "type": "person",
+          "bodyType": "standard",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "pose": "walk",
+          "continuousMotion": true,
+          "color": "#e8e3d8"
+        }
+      ],
+      "camera": {
+        "position": [
+          7,
+          2.5,
+          7
+        ],
+        "rotation": [
+          -0.1305726807107132,
+          0.7853981633974483,
+          0
+        ],
+        "focalLength": 35,
+        "aspectRatio": "16:9",
+        "route": {
+          "version": 1,
+          "id": "camera-verification",
+          "enabled": true,
+          "points": [
+            [
+              7,
+              2.5,
+              7
+            ],
+            [
+              7,
+              3.2,
+              0
+            ]
+          ],
+          "startFrame": 0,
+          "endFrame": 120,
+          "orientation": "target",
+          "rotation": [
+            -0.1305726807107132,
+            0.7853981633974483,
+            0
+          ],
+          "targetId": "qa-actor"
+        },
+        "follow": null,
+        "motionMode": "route"
+      },
+      "lighting": {},
+      "reference": {},
+      "keyframes": [
+        {
+          "frame": 0,
+          "position": [
+            7,
+            2.5,
+            7
+          ],
+          "rotation": [
+            -0.1305726807107132,
+            0.7853981633974483,
+            0
+          ],
+          "focalLength": 35,
+          "interpolation": "linear",
+          "source": "camera-route",
+          "routeId": "camera-verification",
+          "followEnabled": false
+        },
+        {
+          "frame": 120,
+          "position": [
+            7,
+            3.2,
+            0
+          ],
+          "rotation": [
+            -0.1305726807107132,
+            0.7853981633974483,
+            0
+          ],
+          "focalLength": 35,
+          "interpolation": "linear",
+          "source": "camera-route",
+          "routeId": "camera-verification",
+          "followEnabled": false
+        }
+      ],
+      "objectKeyframes": {
+        "qa-actor": [
+          {
+            "id": "qa-actor",
+            "name": "验证演员",
+            "type": "person",
+            "bodyType": "standard",
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0.6942028355831393,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "pose": "walk",
+            "continuousMotion": true,
+            "color": "#e8e3d8",
+            "frame": 0,
+            "interpolation": "linear",
+            "source": "route",
+            "routeId": "qa-actor"
+          },
+          {
+            "id": "qa-actor",
+            "name": "验证演员",
+            "type": "person",
+            "bodyType": "standard",
+            "position": [
+              1.7844645405527364,
+              0,
+              2.1436903062981756
+            ],
+            "rotation": [
+              0,
+              -0.200685339981418,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "pose": "walk",
+            "continuousMotion": true,
+            "color": "#e8e3d8",
+            "frame": 40,
+            "interpolation": "linear",
+            "source": "route",
+            "routeId": "qa-actor"
+          },
+          {
+            "id": "qa-actor",
+            "name": "验证演员",
+            "type": "person",
+            "bodyType": "standard",
+            "position": [
+              -0.7844645405527357,
+              0,
+              3.8563096937018235
+            ],
+            "rotation": [
+              0,
+              -0.20068533998141813,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "pose": "walk",
+            "continuousMotion": true,
+            "color": "#e8e3d8",
+            "frame": 80,
+            "interpolation": "linear",
+            "source": "route",
+            "routeId": "qa-actor"
+          },
+          {
+            "id": "qa-actor",
+            "name": "验证演员",
+            "type": "person",
+            "bodyType": "standard",
+            "position": [
+              1,
+              0,
+              6
+            ],
+            "rotation": [
+              0,
+              0.6942028355831393,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "pose": "walk",
+            "continuousMotion": true,
+            "color": "#e8e3d8",
+            "frame": 120,
+            "interpolation": "linear",
+            "source": "route",
+            "routeId": "qa-actor"
+          }
+        ]
+      },
+      "routeTracks": {
+        "qa-actor": {
+          "id": "qa-actor",
+          "points": [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              2,
+              0,
+              2
+            ],
+            [
+              -1,
+              0,
+              4
+            ],
+            [
+              1,
+              0,
+              6
+            ]
+          ],
+          "startFrame": 0,
+          "endFrame": 120,
+          "visible": true,
+          "loopMotion": true,
+          "keyframes": [
+            0,
+            40,
+            80,
+            120
+          ],
+          "keyframesOwned": true
+        }
+      },
+      "thumbnail": ""
+    }
+  ],
+  "objects": [
+    {
+      "id": "qa-actor",
+      "name": "验证演员",
+      "type": "person",
+      "bodyType": "standard",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "pose": "walk",
+      "continuousMotion": true,
+      "color": "#e8e3d8"
+    }
+  ],
+  "camera": {
+    "position": [
+      7,
+      2.5,
+      7
+    ],
+    "rotation": [
+      -0.1305726807107132,
+      0.7853981633974483,
+      0
+    ],
+    "focalLength": 35,
+    "aspectRatio": "16:9",
+    "route": {
+      "version": 1,
+      "id": "camera-verification",
+      "enabled": true,
+      "points": [
+        [
+          7,
+          2.5,
+          7
+        ],
+        [
+          7,
+          3.2,
+          0
+        ]
+      ],
+      "startFrame": 0,
+      "endFrame": 120,
+      "orientation": "target",
+      "rotation": [
+        -0.1305726807107132,
+        0.7853981633974483,
+        0
+      ],
+      "targetId": "qa-actor"
+    },
+    "follow": null,
+    "motionMode": "route"
+  },
+  "lighting": {},
+  "reference": {},
+  "keyframes": [
+    {
+      "frame": 0,
+      "position": [
+        7,
+        2.5,
+        7
+      ],
+      "rotation": [
+        -0.1305726807107132,
+        0.7853981633974483,
+        0
+      ],
+      "focalLength": 35,
+      "interpolation": "linear",
+      "source": "camera-route",
+      "routeId": "camera-verification",
+      "followEnabled": false
+    },
+    {
+      "frame": 120,
+      "position": [
+        7,
+        3.2,
+        0
+      ],
+      "rotation": [
+        -0.1305726807107132,
+        0.7853981633974483,
+        0
+      ],
+      "focalLength": 35,
+      "interpolation": "linear",
+      "source": "camera-route",
+      "routeId": "camera-verification",
+      "followEnabled": false
+    }
+  ],
+  "objectKeyframes": {
+    "qa-actor": [
+      {
+        "id": "qa-actor",
+        "name": "验证演员",
+        "type": "person",
+        "bodyType": "standard",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0.6942028355831393,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "pose": "walk",
+        "continuousMotion": true,
+        "color": "#e8e3d8",
+        "frame": 0,
+        "interpolation": "linear",
+        "source": "route",
+        "routeId": "qa-actor"
+      },
+      {
+        "id": "qa-actor",
+        "name": "验证演员",
+        "type": "person",
+        "bodyType": "standard",
+        "position": [
+          1.7844645405527364,
+          0,
+          2.1436903062981756
+        ],
+        "rotation": [
+          0,
+          -0.200685339981418,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "pose": "walk",
+        "continuousMotion": true,
+        "color": "#e8e3d8",
+        "frame": 40,
+        "interpolation": "linear",
+        "source": "route",
+        "routeId": "qa-actor"
+      },
+      {
+        "id": "qa-actor",
+        "name": "验证演员",
+        "type": "person",
+        "bodyType": "standard",
+        "position": [
+          -0.7844645405527357,
+          0,
+          3.8563096937018235
+        ],
+        "rotation": [
+          0,
+          -0.20068533998141813,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "pose": "walk",
+        "continuousMotion": true,
+        "color": "#e8e3d8",
+        "frame": 80,
+        "interpolation": "linear",
+        "source": "route",
+        "routeId": "qa-actor"
+      },
+      {
+        "id": "qa-actor",
+        "name": "验证演员",
+        "type": "person",
+        "bodyType": "standard",
+        "position": [
+          1,
+          0,
+          6
+        ],
+        "rotation": [
+          0,
+          0.6942028355831393,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "pose": "walk",
+        "continuousMotion": true,
+        "color": "#e8e3d8",
+        "frame": 120,
+        "interpolation": "linear",
+        "source": "route",
+        "routeId": "qa-actor"
+      }
+    ]
+  },
+  "routeTracks": {
+    "qa-actor": {
+      "id": "qa-actor",
+      "points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          2
+        ],
+        [
+          -1,
+          0,
+          4
+        ],
+        [
+          1,
+          0,
+          6
+        ]
+      ],
+      "startFrame": 0,
+      "endFrame": 120,
+      "visible": true,
+      "loopMotion": true,
+      "keyframes": [
+        0,
+        40,
+        80,
+        120
+      ],
+      "keyframesOwned": true
+    }
+  }
+}

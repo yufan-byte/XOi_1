@@ -14,14 +14,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Link2, Loader2, Megaphone, PanelTop, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { SectionHero, VaultPanel } from "@/components/reseller/common";
+import { SectionHero, VaultPanel, Pager } from "@/components/reseller/common";
 import { ErrorBanner, EmptyPanel } from "@/components/reseller/legacy/frame";
 import { cn } from "@/lib/utils";
 
 type AnnType = "notice" | "update" | "maintenance";
 type Ann = { id: string; title: string; content: string; type?: AnnType; published_at?: string };
+/** 关闭后何时重新出现：day=每天 session=每次打开/登录 refresh=每次刷新 never=不再出现 */
+type BannerDismiss = "day" | "session" | "refresh" | "never";
 /** 全站顶部横幅：与公告同文件存储，enabled + 文案 + 按钮文案 + 跳转（站内路径或 https 外链，后端白名单校验） */
-type SiteBanner = { id?: string; enabled: boolean; text: string; ctaLabel: string; link: string; theme: string };
+type SiteBanner = { id?: string; enabled: boolean; text: string; ctaLabel: string; link: string; theme: string; dismissMode: BannerDismiss };
 type ListResp = { items: Ann[]; banner?: SiteBanner | null };
 
 const TYPES: Array<{ key: AnnType; label: string }> = [
@@ -40,7 +42,15 @@ const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2
 const btnCls = "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-muted disabled:opacity-50";
 
 const today = () => new Date().toISOString().slice(0, 10);
-const emptyBanner = (): SiteBanner => ({ enabled: false, text: "", ctaLabel: "查看详情", link: "", theme: "brand" });
+const emptyBanner = (): SiteBanner => ({ enabled: false, text: "", ctaLabel: "查看详情", link: "", theme: "brand", dismissMode: "day" });
+/** 关闭策略的中文口径，保持与主站 WorkbenchLayout 的 bannerDismissMode 一一对应 */
+const DISMISS_OPTIONS: Array<{ key: BannerDismiss; label: string; hint: string }> = [
+  { key: "day", label: "每天提醒", hint: "关闭后当天不再出现，第二天进入页面会再次出现（推荐）" },
+  { key: "session", label: "每次打开或登录", hint: "关闭后本次浏览器会话内不再出现；关掉浏览器或退出登录再进来会重新出现" },
+  { key: "refresh", label: "每次刷新", hint: "刷新页面就重新出现，只在当前页面视图内保持关闭" },
+  { key: "never", label: "不再出现", hint: "关闭后永久隐藏，只有换一条新横幅（换 id）才会重新出现" },
+];
+const ANN_PAGE_SIZE = 6;
 
 export function AnnouncementsView() {
   const qc = useQueryClient();
@@ -73,6 +83,14 @@ export function AnnouncementsView() {
   const sorted = useMemo(
     () => [...items].sort((a, b) => String(b.published_at ?? "").localeCompare(String(a.published_at ?? ""))),
     [items],
+  );
+  // 公告会一直累积（后端上限 50 条），列表必须分页，否则越写越长只能一直往下滚。
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / ANN_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paged = useMemo(
+    () => sorted.slice((safePage - 1) * ANN_PAGE_SIZE, safePage * ANN_PAGE_SIZE),
+    [sorted, safePage],
   );
 
   const commit = (list: Ann[]) => { setItems(list); setDirty(true); };
@@ -109,7 +127,7 @@ export function AnnouncementsView() {
         {q.isError ? <ErrorBanner error={q.error} suffix="公告加载失败" onRetry={() => q.refetch()} /> : null}
 
         {/* 全站顶部横幅：开启后所有用户页面顶部出现，可跳转、可关闭（关闭按横幅 id 记忆） */}
-        <VaultPanel title="全站顶部横幅" icon={<PanelTop />} right={<span className="text-[11px] text-muted-foreground">开启后所有用户页面顶部出现 · 关闭后按 id 记忆不再打扰</span>}>
+        <VaultPanel title="全站顶部横幅" icon={<PanelTop />} right={<span className="text-[11px] text-muted-foreground">开启后所有用户页面顶部出现 · 关闭策略：{DISMISS_OPTIONS.find((o) => o.key === banner.dismissMode)?.label ?? "每天提醒"}</span>}>
           <div className="flex flex-col gap-3">
             <label className="flex items-start gap-3 rounded-xl border border-border/45 bg-muted/35 p-3.5">
               <input type="checkbox" className="mt-0.5 size-4" checked={banner.enabled} onChange={(e) => { setBanner({ ...banner, enabled: e.target.checked }); setDirty(true); }} />
@@ -129,10 +147,33 @@ export function AnnouncementsView() {
               <label className="flex flex-col gap-1.5"><span className="text-xs font-semibold text-muted-foreground">配色</span>
                 <select className={inputCls} value={banner.theme} onChange={(e) => { setBanner({ ...banner, theme: e.target.value }); setDirty(true); }}>
                   <option value="brand">品牌渐变（紫）</option>
+                  <option value="orange">品牌橙（暖橙）</option>
                   <option value="dark">深夜黑</option>
                   <option value="green">翡翠绿</option>
                 </select>
               </label>
+            </div>
+
+            {/* 关闭后何时重新出现：决定用户点 × 之后多久会再看到这条横幅 */}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">关闭后什么时候再出现</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {DISMISS_OPTIONS.map((o) => (
+                  <button
+                    key={o.key}
+                    type="button"
+                    aria-pressed={banner.dismissMode === o.key}
+                    className={cn(
+                      "rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors",
+                      banner.dismissMode === o.key ? "border-primary/60 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted",
+                    )}
+                    onClick={() => { setBanner({ ...banner, dismissMode: o.key }); setDirty(true); }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[11px] leading-5 text-muted-foreground">{DISMISS_OPTIONS.find((o) => o.key === banner.dismissMode)?.hint}</span>
             </div>
 
             <label className="flex flex-col gap-1.5">
@@ -144,7 +185,7 @@ export function AnnouncementsView() {
             <div>
               <div className={cn("mb-1 text-[11px] font-semibold text-muted-foreground")}>预览</div>
               <div className={cn("flex items-center justify-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-white",
-                banner.theme === "dark" ? "bg-[#17181c]" : banner.theme === "green" ? "bg-gradient-to-r from-emerald-600 to-teal-500" : "bg-gradient-to-r from-indigo-500 to-violet-500")}>
+                banner.theme === "dark" ? "bg-[#17181c]" : banner.theme === "green" ? "bg-gradient-to-r from-emerald-600 to-teal-500" : banner.theme === "orange" ? "bg-gradient-to-r from-[#ff9b45] to-[#f26432]" : "bg-gradient-to-r from-indigo-500 to-violet-500")}>
                 <span className="truncate">{banner.text || "（横幅文案显示在这里）"}</span>
                 {banner.ctaLabel ? <span className="shrink-0 rounded-full bg-white/95 px-3 py-0.5 text-[12px] font-bold text-slate-900">{banner.ctaLabel}</span> : null}
               </div>
@@ -183,7 +224,7 @@ export function AnnouncementsView() {
             <EmptyPanel icon={<Megaphone />} title="还没有公告" desc="点右上角「新建公告」写第一条，保存后主站通知红点会自动亮起。" />
           ) : (
             <ul className="flex flex-col gap-3">
-              {sorted.map((a) => (
+              {paged.map((a) => (
                 <li key={a.id || a.title} className="rounded-xl border border-border/45 bg-muted/35 p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold", TYPE_TONE[a.type ?? "notice"] ?? TYPE_TONE.notice)}>{typeLabel(a.type)}</span>
@@ -199,6 +240,7 @@ export function AnnouncementsView() {
               ))}
             </ul>
           )}
+          {(items.length ? <Pager page={safePage} pageCount={pageCount} total={sorted.length} unit="条公告" onChange={setPage} /> : null)}
         </VaultPanel>
       </div>
     </div>

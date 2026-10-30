@@ -384,7 +384,9 @@ export function AuthStage({ variant = "login" }: { variant?: "login" | "signup" 
           <input value={gate.input} onChange={(e) => setGate({ ...gate, input: e.target.value })} inputMode="numeric" autoComplete="off" placeholder="输入图中数字" className={inputCls} />
         </IconInput>
         <button type="button" onClick={refreshGate} className="grid h-[54px] w-[132px] shrink-0 place-items-center overflow-hidden rounded-[14px] border border-white/12 bg-white/90 p-1" aria-label="换一张验证码" title="换一张">
-          {gate.svg ? <span className="block h-full w-full [&_svg]:h-full [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: gate.svg }} /> : <span className="text-[12px] font-semibold text-neutral-700">换一张</span>}
+          {/* 安全（2026-10-26 审计 R-C）：验证码 SVG 不再经 dangerouslySetInnerHTML 注入（内联 HTML 注入 sink），
+              改为 <img> data URI 渲染——浏览器把 SVG 当图片加载，其中脚本/事件处理器一律不执行。 */}
+          {gate.svg ? <img src={`data:image/svg+xml;utf8,${encodeURIComponent(gate.svg)}`} className="h-full w-full" alt="验证码图形" /> : <span className="text-[12px] font-semibold text-neutral-700">换一张</span>}
         </button>
       </div>
     </div>

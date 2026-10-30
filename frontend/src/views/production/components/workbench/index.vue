@@ -7,7 +7,9 @@
     <section class="shotStudio" aria-label="分镜成片工作台">
       <header class="studioHeader">
         <div class="studioIdentity">
+          <button v-if="embedded" type="button" class="studioBack" @click="emit('leave-workspace')" aria-label="收起工作台并返回关系画布">↙ <span>收起工作台</span></button>
           <strong class="studioBrand">分镜成片</strong>
+          <span v-if="embedded && projectName" class="studioProject" :title="projectName">{{ projectName }}</span>
           <select
             v-if="embedded && episodesOptions?.length"
             class="studioEpisode"
@@ -57,12 +59,12 @@
         <section v-else-if="activeStage === 'frames'" class="framesWorkspace">
           <div class="framesTools">
             <div class="localViewSwitch" aria-label="分镜画面视图">
-              <button type="button" :class="{ active: frameView === 'overview' }" @click="frameView = 'overview'">整集预览与衔接</button>
-              <button type="button" :class="{ active: frameView === 'making' }" @click="frameView = 'making'">制作 / 修改分镜图</button>
+              <button type="button" :class="{ active: frameView === 'making' }" @click="frameView = 'making'">① 制作分镜图</button>
+              <button type="button" :class="{ active: frameView === 'overview' }" @click="frameView = 'overview'">② 整集预览与衔接</button>
             </div>
-            <span>{{ frameView === "overview" ? "生成完成后，仍需对照前后镜检查穿帮。" : "编辑每镜画面描述、关联参考，再生成所选图片。" }}</span>
+            <span>{{ frameView === "overview" ? "按顺序预览，检查场景与人物是否衔接。" : "为每个镜头生成画面，不满意可直接修改；完成后再检查整集衔接。" }}</span>
           </div>
-          <StoryboardOverview v-if="frameView === 'overview'" @generate="openGenerator" @make="openFrameEditor" />
+          <StoryboardOverview v-if="frameView === 'overview'" @generate="openGenerator" @make="openFrameEditor" @image-canvas="openImageCanvas" />
           <div v-else class="frameMaking">
             <div v-if="!flowData.reviewState?.tableApproved" class="workflowNotice">
               分镜表还未确认。可以查看和编辑已有镜头，生成新图片前请先完成规划。
@@ -130,6 +132,7 @@ import { computed, inject, nextTick, ref, watch, type Ref } from "vue";
 import { Dialog as TDialog } from "tdesign-vue-next";
 import { useRoute, useRouter } from "vue-router";
 import productionAgentStore from "@/stores/productionAgent";
+import projectStore from "@/stores/project";
 import { initialStudioStage, studioStageFor, studioStages, studioStageStatus, type StudioStage } from "../../utils/studioWorkflow";
 import PlanningWorkspace from "./PlanningWorkspace.vue";
 import storyboardNode from "../../node/storyboard.vue";
@@ -139,7 +142,7 @@ import StoryboardOverview from "./StoryboardOverview.vue";
 import EpisodePlayback from "./EpisodePlayback.vue";
 import generate from "./generate/index.vue";
 const props = defineProps<{ embedded?: boolean; episodesOptions?: { label: string; value: number }[]; episodeSwitching?: boolean }>();
-const emit = defineEmits<{ "show-overview": []; "toggle-assistant": []; "episode-change": [id: number]; "stage-change": [stage: StudioStage] }>();
+const emit = defineEmits<{ "show-overview": []; "toggle-assistant": []; "episode-change": [id: number]; "stage-change": [stage: StudioStage]; "leave-workspace": [] }>();
 const visible = defineModel<boolean>("visible", { default: false });
 const wrapperProps = computed(() =>
   props.embedded
@@ -155,21 +158,22 @@ const wrapperProps = computed(() =>
       },
 );
 const { flowData } = storeToRefs(productionAgentStore());
+const projectName = computed(() => projectStore().project?.name || "");
 const episodeTitle = inject<Ref<string>>("productionEpisodeTitle", ref(""));
 const episodesId = inject<Ref<number>>("episodesId", ref(0));
 const router = useRouter(),
   route = useRoute();
 const activeStage = ref<StudioStage>(initialStudioStage(flowData.value, route.query.stage));
 const visitedGenerate = ref(activeStage.value === "video");
-const frameView = ref("overview"),
+const frameView = ref("making"),
   editView = ref("playback");
 const stageStatus = computed(() => studioStageStatus(flowData.value));
 const currentStage = computed(() => studioStages.find((stage) => stage.id === activeStage.value)!);
-const nextLabel = computed(() => ({ planning: "查看分镜画面", frames: "进入视频制作", video: "检查与剪辑", edit: "打开剪辑台" })[activeStage.value]);
-const generator = ref<{ selectStoryboard: (id: number) => Promise<void> }>();
+const nextLabel = computed(() => activeStage.value === 'frames' && frameView.value === 'making' ? '预览整集与衔接' : ({ planning: "查看分镜画面", frames: "进入视频制作", video: "检查与剪辑", edit: "打开剪辑台" })[activeStage.value]);
+const generator = ref<{ selectStoryboard: (id: number) => Promise<void>; flushDrafts: () => Promise<void> }>();
 const contentRoot = ref<HTMLElement>();
 const referencesOpen = ref(false);
-const frameEditor = ref<{ editFrame: (id: number) => void }>();
+const frameEditor = ref<{ editFrame: (id: number) => void; openImageCanvas: (id: number) => void }>();
 const planning = ref<{ selectDocument: (value: string) => void }>();
 watch(
   activeStage,
@@ -197,6 +201,7 @@ watch(
 );
 function nextStage() {
   if (activeStage.value === "edit") return goEditor();
+  if (activeStage.value === "frames" && frameView.value === "making") { frameView.value = "overview"; return; }
   const index = studioStages.findIndex((stage) => stage.id === activeStage.value);
   changeMenu(studioStages[index + 1].id);
 }
@@ -217,12 +222,18 @@ async function openFrameEditor(id?: number) {
   await nextTick();
   if (id) frameEditor.value?.editFrame(id);
 }
+async function openImageCanvas(id?: number) {
+  frameView.value = "making";
+  await nextTick();
+  if (id) frameEditor.value?.openImageCanvas(id);
+}
 async function openGenerator(id?: number) {
   changeMenu("video");
   await nextTick();
   if (id) await generator.value?.selectStoryboard(id);
 }
-defineExpose({ setActiveMenu: changeMenu, openDocument });
+async function flushDrafts() { await generator.value?.flushDrafts(); }
+defineExpose({ setActiveMenu: changeMenu, openDocument, flushDrafts });
 function goEditor() {
   if (!props.embedded) visible.value = false;
   void router.push({ path: "/editor", query: { projectId: route.query.projectId, episode: String(episodesId.value), returnTo: route.fullPath } });
@@ -233,8 +244,8 @@ function goEditor() {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--studio-line);
-  border-radius: 14px;
+  border: 0;
+  border-radius: 0;
   background: var(--studio-white);
   box-sizing: border-box;
 }
@@ -248,6 +259,24 @@ function goEditor() {
 }
 .studioHeaderActions > button:hover {
   color: var(--studio-text);
+}
+.studioHeaderActions > button.canvasEntry {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-left:2px;
+  padding:8px 13px;
+  border:1px solid #c95029;
+  border-radius:9px;
+  background:#c95029;
+  color:#fff;
+  font-weight:600;
+  box-shadow:0 5px 14px rgba(153,59,29,.16);
+}
+.studioHeaderActions > button.canvasEntry:hover {
+  border-color:#a83d1d;
+  background:#a83d1d;
+  color:#fff;
 }
 .studioEpisode {
   max-width: 310px;
@@ -339,6 +368,27 @@ function goEditor() {
   align-items: center;
   gap: 18px;
   min-width: 0;
+}
+.studioBack {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 8px 12px;
+  border: 1px solid var(--studio-line);
+  border-radius: 10px;
+  background: var(--studio-white);
+  color: var(--studio-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.studioBack:hover { border-color: var(--studio-accent); color: var(--studio-accent); }
+.studioProject { max-width: 250px; overflow: hidden; color: var(--studio-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) {
+  .studioProject { display: none; }
+  .studioIdentity { gap: 9px; }
+  .studioBack { padding: 7px 9px; }
 }
 .studioBrand {
   font-size: 17px;

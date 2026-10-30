@@ -1,9 +1,10 @@
 import { Component, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Grid, OrbitControls, TransformControls, useGLTF } from '@react-three/drei'
+import { ContactShadows, Grid, Line, OrbitControls, TransformControls, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { poseForObject, presetDefinition } from './rig.js'
+import {smoothRoutePoints} from './previsMotion.js'
 
 const CAMERA_ID = '__shot_camera__'
 const BUILT_IN_MODEL_URL = `${import.meta.env.BASE_URL}models/xbot-animated.glb`
@@ -1242,7 +1243,7 @@ function EditorCameraReporter({ enabled, onChange }) {
   return null
 }
 
-function EditorScene({ objects, selectedId, activeJoint, onSelect, onJointSelect, transformMode, transformSpace, snapEnabled, groundRequest, onUpdateObject, cameraData, cameraAspect, onUpdateCamera, editorCameraData, onEditorCameraChange, lighting, showGrid, focusRequest, referenceVisible = false, cameraView = false, animationTime = 0 }) {
+function EditorScene({ objects, selectedId, activeJoint, onSelect, onJointSelect, transformMode, transformSpace, snapEnabled, groundRequest, onUpdateObject, cameraData, cameraAspect, onUpdateCamera, editorCameraData, onEditorCameraChange, lighting, showGrid, focusRequest, drawRoute = false, referenceVisible = false, cameraView = false, animationTime = 0 }) {
   return (
     <>
       {!referenceVisible && <color attach="background" args={['#555653']} />}
@@ -1253,7 +1254,7 @@ function EditorScene({ objects, selectedId, activeJoint, onSelect, onJointSelect
       {objects.map(object => <SceneObject key={object.id} data={object} selected={selectedId === object.id} selectedId={selectedId} activeJoint={activeJoint} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onSelect={onSelect} onJointSelect={onJointSelect} onUpdate={onUpdateObject} animationTime={animationTime} />)}
       {!cameraView && <CameraModel data={cameraData} selected={selectedId === CAMERA_ID} selectedId={selectedId} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} onSelect={onSelect} onUpdate={onUpdateCamera} />}
       <ContactShadows position={[0, 0.01, 0]} opacity={0.42} scale={18} blur={2.4} far={9} />
-      {cameraView ? <PreviewCameraController cameraData={cameraData} cameraAspect={cameraAspect} /> : <OrbitControls makeDefault target={editorCameraData?.target || [0, 1, 0]} minDistance={2} maxDistance={35} maxPolarAngle={Math.PI * 0.49} />}
+      {cameraView ? <PreviewCameraController cameraData={cameraData} cameraAspect={cameraAspect} /> : <OrbitControls makeDefault enabled={!drawRoute} target={editorCameraData?.target || [0, 1, 0]} minDistance={0.5} maxDistance={300} minPolarAngle={0.01} maxPolarAngle={Math.PI - 0.01} enablePan />}
       <EditorCameraReporter enabled={!cameraView} onChange={onEditorCameraChange} />
       {!cameraView && <ViewFocusController request={focusRequest} />}
     </>
@@ -1303,7 +1304,19 @@ function PreviewScene({ objects, cameraData, cameraAspect, lighting, backgroundC
   )
 }
 
+function RoutePreviewLine({points=[],kind='actor'}) {
+  const vectors=useMemo(()=>smoothRoutePoints(points).map(p=>[p[0],p[1]+.08,p[2]]),[points])
+  if(points.length<2)return null
+  return <Line points={vectors} color={kind==='camera'?'#78b8f2':'#ffe17e'} lineWidth={2.5} transparent opacity={.9} depthTest={false} renderOrder={20}/>
+}
+function RouteArrow({from,to,index,kind}) {
+  const start=new THREE.Vector3(from[0],from[1]+.1,from[2]),end=new THREE.Vector3(to[0],to[1]+.1,to[2]),dir=end.clone().sub(start);const len=dir.length();if(len<.01)return null
+  dir.normalize();const mid=start.clone().lerp(end,.5);return <group key={index} position={mid} rotation={[0,Math.atan2(dir.x,dir.z),0]}><mesh rotation={[Math.PI/2,0,0]} renderOrder={21}><coneGeometry args={[.045,.14,4]} /><meshBasicMaterial color={kind==='camera'?'#78b8f2':'#ffe17e'} depthTest={false} /></mesh></group>
+}
+function RoutePreview({points=[],kind}) {const arrows=smoothRoutePoints(points,9);return <group>{points.length>1&&<RoutePreviewLine points={points} kind={kind}/>} {arrows.slice(0,-1).map((p,i)=><RouteArrow key={i} from={p} to={arrows[i+1]} index={i} kind={kind}/>)}</group>}
+
 export function MainViewport(props) {
+  // XOI-PATCH:route-input — separate camera / actor routes and click-to-place.
   const editorCamera = props.editorCameraData || {}
   const cameraSettings = props.cameraView
     ? { position: props.cameraData.position, rotation: props.cameraData.rotation, fov: 42, near: 0.05, far: 200 }
@@ -1314,10 +1327,116 @@ export function MainViewport(props) {
         near: 0.05,
         far: 200,
       }
+  const cameraRef=useRef(null)
+  const canvasRef=useRef(null)
+  const pathRef=useRef(null)
+  const routePropsRef=useRef(props)
+  routePropsRef.current=props
+  const routeOverlayRef=useRef(null)
+  const [routePreviewScreen,setRoutePreviewScreen]=useState([])
+  const [routeOverlaySize,setRouteOverlaySize]=useState({width:1,height:1})
+  const [routeDragIndex,setRouteDragIndex]=useState(null)
+  useLayoutEffect(()=>{
+    if(!props.drawRoute)return
+    const overlay=routeOverlayRef.current;if(!overlay)return
+    const measure=()=>{const rect=overlay.getBoundingClientRect();if(rect.width&&rect.height)setRouteOverlaySize({width:rect.width,height:rect.height})}
+    measure();const observer=new ResizeObserver(measure);observer.observe(overlay);return()=>observer.disconnect()
+  },[props.drawRoute])
+  const projectRoutePoints = useCallback(points => {
+    const overlay=routeOverlayRef.current
+    const camera=cameraRef.current
+    if(!overlay || !camera)return []
+    const rect=overlay.getBoundingClientRect()
+    camera.updateMatrixWorld?.()
+    return points.map(point => {
+      const projected=new THREE.Vector3(point[0],point[1],point[2]).project(camera)
+      return [(projected.x+1)*0.5*rect.width,(1-projected.y)*0.5*rect.height]
+    })
+  },[])
+  const worldPointFromScreen = useCallback(((event,height=0) => {
+    const overlay=routeOverlayRef.current
+    const camera=cameraRef.current
+    if(!overlay || !camera)return null
+    const rect=overlay.getBoundingClientRect()
+    const x=event.clientX-rect.left
+    const y=event.clientY-rect.top
+    const pointer=new THREE.Vector2(x/rect.width*2-1,-y/rect.height*2+1)
+    const ray=new THREE.Raycaster()
+    ray.setFromCamera(pointer,camera)
+    const hit=new THREE.Vector3()
+    return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-height),hit) && Math.abs(hit.x)<=200 && Math.abs(hit.z)<=200 ? hit.toArray() : null
+  }),[])
+  const editableRouteScreen=props.routeEditMode ? projectRoutePoints(props.routePoints||[]) : []
+  useEffect(() => {
+    if(!props.drawRoute || props.cameraView){setRoutePreviewScreen([]);pathRef.current=null;return undefined}
+    const overlay=routeOverlayRef.current
+    if(!overlay)return undefined
+    const sampleAt=event=>{
+      const rect=overlay.getBoundingClientRect()
+      if(!rect.width||!rect.height)return null
+      const x=event.clientX-rect.left,y=event.clientY-rect.top
+      const nx=x/rect.width,ny=y/rect.height
+      const pointer=new THREE.Vector2(nx*2-1,-ny*2+1)
+      let world=null
+      if(cameraRef.current){
+        const ray=new THREE.Raycaster();ray.setFromCamera(pointer,cameraRef.current)
+        const hit=new THREE.Vector3();world=ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),0),hit)
+      }
+      // Keep drawing usable even during the first render before the editor camera is ready.
+      if(!world||Math.abs(world.x)>200||Math.abs(world.z)>200)return null
+      return {world:world.toArray(),screen:[x,y],size:{width:rect.width,height:rect.height}}
+    }
+    const onDown=event=>{
+      if(event.button!==0)return
+      const sample=sampleAt(event);if(!sample)return
+      if(props.routeEditMode)return
+      if(props.routeInputMode==='click'){const current=routePropsRef.current;current.onRouteDraftChange?.([...(current.routeDraftPoints||[]),sample.world].slice(0,128));setRouteOverlaySize(sample.size);event.preventDefault();return}
+      overlay.setPointerCapture?.(event.pointerId)
+      pathRef.current={id:event.pointerId,points:[sample.world]}
+      setRouteOverlaySize(sample.size);setRoutePreviewScreen([sample.screen])
+      event.preventDefault()
+    }
+    const onMove=event=>{
+      if(props.routeInputMode==='click'||props.routeEditMode)return
+      const route=pathRef.current;if(!route||route.id!==event.pointerId||!event.buttons)return
+      const sample=sampleAt(event);if(!sample)return
+      const last=route.points.at(-1)
+      if(route.points.length<4000&&Math.hypot(sample.world[0]-last[0],sample.world[2]-last[2])>.025){route.points.push(sample.world);setRouteOverlaySize(sample.size);setRoutePreviewScreen(current=>[...current,sample.screen])}
+    }
+    const onUp=event=>{
+      if(props.routeInputMode==='click'||props.routeEditMode)return
+      const route=pathRef.current;if(!route||route.id!==event.pointerId)return
+      const end=sampleAt(event);if(end)route.points.push(end.world)
+      pathRef.current=null;event.preventDefault();routePropsRef.current.onCompleteRoute?.(route.points)
+    }
+    const onCancel=()=>{pathRef.current=null}
+    const onContextMenu=event=>event.preventDefault()
+    overlay.addEventListener('pointerdown',onDown);overlay.addEventListener('pointermove',onMove);overlay.addEventListener('pointerup',onUp);overlay.addEventListener('pointercancel',onCancel);window.addEventListener('blur',onCancel);overlay.addEventListener('contextmenu',onContextMenu)
+    return()=>{overlay.removeEventListener('pointerdown',onDown);overlay.removeEventListener('pointermove',onMove);overlay.removeEventListener('pointerup',onUp);overlay.removeEventListener('pointercancel',onCancel);window.removeEventListener('blur',onCancel);overlay.removeEventListener('contextmenu',onContextMenu);pathRef.current=null}
+  },[props.drawRoute,props.cameraView,props.routeInputMode,props.routeEditMode])
+  useEffect(() => {
+    if(!props.routeEditMode || routeDragIndex===null)return undefined
+    const move=event=>{
+      const point=worldPointFromScreen(event,props.routeKind==='camera'?props.routePoints?.[routeDragIndex]?.[1]||0:0)
+      if(!point)return
+      props.onUpdateRoutePoint?.(routeDragIndex,point)
+    }
+    const up=()=>setRouteDragIndex(null)
+    window.addEventListener('pointermove',move)
+    window.addEventListener('pointerup',up)
+    window.addEventListener('pointercancel',up)
+    return()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up)}
+  },[props.routeEditMode,routeDragIndex,worldPointFromScreen,props.onUpdateRoutePoint,props.routeKind,props.routePoints])
+  const svgPoints=routePreviewScreen.map(([x,y])=>`${x},${y}`).join(' ')
+  const editSvgPoints=projectRoutePoints(smoothRoutePoints(props.routePoints||[])).map(([x,y])=>`${x},${y}`).join(' ')
   return (
-    <Canvas shadows="basic" dpr={[1, 1.75]} camera={cameraSettings} onPointerMissed={() => props.onSelect(null)} gl={{ alpha: true, antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.88 }}>
+    <div className="route-canvas-wrapper" style={{touchAction:props.drawRoute?'none':'auto',cursor:props.drawRoute?'crosshair':'auto'}}>
+    <Canvas style={{pointerEvents:props.drawRoute?'none':'auto'}} shadows="basic" dpr={[1, 1.75]} camera={cameraSettings} onCreated={({gl,camera})=>{canvasRef.current=gl.domElement;cameraRef.current=camera}} onPointerMissed={() => {if(!props.drawRoute)props.onSelect(null)}} gl={{ alpha: true, antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.88 }}>
       <EditorScene {...props} />
+      {props.routePoints?.length > 1 && <RoutePreview points={props.routePoints} kind={props.routeKind}/>}
     </Canvas>
+    {props.drawRoute && <div ref={routeOverlayRef} className="route-input-overlay"><svg className="route-preview-svg" width="100%" height="100%" viewBox={`0 0 ${routeOverlaySize.width} ${routeOverlaySize.height}`} preserveAspectRatio="none"><polyline points={props.routeEditMode ? editSvgPoints : svgPoints} fill="none" stroke={props.routeKind==='camera'?'#78b8f2':'#ffe17e'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />{!props.routeEditMode&&routePreviewScreen.length>0&&<><circle cx={routePreviewScreen[0][0]} cy={routePreviewScreen[0][1]} r="5" fill="#fff0a6" /><circle cx={routePreviewScreen.at(-1)[0]} cy={routePreviewScreen.at(-1)[1]} r="4" fill="#ffe17e" /></>}{props.routeEditMode&&editableRouteScreen.map(([x,y],index)=><circle key={index} cx={x} cy={y} r={index===0||index===editableRouteScreen.length-1?6:5} className="route-edit-handle" onPointerDown={event=>{event.preventDefault();event.stopPropagation();event.currentTarget.setPointerCapture(event.pointerId);setRouteDragIndex(index)}} />)}</svg></div>}
+    </div>
   )
 }
 

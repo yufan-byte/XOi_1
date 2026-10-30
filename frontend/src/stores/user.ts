@@ -1,11 +1,17 @@
 import axios from "@/utils/axios";
 import {accountBoundary} from '@/utils/accountBoundary';
 import {prepareMediaSession} from '../../shared/mediaSession';
+import {clearSession, sessionSignal, setSessionToken, writeSessionSignal} from '@/utils/session';
 
 export default defineStore(
   "user",
   () => {
-    const token = ref(localStorage.getItem("token") || "");
+    /**
+     * F3：这里的 token 已**不是凭据原文**，而是非敏感会话信号（uid:nonce）。
+     * 凭据本身只在两处：后端 httpOnly cookie + 内存（见 utils/session.ts）。
+     * 保留这个 ref 是为了不动下游一堆「账号是否切换」的 watch / 比对逻辑。
+     */
+    const token = ref(sessionSignal());
     const role = ref(localStorage.getItem("role") || "user");
     const userId = ref(localStorage.getItem("userId") || "");
     const displayId = ref(localStorage.getItem("displayId") || "");
@@ -18,12 +24,13 @@ export default defineStore(
     const isAdmin = computed(() => role.value === "admin");
 
     function setUser(data: { token: string; role: string; id: string; display_id?: string; name: string }) {
-      token.value = data.token;
+      // 凭据原文只进内存（供 socket 握手 / 老代码拼 header），持久化交给后端 httpOnly cookie。
+      setSessionToken(data.token);
+      token.value = writeSessionSignal(data.id);
       role.value = data.role;
       userId.value = data.id;
       displayId.value = data.display_id || "";
       username.value = data.name;
-      localStorage.setItem("token", data.token);
       localStorage.setItem("role", data.role);
       localStorage.setItem("userId", data.id);
       localStorage.setItem("displayId", displayId.value);
@@ -40,7 +47,8 @@ export default defineStore(
       userId.value = "";
       displayId.value = "";
       username.value = "";
-      localStorage.removeItem("token");
+      // 会话信号 + 残留的老凭据 + 内存凭据一起清；cookie 由后端 /login/logout 清。
+      clearSession();
       localStorage.removeItem("role");
       localStorage.removeItem("userId");
       localStorage.removeItem("displayId");

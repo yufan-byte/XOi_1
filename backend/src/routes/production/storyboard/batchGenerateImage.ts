@@ -1,3 +1,4 @@
+import { userFacingError } from "@/utils/userFacingError";
 import express from "express";
 import u from "@/utils";
 import { z } from "zod";
@@ -22,6 +23,8 @@ export default router.post(
     scriptId: z.number(),
     concurrentCount: z.number().min(1).optional(),
     compulsory: z.boolean().optional(),
+    useCurrentImage: z.boolean().optional(),
+    checkImageEditSupport: z.boolean().optional(),
   }),
   async (req, res) => {
     const userId = (req as any).user?.id;
@@ -31,26 +34,31 @@ export default router.post(
       scriptId,
       concurrentCount = 5,
       compulsory = false,
+      useCurrentImage = false,
+      checkImageEditSupport = false,
     }: {
       storyboardIds: number[];
       projectId: number;
       scriptId: number;
       concurrentCount: number;
       compulsory: boolean;
+      useCurrentImage: boolean;
+      checkImageEditSupport: boolean;
     } = req.body;
+    if (checkImageEditSupport) return res.status(200).send(success({ useCurrentImage: true }));
     if (!storyboardIds || storyboardIds.length === 0) return res.status(400).send(error("storyboardIds不能为空"));
     const reviewError = await requireDirectorReview(u.db, projectId, scriptId);
     if (reviewError) return res.status(409).send(error(reviewError));
     let continuityFrames: Awaited<ReturnType<typeof loadDirectorContinuity>>;
     try { continuityFrames = await loadDirectorContinuity(u.db, projectId, scriptId); }
-    catch (e) { return res.status(400).send(error(u.error(e).message)); }
+    catch (e) { return res.status(400).send(error(userFacingError(e, "分镜图片生成失败，请稍后重试"))); }
     const generationIds = new Set(storyboardIds);
     try {
       for (const frame of continuityFrames.filter(f => generationIds.has(Number(f.id)))) {
         const anchor = selectedContinuityAnchor(continuityFrames, frame);
         if (anchor && generationIds.has(Number(anchor.id)) && continuityFrames.indexOf(anchor) > continuityFrames.indexOf(frame)) throw Error('所选空间锚点也在本轮重画且位于后方，请先生成锚点再重画其他镜头');
       }
-    } catch (e) { return res.status(400).send(error(u.error(e).message)); }
+    } catch (e) { return res.status(400).send(error(userFacingError(e, "分镜图片生成失败，请稍后重试"))); }
     for (const [index, frame] of continuityFrames.entries()) {
       if (!generationIds.has(Number(frame.id)) || frame.continuity?.transition !== 'continue') continue;
       const previous = continuityFrames[index - 1];
@@ -173,6 +181,10 @@ export default router.post(
       try {
         const references: {type:'image';base64:string}[] = [];
         const legend: string[] = [];
+        if (useCurrentImage && item.filePath) {
+          references.push({type:'image',base64:await u.oss.getImageBase64(item.filePath)});
+          legend.push('参考1：本镜现有画面，以此为修改底图，只按本镜修正说明修改，保留未要求改变的内容');
+        }
         for (const asset of frame.references) {
           if (!asset.filePath) continue;
           references.push({type:'image',base64:await u.oss.getImageBase64(asset.filePath)});

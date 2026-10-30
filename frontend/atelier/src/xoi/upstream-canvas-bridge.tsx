@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { App, Button } from "antd";
+import { useMemo, useState } from "react";
+import { App, Button, Modal } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 import { nanoid } from "nanoid";
 import {normalizeWorkflowLayout} from "./graph-layout";
@@ -7,16 +7,20 @@ import { ArrowLeft } from "lucide-react";
 
 import { useCanvasStore } from "@upstream/app/(user)/canvas/stores/use-canvas-store";
 import { fitNodeSize } from "@upstream/app/(user)/canvas/utils/canvas-node-size";
-import { uploadImage } from "@upstream/services/image-storage";
+import { uploadImage, imageToDataUrl } from "@upstream/services/image-storage";
+import { backendJson, backendUploadFile } from "@/xoi/backend";
+import { flushCanvasBeforeExit } from "@upstream/app/(user)/canvas/stores/use-canvas-store";
 import { useConfigStore as useUpstreamConfigStore } from "@upstream/stores/use-config-store";
+import { canvasThemes } from "@upstream/lib/canvas-theme";
+import { useThemeStore } from "@upstream/stores/use-theme-store";
+import {takeBrowserHandoff,writeBrowserHandoff} from "../../../../shared/browserHandoff";
+import {assertCanvasAccount} from "./owner";
 
-type ImportImage = { src: string; name?: string; id?: number; type?: string; projectId?: number };
+type ImportImage = { src: string; name?: string; id?: number; type?: string; projectId?: number; prompt?: string };
 type LooseNode = { id: string; type: string; title: string; position: { x: number; y: number }; width: number; height: number; metadata?: Record<string, any> };
 type LooseConnection = { fromNodeId: string; toNodeId: string };
 const FROM_KEY = "xoi_bridge_from";
-const HANDOFF_KEY = "xoi_canvas_handoff_v1";
 /** 灵感广场画布作品「免费复刻同款」的整图载荷：{workId,title,prompt,nodes,edges}（造物 preview 原格式） */
-const GRAPH_KEY = "xoi_canvas_graph_v1";
 /** 编辑器左上返回控件的来路标记：aiAssistant=回到对话 / square=回到灵感广场 / home=返回画布首页。
  *  与 FROM_KEY（cornerScape/assets 的「保存并返回」定点回归）互斥，两条链路各设各的。 */
 const BACK_KEY = "xoi_canvas_back_v1";
@@ -55,6 +59,7 @@ export async function runUpstreamXoiImport(navigate: (path: string) => void) {
     let images: ImportImage[] = [];
     try { images = JSON.parse(params.get("import") || "[]"); } catch { return; }
     if (!images.length) return;
+    const handoffId = params.get("handoffId") || "";
     sessionStorage.setItem(FROM_KEY, params.get("from") || "cornerScape");
     // 与「新建直达 / 对话 handoff」的返回钮互斥：同源 sessionStorage 会残留，两组控件叠在同一位置
     sessionStorage.removeItem(BACK_KEY);
@@ -67,11 +72,16 @@ export async function runUpstreamXoiImport(navigate: (path: string) => void) {
         const size = fitNodeSize(uploaded.width, uploaded.height);
         nodes.push({
             id: nanoid(), type: "image", title: image.name || `S${String(index + 1).padStart(2, "0")}`,
-            position: { x: 120 + index * 360, y: 120 }, width: size.width, height: size.height,
-            metadata: { content: uploaded.url, storageKey: uploaded.storageKey, naturalWidth: uploaded.width, naturalHeight: uploaded.height, mimeType: uploaded.mimeType, bytes: uploaded.bytes, xoiId: image.id, xoiType: image.type, xoiProjectId: image.projectId },
+            position: handoffId ? { x: 120, y: 100 + index * 300 } : { x: 120 + index * 360, y: 120 }, width: size.width, height: size.height,
+            metadata: { content: uploaded.url, storageKey: uploaded.storageKey, naturalWidth: uploaded.width, naturalHeight: uploaded.height, mimeType: uploaded.mimeType, bytes: uploaded.bytes, xoiId: image.id, xoiType: image.type, xoiProjectId: image.projectId, ...(index === 0 && /^[0-9a-f-]{36}$/i.test(handoffId) ? { xoiHandoffId: handoffId } : {}) },
         });
     }
-    useCanvasStore.getState().updateProject(projectId, { nodes: nodes as never[] });
+    if (handoffId) {
+        const generationId = nanoid();
+        nodes.push({ id: generationId, type: "image", title: "图片生成与修改", position: { x: 650, y: 140 }, width: 320, height: 240, metadata: { prompt: images[0]?.prompt || "", status: "idle" } });
+        const connections = nodes.slice(0, -1).map(node => ({ id: nanoid(), fromNodeId: node.id, toNodeId: generationId }));
+        useCanvasStore.getState().updateProject(projectId, { nodes: nodes as never[], connections: connections as never[], viewport: fitViewport(nodes) });
+    } else useCanvasStore.getState().updateProject(projectId, { nodes: nodes as never[] });
     await navigate(`/canvas/${projectId}`);
 }
 
@@ -95,18 +105,16 @@ export async function runUpstreamXoiNewCanvas(navigate: (path: string) => void) 
 export async function runUpstreamXoiHandoff(navigate: (path: string) => void) {
     const params = new URLSearchParams(location.search);
     if(params.get("source")!=="xoi"||params.get("handoff")!=="1")return;
-    const raw = localStorage.getItem(HANDOFF_KEY);
-    if (!raw) return;
-    let handoff: CanvasHandoff;
-    try { handoff = JSON.parse(raw) as CanvasHandoff; } catch { return; }
+    const handoff = takeBrowserHandoff<CanvasHandoff>(sessionStorage,assertCanvasAccount(),"canvas-prompt");
+    if (!handoff) return;
     // 来路标记先于空提示词判断：即使 prompt 为空没建项目，用户从首页自己新建/打开的
     // 画布也算「从对话进来」，编辑器里照样给「回到对话」。灵感广场来的用「回到广场」。
     sessionStorage.setItem(BACK_KEY, handoff.source === "square" ? "square" : "aiAssistant");
     sessionStorage.removeItem(FROM_KEY);
     const prompt = String(handoff.prompt || "").trim();
     if (!prompt) return;
-    localStorage.removeItem(HANDOFF_KEY);
     await waitForHydration();
+    assertCanvasAccount();
 
     const requestedTextModel = String(handoff.model || "").split("::").pop()!.replace(/^newapi:/, "");
 
@@ -310,11 +318,8 @@ function fitViewport(nodes: LooseNode[], director=false) {
 export async function runUpstreamXoiGraphImport(navigate: (path: string) => void) {
     const params = new URLSearchParams(window.location.search);
     if (params.get("source") !== "xoi" || !params.get("graph")) return;
-    const rawGraph = localStorage.getItem(GRAPH_KEY);
-    if (!rawGraph) return;
-    localStorage.removeItem(GRAPH_KEY);
-    let payload: GraphPayload;
-    try { payload = JSON.parse(rawGraph) as GraphPayload; } catch { return; }
+    const payload = takeBrowserHandoff<GraphPayload>(sessionStorage,assertCanvasAccount(),"canvas-graph");
+    if (!payload) return;
     // 与「新建直达 / 对话 handoff」的返回钮互斥，并与角景/资产的「保存并返回」链路互斥
     sessionStorage.setItem(BACK_KEY, params.get("from") || "square");
     sessionStorage.removeItem(FROM_KEY);
@@ -322,6 +327,7 @@ export async function runUpstreamXoiGraphImport(navigate: (path: string) => void
     const { nodes, connections } = adaptPreviewGraph(payload);
     if (!nodes.length) return;
     await waitForHydration();
+    assertCanvasAccount();
     if(payload.source==='director3d'&&payload.referenceId){const existing=useCanvasStore.getState().projects.find(project=>project.nodes.some(node=>node.type==='director'&&(node.metadata as any)?.directorReferenceId===payload.referenceId));if(existing){await navigate(`/canvas/${existing.id}`);return;}}
     const projectId = useCanvasStore.getState().importProject({
         title: payload.title || "复刻画布",
@@ -368,6 +374,8 @@ function collectResults(nodes: LooseNode[], connections: LooseConnection[]) {
  * 走 XoiCanvasReturnControls，与本组件互斥（两条链路各设各的 sessionStorage 键）。 */
 export function XoiCanvasBackControl() {
     const navigate = useNavigate();
+    // 用画布自己的主题色，深色模式跟着变；旧版是 antd 默认白按钮，在画布上一眼"外来控件"。
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const back = sessionStorage.getItem(BACK_KEY) || "";
     if (!back) return null;
     const toChat = back === "aiAssistant";
@@ -385,9 +393,31 @@ export function XoiCanvasBackControl() {
             navigate("/");
         }
     };
+    const label = toChat ? "回到对话" : toSquare ? "回到广场" : toDirector ? "返回导演台" : "返回首页";
+    const restingShadow = "0 2px 10px rgba(23,21,17,.06), 0 1px 2px rgba(23,21,17,.04)";
+    const hoverShadow = "0 6px 18px rgba(242,100,50,.18), 0 1px 2px rgba(23,21,17,.04)";
     return (
         <div data-xoi-canvas-back className="pointer-events-auto absolute left-[76px] top-[76px] z-30">
-            <Button size="small" icon={<ArrowLeft className="size-3.5" />} onClick={go}>{toChat ? "回到对话" : toSquare ? "回到广场" : toDirector ? "返回导演台" : "返回首页"}</Button>
+            <button
+                type="button"
+                onClick={go}
+                title={label}
+                className="group inline-flex h-8 items-center gap-1.5 rounded-full border pl-2.5 pr-3.5 text-[13px] font-medium leading-none backdrop-blur-md transition-all duration-150 hover:-translate-y-px"
+                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: restingShadow }}
+                onMouseEnter={(event) => {
+                    event.currentTarget.style.borderColor = "rgba(245,116,0,.45)";
+                    event.currentTarget.style.color = "#f57400";
+                    event.currentTarget.style.boxShadow = hoverShadow;
+                }}
+                onMouseLeave={(event) => {
+                    event.currentTarget.style.borderColor = theme.toolbar.border;
+                    event.currentTarget.style.color = theme.toolbar.item;
+                    event.currentTarget.style.boxShadow = restingShadow;
+                }}
+            >
+                <ArrowLeft className="size-3.5 transition-transform duration-150 group-hover:-translate-x-0.5" strokeWidth={2.2} />
+                <span>{label}</span>
+            </button>
         </div>
     );
 }
@@ -398,13 +428,54 @@ export function XoiCanvasReturnControls() {
     const project = useCanvasStore((state) => state.projects.find((item) => item.id === id));
     const from = sessionStorage.getItem(FROM_KEY) || "";
     const state = useMemo(() => collectResults((project?.nodes || []) as LooseNode[], (project?.connections || []) as LooseConnection[]), [project]);
+    const source = (project?.nodes || []).find((node) => (node.metadata as any)?.xoiHandoffId);
+    if (project && source) return <ProjectHandoffReturn projectId={project.id} handoffId={String((source.metadata as any).xoiHandoffId)} nodes={(project.nodes || []) as LooseNode[]} />;
     if (!from || !project || !state.sources.length) return null;
     const detect = () => state.missing.length ? message.warning(`还有 ${state.missing.length} 张来源图没有检测到下游结果：${state.missing.join("、")}`) : message.success(`已检测到 ${state.results.length} 张可返回结果`);
     const save = () => {
         if (state.missing.length) { detect(); return; }
-        localStorage.setItem("canvas_save_result", JSON.stringify({ images: state.results, timestamp: Date.now() }));
+        writeBrowserHandoff(sessionStorage,assertCanvasAccount(),"canvas-result",{images:state.results,timestamp:Date.now()});
         sessionStorage.removeItem(FROM_KEY);
         window.parent.location.href = `/#/${["cornerScape", "assets"].includes(from) ? from : "cornerScape"}`;
     };
     return <div data-xoi-canvas-return className="pointer-events-auto absolute left-1/2 top-4 z-[90] flex -translate-x-1/2 gap-2"><Button onClick={detect}>检测结果</Button><Button type="primary" onClick={save}>保存并返回</Button></div>;
+}
+
+function ProjectHandoffReturn({ projectId, handoffId, nodes }: { projectId: string; handoffId: string; nodes: LooseNode[] }) {
+    const { message } = App.useApp();
+    const [open, setOpen] = useState(false);
+    const [chosen, setChosen] = useState("");
+    const [busy, setBusy] = useState(false);
+    const options = nodes.filter(node => node.type === "image" && (node.metadata?.content || node.metadata?.storageKey || node.metadata?.images?.[0]?.content || node.metadata?.images?.[0]?.storageKey));
+    const send = async () => {
+        const node = options.find(item => item.id === chosen);
+        if (!node || busy) return;
+        setBusy(true);
+        try {
+            await flushCanvasBeforeExit(projectId);
+            const image = node.metadata?.images?.[0] || node.metadata || {};
+            const dataUrl = await imageToDataUrl({ url: image.content || image.url, storageKey: image.storageKey });
+            if (!dataUrl) throw new Error("无法读取所选图片，请稍后重试");
+            const blob = await (await fetch(dataUrl)).blob();
+            const ext = ({ "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" } as Record<string, string>)[blob.type];
+            if (!ext || blob.size > 10 * 1024 * 1024) throw new Error("请选择不超过 10MB 的图片");
+            const uploaded = await backendUploadFile(blob, ext);
+            const response = await backendJson<{ data: { projectId: number; scriptId?: number; targetId: number; kind: string; conflict: boolean } }>(`/api/workspace/canvas-handoffs/${encodeURIComponent(handoffId)}/complete`, { method: "POST", json: { url: uploaded.url } });
+            const result = response.data;
+            message.success(result.conflict ? "项目原图已有更新，结果已保存为历史候选" : "已保存为历史候选，可回项目查看并采用");
+            const target = result.kind === "storyboard" ? `/#/production?projectId=${result.projectId}&episode=${result.scriptId}&stage=frames&view=studio&canvasTarget=${result.targetId}` : `/#/cornerScape?projectId=${result.projectId}&canvasTarget=${result.targetId}`;
+            if (window.parent !== window) window.parent.location.href = target; else window.location.href = target;
+        } catch (error) { message.error(error instanceof Error ? error.message : "保存失败，画布内容仍保留"); }
+        finally { setBusy(false); }
+    };
+    return <div data-xoi-canvas-return className="pointer-events-auto absolute left-1/2 top-4 z-[90] flex -translate-x-1/2 gap-2">
+        <Button type="primary" onClick={() => setOpen(true)}>选择图片送回项目</Button>
+        <Modal title="选择要带回的图片" open={open} onCancel={() => !busy && setOpen(false)} onOk={() => void send()} okText="保存为候选并返回" cancelText="继续编辑" confirmLoading={busy} okButtonProps={{ disabled: !chosen }}>
+            <p className="text-sm text-stone-500">选择一张画布图片作为候选，当前项目图片不会自动替换。</p>
+            <div className="grid max-h-[52vh] grid-cols-3 gap-3 overflow-auto">{options.map(node => <button key={node.id} type="button" onClick={() => setChosen(node.id)} className={`overflow-hidden rounded-xl border p-1 text-left ${chosen === node.id ? 'border-orange-500' : 'border-stone-200'}`}>
+                {typeof node.metadata?.content === 'string' && !node.metadata.content.startsWith('server:') ? <img src={node.metadata.content} className="h-24 w-full rounded-lg object-contain bg-stone-100" /> : <div className="grid h-24 place-items-center bg-stone-100 text-xs text-stone-500">画布图片</div>}
+                <span className="block truncate px-1 py-2 text-xs">{node.title || '未命名图片'}{chosen === node.id ? ' ✓' : ''}</span>
+            </button>)}</div>
+        </Modal>
+    </div>;
 }

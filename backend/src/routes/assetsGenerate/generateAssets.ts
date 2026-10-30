@@ -1,3 +1,4 @@
+import { userFacingError } from "@/utils/userFacingError";
 import express from "express";
 import u from "@/utils";
 import { z } from "zod";
@@ -134,7 +135,7 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
         relatedObjects: JSON.stringify(relatedObjects),
       },
     );
-    aiImage.save(imagePath);
+    await aiImage.save(imagePath);
     // 5. 更新记录 & 返回结果
     const imageData = await u.db("o_image").where("id", imageId).select("*").first();
     if (!imageData) return res.status(500).send("资产已被删除");
@@ -151,7 +152,6 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
       });
 
     const path = await u.oss.getSmallImageUrl(imagePath);
-    await u.db("o_assets").where("id", id).update({ imageId });
 
     // 生成成功，扣除积分—— 带 P2B-8 差异化计费上下文(model="vid:name")
     let deductInfo = null;
@@ -173,6 +173,6 @@ export default router.post("/", validateFields(requestSchema), async (req, res) 
       .db("o_image")
       .where("id", imageId)
       .update({ state: "生成失败", errorReason: u.error(e).message });
-    return res.status(400).send(error(u.error(e).message || "图片生成失败"));
+    return res.status(400).send(error(userFacingError(e, "图片生成失败")));
   }
 });

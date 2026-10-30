@@ -55,96 +55,130 @@
               <button type="button" @click="emit('go-review')">前往审核 →</button>
             </div>
           </div>
-          <section class="generationDock" aria-label="当前镜头生成台">
-            <header class="dockHeading">
-              <span class="dockSpark" aria-hidden="true">✦</span>
-              <div>
-                <strong>对话生成视频</strong>
-                <small>告诉 AI 这段镜头怎么动；分镜语境、连续性约束和版本记录仍由导演工作流接管</small>
+          <Teleport to="body" :disabled="!composerFullscreen">
+            <div v-if="composerFullscreen" class="composerBackdrop" aria-hidden="true" @click="closeComposerFullscreen" />
+            <section class="generationDock" :class="{ composerFullscreen }" aria-label="当前镜头生成台">
+              <header v-if="!composerFullscreen" class="composerTitle">
+                <div><span class="composerTitleIcon" aria-hidden="true">✦</span><span><strong>创作这个镜头</strong><small>描述画面如何运动，调整参考与生成设置</small></span></div>
+                <span class="composerTitleShot">{{ currentTrack ? trackLabels[currentTrack.id] : "当前镜头" }}</span>
+              </header>
+              <div class="composerTopbar">
+                <div class="inputMethod" aria-label="视频生成方式">
+                  <button
+                    v-for="item in modeList"
+                    :key="item.value"
+                    type="button"
+                    :class="{ active: modelParmas.mode === item.value }"
+                    :title="item.description"
+                    @click="modeChange(item.value)">
+                    <span aria-hidden="true">{{ item.glyph }}</span>
+                    {{ item.label }}
+                  </button>
+                  <span v-if="!modeList.length" class="modeLoading">读取模型能力…</span>
+                </div>
+                <div class="composerIdentity">
+                  <span>当前镜头</span>
+                  <strong>{{ currentTrack ? trackLabels[currentTrack.id] : "—" }}</strong>
+                  <button
+                    type="button"
+                    class="fullscreenToggle"
+                    :aria-label="composerFullscreen ? '退出全屏创作' : '进入全屏创作'"
+                    @click="toggleComposerFullscreen">
+                    <span aria-hidden="true">{{ composerFullscreen ? "×" : "⛶" }}</span>
+                    {{ composerFullscreen ? "退出全屏" : "全屏创作" }}
+                  </button>
+                </div>
               </div>
-            </header>
-            <div class="dockModeBar">
-              <div class="inputMethod" aria-label="视频生成方式">
-                <button
-                  v-for="item in modeList"
-                  :key="item.value"
-                  type="button"
-                  :class="{ active: modelParmas.mode === item.value }"
-                  :title="item.description"
-                  @click="modeChange(item.value)">
-                  {{ item.label }}
-                </button>
-                <span v-if="!modeList.length" class="modeLoading">读取模型能力…</span>
+              <div class="composerBody">
+                <div v-if="!isTextVideoMode(modelParmas.mode)" class="referenceTray" aria-label="本次参考素材">
+                  <div
+                    v-for="(item, i) in sentReferences.slice(0, 3)"
+                    :key="`${item.sources}:${item.id}:${i}`"
+                    class="referenceTile"
+                    :title="referenceLabel(item)">
+                    <img v-if="item.fileType === 'image'" :src="item.src" alt="本次参考缩略图" />
+                    <video v-else-if="item.fileType === 'video'" :src="item.src" muted preload="metadata" />
+                    <span v-else class="referenceAudio" aria-hidden="true">♫</span>
+                    <span class="referenceTileLabel">{{ referenceLabel(item) }}</span>
+                    <button type="button" :aria-label="`移除${referenceLabel(item)}`" @click="removeReference(i)">×</button>
+                  </div>
+                  <button type="button" class="referenceAdd" @click="openReferences">
+                    <span aria-hidden="true">＋</span>
+                    <small>{{ sentReferences.length ? "添加" : "参考素材" }}</small>
+                  </button>
+                  <button v-if="sentReferences.length > 3" type="button" class="referenceMore" @click="openReferences">
+                    +{{ sentReferences.length - 3 }}
+                  </button>
+                </div>
+                <div class="dockPrompt">
+                  <label for="shot-prompt" class="dockLabel">
+                    {{ isTextVideoMode(modelParmas.mode) ? "视频描述 · 场景、人物、动作与运镜" : "动作与运镜" }}
+                  </label>
+                  <textarea
+                    v-if="currentTrack"
+                    id="shot-prompt"
+                    v-model="currentTrack.prompt"
+                    rows="3"
+                    placeholder="告诉 AI 这个镜头如何运动：人物动作、镜头调度、光线与氛围……"
+                    @input="handlePromptInputEvent"
+                    @blur="handlePromptBlur" />
+                  <div class="promptMeta">
+                    <span v-if="promptSaveStatus">{{ promptSaveStatus }}</span>
+                    <span v-else>{{ modeHint }}</span>
+                    <span v-if="currentTrack">{{ currentTrack.prompt?.length || 0 }} 字</span>
+                  </div>
+                </div>
               </div>
-              <span>{{ modeHint }}</span>
-            </div>
-            <div v-if="!isTextVideoMode(modelParmas.mode)" class="dockReferences">
-              <span class="dockLabel">本次参考</span>
-              <div class="referenceChips">
-                <span v-for="(item, i) in sentReferences.slice(0, 4)" :key="`${item.sources}:${item.id}:${i}`">
-                  <img v-if="item.fileType === 'image'" :src="item.src" alt="本次参考缩略图" />
-                  {{ referenceLabel(item) }}
-                  <button type="button" :aria-label="`移除${referenceLabel(item)}`" @click="removeReference(i)">×</button>
-                </span>
-                <span v-if="!sentReferences.length" class="referenceEmpty">选择分镜图、角色、场景或自己的素材</span>
+              <div v-if="!isTextVideoMode(modelParmas.mode)" class="referenceSummary">
+                <span>{{ referenceLimitText }}</span>
+                <span v-if="currentFrame?.continuity?.transition === 'continue'">已自动衔接上一镜末帧</span>
+                <span v-if="currentFrame?.continuity?.anchorStoryboardId">已带入空间锚点</span>
+                <strong v-if="referenceTrimmed">超出模型能力的素材不会提交</strong>
               </div>
-              <button type="button" class="dockTextButton" @click="referencesOpen = true">
-                {{ sentReferences.length ? "更换 / 添加" : "选择参考图" }}
-              </button>
-              <span v-if="currentFrame?.continuity?.transition === 'continue'" class="referenceContext">衔接参考含上一镜已采用视频的尾帧</span>
-              <span v-if="currentFrame?.continuity?.anchorStoryboardId" class="referenceContext">含已固定的空间锚点</span>
-              <span class="referenceContext">{{ referenceLimitText }}</span>
-              <span v-if="referenceTrimmed" class="referenceWarning">超出当前模型能力的素材不会提交</span>
-            </div>
-            <div class="dockPrompt">
-              <label for="shot-prompt" class="dockLabel">
-                {{ isTextVideoMode(modelParmas.mode) ? "视频描述 · 场景、人物、动作与运镜" : "动作与运镜" }}
-              </label>
-              <textarea
-                v-if="currentTrack"
-                id="shot-prompt"
-                v-model="currentTrack.prompt"
-                rows="2"
-                placeholder="描述人物如何行动、镜头如何移动。空间布局与衔接约束会一同应用。"
-                @input="onPromptInput(currentTrack.prompt)"
-                @blur="handlePromptBlur" />
-              <span v-if="promptSaveStatus" class="promptSaved">{{ promptSaveStatus }}</span>
-              <span v-else-if="currentTrack" class="promptCount">{{ currentTrack.prompt?.length || 0 }} 字</span>
-            </div>
-            <modeMenu
-              v-model="modelParmas"
-              :modeOptions="modeOptions"
-              :trackId="currentTrack?.id"
-              @duration-change="updateTrackDuration" />
-
-            <footer class="dockSubmit">
-              <button type="button" class="dockTextButton promptAssist" :disabled="currentTrack?.state === '生成中'" title="读取本镜分镜和参考素材，整理成可直接生成的视频提示词" @click="genText">
-                <span aria-hidden="true">✦</span>
-                {{ currentTrack?.state === "生成中" ? "正在帮写…" : "按分镜智能帮写" }}
-              </button>
-              <div class="submitActions">
-                <ModelCostHint
-                  :model="modelParmas.model"
-                  type="video"
-                  :duration="modelParmas.duration"
-                  :resolution="modelParmas.resolution"
-                  :has-reference-video="sentReferences.some((i) => i.fileType === 'video')"
-                  compact />
-                <button
-                  type="button"
-                  class="generateAction"
-                  :disabled="submittingVideo || !currentTrack?.prompt?.trim() || !modelParmas.model"
-                  @click="generateVideo">
-                  <t-loading v-if="submittingVideo" size="small" />
-                  {{ submittingVideo ? "正在提交" : currentTrack?.videoList.length ? "再生成一版" : "生成视频" }}
-                </button>
-              </div>
-            </footer>
-          </section>
+              <footer class="composerToolbar">
+                <modeMenu v-model="modelParmas" :modeOptions="modeOptions" :trackId="currentTrack?.id" @duration-change="updateTrackDuration" />
+                <div class="composerActions">
+                  <button
+                    type="button"
+                    class="assistAction"
+                    :disabled="currentTrack?.state === '生成中'"
+                    title="读取本镜分镜和参考素材，整理成可直接生成的视频提示词"
+                    @click="genText">
+                    <span aria-hidden="true">✦</span>
+                    {{ currentTrack?.state === "生成中" ? "帮写中…" : "智能帮写" }}
+                  </button>
+                  <ModelCostHint
+                    :model="modelParmas.model"
+                    type="video"
+                    :duration="modelParmas.duration"
+                    :resolution="modelParmas.resolution"
+                    :has-reference-video="sentReferences.some((i) => i.fileType === 'video')"
+                    compact />
+                  <button
+                    type="button"
+                    class="generateAction"
+                    :aria-label="currentTrack?.videoList.length ? '再生成一版' : '生成视频'"
+                    :title="currentTrack?.videoList.length ? '再生成一版' : '生成视频'"
+                    :disabled="submittingVideo || !currentTrack?.prompt?.trim() || !modelParmas.model"
+                    @click="generateVideo">
+                    <t-loading v-if="submittingVideo" size="small" />
+                    <span v-else aria-hidden="true">➜</span>
+                  </button>
+                </div>
+              </footer>
+            </section>
+          </Teleport>
         </div>
       </main>
     </div>
-    <t-dialog v-if="referencesOpen" v-model:visible="referencesOpen" header="本镜参考素材" :footer="false" width="min(880px, 94vw)" attach="body">
+    <t-dialog
+      v-if="referencesOpen"
+      v-model:visible="referencesOpen"
+      header="本镜参考素材"
+      :footer="false"
+      width="min(880px, 94vw)"
+      attach="body"
+      :z-index="3100">
       <p class="referenceDialogHint">素材会保留在本镜草稿中；{{ referenceLimitText }}，提交时严格按当前模式和模型能力发送。</p>
       <imageSelect
         :key="currentTrack?.id"
@@ -192,7 +226,41 @@ const emit = defineEmits<{ importVideo: []; "go-review": []; "go-frames": [] }>(
 const editorOwner = accountBoundary.capture();
 const referencesOpen = ref(false),
   continuityOpen = ref(false),
+  composerFullscreen = ref(false),
   inspectedFrameId = ref<number>();
+let bodyOverflowBeforeFullscreen = "";
+let restoreFullscreenAfterReferences = false;
+function closeComposerFullscreen() {
+  composerFullscreen.value = false;
+}
+function toggleComposerFullscreen() {
+  composerFullscreen.value = !composerFullscreen.value;
+}
+async function openReferences() {
+  restoreFullscreenAfterReferences = composerFullscreen.value;
+  if (composerFullscreen.value) {
+    composerFullscreen.value = false;
+    await nextTick();
+  }
+  referencesOpen.value = true;
+}
+function handleComposerKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && composerFullscreen.value) closeComposerFullscreen();
+}
+watch(referencesOpen, async (open, wasOpen) => {
+  if (open || !wasOpen || !restoreFullscreenAfterReferences) return;
+  restoreFullscreenAfterReferences = false;
+  await nextTick();
+  composerFullscreen.value = true;
+});
+watch(composerFullscreen, async (fullscreen) => {
+  if (fullscreen) {
+    bodyOverflowBeforeFullscreen = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  } else document.body.style.overflow = bodyOverflowBeforeFullscreen;
+  await nextTick();
+  document.querySelector<HTMLTextAreaElement>("#shot-prompt")?.focus({ preventScroll: true });
+});
 const previewVersion = ref<VideoItem>();
 const allFrames = computed(() => productionAgentStore().flowData.storyboard || []);
 const currentFrames = computed(() => allFrames.value.filter((s) => Number(s.trackId) === currentTrack.value?.id));
@@ -278,6 +346,12 @@ function onPromptInput(value: string) {
   clearTimeout(promptSaveTimer);
   promptSaveTimer = setTimeout(() => void persistPrompt(t.id).catch(() => {}), 650);
 }
+function handlePromptInputEvent(event: Event) {
+  if (currentTrack.value) onPromptInput(currentTrack.value.prompt);
+  const textarea = event.currentTarget as HTMLTextAreaElement;
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 168)}px`;
+}
 const promptWrites = new Map<number, Promise<void>>();
 function persistPrompt(id: number): Promise<void> {
   const prior = promptWrites.get(id) || Promise.resolve();
@@ -338,7 +412,11 @@ async function resolveStoryboardSelection() {
     trackChange(old);
   }
 }
-defineExpose({ selectStoryboard });
+async function flushDrafts() {
+  clearTimeout(promptSaveTimer);
+  while (dirtyPrompts.size) await Promise.all([...dirtyPrompts.keys()].map((id) => persistPrompt(id)));
+}
+defineExpose({ selectStoryboard, flushDrafts });
 const cacheStore = imageListCacheStore();
 const { getCache, setCache, removeCache, initCacheFromTrackList, warmUpUrls } = cacheStore;
 const { urlMap } = storeToRefs(cacheStore);
@@ -622,6 +700,7 @@ watch(
   },
 );
 onMounted(() => {
+  window.addEventListener("keydown", handleComposerKeydown);
   modelParmas.value.model = project.value?.videoModel || "";
   modelParmas.value.mode = project.value?.mode || "";
   getGenerateData();
@@ -765,6 +844,8 @@ watch(
   },
 );
 onUnmounted(() => {
+  window.removeEventListener("keydown", handleComposerKeydown);
+  if (composerFullscreen.value) document.body.style.overflow = bodyOverflowBeforeFullscreen;
   clearTimeout(promptSaveTimer);
   if (accountBoundary.current(editorOwner)) for (const id of dirtyPrompts.keys()) void persistPrompt(id).catch(() => {});
   dataRevision++;
@@ -774,84 +855,105 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.dockHeading {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-bottom: 10px;
-}
-.dockHeading > div {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-.dockHeading strong {
-  font-size: 14px;
-  color: var(--studio-text);
-}
-.dockHeading small {
-  color: var(--studio-muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-.dockSpark {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  flex: none;
-  place-items: center;
-  border-radius: 8px;
-  color: var(--studio-accent);
-  background: color-mix(in srgb, var(--studio-accent) 10%, white);
-}
-.dockModeBar {
+.composerTopbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 16px;
+  min-height: 45px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--studio-line) 72%, transparent);
+  background: color-mix(in srgb, var(--studio-field) 36%, var(--studio-white));
 }
 .inputMethod {
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: var(--studio-field);
+  gap: 2px;
+  max-width: 74%;
   padding: 3px;
-  border-radius: 8px;
-  flex: none;
-  max-width: 72%;
   overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--studio-line) 86%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--studio-field) 72%, transparent);
+  flex: none;
   scrollbar-width: none;
 }
 .inputMethod::-webkit-scrollbar {
   display: none;
 }
 .inputMethod button {
-  border: 0;
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
   color: var(--studio-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  padding: 6px 13px;
-  border-radius: 6px;
   white-space: nowrap;
+  transition: 0.16s ease;
+}
+.inputMethod button > span {
+  color: color-mix(in srgb, var(--studio-accent) 74%, var(--studio-muted));
+  font-size: 12px;
 }
 .inputMethod button.active {
   background: var(--studio-white);
-  color: var(--studio-accent);
-  box-shadow: 0 1px 4px #30201008;
+  border-color: color-mix(in srgb, var(--studio-line) 74%, transparent);
+  color: var(--studio-text);
+  box-shadow: 0 2px 8px #3322140d;
   font-weight: 600;
 }
-.inputMethod button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.dockModeBar > span,
-.referenceContext {
+.composerIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
   color: var(--studio-muted);
   font-size: 11px;
+}
+.composerIdentity strong {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--studio-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fullscreenToggle {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  gap: 6px;
+  margin-left: 5px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--studio-line) 90%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--studio-white) 92%, transparent);
+  color: var(--studio-text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 12px -8px #3d2a1d4d;
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+.fullscreenToggle > span {
+  color: var(--studio-accent);
+  font-size: 15px;
+  line-height: 1;
+}
+.fullscreenToggle:hover {
+  border-color: color-mix(in srgb, var(--studio-accent) 42%, var(--studio-line));
+  color: var(--studio-accent);
+  transform: translateY(-1px);
 }
 .modeLoading {
   padding: 6px 10px;
@@ -875,35 +977,6 @@ onUnmounted(() => {
   color: var(--studio-accent);
   cursor: pointer;
 }
-.referenceChips > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.referenceChips > span > button {
-  display: grid;
-  width: 17px;
-  height: 17px;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--studio-muted);
-  font: inherit;
-  cursor: pointer;
-}
-.referenceChips > span > button:hover {
-  background: var(--studio-white);
-  color: var(--studio-accent);
-}
-.referenceChips img {
-  width: 25px;
-  height: 25px;
-  object-fit: cover;
-  border-radius: 3px;
-}
-
 .index {
   height: 100%;
   min-height: 0;
@@ -913,7 +986,7 @@ onUnmounted(() => {
 .productionWorkspace {
   height: 100%;
   display: grid;
-  grid-template-columns: 235px minmax(0, 1fr);
+  grid-template-columns: clamp(272px, 17.5vw, 310px) minmax(0, 1fr);
   min-height: 0;
 }
 .track {
@@ -925,20 +998,21 @@ onUnmounted(() => {
 .stageMain {
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
-  padding: 14px 20px;
+  padding: 16px 22px;
   scrollbar-gutter: stable;
 }
 .studioMainInner {
   width: 100%;
-  max-width: 1400px;
+  max-width: 1580px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 0;
-  height: 100%;
+  min-height: 100%;
+  height: auto;
 }
 .continuityRibbon {
   display: flex;
@@ -988,61 +1062,267 @@ onUnmounted(() => {
   margin-left: 3px;
 }
 .generationDock {
-  background: var(--studio-white);
-  border: 1px solid var(--studio-line);
-  border-radius: 15px;
-  padding: 12px 16px;
   flex: none;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--studio-line) 86%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--studio-white) 94%, transparent);
+  box-shadow:
+    0 16px 44px -28px #3d2a1d42,
+    inset 0 1px 0 #ffffff;
+  backdrop-filter: blur(14px);
 }
-.dockReferences {
+.composerTitle {
   display: flex;
   align-items: center;
-  gap: 9px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 14px;
+}
+.composerTitle > div { display:flex; align-items:center; gap:11px; min-width:0; }
+.composerTitleIcon { display:grid; width:38px; height:38px; flex:none; place-items:center; border-radius:13px; background:color-mix(in srgb, var(--studio-accent) 10%, var(--studio-white)); color:var(--studio-accent); font-size:17px; }
+.composerTitle strong, .composerTitle small { display:block; }
+.composerTitle strong { color:var(--studio-text); font-size:16px; font-weight:650; }
+.composerTitle small { margin-top:4px; color:var(--studio-muted); font-size:11px; }
+.composerTitleShot { max-width:150px; overflow:hidden; color:var(--studio-muted); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.composerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2998;
+  background: #251d1870;
+  backdrop-filter: blur(8px);
+}
+.generationDock.composerFullscreen {
+  --studio-white: light-dark(#fff, #262422);
+  --studio-bg: light-dark(#f8f7f5, #201f1e);
+  --studio-field: light-dark(#f3f1ed, #33302c);
+  --studio-line: light-dark(#e9e4dd, #454039);
+  --studio-text: light-dark(#302d29, #eae5df);
+  --studio-muted: light-dark(#8a8278, #b0a69b);
+  --studio-accent: light-dark(#bd4c22, #e98554);
+  --studio-accent-text: light-dark(#fffaf6, #231b16);
+  position: fixed;
+  inset: 18px;
+  z-index: 2999;
+  display: grid;
+  width: auto;
+  height: auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--studio-white) 98%, #fbf6f1);
+  box-shadow:
+    0 32px 90px -24px #1c140fa6,
+    0 0 0 1px #ffffffa8;
+  backdrop-filter: blur(22px);
+}
+.generationDock.composerFullscreen .composerTopbar {
+  min-height: 60px;
+  padding: 11px 20px;
+  background: color-mix(in srgb, var(--studio-field) 46%, var(--studio-white));
+}
+.generationDock.composerFullscreen .inputMethod button {
+  padding: 8px 15px;
+  font-size: 13px;
+}
+.generationDock.composerFullscreen .composerIdentity,
+.generationDock.composerFullscreen .composerIdentity strong {
+  font-size: 13px;
+}
+.generationDock.composerFullscreen .fullscreenToggle {
+  height: 34px;
+  padding: 0 14px;
+  background: var(--studio-white);
+  font-size: 12px;
+}
+.generationDock.composerFullscreen .composerBody {
+  min-height: 0;
+  gap: 24px;
+  padding: 28px 36px 18px;
+  overflow: hidden;
+}
+.generationDock.composerFullscreen .referenceTray {
+  max-width: 390px;
+  align-items: flex-start;
+  align-content: flex-start;
   flex-wrap: wrap;
+  overflow: auto;
+}
+.generationDock.composerFullscreen .referenceTile,
+.generationDock.composerFullscreen .referenceAdd {
+  width: 94px;
+  height: 118px;
+  flex-basis: 94px;
+  border-radius: 16px;
+}
+.generationDock.composerFullscreen .referenceTileLabel {
+  inset: auto 7px 7px;
+  padding: 3px 6px;
+  font-size: 10px;
+}
+.generationDock.composerFullscreen .referenceAdd > span {
+  font-size: 29px;
+}
+.generationDock.composerFullscreen .referenceAdd small {
+  font-size: 12px;
+}
+.generationDock.composerFullscreen .dockPrompt {
+  height: 100%;
+}
+.generationDock.composerFullscreen .dockPrompt textarea {
+  min-height: 0;
+  height: 100% !important;
+  max-height: none;
+  flex: 1;
+  padding: 20px 22px;
+  border-radius: 18px;
+  font-size: 18px;
+  line-height: 1.9;
+}
+.generationDock.composerFullscreen .promptMeta {
+  padding: 9px 4px 0;
+  font-size: 12px;
+}
+.generationDock.composerFullscreen .referenceSummary {
+  margin: 0 36px 12px;
+  font-size: 11px;
+}
+.generationDock.composerFullscreen .composerToolbar {
+  padding: 14px 20px 16px;
+}
+.generationDock.composerFullscreen .assistAction {
+  height: 38px;
+  padding: 0 15px;
+  font-size: 12px;
+}
+.generationDock.composerFullscreen .generateAction {
+  width: 48px;
+  height: 48px;
+  flex-basis: 48px;
 }
 .dockLabel {
   color: var(--studio-muted);
   font-size: 12px;
   white-space: nowrap;
 }
-.referenceChips {
+.composerBody {
   display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  align-items: center;
+  min-height: 108px;
+  align-items: stretch;
+  gap: 13px;
+  padding: 13px 16px 8px;
 }
-.referenceChips > span {
-  padding: 4px 9px;
-  border-radius: 5px;
+.referenceTray {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  gap: 7px;
+  max-width: 292px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.referenceTray::-webkit-scrollbar {
+  display: none;
+}
+.referenceTile,
+.referenceAdd {
+  position: relative;
+  width: 62px;
+  height: 78px;
+  flex: 0 0 62px;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--studio-line) 90%, transparent);
+  border-radius: 12px;
   background: var(--studio-field);
-  font-size: 12px;
-  color: var(--studio-text);
 }
-.referenceChips .referenceEmpty {
-  background: none;
-  color: var(--studio-muted);
-  padding-left: 0;
+.referenceTile img,
+.referenceTile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
-.referenceWarning {
-  color: #b45a2a;
-  font-size: 11px;
-}
-.dockTextButton {
-  padding: 3px 2px;
-  background: transparent;
-  border: 0;
+.referenceAudio {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
   color: var(--studio-accent);
-  font: inherit;
-  font-size: 12px;
+  font-size: 22px;
+}
+.referenceTileLabel {
+  position: absolute;
+  inset: auto 4px 4px;
+  overflow: hidden;
+  padding: 2px 4px;
+  border-radius: 5px;
+  background: #17120db8;
+  color: white;
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.referenceTile > button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #17120db8;
+  color: white;
   cursor: pointer;
 }
-.dockTextButton:disabled {
-  opacity: 0.5;
-  cursor: default;
+.referenceAdd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-style: dashed;
+  color: var(--studio-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.referenceAdd:hover {
+  border-color: color-mix(in srgb, var(--studio-accent) 48%, var(--studio-line));
+  color: var(--studio-accent);
+}
+.referenceAdd > span {
+  font-size: 21px;
+  font-weight: 300;
+}
+.referenceAdd small {
+  font-size: 10px;
+  white-space: nowrap;
+}
+.referenceMore {
+  position: sticky;
+  right: 2px;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 1px solid var(--studio-line);
+  border-radius: 50%;
+  background: var(--studio-white);
+  color: var(--studio-muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
 }
 .dockPrompt {
   position: relative;
-  margin: 6px 0;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  margin: 0;
 }
 .dockPrompt > label {
   position: absolute;
@@ -1059,88 +1339,143 @@ onUnmounted(() => {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  min-height: 44px;
-  height: 44px;
-  max-height: 110px;
-  padding: 3px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  min-height: 76px;
+  height: 76px;
+  max-height: 168px;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--studio-field) 48%, transparent);
   color: var(--studio-text);
   font: inherit;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.7;
   resize: none;
-  outline-offset: 3px;
+  outline: none;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.dockPrompt textarea:focus {
+  border-color: color-mix(in srgb, var(--studio-accent) 28%, var(--studio-line));
+  background: color-mix(in srgb, var(--studio-white) 94%, var(--studio-field));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--studio-accent) 7%, transparent);
 }
 .dockPrompt textarea::placeholder {
-  color: var(--studio-muted);
+  color: color-mix(in srgb, var(--studio-muted) 64%, transparent);
 }
-.promptSaved {
-  display: block;
-  position: absolute;
-  right: 0;
-  top: 0;
-  color: var(--studio-muted);
-  font-size: 10px;
-}
-.promptCount {
-  display: block;
-  position: absolute;
-  right: 0;
-  top: 0;
+.promptMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 2px 0;
   color: var(--studio-muted);
   font-size: 10px;
 }
-.dockSubmit {
+.promptMeta > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.promptMeta > span:last-child {
+  flex: none;
+}
+.referenceSummary {
+  display: flex;
+  min-height: 22px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 16px 4px;
+  color: var(--studio-muted);
+  font-size: 10px;
+}
+.referenceSummary > span,
+.referenceSummary > strong {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--studio-field) 72%, transparent);
+  font-weight: 400;
+}
+.referenceSummary > strong {
+  color: #b45a2a;
+}
+.composerToolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--studio-line);
-}
-.promptAssist {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.promptAssist > span {
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--studio-accent) 10%, white);
-}
-.submitActions {
-  display: flex;
-  align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  padding: 9px 12px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--studio-line) 68%, transparent);
+  background: color-mix(in srgb, var(--studio-field) 24%, transparent);
+}
+.composerActions {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
   margin-left: auto;
 }
-.submitActions :deep(.modelCostHint) {
+.composerActions :deep(.modelCostHint) {
+  max-width: 260px;
+  padding: 5px 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--studio-field) 72%, transparent);
   font-size: 12px;
   color: var(--studio-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assistAction {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid var(--studio-line);
+  border-radius: 999px;
+  background: var(--studio-white);
+  color: var(--studio-text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.assistAction > span {
+  color: var(--studio-accent);
+}
+.assistAction:hover {
+  border-color: color-mix(in srgb, var(--studio-accent) 40%, var(--studio-line));
+}
+.assistAction:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .generateAction {
-  display: flex;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
   align-items: center;
-  gap: 7px;
-  padding: 8px 16px;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--studio-accent);
-  border-radius: 10px;
+  border-radius: 50%;
   background: var(--studio-accent);
   color: var(--studio-accent-text);
   font: inherit;
-  font-size: 13px;
+  font-size: 20px;
   cursor: pointer;
-  transition: filter 0.15s;
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--studio-accent) 68%, transparent);
+  transition: 0.16s ease;
 }
 .generateAction:hover {
   filter: brightness(1.05);
+  transform: translateY(-1px) scale(1.03);
 }
 .generateAction:disabled {
   opacity: 0.5;
@@ -1179,9 +1514,44 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--td-text-color-secondary);
 }
+@media (min-width: 1280px) {
+  .stageMain { padding: 24px 28px; }
+  .studioMainInner {
+    display: grid;
+    grid-template-columns: minmax(420px, 1.1fr) minmax(440px, 0.9fr);
+    grid-template-rows: minmax(380px, 1fr) auto;
+    align-content: start;
+    align-items: stretch;
+    gap: 14px 24px;
+    min-height: 100%;
+  }
+  .studioMainInner :deep(.shotPreview) { grid-column: 1; grid-row: 1; min-height: 380px; }
+  .continuityRibbon { grid-column: 1; grid-row: 2; align-content: center; justify-content: flex-start; padding: 0 2px 10px; }
+  .continuityStatus { margin-left: 0; }
+  .generationDock:not(.composerFullscreen) { grid-column: 2; grid-row: 1 / span 2; align-self: stretch; display: flex; min-height: 700px; flex-direction: column; }
+  .generationDock:not(.composerFullscreen) .composerTopbar { flex-wrap:wrap; padding: 0 20px 13px; background:transparent; }
+  .generationDock:not(.composerFullscreen) .inputMethod { max-width:100%; }
+  .generationDock:not(.composerFullscreen) .composerIdentity { margin-left:auto; }
+  .generationDock:not(.composerFullscreen) .composerIdentity > span,
+  .generationDock:not(.composerFullscreen) .composerIdentity > strong { display:none; }
+  .generationDock:not(.composerFullscreen) .composerBody { flex:1 0 auto; min-height:300px; flex-direction:column; gap:16px; padding:18px 22px 10px; }
+  .generationDock:not(.composerFullscreen) .referenceTray { max-width:100%; }
+  .generationDock:not(.composerFullscreen) .referenceTile,
+  .generationDock:not(.composerFullscreen) .referenceAdd { width:72px; height:86px; flex-basis:72px; }
+  .generationDock:not(.composerFullscreen) .dockPrompt { min-height:160px; }
+  .generationDock:not(.composerFullscreen) .dockPrompt > label { position:static; width:auto; height:auto; margin:0 0 8px; overflow:visible; clip:auto; font-size:12px; font-weight:600; }
+  .generationDock:not(.composerFullscreen) .dockPrompt textarea { flex:1; min-height:150px; max-height:none; height:auto !important; padding:14px 15px; font-size:14px; line-height:1.8; }
+  .generationDock:not(.composerFullscreen) .promptMeta { padding:8px 2px 0; font-size:11px; }
+  .generationDock:not(.composerFullscreen) .referenceSummary { margin:0 22px 12px; }
+  .generationDock:not(.composerFullscreen) .composerToolbar { flex:none; gap:12px; padding:14px 20px 16px; }
+  .generationDock:not(.composerFullscreen) .composerActions { width:100%; justify-content:flex-end; }
+  .generationDock:not(.composerFullscreen) .generateAction { width:46px; height:46px; flex-basis:46px; }
+  .studioMainInner :deep(.previewScreen) { min-height: 300px; }
+  .studioMainInner :deep(.previewMedia) { width:min(calc(100% - 32px), 720px); height:auto; max-height:none; }
+}
 @media (min-width: 1800px) {
   .productionWorkspace {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: 320px minmax(0, 1fr);
   }
   .stageMain {
     padding: 20px 30px;
@@ -1189,16 +1559,16 @@ onUnmounted(() => {
 }
 @media (max-width: 1000px) {
   .productionWorkspace {
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: 230px minmax(0, 1fr);
   }
   .stageMain {
     padding: 19px;
   }
-  .generationDock {
-    padding: 14px;
+  .composerToolbar {
+    align-items: flex-start;
   }
-  .submitActions {
-    gap: 8px;
+  .composerActions {
+    gap: 7px;
   }
 }
 @media (max-height: 690px), (max-width: 1000px) {
@@ -1231,13 +1601,6 @@ onUnmounted(() => {
     padding: 16px;
     flex: none;
   }
-  .dockReferences {
-    gap: 7px;
-  }
-  .dockModeBar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
   .inputMethod {
     width: 100%;
     max-width: 100%;
@@ -1249,17 +1612,67 @@ onUnmounted(() => {
     gap: 9px;
     padding-top: 7px;
   }
-  .dockSubmit {
-    gap: 10px;
+  .composerTopbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
-  .submitActions {
-    flex-wrap: wrap;
+  .composerIdentity {
+    width: 100%;
+    justify-content: flex-end;
   }
-  .generateAction {
-    padding: 9px 14px;
+  .composerIdentity > span,
+  .composerIdentity > strong {
+    display: none;
+  }
+  .composerBody {
+    flex-direction: column;
+    padding: 12px;
+  }
+  .referenceTray {
+    width: 100%;
+    max-width: 100%;
+  }
+  .composerToolbar {
+    flex-direction: column;
+  }
+  .composerActions {
+    width: 100%;
+  }
+  .composerActions :deep(.modelCostHint) {
+    margin-left: auto;
   }
   .dockPrompt textarea {
     font-size: 14px;
+  }
+  .generationDock.composerFullscreen {
+    inset: 8px;
+    border-radius: 18px;
+  }
+  .generationDock.composerFullscreen .composerTopbar {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .generationDock.composerFullscreen .composerBody {
+    padding: 16px 14px 12px;
+    overflow-y: auto;
+  }
+  .generationDock.composerFullscreen .referenceTray {
+    max-height: 128px;
+    flex-wrap: nowrap;
+  }
+  .generationDock.composerFullscreen .dockPrompt {
+    min-height: 260px;
+  }
+  .generationDock.composerFullscreen .dockPrompt textarea {
+    min-height: 220px;
+    padding: 16px;
+    font-size: 16px;
+  }
+  .generationDock.composerFullscreen .referenceSummary {
+    margin: 0 14px 8px;
+  }
+  .generationDock.composerFullscreen .composerToolbar {
+    padding: 10px 12px 12px;
   }
 }
 </style>

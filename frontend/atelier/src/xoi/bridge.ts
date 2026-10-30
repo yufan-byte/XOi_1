@@ -14,13 +14,14 @@ import { CanvasNodeType, type CanvasAgentSkillSelection, type CanvasConnection, 
 import { fitNodeSize } from "@/lib/canvas/canvas-node-size";
 import { imageMetadata } from "@/lib/canvas/canvas-node-factory";
 import { uploadImage } from "@/services/image-storage";
+import {takeBrowserHandoff,writeBrowserHandoff} from "../../../../shared/browserHandoff";
+import {assertCanvasAccount} from "./owner";
 
 export type XoiImportImage = { src: string; name?: string; id?: number; type?: string; projectId?: number };
 export type XoiSaveResultImage = { id?: number | string; type?: string; projectId?: number; src: string };
 
 const FROM_STORAGE_KEY = "xoi_bridge_from";
 const XOI_RETURN_ROUTES = ["cornerScape", "assets"];
-const CANVAS_HANDOFF_KEY = "xoi_canvas_handoff_v1";
 
 type XoiCanvasHandoff = {
     prompt?: string;
@@ -32,9 +33,8 @@ type XoiCanvasHandoff = {
 
 function readCanvasHandoff(): CanvasPendingAgentRequest | null {
     try {
-        const raw = localStorage.getItem(CANVAS_HANDOFF_KEY);
-        if (!raw) return null;
-        const data = JSON.parse(raw) as XoiCanvasHandoff;
+        const data = takeBrowserHandoff<XoiCanvasHandoff>(sessionStorage,assertCanvasAccount(),"canvas-prompt");
+        if (!data) return null;
         const prompt = typeof data.prompt === "string" ? data.prompt.trim() : "";
         const skills = Array.isArray(data.skills)
             ? data.skills.filter((skill) => skill && typeof skill.name === "string").slice(0, 5).map((skill, index) => ({
@@ -45,7 +45,6 @@ function readCanvasHandoff(): CanvasPendingAgentRequest | null {
                 group: typeof skill.group === "string" ? skill.group : undefined,
             }))
             : [];
-        localStorage.removeItem(CANVAS_HANDOFF_KEY);
         return { prompt, skills };
     } catch {
         return null;
@@ -56,6 +55,7 @@ export async function runXoiCanvasHandoff(navigate: (path: string) => void) {
     const request = readCanvasHandoff();
     if (!request) return;
     await waitForCanvasStoreHydrated();
+    assertCanvasAccount();
     const { useCanvasStore } = await import("@/stores/canvas/use-canvas-store");
     const title = request.prompt ? request.prompt.slice(0, 28) : i18n.t("xoiBridge.canvasTitle");
     const projectId = useCanvasStore.getState().createProject(title, { pendingAgentRequest: request });
@@ -201,7 +201,7 @@ export function buildXoiSaveResults(nodes: CanvasNodeData[], connections: Canvas
 /** 写出口信封并定点跳回宿主来源页（白名单限定防 URL 注入乱跳） */
 export function writeSaveResultAndGoBack(results: XoiSaveResultImage[]) {
     try {
-        localStorage.setItem("canvas_save_result", JSON.stringify({ images: results, timestamp: Date.now() }));
+        writeBrowserHandoff(sessionStorage,assertCanvasAccount(),"canvas-result",{images:results,timestamp:Date.now()});
     } catch (error) {
         console.error("[xoi-bridge] 写保存结果失败:", error);
         throw error;

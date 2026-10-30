@@ -113,7 +113,7 @@
               <article v-for="shot in shots" :key="shot.id" class="shotCard">
                 <div class="shotPreview">
                   <video v-if="shot.clip" :src="shot.clip" controls muted></video>
-                  <img v-else-if="shot.board || shot.frame" :src="shot.board || shot.frame" />
+                  <img v-else-if="shot.board || shot.frame" :src="thumbUrl(shot.board || shot.frame, 480)" loading="lazy" decoding="async" />
                   <div v-else class="shotPlaceholder">{{ String(shot.no).padStart(2, '0') }}</div>
                   <span>{{ shot.status }}</span>
                 </div>
@@ -218,7 +218,7 @@
             <div><span>02</span><strong>动作序列</strong><p>生成可视化序列，方便选择关键姿势。</p></div>
             <div><span>03</span><strong>作为参考</strong><p>下载关键帧，后续可送进画布或视频工作流。</p></div>
           </div>
-          <div v-if="motionFrames.length" class="motionFrames"><article v-for="frame in motionFrames" :key="frame.time"><img :src="frame.url" /><span>{{ formatTime(frame.time) }}</span></article></div>
+          <div v-if="motionFrames.length" class="motionFrames"><article v-for="frame in motionFrames" :key="frame.time"><img :src="thumbUrl(frame.url, 240)" loading="lazy" decoding="async" /><span>{{ formatTime(frame.time) }}</span></article></div>
           <footer class="actionBar">
             <div class="costStack"><strong>本地工具 · 0 积分（¥0）</strong><small>仅提取关键帧，不生成深度图或骨骼，不调用 AI 模型。</small></div>
             <t-button size="large" theme="primary" :loading="working" @click="runMotionCapture">捕捉动作关键帧 <span class="buttonArrow">→</span></t-button>
@@ -249,9 +249,11 @@ import { computed, defineComponent, h, reactive, ref, watch, onMounted, onBefore
 import { MessagePlugin, DialogPlugin } from "tdesign-vue-next";
 import { useRouter } from "vue-router";
 import { formatPointsFromYuan } from "@/utils/points";
+import { thumbUrl } from "@/utils/mediaUrl";
 import { boardCandidates, videoCandidates, videoSettings, normalizeShots, validateVideo, validateImageReferences, supportsVision, supportsReference, submitBoard, submitVideo, pollVideoOnce, generationQuoteLines, sumQuotes, type ReplicateShot, type WorkflowModel, type QuoteLine, type WorkflowApi } from "./workflow";
 import { saveDraft, loadDraft, listDrafts, type ReplicateDraft } from "./storage";
 import axios from "@/utils/axios";
+import {accountBoundary} from "@/utils/accountBoundary";
 import PhoneUploadDialog from "@/components/PhoneUploadDialog.vue";
 import { downloadWorkspaceFile, type CloudAsset } from "@/utils/workspace";
 import ModelSelect from "@/components/modelSelect.vue";
@@ -299,7 +301,8 @@ const reverseResult = ref<Record<string, any> | null>(null);
 const imageResult = ref("");
 const motionFrames = ref<CapturedFrame[]>([]);
 const router = useRouter();
-const owner = localStorage.getItem("userId") || "";
+const draftOwner = accountBoundary.capture();
+const owner = draftOwner.token.split(":")[0] || "";
 const draftId = ref<string>(crypto.randomUUID());
 const workflowApi: WorkflowApi = {
   post: (path, body, config) => axios.post(path, body, { ...config, preserveHttpError: true } as any),
@@ -339,6 +342,7 @@ let pollTimer: ReturnType<typeof setTimeout> | undefined;
 let saveQueue = Promise.resolve();
 let draftRevision = 0;
 function requireOwner() {
+  accountBoundary.assert(draftOwner);
   requireValue(owner && owner === localStorage.getItem("userId"), "登录状态已变化，请重新打开页面");
   requireValue(alive && !stopRequested, "已停止后续任务，已提交任务不会取消");
 }
@@ -348,6 +352,7 @@ function snapshot(): ReplicateDraft {
     product: oneclick.product ? toRaw(oneclick.product) : undefined, video: oneclick.video ? toRaw(oneclick.video) : undefined, productAsset: oneclick.productAsset ? toRaw(oneclick.productAsset) : undefined, videoAsset: oneclick.videoAsset ? toRaw(oneclick.videoAsset) : undefined };
 }
 function checkpoint(): Promise<void> {
+  accountBoundary.assert(draftOwner);
   clearTimeout(draftSaveTimer);
   const draft = snapshot();
   const write = saveQueue.catch(() => {}).then(async () => { draft.revision = draftRevision; draftRevision = await saveDraft(draft); if (alive) { storageStatus.value = "已保存到云端 · 同账号可跨设备继续"; const summary = { id: draft.id, title: draft.title, updatedAt: Date.now(), shots: draft.shots.length, completed: draft.shots.filter(s => s.clip).length }; savedDrafts.value = [summary, ...savedDrafts.value.filter(item => item.id !== draft.id)]; } });

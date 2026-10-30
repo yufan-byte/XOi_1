@@ -14,8 +14,8 @@
         <p><strong>右侧文档才是成果。</strong>创作助手只负责起草、诊断和按要求修改；满意后仍需你编辑确认，最后手动采用到正式剧本。</p>
       </div>
       <nav>
-        <button v-for="step in adaptationSteps" :key="step.value" type="button" :class="{ active: currentTable === step.value, done: step.done }" @click="currentTable = step.value">
-          <b>{{ step.value }}</b><span><strong>{{ step.title }}</strong><small>{{ step.desc }}</small></span>
+        <button v-for="step in adaptationSteps" :key="step.value" type="button" :class="{ active: currentTable === step.value, done: step.done }" :aria-current="currentTable === step.value ? 'step' : undefined" @click="currentTable = step.value">
+          <b>{{ step.done ? "✓" : step.value }}</b><span><strong>{{ step.title }}</strong><small>{{ step.desc }}</small><em>{{ currentTable === step.value ? "正在查看" : step.done ? "已有成果" : "待创作" }}</em></span>
         </button>
       </nav>
       <button type="button" class="assistantCall" @click="assistantOpen = true">{{ assistantOpen ? "助手已展开" : "需要起草或修改？打开助手" }} →</button>
@@ -29,6 +29,13 @@
             <div class="assistantHeaderActions"><span class="agentLive" :class="{ busy: isGenerating }"><i></i>{{ isGenerating ? '创作中' : connected ? '已就绪' : '未连接' }}</span><button type="button" aria-label="收起剧本创作助手" title="收起助手" @click="assistantOpen = false">×</button></div>
           </header>
           <div class="scriptChatSubhead"><strong>按你的要求起草或修改当前文档</strong><button type="button" title="重新连接" :disabled="isGenerating" @click="handleReconnect"><i-api size="17" /></button></div>
+          <section class="assistantTaskBar" aria-label="当前剧本任务">
+            <div><small>当前工作对象</small><strong>{{ currentAssistantContext.title }}</strong><span>{{ currentAssistantContext.desc }}</span></div>
+            <nav>
+              <button v-for="action in currentAssistantActions" :key="action.label" type="button" :disabled="isGenerating" @click="prepareAssistantTask(action.prompt)">{{ action.label }}</button>
+            </nav>
+            <p>选择任务只会填入要求；你可以继续补充，再点击发送。AI 结果先写入改编草稿，不会覆盖正式剧本。</p>
+          </section>
           <section v-if="isWelcomeState" class="scriptWelcome">
             <div class="scriptMascot" aria-label="XOi 剧本助手" role="img">
               <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
@@ -177,13 +184,18 @@
           <t-tabs v-model="currentTable">
             <template #action>
               <div class="ac" v-if="currentTable == 1">
+                <t-button variant="outline" @click="prepareAssistantTask(assistantPrompts.skeletonReview)">助手诊断</t-button>
+                <t-button variant="outline" @click="prepareAssistantTask(assistantPrompts.skeletonImprove)">优化骨架</t-button>
                 <t-button @click="editMdPreview">{{ $t("workbench.scriptAgent.edit") }}</t-button>
               </div>
               <div class="ac" v-else-if="currentTable == 2">
+                <t-button variant="outline" @click="prepareAssistantTask(assistantPrompts.strategyReview)">助手诊断</t-button>
+                <t-button variant="outline" @click="prepareAssistantTask(assistantPrompts.strategyImprove)">优化策略</t-button>
                 <t-button @click="editMdPreview">{{ $t("workbench.scriptAgent.edit") }}</t-button>
               </div>
               <div class="ac" v-else-if="currentTable == 3 && planData.script?.length">
                 <span class="draftNotice">改编草稿，不会自动覆盖正式剧本</span>
+                <t-button variant="outline" @click="prepareAssistantTask(assistantPrompts.scriptReview)">审查全部草稿</t-button>
                 <t-button theme="primary" :loading="adoptingScripts" :disabled="isGenerating" @click="adoptDraftScripts">采用到剧本整理</t-button>
               </div>
             </template>
@@ -232,6 +244,7 @@
                         <t-button size="small" @click="editScript(index)">
                           <template #icon><i-edit size="14" /></template>
                         </t-button>
+                        <t-button size="small" variant="outline" title="交给助手优化本集" @click="prepareAssistantTask(scriptImprovePrompt(item.name))">助手优化</t-button>
                         <t-button theme="danger" variant="outline" size="small" @click="delScript(index)">
                           <template #icon><i-delete size="14" /></template>
                         </t-button>
@@ -313,6 +326,7 @@ const editMdPreivew = defineAsyncComponent(() => import("@/components/editMdPrei
 import scriptAgentStore from "@/stores/scriptAgent";
 import ipBodyUrl from "@/assets/photosynthesis-effect-mark.png";
 const router = useRouter();
+const route = useRoute();
 const { connected, messages, status, lastError, planData, thinkLevel, selectedSkills, selectedModel } = storeToRefs(scriptAgentStore());
 import userStore from "@/stores/user";
 import { guardProjectType } from "@/utils/pipelineGuard";
@@ -390,6 +404,34 @@ const adaptationSteps = computed(() => [
   { value: 2, title: "改编策略", desc: "取舍原著，确定节奏与短剧化方式", done: Boolean(planData.value.adaptationStrategy) },
   { value: 3, title: "分集草稿", desc: "形成可编辑、可选择采用的剧本", done: Boolean(planData.value.script?.length) },
 ]);
+const assistantPrompts = {
+  skeletonCreate: "请读取本项目原著章节与已有资料，创建或补齐故事骨架。必须明确主角目标、核心冲突、关键转折、人物关系、情绪曲线和结局方向；完成后将最终版本写入故事骨架工作区。不要生成分集剧本。",
+  skeletonReview: "请读取当前故事骨架与原著资料，只做编辑审查，检查人物动机、因果链、核心冲突、转折力度和结局闭环。先按严重程度列出问题与具体修改建议，暂时不要改写工作区。",
+  skeletonImprove: "请读取当前故事骨架与原著资料，先检查人物动机、因果链、冲突升级、关键转折和结局闭环，再按审查结论完成优化，并把完整最终版本写回故事骨架工作区。保留已有合理设定，不要擅自改变故事题材。",
+  strategyCreate: "请读取原著资料和当前故事骨架，制定短剧改编策略。明确保留与删减内容、单集钩子、节奏密度、人物合并、成本控制和目标集数；完成后写入改编策略工作区。不要生成分集剧本。",
+  strategyReview: "请读取当前故事骨架与改编策略，只做审查，检查策略是否可执行、是否对应故事冲突、每集钩子是否足够、节奏与制作成本是否合理。列出问题与可直接执行的修改建议，暂时不要改写工作区。",
+  strategyImprove: "请读取当前故事骨架和改编策略，先审查可执行性、短剧节奏、单集钩子、人物取舍和制作成本，再完成优化，并把完整最终版本写回改编策略工作区。不要丢失已有有效规则。",
+  scriptCreate: "请读取当前故事骨架、改编策略和原著章节，生成或补齐分集草稿。每集必须包含场次、地点/时间、出场人物、可拍摄动作、对白和结尾钩子；避免旁白代替表演，保持人物口吻与前后连续。完成后写入分集草稿工作区。",
+  scriptReview: "请读取当前全部分集草稿、故事骨架与改编策略，调用审查能力逐集检查：人物动机、因果、信息重复、对白、节奏、结尾钩子、场景连续性和可拍摄性。按集列出问题与修改优先级，暂时不要改写草稿。",
+};
+const currentAssistantContext = computed(() => {
+  if (currentTable.value === 1) return { title: "故事骨架", desc: planData.value.storySkeleton ? "已有内容，可诊断或优化" : "还没有成果，先生成完整骨架" };
+  if (currentTable.value === 2) return { title: "改编策略", desc: planData.value.adaptationStrategy ? "已有内容，可检查短剧化策略" : "先基于故事骨架制定策略" };
+  return { title: "分集草稿", desc: planData.value.script?.length ? `已有 ${planData.value.script.length} 集，可逐集优化或整体审查` : "先生成可编辑的分场剧本" };
+});
+const currentAssistantActions = computed(() => {
+  if (currentTable.value === 1)
+    return planData.value.storySkeleton
+      ? [{ label: "诊断问题", prompt: assistantPrompts.skeletonReview }, { label: "直接优化", prompt: assistantPrompts.skeletonImprove }]
+      : [{ label: "生成故事骨架", prompt: assistantPrompts.skeletonCreate }];
+  if (currentTable.value === 2)
+    return planData.value.adaptationStrategy
+      ? [{ label: "诊断问题", prompt: assistantPrompts.strategyReview }, { label: "直接优化", prompt: assistantPrompts.strategyImprove }]
+      : [{ label: "制定改编策略", prompt: assistantPrompts.strategyCreate }];
+  return planData.value.script?.length
+    ? [{ label: "审查全部分集", prompt: assistantPrompts.scriptReview }, { label: "续写 / 补齐", prompt: assistantPrompts.scriptCreate }]
+    : [{ label: "生成分集草稿", prompt: assistantPrompts.scriptCreate }];
+});
 const inputValue = ref("");
 const agentModelName = ref("");
 const toolbars: ToolbarNames[] = [
@@ -441,10 +483,16 @@ function startScriptFlow(prompt: string) {
   inputValue.value = prompt;
   assistantOpen.value = true;
 }
+function prepareAssistantTask(prompt: string) {
+  inputValue.value = prompt;
+  assistantOpen.value = true;
+  nextTick(() => document.querySelector<HTMLElement>(".scriptAgent .inputBox textarea")?.focus());
+}
+function scriptImprovePrompt(name: string) {
+  return `请读取当前故事骨架、改编策略和全部分集草稿，重点优化《${name}》。先检查本集与前后集的因果衔接、人物状态、信息重复、对白、节奏、场景连续性、可拍摄性和结尾钩子；然后只重写《${name}》并写回分集草稿工作区，其他集不要改动。保留已有合理情节和人物设定。`;
+}
 
 onMounted(() => {
-  // P2 类型守卫：AI 改编是小说改编链路的站点，剧本创作型项目直接输 URL 进来会错配
-  guardProjectType(router, project.value?.projectType, "novel");
   if (messages.value.length <= 0) messages.value = [...defMsg, ...messages.value];
   getPlanData();
   getNovel();
@@ -452,6 +500,16 @@ onMounted(() => {
 
   if (messages.value.length <= 1) getHistory();
 });
+// Directly switching projects can leave the previous project in the store for one render.
+// Only enforce the route guard after the project requested by this URL has finished loading.
+watch(
+  () => [project.value?.id, project.value?.projectType] as const,
+  ([id, type]) => {
+    if (!id || !type || String(id) !== String(route.query.projectId || "")) return;
+    guardProjectType(router, type, "novel");
+  },
+  { immediate: true },
+);
 const agentWorkDataId = ref<number>();
 async function getPlanData() {
   const { data } = await axios.post("/scriptAgent/getPlanData", { projectId: project.value?.id, agentType: "scriptAgent" });
@@ -1654,10 +1712,14 @@ function toggleAllCards() {
 .adaptationFlow nav button { display:flex; align-items:flex-start; gap:8px; min-width:0; padding:9px 10px; border:1px solid #e7e1dc; border-radius:10px; background:#faf9f7; color:#766d66; text-align:left; cursor:pointer; }
 .adaptationFlow nav button.active { border-color:#d37a58; background:#fff2e8; color:#7e351d; }
 .adaptationFlow nav button.done > b { background:#4f9675; color:#fff; }
+.adaptationFlow nav button.done:not(.active) { border-color:#d9e7df; background:#f7fbf8; color:#4e715e; }
 .adaptationFlow nav b { display:grid; place-items:center; width:21px; height:21px; flex:none; border-radius:6px; background:#eae6e2; font-size:9px; }
 .adaptationFlow nav span { display:flex; min-width:0; flex-direction:column; gap:2px; }
 .adaptationFlow nav strong { font-size:11px; }
 .adaptationFlow nav small { overflow:hidden; color:#938a83; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.adaptationFlow nav em { color:#a29a94; font-size:9px; font-style:normal; }
+.adaptationFlow nav button.active em { color:#c14e27; font-weight:700; }
+.adaptationFlow nav button.done:not(.active) em { color:#4f8d70; }
 .assistantCall { flex:none; padding:9px 11px; border:1px solid #dfc7b8; border-radius:9px; background:#fffaf6; color:#a34325; font-size:10px; cursor:pointer; }
 .scriptAgent > .scriptWorkspace { display:grid !important; grid-template-columns:minmax(0,1fr) 380px; gap:12px; }
 .scriptAgent > .scriptWorkspace.assistant-collapsed { grid-template-columns:minmax(0,1fr); }
@@ -1668,6 +1730,18 @@ function toggleAllCards() {
 .scriptWorkspace.assistant-collapsed :deep(.operate) { display:none !important; }
 .assistantHeaderActions { display:flex; align-items:center; gap:8px; }
 .assistantHeaderActions > button { display:grid; place-items:center; width:28px; height:28px; border:1px solid #eadfd8; border-radius:8px; background:#fff; color:#766b64; font-size:19px; cursor:pointer; }
+.assistantTaskBar { flex:none; padding:13px 14px 12px; border-bottom:1px solid #eadfd7; background:#fffaf6; }
+.assistantTaskBar > div { display:grid; grid-template-columns:auto 1fr; align-items:baseline; gap:3px 8px; }
+.assistantTaskBar > div small { grid-row:1/3; align-self:center; padding:4px 7px; border-radius:6px; background:#c8532d; color:#fff; font-size:9px; }
+.assistantTaskBar > div strong { color:#3d342f; font-size:13px; }
+.assistantTaskBar > div span { color:#8b7d74; font-size:10px; }
+.assistantTaskBar nav { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
+.assistantTaskBar nav button { padding:7px 10px; border:1px solid #dfc9ba; border-radius:8px; background:#fff; color:#a34729; font:600 11px/1.2 inherit; cursor:pointer; }
+.assistantTaskBar nav button:first-child { border-color:#c95831; background:#c95831; color:#fff; }
+.assistantTaskBar nav button:disabled { cursor:not-allowed; opacity:.5; }
+.assistantTaskBar p { margin:9px 0 0; color:#9a8d84; font-size:9px; line-height:1.5; }
+.scriptAgent .tabsWrapper .ac { display:flex; align-items:center; gap:7px; }
+.scriptAgent .scriptCardActions { flex-wrap:wrap; justify-content:flex-end; }
 @media(max-width:1080px){.adaptationPurpose{display:none}.scriptAgent > .scriptWorkspace{grid-template-columns:minmax(0,1fr) 340px}.adaptationFlow nav{grid-template-columns:repeat(3,minmax(115px,1fr))}}
 @media(max-width:800px){.adaptationFlow{align-items:stretch;flex-direction:column}.adaptationFlow nav{width:100%}.assistantCall{align-self:flex-end}.scriptAgent > .scriptWorkspace{grid-template-columns:1fr}.scriptWorkspace :deep(.operate){position:absolute;inset:120px 12px 50px;z-index:30;grid-column:1;width:auto!important;box-shadow:0 18px 50px rgba(44,31,22,.2)}}
 </style>
@@ -1978,4 +2052,51 @@ body .t-popup__content > .settingMenu .settingMenuItem.active {
   .scriptAgent .scriptChatHistory,.scriptAgent .operate .box .scriptWelcome { min-height:80px; }
 }
 @media(max-width:1100px) { .scriptAgent { padding-bottom:var(--pipeline-hint-space,64px) !important; } }
+</style>
+
+<style lang="scss">
+/* 创作助手使用独立的 Web 抽屉，不再把长对话挤进 380px 的分栏。 */
+.scriptAgent > .scriptWorkspace,
+.scriptAgent > .scriptWorkspace.assistant-collapsed {
+  position:relative;
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) !important;
+  flex:1 1 0 !important;
+  min-height:0 !important;
+  overflow:visible !important;
+}
+.scriptAgent > .scriptWorkspace > .splitpanes__pane:not(.operate) {
+  grid-column:1 !important;
+  width:auto !important;
+  height:auto !important;
+  min-height:0 !important;
+}
+.scriptAgent > .scriptWorkspace > .splitpanes__pane.operate {
+  position:fixed !important;
+  z-index:120 !important;
+  top:76px !important;
+  right:18px !important;
+  bottom:18px !important;
+  left:auto !important;
+  display:flex !important;
+  width:clamp(500px,42vw,640px) !important;
+  height:auto !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  border-radius:18px;
+  background:#fffdfb;
+  box-shadow:0 22px 70px rgba(49,35,25,.22),0 0 0 1px rgba(123,75,43,.07);
+}
+.scriptAgent > .scriptWorkspace.assistant-collapsed > .splitpanes__pane.operate { display:none !important; }
+.scriptAgent > .scriptWorkspace > .splitpanes__splitter { display:none !important; }
+.scriptAgent .operate .box { width:100%; height:100% !important; min-height:0 !important; border-radius:18px !important; }
+.scriptAgent .operate .box .scriptWelcome { align-items:stretch; padding:20px 20px 14px !important; text-align:left; }
+.scriptAgent .operate .box .scriptWelcome .scriptMascot,
+.scriptAgent .operate .box .scriptWelcome h2 { display:none; }
+.scriptAgent .operate .box .scriptWelcome p { padding:12px 14px; border:1px solid #eadfd7; border-radius:12px; background:#fff8f2; font-size:13px; }
+.scriptAgent .operate .box .scriptQuickStarts { grid-template-columns:repeat(2,minmax(0,1fr)) !important; margin-top:14px !important; }
+.scriptAgent .operate .box .scriptChatHistory { min-height:0 !important; }
+@media(max-width:900px){
+  .scriptAgent > .scriptWorkspace > .splitpanes__pane.operate { top:64px !important; right:10px !important; bottom:10px !important; width:calc(100vw - 20px) !important; }
+}
 </style>

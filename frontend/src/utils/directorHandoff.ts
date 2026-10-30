@@ -1,6 +1,7 @@
 import { assertNativeDirectorProject, ownedDirectorSceneId, type DirectorReferenceProject } from "../../../shared/directorProject";
 import { exportNativePreviz, restoreAfterPreviz, videoTransferControls } from "./directorPreviz";
 import { directorReferenceGraph } from "../../../shared/directorCanvas";
+import { sessionSignal } from "./session";
 export interface DirectorCheckpoint {
   project: Record<string, any>;
   revision: number;
@@ -8,11 +9,11 @@ export interface DirectorCheckpoint {
   frame: number;
 }
 function account(owner: string, token: string) {
-  if (localStorage.getItem("token") !== token || !ownedDirectorSceneId(`director3d-u${owner}-check`, owner))
+  if (sessionSignal() !== token || !ownedDirectorSceneId(`director3d-u${owner}-check`, owner))
     throw new Error("账号已切换，请重新打开导演台");
 }
 export async function checkpointDirector(iframe: HTMLIFrameElement | null, sceneId: string, owner: string): Promise<DirectorCheckpoint> {
-  const token = localStorage.getItem("token") || "";
+  const token = sessionSignal() || "";
   account(owner, token);
   if (
     !token ||
@@ -45,7 +46,7 @@ async function captureShotPackage(
   prompt?: string,
   controls?: ReturnType<typeof videoTransferControls>,
 ) {
-  const token = localStorage.getItem("token") || "",
+  const token = sessionSignal() || "",
     saved = await checkpointDirector(iframe, sceneId, owner),
     doc = iframe!.contentDocument!;
   controls?.signal.throwIfAborted();
@@ -84,7 +85,9 @@ async function captureShotPackage(
       controls?.signal.throwIfAborted();
       const response = await fetch("/api/canvas-files?ext=" + ext, {
         method: "POST",
-        headers: { Authorization: token, "Content-Type": "application/octet-stream" },
+        // F3：凭据走 httpOnly cookie；token 只做「交接期间账号没被切换」的比对
+        credentials: "same-origin",
+        headers: { "X-Xoi-Expected-User": owner, "Content-Type": "application/octet-stream" },
         body: blob,
         signal: controls ? AbortSignal.any([controls.signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(30000),
       });

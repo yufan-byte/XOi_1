@@ -8,9 +8,7 @@
     placement="center"
     mode="full-screen"
     class="fullscreenDialog">
-    <div class="closure">
-      <i-close-small theme="outline" size="24" fill="#4a4a4a" @click="closeFn" />
-    </div>
+    <header class="canvasHeader"><div><span class="canvasMark">✦</span><div><strong>分镜创作画布</strong><small>连接素材，生成并采用当前镜头画面</small></div></div><button type="button" @click="closeFn">返回分镜 <span>×</span></button></header>
     <VueFlow
       id="editImage"
       class="editImageCls"
@@ -25,34 +23,22 @@
       </template>
 
       <template #node-generated="{ id, data }">
-        <generatedNode :id="id" :data="data" :projectId="+project!.id" @keep="sureNode" />
+        <generatedNode :id="id" :data="data" :projectId="+project!.id" @keep="sureNode" @image-change="syncReferences" />
       </template>
       <template #edge-removeLine="edgeProps">
         <removeLine v-bind="edgeProps" />
       </template>
-      <Background></Background>
+      <Background :gap="24" :size="1" color="#ded8d2"></Background>
       <Controls />
 
-      <Panel position="top-left">
-        <div class="ac" style="gap: 8px">
-          <t-dropdown
-            :options="[
-              { content: $t('workbench.production.editImage.upload'), value: 1 },
-              { content: $t('workbench.production.editImage.generate'), value: 2 },
-            ]"
-            @click="clickHandler">
-            <t-button theme="primary" shape="circle">
-              <template #icon><i-plus /></template>
-            </t-button>
-          </t-dropdown>
-          <t-tooltip theme="primary" :content="$t('workbench.production.autoLayoutLR')">
-            <t-button class="guide-layout-btn" @click="layoutGraph('LR')" variant="outline" shape="circle">
-              <template #icon>
-                <i-tree-diagram />
-              </template>
-            </t-button>
-          </t-tooltip>
-        </div>
+      <Panel position="top-left" class="toolPanel">
+        <nav class="canvasToolbar" aria-label="画布创作工具">
+          <button type="button" aria-label="添加参考图片" title="添加参考图片" @click="addUploadNode('upload')"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="8" cy="9" r="1.5" /><path d="m4 17 5-5 3 3 3-3 5 5" /></svg></button>
+          <button type="button" aria-label="添加画面生成节点" title="添加画面生成节点" @click="addUploadNode('generated')"><span class="toolSpark">✦</span></button>
+          <span class="toolDivider" />
+          <button type="button" aria-label="整理节点布局" title="整理节点布局" @click="layoutGraph('LR')"><i-tree-diagram size="20" /></button>
+          <button type="button" aria-label="显示全部节点" title="显示全部节点" @click="fitView({ duration: 300, padding: 0.18 })"><i-full-screen-one size="20" /></button>
+        </nav>
       </Panel>
     </VueFlow>
     <storyboardImageCheck telepor v-model="storyboardVisible" :scriptId="episodesId!" @confirm="onStoryboardConfirm" @cancel="onStoryboardCancel" />
@@ -74,6 +60,7 @@ import "@vue-flow/core/dist/theme-default.css";
 import "@vue-flow/controls/dist/style.css";
 import removeLine from "./removeLine.vue";
 import projectStore from "@/stores/project";
+import { accountBoundary } from "@/utils/accountBoundary";
 
 import axios from "@/utils/axios";
 import type { NodeType, UploadNodeData, GeneratedNodeData } from "../../utils/editImageType";
@@ -83,6 +70,13 @@ import { v4 as uuid } from "uuid";
 
 const episodesId = inject<Ref<number>>("episodesId");
 const { project } = storeToRefs(projectStore());
+const canvasOwner = accountBoundary.capture();
+const canvasProject = Number(project.value?.id);
+const canvasEpisode = episodesId?.value;
+function assertCanvasContext() {
+  accountBoundary.assert(canvasOwner);
+  if (Number(project.value?.id) !== canvasProject || episodesId?.value !== canvasEpisode) throw new Error("项目或分集已切换，请重新打开画布");
+}
 
 // ---- storyboardImageCheck 统一管理 ----
 const storyboardVisible = ref(false);
@@ -212,10 +206,6 @@ const onConnect = (params: any) => {
   // 连线建立后立即同步
   nextTick(syncReferences);
 };
-function clickHandler(value: any) {
-  const type = value.value === 1 ? "upload" : "generated";
-  addUploadNode(type);
-}
 // 添加新的上传节点
 const addUploadNode = (type: string, image: string = "", prompt: string = "") => {
   const newNodeId = uuid();
@@ -235,18 +225,25 @@ const addUploadNode = (type: string, image: string = "", prompt: string = "") =>
 //保存节点
 async function sureNode(imageUrl: string) {
   try {
+    assertCanvasContext();
     const payload = {
       nodes: cleanNodes(getNodes.value as NodeType[]),
       edges: cleanEdges(getEdges.value),
     };
 
+    let flowId: number;
     if (props.flowData.flowId) {
       await axios.post("/production/editImage/updateImageFlow", { ...payload, flowId: props.flowData.flowId });
-      emit("save", { imageUrl, flowId: props.flowData.flowId });
+      assertCanvasContext();
+      flowId = props.flowData.flowId;
     } else {
       const { data } = await axios.post("/production/editImage/saveImageFlow", { ...payload });
-      emit("save", { imageUrl, flowId: data?.id });
+      assertCanvasContext();
+      flowId = data?.id;
     }
+    if (!flowId) throw Error("画布保存失败，请重试");
+    await new Promise<void>((resolve, reject) => emit("save", { imageUrl, flowId, onComplete: (failure?: unknown) => failure ? reject(failure) : resolve() }));
+    assertCanvasContext();
     visible.value = false;
   } catch (e) {
     window.$message.error((e as any).message || $t("workbench.production.editImage.saveFailed"));
@@ -258,6 +255,7 @@ onMounted(async () => {
     const { data } = await axios.post("/production/editImage/getImageFlow", {
       id: props.flowData.flowId,
     });
+    assertCanvasContext();
     if (!data) return buildFlow();
     edges.value = data.edges.map((e: any) => ({ ...e, ...DEFAULT_EDGE_OPTIONS }));
     nodes.value = data.nodes;
@@ -277,6 +275,7 @@ function buildFlow() {
   props.flowData.resultImages.forEach((i: { src: string; prompt: string }) => {
     generatedIds.push(addUploadNode("generated", i.src, i.prompt));
   });
+  if (!generatedIds.length) generatedIds.push(addUploadNode("generated"));
   // 将每个 upload 节点连接到每个 generated 节点
   for (const sourceId of uploadIds) {
     for (const targetId of generatedIds) {
@@ -300,17 +299,21 @@ function closeFn() {
     body: $t("workbench.production.editImage.closeConfirmBody"),
     confirmBtn: $t("common.confirm"),
     cancelBtn: $t("common.cancel"),
-    onConfirm: () => {
+    onConfirm: async () => {
+      try {
+      assertCanvasContext();
       if (props.flowData.flowId) {
         const payload = {
           flowId: props.flowData.flowId,
           nodes: cleanNodes(getNodes.value as NodeType[]),
           edges: cleanEdges(getEdges.value),
         };
-        axios.post("/production/editImage/updateImageFlow", { ...payload });
+        await axios.post("/production/editImage/updateImageFlow", { ...payload });
+        assertCanvasContext();
       }
       visible.value = false;
       dialog.destroy();
+      } catch (e) { window.$message.error((e as Error).message || "画布保存失败，请重试"); }
     },
   });
 }
@@ -337,6 +340,16 @@ async function layoutGraph(direction: "LR" | "TB") {
     width: 100%;
   }
 }
+.canvasHeader { position:absolute; z-index:20; top:18px; left:20px; right:20px; display:flex; align-items:center; justify-content:space-between; pointer-events:none; }
+.canvasHeader > div { display:flex; align-items:center; gap:10px; padding:9px 13px; border:1px solid #eae4df; border-radius:12px; background:#ffffffef; box-shadow:0 5px 18px #3529190a; }
+.canvasHeader strong,.canvasHeader small { display:block; }.canvasHeader strong { font-size:13px; color:#332e2a; }.canvasHeader small { margin-top:3px; color:#9b8f85; font-size:10px; }.canvasMark { display:grid; place-items:center; width:30px; height:30px; border-radius:9px; background:#fff0e6; color:#d86332; }
+.canvasHeader > button { pointer-events:auto; padding:9px 12px; border:1px solid #e8ded7; border-radius:10px; background:#fff; color:#70635a; cursor:pointer; }.canvasHeader > button span { margin-left:8px; font-size:17px; }
+.toolPanel { top:50% !important; left:16px !important; margin:0 !important; transform:translateY(-50%); }
+.canvasToolbar { display:flex; flex-direction:column; align-items:center; gap:4px; padding:7px; border:1px solid #e8e4df; border-radius:16px; background:#ffffffee; box-shadow:0 8px 28px #29221c12; backdrop-filter:blur(14px); }
+.canvasToolbar button { display:grid; width:40px; height:40px; place-items:center; border:0; border-radius:10px; background:transparent; color:#615b56; cursor:pointer; }
+.canvasToolbar button:hover { background:#f5eee8; color:#c45b30; }.toolSpark { color:#d86b36; font-size:19px; }.toolDivider { width:24px; height:1px; margin:3px 0; background:#ebe5df; }
+.editImageCls { background:#f6f5f3; }
+:deep(.vue-flow__controls) { overflow:hidden; border:1px solid #e9e2dc; border-radius:10px; box-shadow:0 6px 20px #47332312; }
 
 :deep(.fullscreenDialog) {
   .t-dialog__header {

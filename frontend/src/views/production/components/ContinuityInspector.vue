@@ -149,7 +149,8 @@
           type="button"
           :disabled="saving || checking || current.state === '生成中'"
           @click="restore(v.filePath)">
-          恢复历史 {{ i + 1 }} · {{ new Date(v.createdAt).toLocaleString() }}
+          <img :src="historyUrl(v.filePath)" :alt="`历史画面 ${i + 1}`" />
+          <span>采用历史 {{ i + 1 }}<small>{{ new Date(v.createdAt).toLocaleString() }}</small></span>
         </button>
         <small>恢复不会调用模型，当前画面也会保留为历史。</small>
       </div>
@@ -188,6 +189,7 @@ import {
 } from "../../../../../shared/shotContinuity";
 
 const props = defineProps<{ storyboardId?: number; currentVideo?: { id: number; src: string }; previousVideo?: { id: number; src: string } }>();
+function historyUrl(value: string) { return value.startsWith('/oss/') ? value : `/oss/${value.replace(/^\/+/, '')}`; }
 const visible = defineModel<boolean>("visible", { required: true });
 const emit = defineEmits<{ saved: [] }>();
 const agent = productionAgentStore(),
@@ -660,6 +662,10 @@ ul {
 .ciHistory small {
   width: 100%;
 }
+.ciHistory > button { display:flex; flex-direction:column; gap:6px; width:150px; text-align:left; }
+.ciHistory > button img { width:100%; aspect-ratio:16/9; object-fit:contain; border-radius:5px; background:#eee9e5; }
+.ciHistory > button span,.ciHistory > button small { display:block; }
+.ciHistory > button small { margin-top:3px; color:var(--td-text-color-secondary); font-size:10px; }
 .ciError {
   color: var(--td-error-color);
   font-size: 12px;

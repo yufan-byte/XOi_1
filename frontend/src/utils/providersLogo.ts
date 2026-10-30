@@ -347,3 +347,38 @@ export const modelProviderRules: Array<{ pattern: RegExp; provider: keyof typeof
   { pattern: /new[-_ ]?api/i, provider: "newapi" },
   { pattern: /npl[-_ ]?cloud/i, provider: "nplcloud" },
 ];
+
+/**
+ * 一站式创作当前使用的 SVG 品牌图标。
+ *
+ * 主站旧选择器使用 assets/providers 下的 webp；一站式工作区已经换成了更清晰的
+ * SVG（部分品牌还使用 sculpted 版本）。导演台模型选择器优先走这里，无法识别时再
+ * 回落到旧图标，保证两套工作台的品牌识别一致，又不让长尾模型丢图。
+ */
+const oneStopIconBase = "/one-stop/icons/providers/";
+const oneStopProviderRules: Array<{ pattern: RegExp; file: string }> = [
+  { pattern: /seedance|seedream|doubao|豆包|即梦|火山|volc|byt/i, file: "bytedance.svg" },
+  { pattern: /jimeng/i, file: "jimeng.svg" },
+  { pattern: /kling|可灵|kuaishou/i, file: "kuaishou.svg" },
+  { pattern: /vidu|生数/i, file: "vidu.svg" },
+  { pattern: /mini[-_ ]?max|abab|hailuo|海螺/i, file: "minimax.svg" },
+  { pattern: /sora/i, file: "sculpted/sora.svg" },
+  { pattern: /veo|gemini|google/i, file: "google.svg" },
+  { pattern: /qwen|qwq|tongyi|通义|wanx|万相|wan|alibaba|aliyun/i, file: "alibaba.svg" },
+  { pattern: /gpt|o1|o3|o4|openai|chatgpt|codex/i, file: "openai-logo.svg" },
+  { pattern: /claude|anthropic/i, file: "sculpted/claude.svg" },
+  { pattern: /deep[-_ ]?seek/i, file: "deepseek.svg" },
+  { pattern: /grok|xai/i, file: "sculpted/grok.svg" },
+  { pattern: /pix[-_ ]?verse/i, file: "pixverse.svg" },
+  { pattern: /mid[-_ ]?journey|mj/i, file: "midjourney.svg" },
+];
+
+export function oneStopProviderLogoFor(...sources: Array<string | undefined>): string {
+  for (const source of sources) {
+    const text = String(source || "").trim();
+    if (!text) continue;
+    const hit = oneStopProviderRules.find((rule) => rule.pattern.test(text));
+    if (hit) return `${oneStopIconBase}${hit.file}`;
+  }
+  return "";
+}

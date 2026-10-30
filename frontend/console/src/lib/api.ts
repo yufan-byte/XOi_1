@@ -15,6 +15,17 @@
  * （翻主站源码：frontend/src/stores/user.ts 与 frontend/src/utils/axios.ts）
  */
 
+import {
+    authHeaders,
+    clearSessionState,
+    sessionExpiresAt,
+    sessionSignal,
+    sessionToken,
+    setSessionExpiresAt,
+    setSessionToken,
+    writeSessionSignal,
+} from "./session";
+
 export interface AuthState {
     accessToken: string;
     expiresAt: number;
@@ -53,13 +64,17 @@ interface LoginPayload {
     role?: string;
 }
 
-/** 写会话：同时落 localStorage（给主站读）与返回值（给控制台读） */
+/** 写会话：凭据进内存（持久那份由后端 httpOnly cookie 持有），localStorage 只写非敏感影子键 */
 export function writeSession(p: LoginPayload): AuthState {
     if(!p||typeof p.token!=="string"||!p.token.trim()||!Number.isSafeInteger(Number(p.id))||Number(p.id)<1)throw new ApiError(502,"登录响应不完整，未保存登录状态，请稍后重试");
     const token = p.token.startsWith("Bearer ") ? p.token : `Bearer ${p.token}`;
-    document.cookie='xoi_media_owner=; Path=/oss; SameSite=Lax; Max-Age=0';
+    // F3：媒体授权 cookie 现在由后端在登录响应里一并下发，前端**不能**再手动清
+    // xoi_media_owner —— 那会把刚下发的凭据当场删掉，私有素材全部 403。
+    const expiresAt = Date.now() + 24 * 3600 * 1000;
     try {
-        localStorage.setItem(LS.token, token);
+        setSessionToken(token);
+        writeSessionSignal(p.id);
+        setSessionExpiresAt(expiresAt);
         localStorage.setItem(LS.role, p.role || "user");
         localStorage.setItem(LS.userId, String(p.id));
         localStorage.setItem(LS.displayId, p.display_id || "");
@@ -72,7 +87,7 @@ export function writeSession(p: LoginPayload): AuthState {
     const roleNum = p.role === "admin" ? 10 : 1;
     return {
         accessToken: token,
-        expiresAt: Date.now() + 24 * 3600 * 1000,
+        expiresAt,
         user: {
             id: Number(p.id),
             username: p.name,
@@ -93,19 +108,17 @@ export function clearSession() {
     } catch {
         /* 忽略 */
     }
+    // 会话信号 / 过期时间 / 老版本残留凭据一并清干净
+    clearSessionState();
 }
 
 export function hasSession(): boolean {
-    try {
-        const raw = (localStorage.getItem(LS.token) || "").replace(/^(Bearer\s+)+/i, "");
-        const part = raw.split(".")[1];
-        if (!part || raw.split(".").length !== 3) return false;
-        const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
-        // UX hint only; every authenticated API still verifies the signature and session version.
-        return Number.isFinite(payload.exp) && payload.exp * 1000 > Date.now() && Number.isSafeInteger(payload.id) && payload.id > 0;
-    } catch {
-        return false;
-    }
+    // F3：本地只剩「会话信号」，凭据在 httpOnly cookie 里。
+    // 信号存在即认为有会话；记录的过期时间只用来避免明显过期的假登录态，
+    // 真正的失效判定永远交给服务端 401（api() 会清会话并广播 xoi:unauthorized）。
+    if (!sessionSignal()) return false;
+    const expiresAt = sessionExpiresAt();
+    return !expiresAt || expiresAt > Date.now();
 }
 
 async function parse<T>(res: Response): Promise<T> {
@@ -181,24 +194,17 @@ export async function fetchCaptcha(): Promise<{ id: string; svg: string }> {
     return parse<{ id: string; svg: string }>(res);
 }
 
-/** 退出登录：让后端把 session_version +1（token 立即作废），再清本地 */
+/** 退出登录：让后端把 session_version +1（凭据立即作废）并清 cookie，再清本地 */
 export async function logout(): Promise<void> {
-    let token: string | null = null;
+    const signal = sessionSignal();
     try {
-        token = localStorage.getItem(LS.token);
-    } catch {
-        /* 忽略 */
-    }
-    try {
-        await fetch("/api/login/logout", {
-            method: "POST",
-            credentials: "include",
-            headers: token ? { Authorization: token } : undefined,
-        });
+        // F3：不需要也不再可能自带 Authorization —— 凭据在 httpOnly cookie 里，同源请求自动携带。
+        await fetch("/api/login/logout", { method: "POST", credentials: "include" });
     } catch {
         /* 网络失败也要清本地 */
     }
-    if(localStorage.getItem(LS.token)===token)clearSession();
+    // 期间若已经换了账号，就别把新会话清掉。
+    if (sessionSignal() === signal) clearSession();
 }
 
 /* ==================================================================
@@ -256,13 +262,8 @@ export type ConsoleUser = NewApiUser;
  *   真正失效时由下面的 `api()` 收到 401 → 清会话 + 广播 `xoi:unauthorized`。
  */
 export function loadAuth(): AuthState | null {
-    let token: string | null = null;
-    try {
-        token = localStorage.getItem(LS.token);
-    } catch {
-        return null;
-    }
-    if (!token) return null;
+    // F3：本地凭据已不存在，登录态的唯一本地依据是「会话信号」。
+    if (!sessionSignal()) return null;
     let role = "user";
     let userId = 0;
     let username = "";
@@ -273,11 +274,13 @@ export function loadAuth(): AuthState | null {
         username = localStorage.getItem(LS.username) || "";
         displayId = localStorage.getItem(LS.displayId) || "";
     } catch {
-        /* 隐私模式：能拿到 token 就继续，其余用默认值 */
+        /* 隐私模式：能拿到信号就继续，其余用默认值 */
     }
+    const expiresAt = sessionExpiresAt();
     return {
-        accessToken: token,
-        expiresAt: Number.MAX_SAFE_INTEGER,
+        // 刷新后内存凭据为空：此时请求靠同源 cookie 认证（见 authHeaders()）。
+        accessToken: sessionToken(),
+        expiresAt: expiresAt || Number.MAX_SAFE_INTEGER,
         user: {
             id: userId,
             username: username || String(displayId || userId),
@@ -298,7 +301,8 @@ export function saveAuth(a: AuthState | null): void {
         return;
     }
     try {
-        localStorage.setItem(LS.token, a.accessToken);
+        // F3：只有「本次页面内真的拿到了凭据」才更新内存；持久化交给 cookie。
+        if (a.accessToken) setSessionToken(a.accessToken);
         localStorage.setItem(LS.role, a.user.role && a.user.role >= 10 ? "admin" : "user");
         localStorage.setItem(LS.userId, String(a.user.id));
         localStorage.setItem(LS.username, a.user.username || "");
@@ -318,9 +322,10 @@ export function saveAuth(a: AuthState | null): void {
 export async function refreshAuth(): Promise<AuthState | null> {
     const current = loadAuth();
     if (!current) return null;
+    const signal = sessionSignal();
     try {
         const me = await getSelf();
-        if(localStorage.getItem(LS.token)!==current.accessToken)return null;
+        if(sessionSignal()!==signal)return null;
         const next: AuthState = {
             ...current,
             user: { ...current.user, ...me, id: me.id ?? current.user.id },
@@ -333,26 +338,43 @@ export async function refreshAuth(): Promise<AuthState | null> {
 }
 
 /**
+ * 带鉴权的二进制下载（团队账号清单 Excel）。
+ *
+ * 不能直接用 `<a href>`：导出要求 `X-Xoi-Sudo` 请求头，浏览器导航加不上自定义头。
+ * 所以这里 fetch 成 Blob 再落盘 —— 全程同源 + `credentials:"include"`，
+ * 会话凭据仍走 httpOnly cookie，明文不经过 localStorage。
+ */
+export async function authedDownload(path: string, sudoToken?: string): Promise<Blob> {
+    const headers: Record<string, string> = { ...authHeaders() };
+    if (sudoToken) headers["X-Xoi-Sudo"] = sudoToken;
+    const res = await fetch(path, { headers, credentials: "include", cache: "no-store" });
+    if (!res.ok) {
+        let message = `下载失败（${res.status}）`;
+        try {
+            const body = (await res.json()) as { message?: string };
+            if (body?.message) message = body.message;
+        } catch { /* 非 JSON 响应就用默认文案 */ }
+        throw new Error(message);
+    }
+    return res.blob();
+}
+
+/**
  * 管理面 API（对 XOI Express）。
  *
  * 与造物同名函数的区别只有两点：请求头用 XOI 的 `Authorization: <token>`（token 里
  * 已经带 `Bearer ` 前缀，由 writeSession 保证），以及 401 时的处理。
  */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const token = (() => {
-        try {
-            return localStorage.getItem(LS.token);
-        } catch {
-            return null;
-        }
-    })();
+    // F3：凭据从内存取（刷新后为空 → 交给同源 httpOnly cookie）；换号检测改看会话信号。
+    const signal = sessionSignal();
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: token } : {}),
+        ...authHeaders(),
         ...((init.headers as Record<string, string> | undefined) ?? {}),
     };
     const res = await fetch(path, { ...init, headers, credentials: "include" });
-    if(localStorage.getItem(LS.token)!==token)throw new DOMException('账号已切换，已忽略旧请求','AbortError');
+    if(sessionSignal()!==signal)throw new DOMException('账号已切换，已忽略旧请求','AbortError');
     if (res.status === 401) {
         // 会话没了就把本地清干净并广播：否则界面仍显示已登录，
         // 而后续请求会一路 401（与造物 `mc:unauthorized` 的做法一致）。
@@ -365,7 +387,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
         throw new ApiError(401, "登录已过期，请重新登录");
     }
     const value=await parse<T>(res);
-    if(localStorage.getItem(LS.token)!==token)throw new DOMException('账号已切换，已忽略旧请求','AbortError');
+    if(sessionSignal()!==signal)throw new DOMException('账号已切换，已忽略旧请求','AbortError');
     return value;
 }
 

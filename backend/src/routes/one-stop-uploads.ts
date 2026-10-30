@@ -7,6 +7,9 @@
 import express from "express";
 import u from "@/utils";
 import { db } from "@/utils/db";
+import { uploadTransferScope } from "@/utils/uploadTransferScope";
+import { withSecuritySchemaLock } from "@/utils/securitySchema";
+import { isAllowedMedia } from "@/utils/mediaSecurity";
 
 const router = express.Router();
 const MAX_BYTES = 12 * 1024 * 1024;
@@ -19,10 +22,10 @@ const EXT: Record<string, string> = {
 
 let tableReady: Promise<void> | null = null;
 function ensureTable() {
-  tableReady ??= (async () => {
-    await db.schema.hasTable("o_one_stop_uploads").then(async (has) => {
+  tableReady ??= withSecuritySchemaLock(db, async trx => {
+    await trx.schema.hasTable("o_one_stop_uploads").then(async (has) => {
       if (!has) {
-        await db.schema.createTable("o_one_stop_uploads", (t) => {
+        await trx.schema.createTable("o_one_stop_uploads", (t) => {
           t.string("id", 40).primary();
           t.integer("user_id").notNullable().index();
           t.string("name", 200).notNullable();
@@ -33,13 +36,19 @@ function ensureTable() {
         });
       }
     });
-  })();
+    if (!await trx.schema.hasColumn("o_one_stop_uploads", "transfer_id")) {
+      await trx.schema.alterTable("o_one_stop_uploads", t => {
+        t.string("transfer_id", 36).nullable();
+        t.index(["user_id", "transfer_id", "created_at"], "one_stop_upload_transfer");
+      });
+    }
+  }).catch(e => { tableReady = null; throw e; });
   return tableReady;
 }
 
 const uid = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 
-router.use(express.json({ limit: MAX_BYTES + 1024 * 512 }));
+router.use(express.json({ limit: Math.ceil(MAX_BYTES / 3) * 4 + 1024 * 512 }));
 router.use((req, res, next) => {
   res.set("Cache-Control", "no-store");
   const id = (req as express.Request & { user?: { id?: unknown } }).user?.id;
@@ -53,6 +62,7 @@ const DAILY_UPLOADS = 200;
 router.post("/", async (req, res) => {
   try {
     const userId = Number((req as any).user.id);
+    const scope = uploadTransferScope(userId, req.body?.transfer);
     await ensureTable();
     const used = await db("o_one_stop_uploads").where({ user_id: userId }).andWhere("created_at", ">", Date.now() - 86400_000).count("id as n").first();
     if (Number(used?.n ?? 0) >= DAILY_UPLOADS) return res.status(429).json({ success: false, message: "今天的扫码上传已达上限（200 个/天），请明天再试或直接在电脑端上传" });
@@ -63,15 +73,19 @@ router.post("/", async (req, res) => {
     const bytes = Math.floor((base64.length * 3) / 4);
     if (bytes < 1) return res.status(400).json({ success: false, message: "文件是空的" });
     if (bytes > MAX_BYTES) return res.status(413).json({ success: false, message: `超过 ${Math.round(MAX_BYTES / 1048576)}MB 上限，请先压缩或裁短` });
-    const ext = EXT[mime] ?? "bin";
+    const ext = EXT[mime];
+    if (!ext || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) return res.status(400).json({success: false, message: "不支持的素材格式"});
+    const buffer = Buffer.from(base64, "base64");
+    if (!isAllowedMedia(buffer, ext)) return res.status(400).json({success: false, message: "文件内容与素材类型不符，请选择原始图片、视频或音频"});
     const id = uid();
     const path = `/one-stop-uploads/${userId}/${id}.${ext}`;
-    await u.oss.writeFile(path, Buffer.from(base64, "base64"));
-    const row = { id, user_id: userId, name: String(req.body?.name || `素材.${ext}`).slice(0, 200), kind: m[1], url: `/oss${path}`, bytes, created_at: Date.now() };
+    await u.oss.writeFile(path, buffer);
+    const row = { id, ...scope, name: String(req.body?.name || `素材.${ext}`).slice(0, 200), kind: m[1], url: `/oss${path}`, bytes: buffer.length, created_at: Date.now() };
     await ensureTable();
     await db("o_one_stop_uploads").insert(row);
     res.json({ success: true, data: row });
   } catch (e: any) {
+    if (e?.status === 400) return res.status(400).json({success: false, message: e.message});
     console.error("[one-stop-uploads] 保存失败:", e?.message || e);
     res.status(500).json({ success: false, message: "上传失败，请重试" });
   }
@@ -81,16 +95,18 @@ router.post("/", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const userId = Number((req as any).user.id);
+    const scope = uploadTransferScope(userId, req.query.transfer);
     const since = Number(req.query.since) || 0;
     await ensureTable();
     const items = await db("o_one_stop_uploads")
-      .where({ user_id: userId })
+      .where(scope)
       .andWhere("created_at", ">", since)
       .orderBy("created_at", "desc")
       .limit(30)
       .select("id", "name", "kind", "url", "bytes", "created_at");
     res.json({ success: true, data: { items } });
   } catch (e: any) {
+    if (e?.status === 400) return res.status(400).json({success: false, message: e.message});
     console.error("[one-stop-uploads] 列表失败:", e?.message || e);
     res.status(500).json({ success: false, message: "暂时读不到上传记录，请稍后重试" });
   }

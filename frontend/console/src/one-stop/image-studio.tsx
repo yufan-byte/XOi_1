@@ -6,17 +6,16 @@ import { Brush, Info, Layers, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import type { CatalogModel } from "@/lib/models";
 import { Button } from "@/components/ui/button";
-import { accountKey } from "./adapters/request";
+import { accountKey, accountFetch, assertAccountSession } from "./adapters/request";
 import { MediaPage, type MediaMode, type MediaRefs, type RefTile } from "./studio/media-page";
-import { ParamSelect, ParamPills, PILL, countOptions, optionsOf, pickOf, bodyParams, type Field, type Schema, type Values } from "./studio/param-form";
+import { ParamSelect, PILL, countOptions, optionsOf, pickOf, type Field, type Schema, type Values } from "./studio/param-form";
 import { useStudio } from "./studio/store";
 import { notifyWork } from "./studio/inbox";
+import { imageGeometry } from "./studio/image-geometry";
 
-type BillingPreview = { label: string; model: string; modelId?: string; free?: boolean; quote?: { yuan: number } | null; basis?: string; budget: { defaultPoints: number; maxPoints: number; maxCalls: number; minutes: number } };
+type BillingPreview = { label: string; model: string; modelId?: string; free?: boolean; count?: number; quote?: { yuan: number } | null; basis?: string; budget: { defaultPoints: number; maxPoints: number; maxCalls: number; minutes: number } };
 const HELP_PROMPT = "你是 AI 绘图提示词专家。把用户的简短描述扩写成一条高质量中文生图提示词：主体、构图/镜头、场景、光线、风格、材质、画质，60~120 字，不要解释，只输出提示词。";
 const SAMPLES = ["一只橘猫坐在木桌上，缓慢转头看向窗外，阳光洒进来", "赛博朋克城市街道，雨夜霓虹反射在湿润地面，电影感广角", "白色陶瓷马克杯放在纯白背景，柔和顶光，商业摄影"];
-/** 上面单独渲染的 schema 字段；其余（质量 / 输出格式 / 种子 / MJ 全套…）交给 ParamPills */
-const HANDLED = ["mode", "size", "aspect_ratio", "resolution", "count", "images"];
 /** 模型没有 param_schema 时的兜底（造物 image 页同款：比例 + 1K/2K/4K） */
 const RATIOS = [
   { value: "1:1", label: "1:1 正方形", description: "1024x1024 / 2048x2048" },
@@ -39,42 +38,41 @@ const MODE_META: Record<string, { label: string; icon: MediaMode["icon"]; desc: 
 const MODE_KEY: Record<string, string> = { "text-to-image": "t2i", "image-edit": "edit", "multi-reference": "fusion" };
 
 async function imgFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  // F3：凭据走 httpOnly cookie（同源自动携带）；accountKey() 只做「有没有登录」的本地信号判断。
   const token = accountKey();
   if (!token) throw new Error("请先登录");
-  const res = await fetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), Authorization: token, "Content-Type": "application/json" }, cache: "no-store" });
+  const res = await accountFetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), "Content-Type": "application/json" } });
   const body = await res.json().catch(() => null);
-  if (!res.ok || body?.success === false) throw new Error(body?.message || body?.error || `请求失败（${res.status}）`);
+  assertAccountSession(token);
+  if (!res.ok || body?.success === false) throw Object.assign(new Error(typeof body?.message === "string" ? body.message : typeof body?.error === "string" ? body.error : body?.error?.message || `请求失败（${res.status}）`), { status: res.status, recoveryRequired: body?.recoveryRequired === true });
   if (body && typeof body === "object" && "data" in body && typeof body.data === "object" && body.data !== null && !("status" in body)) return body.data as T;
   return body as T;
 }
 
-/** 分辨率档位 → 长边像素（发给后端 width/height，供计费与出图尺寸用） */
-const TIER_EDGE: Record<string, number> = { "1k": 1024, "1K": 1024, "2k": 2048, "2K": 2048, "4k": 4096, "4K": 4096 };
-function sizeOf(ratio: string, resolution?: string): { width: number; height: number } {
-  const [a, b] = ratio === "auto" || !/^\d+:\d+$/.test(ratio) ? [1, 1] : ratio.split(":").map(Number);
-  const long = TIER_EDGE[resolution ?? ""] ?? 1024;
-  const scale = long / Math.max(a, b);
-  return { width: Math.round(a * scale), height: Math.round(b * scale) };
-}
-
 /** 当前参数实际会发的请求体（估价与提交共用） */
-function imageBody(m: CatalogModel, prompt: string, v: Values, mode: string, media: MediaRefs, schemaMode?: string) {
+function imageBody(m: CatalogModel, prompt: string, v: Values, mode: string, media: MediaRefs, schemaMode?: string, referenceCount = media.images.length) {
   const sc = (m.paramSchema ?? {}) as Schema;
-  const ratioKey = sc.size ? "size" : "aspect_ratio";
-  const ratioOpts = optionsOf(sc, ratioKey, v, mode);
-  const ratio = (ratioOpts.some((o) => o.value === v.ratio) ? v.ratio : pickOf(sc, ratioKey, v, mode)) ?? "1:1";
-  const resOpts = optionsOf(sc, "resolution", v, mode);
-  const resolution = resOpts.some((o) => o.value === v.res) ? v.res : pickOf(sc, "resolution", v, mode);
-  const { width, height } = sizeOf(ratio, resolution);
-  const n = Math.max(1, Number(v.n ?? pickOf(sc, "count", v, mode) ?? 1) || 1);
+  const supportedModes = (sc.mode?.enum ?? sc.mode?.options?.map((o) => String(o.value)) ?? []).map(String);
+  const activeMode = referenceCount > 1 && supportedModes.includes("multi-reference") ? "multi-reference" : schemaMode ?? Object.entries(MODE_KEY).find(([, ours]) => ours === mode)?.[0] ?? mode;
+  const sizeValues = optionsOf(sc, "size", v, activeMode).map((o) => o.value);
+  const sizeIsTier = sizeValues.length > 0 && sizeValues.every((x) => /^[124]k$/i.test(x));
+  const ratioKey = sc.aspect_ratio ? "aspect_ratio" : !sizeIsTier && sc.size ? "size" : "aspect_ratio";
+  const resolutionKey = sc.resolution ? "resolution" : sizeIsTier ? "size" : "resolution";
+  const ratioOpts = optionsOf(sc, ratioKey, v, activeMode);
+  const ratio = (ratioOpts.some((o) => o.value === v.ratio) ? v.ratio : pickOf(sc, ratioKey, v, activeMode)) ?? v.ratio ?? "1:1";
+  const resOpts = optionsOf(sc, resolutionKey, v, activeMode);
+  const resolution = (resOpts.some((o) => o.value === v.res) ? v.res : pickOf(sc, resolutionKey, v, activeMode)) ?? v.res;
+  const { width, height, exact: pixel } = imageGeometry(ratio, resolution);
+  const n = Math.max(1, Math.min(10, Math.floor(Number(v.n ?? pickOf(sc, "count", v, activeMode) ?? 1)) || 1));
   const body: Record<string, unknown> = {
     prompt, model: m.id,
     size: `${width}x${height}`, width, height,
+    ...(pixel ? { exact_size: `${width}x${height}` } : {}),
+    ...(!pixel ? { aspect_ratio: ratio } : {}),
     resolution: resolution || undefined,
     reference_images: media.images.map((url) => ({ type: "image", base64: url })),
-    ...bodyParams(sc, v, schemaMode, HANDLED),
   };
-  if (schemaMode) body.mode = schemaMode;
+  if (sc.mode) body.mode = activeMode;
   if (v.negative) body.negative_prompt = v.negative;
   return { body, ratio, resolution, n, width, height };
 }
@@ -83,19 +81,21 @@ export function ImageStudio() {
   const addWork = useStudio((s) => s.addWork);
   const updateWork = useStudio((s) => s.updateWork);
   const works = useStudio((s) => s.works);
+  const pollTimers = useRef(new Set<ReturnType<typeof setInterval>>());
   const [bill, setBill] = useState<{ preview: BillingPreview; points: number; resolve: (v: number | null) => void } | null>(null);
   const [preview, setPreview] = useState<BillingPreview | null>(null);
   const previewKey = useRef("");
+  const previewFor = useRef("");
   const confirm = useCallback((p: BillingPreview) => new Promise<number | null>((resolve) => setBill({ preview: p, points: p.budget.defaultPoints, resolve })), []);
 
   const estimate = useCallback((m: CatalogModel, v: Values, mode: string, media: { images: number }) => {
-    const { body, n } = imageBody(m, "", v, mode, { images: [], videos: [], audios: [] });
-    const key = JSON.stringify(body) + n;
+    const { body, n } = imageBody(m, "", v, mode, { images: [], videos: [], audios: [] }, undefined, media.images);
+    const key = JSON.stringify([body, n, media.images > 0]);
     if (key !== previewKey.current) {
       previewKey.current = key;
-      void imgFetch<BillingPreview>("/api/billing/preview", { method: "POST", body: JSON.stringify({ path: "/api/canvas-image-tasks", body: { ...body, prompt: "", inputLength: 20, hasReferenceImage: media.images > 0 } }) }).then(setPreview).catch(() => setPreview(null));
+      void imgFetch<BillingPreview>("/api/billing/preview", { method: "POST", body: JSON.stringify({ path: "/api/canvas-image-tasks", body: { ...body, prompt: "", inputLength: 20, hasReferenceImage: media.images > 0 } }) }).then((p) => { if (previewKey.current === key) { previewFor.current = key; setPreview(p); } }).catch(() => { if (previewKey.current === key) { previewFor.current = ""; setPreview(null); } });
     }
-    const quoteYuan = preview?.quote?.yuan;
+    const quoteYuan = previewFor.current === key ? preview?.quote?.yuan : undefined;
     if (!Number.isFinite(quoteYuan as number)) return null;
     return {
       total: quoteYuan != null && quoteYuan > 0 ? `${(quoteYuan * 10 * n).toFixed(2)} 积分（¥${(quoteYuan * n).toFixed(2)}）` : "免费",
@@ -117,41 +117,64 @@ export function ImageStudio() {
         if (status === "succeeded") {
           const url = t?.result?.url || t?.result?.images?.[0]?.url;
           if (typeof url === "string") { settle({ status: "done", url, urls: t?.result?.images?.map((x: any) => x.url).filter(Boolean) }); clearInterval(timer); }
-        } else if (status === "failed") { settle({ status: "failed", error: t?.error || "生成失败，可重试" }); clearInterval(timer); }
-        // unknown：上游超时但可能已出片；保持 running 让用户稍后看
-      } catch (e) { settle({ status: "failed", error: (e as Error).message }); clearInterval(timer); }
+        } else if (status === "failed" || status === "cancelled") { settle({ status: "failed", error: typeof t?.error === "string" ? t.error : t?.error?.message || "生成未完成，请查看任务记录" }); clearInterval(timer); }
+        else if (status === "unknown" || t?.recoveryRequired) { settle({ status: "failed", error: "结果待核对，请查看任务和积分记录，确认后再生成", meta: { unconfirmed: true } }); clearInterval(timer); }
+        else updateWork(id, { meta: { pollNote: undefined } });
+      } catch (e) {
+        if ((e as any)?.recoveryRequired || (e as any)?.status === 404) { settle({ status: "failed", error: "任务结果暂无法确认，请查看任务和积分记录后再生成", meta: { unconfirmed: true } }); clearInterval(timer); }
+        else updateWork(id, { meta: { pollNote: "状态暂时无法读取，正在继续查询，请勿重复提交" } });
+      }
     }, 4000);
+    pollTimers.current.add(timer);
   }, [updateWork]);
 
-  const resumed = useRef(false);
   useEffect(() => {
-    if (resumed.current) return; resumed.current = true;
     for (const w of works) {
       if (w.kind !== "image" || !w.taskId) continue;
       if (w.status === "running" || w.status === "pending") poll(w.id, w.taskId);
     }
+    return () => { for (const timer of pollTimers.current) clearInterval(timer); pollTimers.current.clear(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const submit = useCallback(async (m: CatalogModel, prompt: string, v: Values, mode: string, media: MediaRefs) => {
     if (!prompt) { toast.error("先写一句画面描述"); return false; }
-    const schemaMode = Object.entries(MODE_KEY).find(([, ours]) => ours === mode)?.[0];
+    const reusableRefs = media.images.filter((src) => !src.startsWith("data:") || src.length <= 200_000);
+    const refsOmitted = reusableRefs.length !== media.images.length;
+    // 站内私有地址不能交给上游读取：在当前登录会话中转为内联图片。
+    try {
+      media = { ...media, images: await Promise.all(media.images.map(async (src) => {
+        if (/^data:image\//i.test(src)) return src;
+        const url = new URL(src, location.origin);
+        if (url.origin !== location.origin) throw new Error("请先将外部图片下载或上传到本站，再作为参考图");
+        const response = await fetch(url.href, { credentials: "same-origin" });
+        if (!response.ok) throw new Error("参考图读取失败或已失效，请重新选择");
+        const blob = await response.blob();
+        if (!blob.type.startsWith("image/")) throw new Error("参考素材不是有效图片");
+        return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error("参考图读取失败")); reader.readAsDataURL(blob); });
+      })) };
+      if (media.images.reduce((n, src) => n + src.length, 0) > 7 * 1024 * 1024) throw new Error("参考图总大小超过任务限制，请压缩或减少图片后再试");
+    } catch (e) { toast.error((e as Error).message); return false; }
+    const modes = ((m.paramSchema ?? {}) as Schema).mode as Field | undefined;
+    const allowedModes = (modes?.enum ?? modes?.options?.map((o) => String(o.value)) ?? []).map(String);
+    const requestedMode = Object.entries(MODE_KEY).find(([, ours]) => ours === mode)?.[0];
+    const schemaMode = media.images.length > 1 && allowedModes.includes("multi-reference") ? "multi-reference" : requestedMode;
     const { body, n, ratio } = imageBody(m, prompt, v, mode, media, schemaMode);
     const p = await imgFetch<BillingPreview>("/api/billing/preview", { method: "POST", body: JSON.stringify({ path: "/api/canvas-image-tasks", body: { ...body, inputLength: prompt.length, hasReferenceImage: media.images.length > 0 } }) });
     if (!p?.budget) throw new Error("计费信息暂不可用，本次未提交，请稍后重试");
     const freeOnly = p.free === true && p.quote?.yuan === 0 && !!p.modelId;
-    const points = freeOnly ? 0.001 : await confirm(p);
+    const points = freeOnly ? 0.001 : await confirm({ ...p, count: n });
     if (points === null || !Number.isFinite(points) || points <= 0) { toast.error("已取消，未提交模型请求"); return false; }
     for (let i = 0; i < n; i++) {
       const authorized = await imgFetch<{ id: string }>("/api/billing/authorize", { method: "POST", body: JSON.stringify({ path: "/api/canvas-image-tasks", points, model: p.modelId, freeOnly, automatic: freeOnly }) });
       if (!/^[0-9a-f-]{36}$/.test(authorized?.id || "")) { toast.error("预算授权失败，未提交模型请求"); if (!i) return false; break; }
       const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      addWork({ id, kind: "image", model: m.id, prompt, createdAt: Date.now(), status: "running", meta: { size: `${body.width}x${body.height}`, mode: MODE_META[mode]?.label ?? "文生图", modeKey: mode, params: v, ratio, refs: media.images.length ? media.images : undefined } });
+      addWork({ id, kind: "image", model: m.id, prompt, createdAt: Date.now(), status: "running", meta: { size: `${body.width}x${body.height}`, mode: MODE_META[mode]?.label ?? "文生图", modeKey: mode, params: v, ratio, refs: reusableRefs.length ? reusableRefs : undefined, refsOmitted } });
       try {
         const resp = await imgFetch<any>("/api/canvas-image-tasks", {
           method: "POST",
           headers: { "X-Xoi-Billing-Id": authorized.id },
-          body: JSON.stringify(body),
+          body: JSON.stringify({...body,clientTaskId:`one-stop-${id}`}),
         });
         const taskId = resp?.task_id || resp?.id;
         if (!taskId) throw new Error(resp?.error || "任务提交失败");
@@ -159,9 +182,11 @@ export function ImageStudio() {
         updateWork(id, { taskId });
         poll(id, taskId);
       } catch (e) {
-        updateWork(id, { status: "failed", error: (e as Error).message });
-        notifyWork({ id, kind: "image", prompt, status: "failed", error: (e as Error).message });
-        toast.error((e as Error).message);
+        const uncertain = !(e as any)?.status || (e as any).status >= 500 || (e as any).status === 408;
+        const error = uncertain ? "提交结果待核对，任务可能已经受理；请查看任务和积分记录后再生成" : (e as Error).message;
+        updateWork(id, { status: "failed", error, meta: { unconfirmed: uncertain } });
+        notifyWork({ id, kind: "image", prompt, status: "failed", error });
+        toast.error(error);
       }
     }
   }, [addWork, updateWork, poll, confirm]);
@@ -169,7 +194,10 @@ export function ImageStudio() {
   /** 从 param_schema 推导模式 tab（文生图 / 图编辑 / 多图融合，参考图张数按 images.max_items[_by_mode]） */
   const modesFor = useCallback((m: CatalogModel): MediaMode[] | undefined => {
     const sc = (m.paramSchema ?? {}) as Schema;
-    if (!Object.keys(sc).length) return undefined;
+    if (!Object.keys(sc).length) return [
+      { key: "t2i", ...MODE_META.t2i },
+      { key: "edit", ...MODE_META.edit, tiles: [{ kind: "image", max: 1, label: "待编辑图", aria: "上传待编辑图", required: true }] },
+    ];
     const f = sc.mode as (Field & { options?: { value: string; is_default?: boolean; ref_max?: number }[] }) | undefined;
     const up = sc.images as (Field & { max_items_by_mode?: Record<string, number>; max_items?: number; label?: { zh?: string } }) | undefined;
     const tile = (max: number, label: string, required: boolean): RefTile => ({ kind: "image", max, label, aria: `上传${label}`, required });
@@ -199,19 +227,22 @@ export function ImageStudio() {
   const renderParams = useCallback((m: CatalogModel, v: Values, set: (k: string, s: string) => void, mode: string) => {
     const sc = (m.paramSchema ?? {}) as Schema;
     const hasSchema = Object.keys(sc).length > 0;
-    const ratioKey = sc.size ? "size" : "aspect_ratio";
-    const ratioOpts = hasSchema && sc[ratioKey] ? optionsOf(sc, ratioKey, v, mode) : RATIOS;
-    const curRatio = ratioOpts.some((o) => o.value === v.ratio) ? v.ratio : (hasSchema && sc[ratioKey] ? pickOf(sc, ratioKey, v, mode) : undefined) ?? ratioOpts[0]?.value;
-    const resOpts = hasSchema && sc.resolution ? optionsOf(sc, "resolution", v, mode).map((o) => ({ ...o, label: o.label.toUpperCase() })) : QUALITY;
-    const curRes = resOpts.some((o) => o.value === v.res) ? v.res : (hasSchema && sc.resolution ? pickOf(sc, "resolution", v, mode) : undefined) ?? resOpts[0]?.value;
+    const smode = Object.entries(MODE_KEY).find(([, ours]) => ours === mode)?.[0] ?? mode;
+    const sizeValues = optionsOf(sc, "size", v, smode).map((o) => o.value);
+    const sizeIsTier = sizeValues.length > 0 && sizeValues.every((x) => /^[124]k$/i.test(x));
+    const ratioKey = sc.aspect_ratio ? "aspect_ratio" : !sizeIsTier && sc.size ? "size" : "aspect_ratio";
+    const resolutionKey = sc.resolution ? "resolution" : sizeIsTier ? "size" : "resolution";
+    const ratioOpts = hasSchema && sc[ratioKey] ? optionsOf(sc, ratioKey, v, smode) : RATIOS;
+    const curRatio = ratioOpts.some((o) => o.value === v.ratio) ? v.ratio : (hasSchema && sc[ratioKey] ? pickOf(sc, ratioKey, v, smode) : undefined) ?? ratioOpts[0]?.value;
+    const resOpts = hasSchema && sc[resolutionKey] ? optionsOf(sc, resolutionKey, v, smode).map((o) => ({ ...o, label: o.label.toUpperCase() })) : QUALITY;
+    const curRes = resOpts.some((o) => o.value === v.res) ? v.res : (hasSchema && sc[resolutionKey] ? pickOf(sc, resolutionKey, v, smode) : undefined) ?? resOpts[0]?.value;
     const countMax = (sc.count as Field | undefined)?.max ?? 10;
     return (
       <>
         <ParamSelect label="比例" value={curRatio ?? ""} options={ratioOpts} onChange={(x) => set("ratio", x)} className={PILL} active accent />
-        <ParamSelect label="分辨率" value={curRes ?? ""} options={resOpts} onChange={(x) => set("res", x)} className={PILL} active />
-        <ParamSelect label="生成数量" value={v.n ?? "1"} options={countOptions(countMax)} onChange={(x) => set("n", x)} className={PILL} grid />
-        {/* 其余 schema 参数（质量 / 输出格式 / 种子 / MJ 全套…）；MJ 的模型引擎与版本优先留在工具条上 */}
-        {hasSchema && <ParamPills schema={sc} values={v} onChange={set} mode={Object.entries(MODE_KEY).find(([, ours]) => ours === mode)?.[0]} exclude={HANDLED} prefer={["bot_type", "version", "quality"]} />}
+        {!/^\d+x\d+$/i.test(curRatio ?? "") && <ParamSelect label="分辨率" value={curRes ?? ""} options={resOpts} onChange={(x) => set("res", x)} className={PILL} active />}
+        <ParamSelect label="生成数量" value={v.n ?? "1"} options={countOptions(Math.min(10, countMax))} onChange={(x) => set("n", x)} className={PILL} grid />
+        {/* 后端图片任务只转发比例与清晰度；不展示未接通的高级参数。 */}
       </>
     );
   }, []);
@@ -242,12 +273,13 @@ export function ImageStudio() {
               <p className="text-sm"><strong>{bill.preview.label}</strong> · {bill.preview.model}</p>
               <p className="mt-1 text-sm text-primary-strong">{typeof bill.preview.quote?.yuan === "number" && bill.preview.quote.yuan > 0 ? `单张约 ${(bill.preview.quote.yuan * 10).toFixed(2)} 积分（¥${bill.preview.quote.yuan.toFixed(2)}）` : "暂无完整预估，不代表免费"}</p>
               <label className="mt-4 flex items-center justify-between gap-3 text-sm font-medium">
-                本轮预算上限（积分）
+                单张预算上限（积分）
                 <input type="number" min={0.001} max={bill.preview.budget.maxPoints} step={0.001} defaultValue={bill.points}
                   onChange={(e) => setBill({ ...bill, points: Number(e.target.value) })}
                   className="w-32 rounded-xl border border-border px-3 py-2 text-right font-mono text-sm outline-none focus:border-primary/40" />
               </label>
-              <p className="mt-3 text-[12px] leading-5 text-muted-foreground">最多 {bill.preview.budget.maxCalls} 次调用 · {bill.preview.budget.minutes} 分钟内有效 · 1 元 = 10 积分 · 失败自动退回</p>
+              <p className="mt-2 text-[12px] text-foreground">本次 {bill.preview.count ?? 1} 张，整批预算最多 {(bill.points * (bill.preview.count ?? 1)).toFixed(3)} 积分。</p>
+              <p className="mt-3 text-[12px] leading-5 text-muted-foreground">最多 {bill.preview.budget.maxCalls} 次调用 · {bill.preview.budget.minutes} 分钟内有效 · 1 元 = 10 积分 · 费用以积分明细为准</p>
             </div>
             <div className="flex justify-end gap-2 px-4 pb-4 sm:px-6">
               <Button variant="secondary" onClick={() => { bill.resolve(null); setBill(null); }}>取消</Button>
@@ -274,7 +306,7 @@ function ImagePlaybook() {
         <p className="mt-1 text-muted-foreground">先选比例与分辨率再写提示词；一次可生成多张，按实际张数计费。参数多的模型（如 MJ）还有质量、种子、风格化等「更多参数」。</p>
       </section>
       <section><h3 className="font-semibold text-foreground">计费方式</h3>
-        <p className="mt-1 text-muted-foreground">提交前确认预算上限，只按实际用量扣积分，失败自动退回。图片约 1–2 分钟出片，可关闭页面稍后回来查看。</p>
+        <p className="mt-1 text-muted-foreground">提交前确认预算上限，按实际用量结算；结果不明确时请先核对任务和积分明细。任务在服务器继续执行，可稍后回来查看。</p>
       </section>
     </div>
   );

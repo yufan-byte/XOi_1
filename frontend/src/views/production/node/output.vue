@@ -3,6 +3,7 @@
     <div class="titleBar" :class="{ dragHandle: !standalone, pr: !standalone }">
       <DirectorNodeHeading node-id="output" step="07" label="FINAL CUT" title="成片" description="预览与交付当前集的最终作品" />
       <t-tag v-if="items && items.length" size="small" theme="success" variant="light">{{ items.length }} 个</t-tag>
+      <t-button size="small" variant="outline" class="nowheel nodrag" @click.stop="goEditor">打开剪辑台 ↗</t-button>
       <Handle v-if="!standalone" :id="props.handleIds!.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
     </div>
 
@@ -62,7 +63,8 @@ const episodesId = inject<Ref<number>>("episodesId", ref(0));
 
 /** 空态整卡可点：进入当前项目剪辑，并自动装配该分集的分镜。 */
 function goEditor() {
-  router.push({ path: "/editor", query: { projectId: route.query.projectId, episode: String(episodesId.value), returnTo: route.fullPath } });
+  const returnTo = router.resolve({ path: "/production", query: { ...route.query, view: "canvas" } }).fullPath;
+  router.push({ path: "/editor", query: { projectId: route.query.projectId, episode: String(episodesId.value), returnTo } });
 }
 </script>
 

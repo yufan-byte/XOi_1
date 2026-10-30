@@ -5,6 +5,7 @@ import { z } from "zod";
 import { success, error } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { rateLimiter } from "@/middleware/rateLimiter";
+import { clearSessionCookie } from "@/utils/sessionCookie";
 const router = express.Router();
 
 export default router.post(
@@ -63,6 +64,9 @@ export default router.post(
     }
 
     await u.db("o_user").where("id", userId).update(updateData);
+    // 改密会把 session_version +1（已签发的凭据全部失效），会话 cookie 同步清掉：
+    // 否则浏览器会一直带着一个必然 401 的 cookie，体验成「莫名被登出又跳回来」。
+    if (password) clearSessionCookie(req, res);
     res.status(200).send(success("修改成功"));
   },
 );

@@ -25,6 +25,8 @@ test("resource authorization follows persisted ownership and relationships", asy
       for (const col of ["id", "projectId", "scriptId", "assetsId", "videoTrackId", "flowId"]) table.integer(col);
     });
   }
+  await db("o_script").insert({ id: 102, projectId: 10, scriptId: 102 });
+  await db("o_videoTrack").insert({ id: 102, projectId: 10, scriptId: 102 });
   await db.schema.createTable("o_image", (table) => { table.integer("id"); table.integer("assetsId"); });
   await db.schema.createTable("o_imageFlow", (table) => { table.integer("id"); table.integer("userId"); });
   await db.schema.createTable("o_event", (table) => table.integer("id"));
@@ -66,6 +68,14 @@ test("resource authorization follows persisted ownership and relationships", asy
     await check("production/workbench/selectVideo", { trackId: 401, videoId: 101 }, 403);
     await check("assets/saveAssets", { id: 101, imageId: 401 }, 403);
     await check("production/storyboard/editStoryboardInfo", { id: 401, scriptId: 101 }, 403);
+    await check("production/workbench/getGenerateData", { projectId: 10, scriptId: 102 }, 0);
+    await check("production/workbench/getGenerateData", { projectId: 30, scriptId: 102 }, 403);
+    await check("production/editorTimeline", { projectId: 10, scriptId: 201 }, 403);
+    await check("production/workbench/batchGenerateVideo", { projectId: 10, scriptId: 101, trackData: [{ trackId: 102 }] }, 403);
+    await check("production/workbench/updateVideoPrompt", { id: 201 }, 403);
+    await check("production/workbench/selectVideo", { trackId: 401, videoId: 101 }, 403);
+    await check("assets/batchDelete", { id: [101, 401] }, 403);
+    await check("production/workbench/selectVideo", {trackId: 101, videoId: 101}, 403, {scriptId: "102"});
   });
   await t.test("query references and unknown ID parameters fail closed", async () => {
     await check("assets/getImage", {}, 403, { assetsId: "201" });

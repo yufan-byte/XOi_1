@@ -29,6 +29,7 @@ import {
     Ticket,
     TrendingUp,
     Users,
+    UsersRound,
     type LucideIcon,
 } from "lucide-react";
 
@@ -38,12 +39,15 @@ export type MenuItem = {
     href?: string;
     icon: LucideIcon;
     children?: { label: string; href: string }[];
+    /** 仅 XOi 管理员可见（如团队管理：涉及批量下发密码，普通用户一律隐藏） */
+    adminOnly?: boolean;
 };
 
 /** 平台管理菜单（scope=platform）：四核心优先，低频工具收进「更多功能」 */
 export const NEW_MENU: MenuItem[] = [
     { label: "收益总览", href: "/reseller/admin/stats", icon: TrendingUp },
     { label: "用户管理", href: "/reseller/admin/users", icon: Users },
+    { label: "团队管理", href: "/reseller/team-space", icon: UsersRound, adminOnly: true },
     { label: "订单", href: "/reseller/admin/topups", icon: CircleDollarSign },
     { label: "卡密分发", href: "/reseller/channel/card-keys", icon: Ticket },
     { label: "兑换码记录", href: "/reseller/admin/redemptions", icon: ReceiptText },
@@ -59,7 +63,6 @@ export const NEW_MENU: MenuItem[] = [
         children: [
             { label: "模型管理", href: "/reseller/models" },
             { label: "站点设置", href: "/reseller/site/info" },
-            { label: "团队空间", href: "/reseller/team-space" },
             { label: "客户服务", href: "/reseller/customer-service" },
         ],
     },

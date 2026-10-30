@@ -10,47 +10,73 @@ import { toast } from "sonner";
 import type { CatalogModel } from "@/lib/models";
 import { Button } from "@/components/ui/button";
 import { mfVideoCaps } from "./multiframe/video-caps";
-import { accountKey } from "./adapters/request";
+import { accountKey, accountFetch, assertAccountSession } from "./adapters/request";
 import { MediaPage, type MediaMode, type MediaRefs, type RefTile } from "./studio/media-page";
-import { ParamSelect, ParamPills, PILL, countOptions, optionsOf, pickOf, bodyParams, type Field, type Schema, type Values } from "./studio/param-form";
+import { ParamSelect, ParamControl, PILL, countOptions, optionsOf, pickOf, boolOf, type Field, type Schema, type Values } from "./studio/param-form";
 import { useStudio } from "./studio/store";
-import { useCatalog } from "./adapters/queries";
+import { useCatalog, useModelLines } from "./adapters/queries";
 import { notifyWork } from "./studio/inbox";
 import { benchChip, FLOAT_PANEL } from "./studio/ui";
+import { studioModelGroup } from "./studio/model-groups";
 
-/** 渠道策略（造物 StrategyDialog 同款）：稳定 / 价格 / 速度优先自动匹配，列表勾选 = 锁定线路。
- *  数据全部来自站内真实任务记录（/api/model-health）与目录价，没有数据就如实显示「暂无数据」。 */
+/** 渠道策略（对标造物 StrategyDialog）：稳定 / 价格 / 速度优先 + 手动选线。
+ *
+ *  数据源换成 /api/model-lines：直接读网关 logs，按 (渠道 × 模型) 聚合近 120 分钟成功率，
+ *  5 分钟一个桶。原来的 /api/model-health 只能按裸模型名聚合，同模型下的多条线路共用一个数字，
+ *  「稳定优先」排序等于没排。
+ *
+ *  ⚠️ 我们这边「线路」和造物不完全等价：造物可以钉住某条上游线，我们的渠道是 new-api
+ *  按 priority/weight 自动调的，前端钉不住。所以这里的策略实际决定的是**档位（模型）**：
+ *  同系列里哪个更稳 / 更便宜 / 更快，点选即生效，并把每条模型背后的渠道健康度摊开给你看。
+ */
 type Strategy = "stable" | "price" | "speed" | "manual";
 const STRATEGY_META: { key: Strategy; label: string; icon: typeof ShieldCheck; desc: string }[] = [
-  { key: "stable", label: "稳定优先", icon: ShieldCheck, desc: "优先挑成功率高的线路，自动避开故障线路" },
-  { key: "price", label: "价格优先", icon: Wallet, desc: "在成功率不低于 60% 的线路里挑最便宜的" },
-  { key: "speed", label: "速度优先", icon: Gauge, desc: "优先挑近 2 小时平均耗时最短且成功过的线路" },
-  { key: "manual", label: "手动选线", icon: Hand, desc: "在列表里点一条，固定用这条" },
+  { key: "stable", label: "稳定优先", icon: ShieldCheck, desc: "按近 2 小时成功率排序，选择线路后生效" },
+  { key: "price", label: "价格优先", icon: Wallet, desc: "按参考价格排序，选择线路后生效" },
+  { key: "speed", label: "速度优先", icon: Gauge, desc: "按近 2 小时平均耗时排序，选择线路后生效" },
+  { key: "manual", label: "手动选线", icon: Hand, desc: "不自动切换，自己点「改用」" },
 ];
+
+/** 少于这么多次请求的成功率不参与排序：1 次成功算 100% 会把「稳定优先」带沟里 */
+const MIN_SAMPLE = 3;
+/** 成功率色阶：≥95 绿 / ≥60 黄 / <60 红；null 灰 */
+const healthCls = (v: number | null) => (v == null ? "text-muted-foreground/60" : v >= 95 ? "text-success" : v >= 60 ? "text-warning" : "text-danger");
+/** 24 个 5 分钟桶的点阵：-1 = 那段时间没请求 */
+const dotsCls = (v: number) => (v < 0 ? "bg-foreground/12" : v >= 95 ? "bg-success" : v >= 60 ? "bg-warning" : "bg-danger");
 
 function ChannelStrategy({ current, className, onPick }: { current: CatalogModel; className?: string; onPick: (m: CatalogModel) => void }) {
   const { data: catalog } = useCatalog();
+  const { data: lineData } = useModelLines();
   const models = catalog?.models ?? [];
-  const siblings = useMemo(() => models.filter((m) => m.category === "video" && m.series === current.series), [models, current.series]);
+  const siblings = useMemo(() => models.filter((m) => m.category === "video" && studioModelGroup(m).key === studioModelGroup(current).key), [models, current]);
   const [strategy, setStrategy] = useState<Strategy>("stable");
   const [locked, setLocked] = useState<Set<string>>(new Set());
   const priceNum = (m: CatalogModel) => Number(m.priceUsd) || NaN;
+  const rowOf = (m: CatalogModel) => lineData?.models[m.id];
   const rows = useMemo(() => {
-    type Row = { m: CatalogModel; health: number | null; total2: number; avgSec: number | null };
+    type Row = { m: CatalogModel; health: number | null; rank: number | null; total: number; avgSec: number | null; buckets: number[]; lines: number };
     const list: Row[] = siblings.map((m) => {
-      const d = (m as { healthDetail?: { health: number; total24: number; total2: number; avgSec2: number | null } }).healthDetail;
-      return { m, health: d && d.total24 > 0 ? d.health : null, total2: d?.total2 ?? 0, avgSec: d?.avgSec2 ?? null };
+      const d = rowOf(m);
+      const total = (d?.ok ?? 0) + (d?.fail ?? 0);
+      const health = d?.health ?? null;
+      return { m, health, rank: total >= MIN_SAMPLE ? health : null, total, avgSec: d?.avgSec ?? null, buckets: d?.buckets ?? [], lines: d?.lines?.length ?? 0 };
     });
+    // 没有（可信）成功率数据的排最后，但不淘汰：新模型本来就没样本
     const by = {
-      stable: (a: Row, b: Row) => (b.health ?? -1) - (a.health ?? -1) || priceNum(a.m) - priceNum(b.m),
-      price: (a: Row, b: Row) => priceNum(a.m) - priceNum(b.m) || (b.health ?? -1) - (a.health ?? -1),
-      speed: (a: Row, b: Row) => (a.avgSec ?? 1e9) - (b.avgSec ?? 1e9) || (b.health ?? -1) - (a.health ?? -1),
+      stable: (a: Row, b: Row) => (b.rank ?? -1) - (a.rank ?? -1) || priceNum(a.m) - priceNum(b.m),
+      price: (a: Row, b: Row) =>
+        Number(b.rank != null && b.rank >= 60) - Number(a.rank != null && a.rank >= 60) ||
+        priceNum(a.m) - priceNum(b.m) ||
+        (b.rank ?? -1) - (a.rank ?? -1),
+      speed: (a: Row, b: Row) => (a.avgSec ?? 1e9) - (b.avgSec ?? 1e9) || (b.rank ?? -1) - (a.rank ?? -1),
       manual: (a: Row, b: Row) => Number(b.m.id === current.id) - Number(a.m.id === current.id),
     }[strategy];
     const pool = locked.size ? list.filter((r) => locked.has(r.m.id)) : list;
     return [...(pool.length ? pool : list)].sort(by);
-  }, [siblings, strategy, locked, current.id]);
-  const best = rows[0];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siblings, strategy, locked, current.id, lineData]);
+  const windowMin = lineData?.windowMinutes ?? 120;
+  const fmtAvg = (sec: number | null) => (sec == null ? "—" : sec >= 90 ? `${Math.round(sec / 60)} 分` : `${Math.round(sec)} 秒`);
   return (
     <Pop.Root>
       <Pop.Trigger aria-label="选择渠道策略" title="选择渠道策略" className={cn(className, "gap-1.5")}>
@@ -58,10 +84,12 @@ function ChannelStrategy({ current, className, onPick }: { current: CatalogModel
         <span>{strategy === "manual" ? `手动 · ${current.name}` : STRATEGY_META.find((x) => x.key === strategy)!.label}</span>
       </Pop.Trigger>
       <Pop.Portal>
-        <Pop.Content side="top" align="end" sideOffset={8} collisionPadding={12} className={cn("z-50 w-[min(94vw,640px)] animate-in fade-in-0 zoom-in-95", FLOAT_PANEL, "p-0")}>
+        <Pop.Content side="top" align="end" sideOffset={8} collisionPadding={12} className={cn("z-50 w-[min(94vw,700px)] animate-in fade-in-0 zoom-in-95", FLOAT_PANEL, "p-0")}>
           <div className="border-b border-border/60 px-4 pb-3 pt-4">
             <div className="text-[15px] font-semibold text-foreground">选择渠道策略</div>
-            <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{current.name} 所在系列（{current.series}）共 {siblings.length} 条线路：按你选的策略自动匹配最优；在列表勾选 = 只在勾选的线路里择优。</p>
+            <p className="mt-1 text-[12px] leading-5 text-muted-foreground">
+              {studioModelGroup(current).label} 共 {siblings.length} 条线路：策略只调整排序，点击「改用」后才切换；勾选可缩小比较范围。
+            </p>
           </div>
           <div className="grid grid-cols-4 gap-1 px-3 py-2">
             {STRATEGY_META.map((x) => (
@@ -72,26 +100,61 @@ function ChannelStrategy({ current, className, onPick }: { current: CatalogModel
             ))}
           </div>
           <p className="px-4 pb-1 text-[11px] text-muted-foreground">{STRATEGY_META.find((x) => x.key === strategy)!.desc}</p>
-          <div className="max-h-[40vh] overflow-y-auto px-3 pb-2">
+          <div className="max-h-[44vh] overflow-y-auto px-3 pb-2">
             <table className="w-full text-left text-[12px]">
-              <thead><tr className="text-[10px] uppercase tracking-wide text-muted-foreground"><th className="py-1.5 font-medium">线路</th><th className="py-1.5 font-medium">成功率</th><th className="py-1.5 font-medium">耗时</th><th className="py-1.5 font-medium">本次价格</th><th className="py-1.5 text-right font-medium">选定</th></tr></thead>
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <th className="py-1.5 font-medium">线路</th>
+                  <th className="py-1.5 font-medium">成功率 · 近 {windowMin} 分钟</th>
+                  <th className="py-1.5 font-medium">耗时</th>
+                  <th className="py-1.5 font-medium">参考价格</th>
+                  <th className="py-1.5 text-right font-medium">选定</th>
+                </tr>
+              </thead>
               <tbody>
                 {rows.map((r) => {
                   const on = r.m.id === current.id;
+                  const detail = rowOf(r.m);
                   return (
-                    <tr key={r.m.id} className={cn("border-t border-border/50", on && "bg-primary/[0.05]")}>
+                    <tr key={r.m.id} className={cn("border-t border-border/50 align-top", on && "bg-primary/[0.05]")}>
                       <td className="py-2 pr-2">
-                        <span className="flex items-center gap-1.5 font-semibold text-foreground">{r.m.name}{on && <span className="rounded-full bg-muted px-1.5 py-px text-[9px] font-medium text-muted-foreground">当前所选</span>}</span>
+                        <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                          {r.m.name}
+                          {on && <span className="rounded-full bg-muted px-1.5 py-px text-[9px] font-medium text-muted-foreground">当前所选</span>}
+                        </span>
                         {r.m.featured && <span className="mt-0.5 inline-block rounded-sm border border-[#e9b10c]/60 bg-[#e9b10c]/12 px-1 py-px text-[9px] font-semibold text-[#b8860b]">重点推荐</span>}
+                        {r.lines > 1 && (
+                          <span className="mt-0.5 ml-1 inline-block text-[9.5px] text-muted-foreground" title={detail?.lines.map((l) => `${l.channelName}：${l.health != null ? `${l.health}%` : "暂无数据"}`).join("\n")}>
+                            {r.lines} 条渠道
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2 pr-2 font-mono tabular-nums">{r.health != null ? <span className={r.health >= 95 ? "text-success" : r.health >= 60 ? "text-warning" : "text-danger"}>{r.health}%</span> : <span className="text-muted-foreground/60">暂无数据</span>}</td>
-                      <td className="py-2 pr-2 font-mono tabular-nums">{r.avgSec != null ? `${Math.round(r.avgSec / 6) / 10} 分` : "—"}</td>
+                      <td className="py-2 pr-2">
+                        <span className="flex items-center gap-2">
+                          <span className={cn("font-mono tabular-nums", healthCls(r.health))}>
+                            {r.health != null ? `${r.health}%` : <span className="font-sans text-muted-foreground/60">暂无数据</span>}
+                          </span>
+                          {r.buckets.length > 0 && (
+                            <span className="hidden items-center gap-[2px] md:flex" aria-hidden>
+                              {r.buckets.map((v, i) => (
+                                <i key={i} title={`${(r.buckets.length - i) * (lineData?.bucketMinutes ?? 5)} 分钟前 · ${v < 0 ? "无请求" : `成功率 ${v}%`}`} className={cn("h-[6px] w-[6px] shrink-0 rounded-full", dotsCls(v))} />
+                              ))}
+                            </span>
+                          )}
+                        </span>
+                        {r.total > 0 && (
+                          <span className="mt-0.5 block text-[9.5px] text-muted-foreground">
+                            {r.total} 次请求{r.total < MIN_SAMPLE ? " · 样本太少，不参与排序" : ""}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-2 font-mono tabular-nums">{fmtAvg(r.avgSec)}</td>
                       <td className="py-2 pr-2 font-mono tabular-nums">{Number.isFinite(priceNum(r.m)) ? `¥${priceNum(r.m).toFixed(2)}` : r.m.price?.split(" · ")[0] ?? "—"}</td>
                       <td className="py-2 text-right">
                         <span className="inline-flex items-center gap-2">
                           <button type="button" aria-label={`锁定 ${r.m.name}`} aria-pressed={locked.has(r.m.id)} onClick={() => setLocked((c) => { const n = new Set(c); if (n.has(r.m.id)) n.delete(r.m.id); else n.add(r.m.id); return n; })}
                             className={cn("grid h-4 w-4 place-items-center rounded border transition-colors", locked.has(r.m.id) ? "border-primary bg-primary text-primary-foreground" : "border-border/70")}>{locked.has(r.m.id) ? "✓" : ""}</button>
-                          <button type="button" aria-label={`改用 ${r.m.name}`} onClick={() => { onPick(r.m); }} className={cn("text-xs font-medium", on ? "text-primary" : "text-muted-foreground hover:text-primary")}>{on ? "✓" : "改用"}</button>
+                          <button type="button" aria-label={`改用 ${r.m.name}`} onClick={() => onPick(r.m)} className={cn("text-xs font-medium", on ? "text-primary" : "text-muted-foreground hover:text-primary")}>{on ? "✓" : "改用"}</button>
                         </span>
                       </td>
                     </tr>
@@ -101,7 +164,7 @@ function ChannelStrategy({ current, className, onPick }: { current: CatalogModel
             </table>
           </div>
           <div className="border-t border-border/60 bg-muted/40 px-4 py-2.5 text-[11px] leading-5 text-muted-foreground">
-            {best ? <>将使用：<b className="text-foreground">{best.m.name}</b>{best.health != null ? ` · 近 24h 成功率 ${best.health}%` : " · 暂无成功率数据，按价格排序"}；锁定后只在勾选的线路里择优，失败不会自动换线重试（避免重复扣费）。</> : "该系列暂无其他线路。"}
+            当前使用：<b className="text-foreground">{current.name}</b>。参考价不代表当前参数的总价；切换线路后请核对生成区预计费用。
           </div>
         </Pop.Content>
       </Pop.Portal>
@@ -110,6 +173,21 @@ function ChannelStrategy({ current, className, onPick }: { current: CatalogModel
 }
 
 type BillingPreview = { label: string; model: string; modelId?: string; free?: boolean; count?: number; quote?: { yuan: number } | null; basis?: string; budget: { defaultPoints: number; maxPoints: number; maxCalls: number; minutes: number } };
+/** 把 base64 dataURL 压进最长边与字节预算（后端 JSON body 4MB 上限，参考图必须提前瘦身） */
+async function shrinkDataUrl(dataUrl: string, maxEdge: number, maxBytes: number): Promise<string> {
+  if (!dataUrl.startsWith("data:") || dataUrl.length * 0.75 <= maxBytes) return dataUrl;
+  const img = new Image();
+  await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("图片读取失败")); img.src = dataUrl; });
+  const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  let out = canvas.toDataURL("image/jpeg", 0.9);
+  for (let q = 0.8; q >= 0.4 && out.length * 0.75 > maxBytes; q -= 0.2) out = canvas.toDataURL("image/jpeg", q);
+  return out;
+}
+
 /** 智能帮写的扩写提示（造物同款） */
 const HELP_PROMPT = "你是 AI 视频提示词专家。把用户的描述改写成一条高质量视频提示词：主体 + 动作 + 场景 + 运镜 + 光线 + 画质，一个镜头一句话，60~120 字，不要解释，只输出提示词。";
 const SAMPLES = ["云海山巅，青衣少年迎着晨光缓缓抬头，镜头缓推", "雨夜霓虹街头，行人匆匆，镜头横移跟拍一辆出租车", "宫灯长廊，烛火摇曳，镜头缓慢前进，古装悬疑氛围"];
@@ -130,11 +208,13 @@ const MODE_ORDER = Object.keys(MODE_META);
 
 /** canvas-video 族接口有的包 {success,data}、有的裸返 {data:...}（billing），这里统一解开 */
 async function cvFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  // F3：凭据走 httpOnly cookie（同源自动携带）；accountKey() 只做「有没有登录」的本地信号判断。
   const token = accountKey();
   if (!token) throw new Error("请先登录");
-  const res = await fetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), Authorization: token, "Content-Type": "application/json" }, cache: "no-store" });
+  const res = await accountFetch(path, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), "Content-Type": "application/json" } });
   const body = await res.json().catch(() => null);
-  if (!res.ok || body?.success === false) throw new Error(body?.message || body?.error || `请求失败（${res.status}）`);
+  assertAccountSession(token);
+  if (!res.ok || body?.success === false) throw Object.assign(new Error(typeof body?.message === "string" ? body.message : typeof body?.error === "string" ? body.error : body?.error?.message || `请求失败（${res.status}）`), { status: res.status });
   if (body && typeof body === "object" && "data" in body && typeof body.data === "object" && body.data !== null && !("status" in body)) return body.data as T;
   return body as T;
 }
@@ -166,7 +246,7 @@ function videoBody(m: CatalogModel, prompt: string, v: Values, mode: string, med
     prompt, model: m.id, duration: seconds,
     resolution: resolution || undefined, aspect_ratio: ratio,
     images: media.images, videos: media.videos, audios: media.audios,
-    ...bodyParams(sc, v, inputMode, HANDLED),
+    ...(sc.generate_audio ? { generate_audio: boolOf(sc, "generate_audio", v) } : {}),
   };
   if (inputMode) body.mode = inputMode;
   else if (v.modeVal) body.mode = v.modeVal;   // std/pro 这类「画质档」模式字段
@@ -177,24 +257,26 @@ export function VideoStudio() {
   const addWork = useStudio((s) => s.addWork);
   const updateWork = useStudio((s) => s.updateWork);
   const works = useStudio((s) => s.works);
+  const pollTimers = useRef(new Set<ReturnType<typeof setInterval>>());
   const select = useStudio((s) => s.select);
   /** 预算确认弹窗：submit 流程里以 Promise 等用户给上限 */
   const [bill, setBill] = useState<{ preview: BillingPreview; points: number; resolve: (v: number | null) => void } | null>(null);
   const confirm = useCallback((p: BillingPreview) => new Promise<number | null>((resolve) => setBill({ preview: p, points: p.budget.defaultPoints, resolve })), []);
   const [preview, setPreview] = useState<BillingPreview | null>(null);
   const previewKey = useRef("");
+  const previewFor = useRef("");
 
   /** 估价：预计 = 单条报价 × 数量；最高按按秒线路的最长可选时长折算（造物同款口径） */
   const estimate = useCallback((m: CatalogModel, v: Values, mode: string, media: { images: number; videos: number; audios: number }) => {
     const sc = (m.paramSchema ?? {}) as Schema;
-    const n = Math.max(1, Number(v.n ?? pickOf(sc, "count", v, mode) ?? 1) || 1);
+    const n = Math.max(1, Math.min(10, Math.floor(Number(v.n ?? pickOf(sc, "count", v, mode) ?? 1)) || 1));
     const { body } = videoBody(m, "", v, mode, { images: [], videos: [], audios: [] }, MODE_ORDER.includes(mode) ? mode : undefined);
-    const key = JSON.stringify(body) + n;
+    const key = JSON.stringify([body, n, media.images > 0 || media.videos > 0]);
     if (key !== previewKey.current) {
       previewKey.current = key;
-      void cvFetch<BillingPreview>("/api/billing/preview", { method: "POST", body: JSON.stringify({ path: "/api/canvas-video", body: { ...body, inputLength: 20, hasReferenceImage: media.images > 0 || media.videos > 0 } }) }).then((p) => setPreview(p ?? null)).catch(() => setPreview(null));
+      void cvFetch<BillingPreview>("/api/billing/preview", { method: "POST", body: JSON.stringify({ path: "/api/canvas-video", body: { ...body, inputLength: 20, hasReferenceImage: media.images > 0 || media.videos > 0 } }) }).then((p) => { if (previewKey.current === key) { previewFor.current = key; setPreview(p ?? null); } }).catch(() => { if (previewKey.current === key) { previewFor.current = ""; setPreview(null); } });
     }
-    const quoteYuan = preview?.quote?.yuan;
+    const quoteYuan = previewFor.current === key ? preview?.quote?.yuan : undefined;
     if (!Number.isFinite(quoteYuan as number)) return null;
     const seconds = Number(body.duration) || 5;
     const durations = (sc.duration as Field | undefined)?.enum?.map(Number).filter((x) => x > 0) ?? mfVideoCaps(m).durations;
@@ -229,21 +311,25 @@ export function VideoStudio() {
           const url = t?.result?.url || t?.result;
           if (typeof url === "string") { settle({ status: "done", url, urls: [url] }); clearInterval(timer); }
         } else if (status === "failed" || status === "cancelled") {
-          settle({ status: "failed", error: t?.error || "生成失败，可重试" });
+          settle({ status: "failed", error: typeof t?.error === "string" ? t.error : t?.error?.message || "生成未完成，请查看任务记录" });
           clearInterval(timer);
-        }
-      } catch (e) { settle({ status: "failed", error: (e as Error).message }); clearInterval(timer); }
+        } else if (status === "unknown" || t?.recoveryRequired) { settle({ status: "failed", error: "结果待核对，请查看任务和积分记录，确认后再生成", meta: { unconfirmed: true } }); clearInterval(timer); }
+        else updateWork(id, { meta: { pollNote: undefined } });
+      } catch (e) {
+        if ((e as any)?.status === 404) { settle({ status: "failed", error: "任务结果暂无法确认，请查看任务和积分记录后再生成", meta: { unconfirmed: true } }); clearInterval(timer); }
+        else updateWork(id, { meta: { pollNote: "状态暂时无法读取，正在继续查询，请勿重复提交" } });
+      }
     }, 5000);
+    pollTimers.current.add(timer);
   }, [updateWork]);
 
   // 刷新页面后接着轮询未完成任务
-  const resumed = useRef(false);
   useEffect(() => {
-    if (resumed.current) return; resumed.current = true;
     for (const w of works) {
       if (w.kind !== "video" || !w.taskId) continue;
       if (w.status === "running" || w.status === "pending") poll(w.id, w.taskId);
     }
+    return () => { for (const timer of pollTimers.current) clearInterval(timer); pollTimers.current.clear(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -252,15 +338,23 @@ export function VideoStudio() {
     const isInputMode = MODE_ORDER.includes(mode);
     // 前置校验：各模式必需的素材（造物同款话术）
     if (mode === "first-frame" && !media.images.length) { toast.error("请上传一张首帧图"); return false; }
-    if (mode === "first-last" && !media.images.some(Boolean)) { toast.error("请先上传首帧"); return false; }
-    if (mode === "reference" && !media.images.length) { toast.error("请上传参考图"); return false; }
+    if (mode === "first-last" && media.images.length < 2) { toast.error("请按顺序上传首帧和尾帧两张图片"); return false; }
+    if (mode === "reference" && !media.images.length && !media.videos.length && !media.audios.length) { toast.error("请先上传参考素材"); return false; }
     if ((mode === "edit" || mode === "extend") && !media.videos.length) { toast.error("编辑或延长模式需要参考视频。"); return false; }
+    if ((media.videos.length || media.audios.length) && !/^seedance2\.[05]-(line1(?:-fast)?|full(?:-fast)?)(?:-xoi)?$/.test(m.id)) { toast.error("当前模型的音视频参考传递尚未接通，请改用图片参考或选择支持全能参考的 Seedance 线路"); return false; }
+    if (media.videos.concat(media.audios).some((url) => !/^https?:\/\//i.test(url))) { toast.error("当前线路的参考视频和音频需要公网素材地址；本地文件尚未接通托管，请先移除这些素材或改用图片参考"); return false; }
     const n = Math.max(1, Math.min(10, Number(v.n ?? pickOf(sc, "count", v, mode) ?? 1) || 1));
+    const keepRef = (src: string) => !/^(data:|blob:)/.test(src) || (src.startsWith("data:") && src.length <= 200_000);
+    const refs = media.images.filter(keepRef), videoRefs = media.videos.filter(keepRef), audioRefs = media.audios.filter(keepRef);
+    const refsOmitted = refs.length + videoRefs.length + audioRefs.length < media.images.length + media.videos.length + media.audios.length;
+    // 提交前兜底：作品库/历史选来的引用没经过上传压缩，几张原图 dataURL 会把请求体撑爆
+    // （后端全局 JSON 上限 4MB，/api/canvas-video 不在大 body 白名单里 → 413 request entity too large）。
+    media = { ...media, images: await Promise.all(media.images.map((u) => (/;base64,/.test(u) ? shrinkDataUrl(u, 1536, 1.2 * 1024 * 1024).catch(() => u) : u))) };
     const { body, seconds, ratio } = videoBody(m, prompt, v, mode, media, isInputMode ? mode : undefined);
     // 预算：第一条弹确认框拿上限；其余条目用同一上限静默授权（整批的钱在估价里已说明）
     const p = await cvFetch<BillingPreview>("/api/billing/preview", { method: "POST", body: JSON.stringify({ path: "/api/canvas-video", body: { ...body, inputLength: prompt.length, hasReferenceImage: media.images.length > 0 } }) });
     if (!p?.budget) throw new Error("计费信息暂不可用，本次未提交，请稍后重试");
-    const points = await confirm(p);
+    const points = await confirm({ ...p, count: n });
     const ids: string[] = [];
     for (let i = 0; i < n; i++) {
       try { ids.push(await authorizeBudget(p, points)); } catch (e) { if (!ids.length) throw e; toast.error(`第 ${i + 1} 条预算授权失败：${(e as Error).message}`); break; }
@@ -268,12 +362,12 @@ export function VideoStudio() {
     if (!ids.length) { toast.error("已取消，未提交模型请求"); return false; }
     for (const billingId of ids) {
       const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      addWork({ id, kind: "video", model: m.id, prompt, createdAt: Date.now(), status: "running", meta: { seconds, size: body.resolution ? String(body.resolution) : undefined, resolution: body.resolution ? String(body.resolution) : undefined, ratio, mode: MODE_META[mode]?.label ?? (v.modeVal ? `画质 ${v.modeVal}` : "文生视频"), modeKey: mode, params: v, refs: media.images.length ? media.images : undefined } });
+      addWork({ id, kind: "video", model: m.id, prompt, createdAt: Date.now(), status: "running", meta: { seconds, size: body.resolution ? String(body.resolution) : undefined, resolution: body.resolution ? String(body.resolution) : undefined, ratio, mode: MODE_META[mode]?.label ?? "文生视频", modeKey: mode, params: v, refs, videoRefs, audioRefs, refsOmitted } });
       try {
         const resp = await cvFetch<any>("/api/canvas-video", {
           method: "POST",
           headers: { "X-Xoi-Billing-Id": billingId },
-          body: JSON.stringify(body),
+          body: JSON.stringify({...body,clientTaskId:`one-stop-${id}`}),
         });
         const taskId = resp?.task_id || resp?.id;
         if (!taskId) throw new Error(resp?.error || resp?.message || "任务提交失败");
@@ -281,9 +375,11 @@ export function VideoStudio() {
         updateWork(id, { taskId });
         poll(id, taskId);
       } catch (e) {
-        updateWork(id, { status: "failed", error: (e as Error).message });
-        notifyWork({ id, kind: "video", prompt, status: "failed", error: (e as Error).message });
-        toast.error((e as Error).message);
+        const uncertain = !(e as any)?.status || (e as any).status >= 500 || (e as any).status === 408;
+        const error = uncertain ? "提交结果待核对，任务可能已经受理；请查看任务和积分记录后再生成" : (e as Error).message;
+        updateWork(id, { status: "failed", error, meta: { unconfirmed: uncertain } });
+        notifyWork({ id, kind: "video", prompt, status: "failed", error });
+        toast.error(error);
       }
     }
   }, [addWork, updateWork, poll, confirm]);
@@ -293,7 +389,8 @@ export function VideoStudio() {
     const sc = (m.paramSchema ?? {}) as Schema;
     const f = sc.mode as (Field & { options?: { value: string; is_default?: boolean }[] }) | undefined;
     const keys = (f?.enum ?? f?.options?.map((o) => String(o.value)) ?? []).map(String);
-    const inputKeys = keys.filter((k) => MODE_ORDER.includes(k));
+    // 当前适配器没有源视频编辑/延长协议，不展示尚未接通的入口。
+    const inputKeys = keys.filter((k) => MODE_ORDER.includes(k) && !["edit", "extend"].includes(k));
     // mode 是画质档（std/pro）而不是输入方式：不产生 tab，渲染成参数胶囊（renderParams）
     if (!inputKeys.length) {
       if (!keys.length) return undefined;
@@ -309,9 +406,9 @@ export function VideoStudio() {
       const meta = MODE_META[k];
       const tiles: RefTile[] = [];
       const imgCap = cap(up("images"), k, k === "reference" ? 9 : 3);
-      if (imgCap > 0) tiles.push(tile("image", imgCap, k === "first-frame" || k === "first-last" ? (k === "first-last" ? "首尾帧" : "首帧") : up("images")?.label?.zh ?? "参考图片", k !== "text-to-video"));
+      if (imgCap > 0) tiles.push(tile("image", imgCap, k === "first-frame" || k === "first-last" ? (k === "first-last" ? "首尾帧" : "首帧") : up("images")?.label?.zh ?? "参考图片", k === "first-frame" || k === "first-last"));
       const vidCap = cap(up("videos"), k, 0);
-      if (vidCap > 0) tiles.push(tile("video", vidCap, up("videos")?.label?.zh ?? "参考视频", true));
+      if (vidCap > 0) tiles.push(tile("video", vidCap, up("videos")?.label?.zh ?? "参考视频", false));
       const audCap = cap(up("audios"), k, 0);
       if (audCap > 0) tiles.push(tile("audio", audCap, up("audios")?.label?.zh ?? "参考音频", false));
       const opt = f?.options?.find((o) => String(o.value) === k);
@@ -340,8 +437,6 @@ export function VideoStudio() {
     const ratioOpts = hasSchema && sc.aspect_ratio ? optionsOf(sc, "aspect_ratio", v, mode) : (mfVideoCaps(m).ratios.length ? mfVideoCaps(m).ratios.map((r) => ({ value: r, label: r })) : [{ value: "16:9", label: "横屏 16:9" }, { value: "9:16", label: "竖屏 9:16" }, { value: "1:1", label: "方形 1:1" }]);
     const curRatio = ratioOpts.some((o) => o.value === v.ratio) ? v.ratio : (pickOf(sc, "aspect_ratio", v, mode) ?? ratioOpts[0]?.value);
     const countMax = (sc.count as Field | undefined)?.max ?? 10;
-    const modeField = sc.mode as (Field & { label?: { zh?: string } }) | undefined;
-    const modeIsQuality = modeField && !(modeField.enum ?? modeField.options?.map((o) => String(o.value)) ?? []).some((k) => MODE_ORDER.includes(String(k)));
     return (
       <>
         {resOpts.length === 1 ? (
@@ -349,19 +444,15 @@ export function VideoStudio() {
         ) : resOpts.length > 1 && (
           <ParamSelect label="清晰度" value={(resOpts.some((o) => o.value === v.res) ? v.res : (pickOf(sc, "resolution", v, mode) ?? resOpts[0].value)) ?? ""} options={resOpts} onChange={(x) => set("res", x)} className={PILL} active accent />
         )}
-        {modeIsQuality && modeField && (
-          <ParamSelect label={modeField.label?.zh ?? "画质档"} value={v.modeVal ?? String(modeField.default ?? (modeField.enum ?? modeField.options?.map((o) => String(o.value)) ?? [])[0])}
-            options={optionsOf(sc, "mode", v, mode)} onChange={(x) => set("modeVal", x)} className={PILL} active />
-        )}
         {durOpts.length === 1 ? (
           <span data-param-fixed="true" className="inline-flex h-8 max-w-full shrink-0 cursor-default select-none items-center gap-1.5 rounded-full border border-border bg-transparent px-3 text-[12px] font-medium text-foreground sm:h-9" title={`时长: ${durOpts[0].label} · 固定值 · 该模型仅支持此选项`}><span className="text-muted-foreground">时长</span><b className="font-semibold">{durOpts[0].label}</b></span>
         ) : (
           <ParamSelect label="时长" value={curDur ?? ""} options={durOpts} onChange={(x) => set("seconds", x)} className={PILL} active />
         )}
         <ParamSelect label="比例" value={curRatio ?? ""} options={ratioOpts} onChange={(x) => set("ratio", x)} className={PILL} active />
-        <ParamSelect label="生成数量" value={v.n ?? "1"} options={countOptions(countMax)} onChange={(x) => set("n", x)} className={PILL} grid />
-        {/* 其余 schema 参数（生成音频 / 档位 / 种子…）按类型渲染，可用性跟随模式 */}
-        {hasSchema && <ParamPills schema={sc} values={v} onChange={set} mode={mode} exclude={HANDLED} />}
+        <ParamSelect label="生成数量" value={v.n ?? "1"} options={countOptions(Math.min(10, countMax))} onChange={(x) => set("n", x)} className={PILL} grid />
+        {sc.generate_audio && <ParamControl schema={sc} k="generate_audio" values={v} onChange={set} mode={mode} />}
+        {/* 队列尚未完整转发这些高级参数，暂不展示以免误导。 */}
       </>
     );
   }, []);
@@ -406,10 +497,11 @@ function BillingConfirm({ bill, onCancel, onOk }: { bill: { preview: BillingPrev
           <p className="text-sm"><strong>{p.label}</strong> · {p.model}</p>
           <p className="mt-1 text-sm text-primary-strong">{typeof p.quote?.yuan === "number" && p.quote.yuan > 0 ? `单次参考约 ${(p.quote.yuan * 10).toFixed(2)} 积分（¥${p.quote.yuan.toFixed(2)}）` : "暂无完整预估，不代表免费"}</p>
           <label className="mt-4 flex items-center justify-between gap-3 text-sm font-medium">
-            本轮预算上限（积分）
+            单条预算上限（积分）
             <input type="number" min={0.001} max={p.budget.maxPoints} step={0.001} value={points} onChange={(e) => setPoints(Number(e.target.value))}
               className="w-32 rounded-xl border border-border px-3 py-2 text-right font-mono text-sm outline-none focus:border-primary/40" />
           </label>
+          <p className="mt-2 text-[12px] text-foreground">本次 {p.count ?? 1} 条，整批预算最多 {(points * (p.count ?? 1)).toFixed(3)} 积分。</p>
           <p className="mt-3 text-[12px] leading-5 text-muted-foreground">最多 {p.budget.maxCalls} 次调用 · {p.budget.minutes} 分钟内有效 · 1 元 = 10 积分 · 停止只拦截后续调用</p>
         </div>
         <div className="flex justify-end gap-2 px-4 pb-4 sm:px-6">
@@ -430,14 +522,14 @@ function VideoPlaybook() {
           <li><b className="text-foreground">首帧</b>：上传一张图作为视频起始画面，AI 接着往下拍。</li>
           <li><b className="text-foreground">首尾帧</b>：首帧 + 尾帧都给，AI 补中间的运镜。</li>
           <li><b className="text-foreground">全能参考</b>：上传多张参考图（上限随线路），让人物 / 画风保持一致。</li>
-          <li><b className="text-foreground">视频编辑 / 延长</b>：上传一段视频，用文字说改什么或让它继续往后演进（随线路开放）。</li>
+          <li><b className="text-foreground">参考素材</b>：按当前模型支持的上传格提供图片、视频或音频；独立的视频编辑和延长功能尚未开放。</li>
         </ul>
       </section>
       <section><h3 className="font-semibold text-foreground">清晰度与时长</h3>
         <p className="mt-1 text-muted-foreground">清晰度决定画质也决定价格；时长按所选线路的档位提供，只出一档的线路显示为固定值。</p>
       </section>
       <section><h3 className="font-semibold text-foreground">计费方式</h3>
-        <p className="mt-1 text-muted-foreground">提交前确认本轮预算上限；只按实际用量扣积分，失败自动退回。提交后可以关闭页面，任务在服务器继续跑。</p>
+        <p className="mt-1 text-muted-foreground">提交前确认本轮预算上限，费用以实际用量和积分明细为准。任务在服务器继续执行，结果不明确时请先核对记录再生成。</p>
       </section>
       <section><h3 className="font-semibold text-foreground">接镜技巧</h3>
         <p className="mt-1 text-muted-foreground">想续拍：在作品卡点「重新编辑」，换到首帧模式；多镜头保持人物一致：同一批参考图走全能参考。</p>

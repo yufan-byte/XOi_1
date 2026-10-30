@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import projectStore from "@/stores/project";
 import { pageLoaders, navigationPending } from "./pageLoading";
 import { createLoginUrl, readLoginReturn } from "../../../shared/loginNavigation";
+import { sessionSignal } from "@/utils/session";
 // 范围收敛（按造物方案）：只保留四个创作模块及其流水线。
 // 登录/注册/积分/支付/管理员/供应商全部由造物体系接管：
 //   · 登录注册 → /console/login /console/signup（React 控制台）
@@ -128,7 +129,8 @@ router.beforeEach(async (to, from, next) => {
     next();
     return;
   }
-  if (!localStorage.getItem("token")) {
+  // F3：本地只判断「有没有会话信号」，凭据本身在 httpOnly cookie 里，JS 读不到也不需要读。
+  if (!sessionSignal()) {
     window.location.replace(createLoginUrl(`/#${to.fullPath}`));
     next(false);
     return;

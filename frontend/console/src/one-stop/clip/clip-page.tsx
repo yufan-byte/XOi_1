@@ -12,6 +12,7 @@ import { cn, dateLabel, timeHM, uid } from "@/lib/utils";
 import { AssetList } from "./asset-list";
 import { assetSummary, probeFile } from "./assets";
 import { blobStore } from "./blob-store";
+import { assertAccountSession } from "../adapters/request";
 import { generatePlan } from "./plan";
 import { ClipWorkbench } from "./workbench";
 import { findTemplate, fmtSize, MODES, SUGGESTIONS, TEMPLATES, type ClipAsset, type ClipProject } from "./types";
@@ -19,6 +20,7 @@ import { findTemplate, fmtSize, MODES, SUGGESTIONS, TEMPLATES, type ClipAsset, t
 const MODE_ICON = { mixcut: Clapperboard, talking: Mic, commerce: ShoppingBag } as const;
 
 export function ClipPage() {
+  const owner = useRef(assertAccountSession()).current;
   const { data } = useCatalog();
   const col = useCollection<ClipProject>("clip");
   const [modelSel, setModel] = useState("");
@@ -46,27 +48,30 @@ export function ClipPage() {
     }
   };
   const removeAsset = (id: string) => { const url = assets.find((a) => a.id === id)?.url; if (url) URL.revokeObjectURL(url); setAssets((c) => c.filter((a) => a.id !== id)); files.current.delete(id); };
-  // localStorage 写满时 store-local 会静默吞掉写入：项目看着保存了，刷新就没了。写完回读核对，
-  // 失败先去掉缩略图（占大头）再试一次，还不行就明确告诉用户
-  const persist = (p: ClipProject) => {
-    const saved = (x: ClipProject) => col.upsert(x).updatedAt === col.get(x.id)?.updatedAt;
-    if (saved(p) || saved({ ...p, assets: p.assets.map((a) => ({ ...a, thumb: undefined })) })) return;
-    toast.error("浏览器本地存储已满，这个项目没能保存（刷新后会丢）。请删掉几个旧项目再试。", { id: "clip-quota" });
+  // 已迁移到云端集合：必须等服务器确认，不能把乐观内存镜像当作保存凭据。
+  const persist = async (p: ClipProject) => {
+    try { assertAccountSession(owner); col.upsert(p); await col.flush(p.id); assertAccountSession(owner); return true; }
+    catch (e) { toast.error(`剪辑项目保存结果待核对：${(e as Error).message}。请保留当前页面。`, { id: "clip-save" }); return false; }
   };
 
   const generate = async () => {
     if (!visual) return toast.error("先上传至少一个视频或照片素材");
     if (!model) return toast.error("暂无可用文本模型");
+    if (col.state.saveError) return toast.error("有保存结果待核对的项目，请先核对记录，避免重复创建");
     setBusy(true); const ac = new AbortController(); abort.current = ac;
     try {
       const plan = await generatePlan(model, assets, prompt.trim(), template, { referenceNames: refs.map((r) => r.name), reasoning: thinking, signal: ac.signal });
       const id = uid();
-      const stored = await Promise.all(assets.map((a) => { const f = files.current.get(a.id); return f ? blobStore.put(a.id, f) : Promise.resolve(true); }));
+      assertAccountSession(owner);
+      const blobs = blobStore.forProject(id);
+      const stored = await Promise.all(assets.map((a) => { const f = files.current.get(a.id); return f ? blobs.put(`asset-${a.id}`, f) : Promise.resolve(true); }));
+      assertAccountSession(owner);
       if (stored.includes(false)) toast.warning("部分素材没能存进浏览器（空间不足或隐私模式），本次可以正常剪辑导出，但关掉页面后需要重新上传", { duration: 8000 });
       const project: ClipProject = { id, title: plan.title || prompt.slice(0, 20) || "未命名剪辑", prompt: prompt.trim(), template, mode: "mixcut", model, assets: assets.map((a) => ({ ...a, url: undefined })), referenceNames: refs.map((r) => r.name), plan: { ...plan, fit: "smart_crop" }, version: 1, createdAt: Date.now(), ratio: findTemplate(template)?.ratio ?? "9:16" };
-      persist(project);
+      const saved = await persist(project);
+      assertAccountSession(owner);
       setActive({ project, assets, render: null }); setPrompt(""); setAssets([]); setRefs([]);
-      toast.success(`AI 剪辑师写入了 v1 · ${plan.segments.length} 段`);
+      if (saved) toast.success(`AI 剪辑师写入了 v1 · ${plan.segments.length} 段`);
     } catch (e) { const err = e as Error; if (err.name !== "AbortError") toast.error(err.message); }
     finally { setBusy(false); abort.current = null; }
   };
@@ -74,16 +79,23 @@ export function ClipPage() {
   const reopen = async (p: ClipProject) => {
     setOpening(p.id);
     try {
-      const loaded: ClipAsset[] = await Promise.all(p.assets.map(async (a) => { const b = await blobStore.get(a.id); return b ? { ...a, url: URL.createObjectURL(b) } : { ...a, missing: true }; }));
-      const render = (await blobStore.get(`render-${p.id}`)) ?? null;
+      assertAccountSession(owner);
+      const blobs = blobStore.forProject(p.id);
+      const loaded: ClipAsset[] = await Promise.all(p.assets.map(async (a) => { const b = await blobs.get(`asset-${a.id}`); return b ? { ...a, url: URL.createObjectURL(b) } : { ...a, missing: true }; }));
+      const render = (await blobs.get("render")) ?? null;
+      assertAccountSession(owner);
       setActive({ project: p, assets: loaded, render });
       if (loaded.some((a) => a.missing)) toast.warning("部分素材文件已不在浏览器里，方案可看，导出前需重新上传");
     } catch (e) { toast.error(`打开项目失败：${(e as Error).message || "读取浏览器存储出错"}`); }
     finally { setOpening(null); }
   };
-  const delProject = (p: ClipProject) => { if (!confirm("删除这个项目？素材登记、版本线一起删，不可恢复。")) return; col.remove(p.id); p.assets.forEach((a) => blobStore.del(a.id)); blobStore.del(`render-${p.id}`); toast.success("已删除"); };
+  const delProject = async (p: ClipProject) => {
+    if (!confirm("删除这个项目？素材登记、版本线一起删，不可恢复。")) return;
+    try { assertAccountSession(owner); const blobs = blobStore.forProject(p.id); await col.remove(p.id); await Promise.all([...p.assets.map((a) => blobs.del(`asset-${a.id}`)), blobs.del("render")]); toast.success("已删除"); }
+    catch (e) { toast.error(`项目未确认删除，素材已保留：${(e as Error).message}`); }
+  };
 
-  if (active) return <AppShell sidebar={false}><ClipWorkbench key={active.project.id} project={active.project} assets={active.assets} initialRender={active.render} onBack={() => { active.assets.forEach((a) => a.url && URL.revokeObjectURL(a.url)); setActive(null); }} onUpdate={(p) => { persist(p); setActive((c) => (c ? { ...c, project: p } : c)); }} /></AppShell>;
+  if (active) return <AppShell sidebar={false}><ClipWorkbench key={active.project.id} project={active.project} assets={active.assets} initialRender={active.render} onBack={() => { active.assets.forEach((a) => a.url && URL.revokeObjectURL(a.url)); setActive(null); }} onUpdate={(p) => { assertAccountSession(owner); void persist(p); setActive((c) => (c?.project.id === p.id ? { ...c, project: p } : c)); }} /></AppShell>;
 
   return (
     <AppShell>

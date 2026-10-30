@@ -84,6 +84,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { useRouter } from "vue-router";
+import { authHeaders, sessionSignal } from "@/utils/session";
 // 面板暗色主题：必须走普通 CSS（不能 scoped），否则打不进
 // DirectorMotionLibrary / DirectorActorBlocking 子组件内部的控件
 import "./director-panel.css";
@@ -94,6 +95,7 @@ import DirectorMotionLibrary from "./DirectorMotionLibrary.vue";
 import DirectorActorBlocking from "./DirectorActorBlocking.vue";
 import DirectorFramingPreview from "./DirectorFramingPreview.vue";
 import {directorShotPackage} from "@/utils/directorHandoff";
+import {writeBrowserHandoff} from "../../../../shared/browserHandoff";
 import {resolveDirectorDuration} from "../../../../shared/directorReview";
 import { validateTimelineClear } from "@/utils/directorTimeline";
 import { MOTION_PRESETS, applyBlockingToCurrent, validateBlockingPlan, validateSceneActionPlan, sceneActionLabel, type SceneActionPlan } from "../../../../shared/directorMotion";
@@ -148,14 +150,14 @@ function billingUpdate(event:Event){
 }
 async function checkReceipt(requestId?:string){
  const id=requestId||billingState.value?.id;if(!id||checkingReceipt.value)return;checkingReceipt.value=true;
- try{checkAccount();const r=await fetch(`/api/billing/receipt/${id}`,{headers:{Authorization:mountedToken},signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error('费用查询失败，请稍后核对原请求');const d=(await r.json()).data;if(disposed||localStorage.getItem('token')!==mountedToken)return;
+ try{checkAccount();const r=await fetch(`/api/billing/receipt/${id}`,{headers:{...authHeaders()},signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error('费用查询失败，请稍后核对原请求');const d=(await r.json()).data;if(disposed||sessionSignal()!==mountedToken)return;
  const bill=billingState.value?.id===id?billingState.value:billingHistory.value.find(b=>b.id===id);if(!bill)return;
  Object.assign(bill,reviewDirectorReceipt(bill,d));persistDraft();
  if(bill.state==='pending'&&bill.needsReview)notice.value='请求状态未确认，可结束本次尝试后重试；费用请到积分明细查看。';
  }catch(e:any){error.value=e.message;}finally{checkingReceipt.value=false;}
 }
 async function stopBilling(){const id=billingState.value?.id;if(!id||checkingReceipt.value||busy.value)return;checkingReceipt.value=true;
- try{checkAccount();const r=await fetch(`/api/billing/budget/${id}/stop`,{method:'POST',headers:{Authorization:mountedToken},signal:AbortSignal.timeout(10000)});if(!r.ok||(await r.json()).data?.stopped!==true)throw new Error('停止失败，请核对原请求');if(disposed||localStorage.getItem('token')!==mountedToken||billingState.value?.id!==id)return;
+ try{checkAccount();const r=await fetch(`/api/billing/budget/${id}/stop`,{method:'POST',headers:{...authHeaders()},signal:AbortSignal.timeout(10000)});if(!r.ok||(await r.json()).data?.stopped!==true)throw new Error('停止失败，请核对原请求');if(disposed||sessionSignal()!==mountedToken||billingState.value?.id!==id)return;
  billingState.value={...billingState.value,needsReview:false};persistDraft();error.value='';notice.value='已结束本次尝试，可换模型重新生成。';
  }catch(e:any){error.value=e.message;}finally{checkingReceipt.value=false;}}
 function markUncertain(){if(callBillingId&&billingState.value?.id===callBillingId&&billingState.value.state==='pending'){billingState.value={...billingState.value,needsReview:true};void checkReceipt();}}
@@ -172,9 +174,9 @@ const undoRaw = ref(""), undoFingerprint = ref(""),appliedKind=ref<'scene'|'came
 let timelineClearId="";
 let controller: AbortController | null = null;
 let disposed = false,requestTimer:ReturnType<typeof setTimeout>|undefined;
-const mountedToken = localStorage.getItem("token") || "";
+const mountedToken = sessionSignal() || "";
 function checkAccount() {
-  if (!mountedToken || localStorage.getItem("token") !== mountedToken) throw new Error("账号已切换，请重新打开导演台");
+  if (!mountedToken || sessionSignal() !== mountedToken) throw new Error("账号已切换，请重新打开导演台");
 }
 const undoStorageKey=()=>`xoi_director_scene_undo_v1:u${props.ownerId}:${props.projectId}`;
 function persistUndo(){
@@ -250,7 +252,7 @@ onMounted(async () => {
     }
   } catch {}
   try {
-    const res = await fetch("/api/aiAssistant/director/skills", { headers: { Authorization: localStorage.getItem("token") || "" } });
+    const res = await fetch("/api/aiAssistant/director/skills", { headers: { ...authHeaders() } });
     const data = await res.json();
     if (!disposed && res.ok && Array.isArray(data.data)) skills.value = data.data;
   } catch { if (!disposed) error.value = "技能目录读取失败，请检查本地服务并重新打开"; }
@@ -259,17 +261,17 @@ onUnmounted(() => { disposed = true; controller?.abort(); });
 async function generatePlan() {
   if (busy.value || applying.value || billingState.value?.needsReview) return;
   busy.value = true; error.value = ""; notice.value = "";
-  const token = localStorage.getItem("token") || "";
+  const token = sessionSignal() || "";
   const requestController=startRequest();
   try {
     checkAccount();
     const snapshot = await captureDirectorScene(props.getIframe(), props.projectId, props.ownerId, props.projectName);
     liveScene.value=snapshot.scene;
     const durationSeconds=resolveDirectorDuration(intent.value,durationInput.value,snapshot.scene.durationSeconds);
-    const response = await fetch("/api/aiAssistant/director/plan", { method: "POST", signal: requestController.signal, headers: { "Content-Type": "application/json", Authorization: token }, body: JSON.stringify({ skillId: skillId.value, intent: intent.value, shotCount: shotCount.value,durationSeconds,subjectId:subjectId.value||undefined, model: model.value || undefined, scene: snapshot.scene }) });
+    const response = await fetch("/api/aiAssistant/director/plan", { method: "POST", signal: requestController.signal, headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ skillId: skillId.value, intent: intent.value, shotCount: shotCount.value,durationSeconds,subjectId:subjectId.value||undefined, model: model.value || undefined, scene: snapshot.scene }) });
     const body = await response.json();
     if (!response.ok) throw new Error(body.message || "导演方案请求失败");
-    if (disposed || requestController.signal.aborted || localStorage.getItem("token") !== token) return;
+    if (disposed || requestController.signal.aborted || sessionSignal() !== token) return;
     if (body.data?.projectId !== props.projectId || body.data?.activeShotId !== snapshot.scene.activeShotId) throw new Error("方案与当前场景不匹配，请重新生成");
     const selected = DIRECTOR_SKILLS.find(s => s.id === skillId.value)!;
     const validated = validateDirectorPlan(body.data.plan, selected, shotCount.value);
@@ -320,10 +322,10 @@ async function generateScene() {
     liveScene.value=snapshot.scene;const durationSeconds=resolveDirectorDuration(intent.value,durationInput.value,snapshot.scene.durationSeconds);
     const fresh=mode.value==='build'&&buildFromEmpty.value;
     const composeScene=fresh?{...snapshot.scene,objects:[],objectPaths:{},cameraKeyframes:[]}:snapshot.scene;
-    const request=intent.value.trim(),token=localStorage.getItem("token")||"";
-    const response=await fetch("/api/aiAssistant/director/compose",{method:"POST",signal:requestController.signal,headers:{"Content-Type":"application/json",Authorization:token},body:JSON.stringify({task:mode.value==='blocking-ai'?'adjust':mode.value,intent:mode.value==='blocking-ai'?`只设置现有人物的走位与姿势，保留布景、灯光和机位：${request}`:request,durationSeconds,subjectId:fresh?undefined:subjectId.value||undefined,groundNewObjects:groundNewObjects.value,scene:composeScene,history:fresh?[]:conversation.value.slice(-6),model:model.value||undefined})});
+    const request=intent.value.trim(),token=sessionSignal()||"";
+    const response=await fetch("/api/aiAssistant/director/compose",{method:"POST",signal:requestController.signal,headers:{"Content-Type":"application/json",...authHeaders()},body:JSON.stringify({task:mode.value==='blocking-ai'?'adjust':mode.value,intent:mode.value==='blocking-ai'?`只设置现有人物的走位与姿势，保留布景、灯光和机位：${request}`:request,durationSeconds,subjectId:fresh?undefined:subjectId.value||undefined,groundNewObjects:groundNewObjects.value,scene:composeScene,history:fresh?[]:conversation.value.slice(-6),model:model.value||undefined})});
     const body=await response.json();if(!response.ok)throw new Error(body.message||"场景方案生成失败");
-    if(disposed || requestController.signal.aborted || localStorage.getItem("token")!==token)return;
+    if(disposed || requestController.signal.aborted || sessionSignal()!==token)return;
     if(body.data?.projectId!==props.projectId || body.data?.activeShotId!==snapshot.scene.activeShotId)throw new Error("方案与当前场景不匹配，请重新生成");
     const validatedPlan=mode.value==='blocking-ai'?validateBlockingPlan(body.data.plan,composeScene.objects,subjectId.value||undefined):validateSceneActionPlan(body.data.plan,composeScene.objects);
     actionPlanScope.value=mode.value==='blocking-ai'?'blocking':'scene';actionPlan.value=validatedPlan;actionPlanFresh.value=fresh;
@@ -427,7 +429,7 @@ async function sendToCanvas() {
     if(!lastApplied.value||appliedKind.value!=='camera')throw new Error('请先应用并检查镜头');
     const {graph}=await directorShotPackage(props.getIframe(),props.projectId,props.ownerId,props.projectName,plan.value.renderPrompt);
     checkAccount();if(disposed)return;
-    localStorage.setItem("xoi_canvas_graph_v1",JSON.stringify(graph));
+    writeBrowserHandoff(sessionStorage,sessionSignal(),"canvas-graph",graph);
     sessionStorage.setItem("xoi_director_return_scene_v1", props.projectId);
     await router.push({ path: "/canvas", query: { source: "xoi", graph: "1", from: "director3d" } });
   } catch(e:any) { error.value=e.message||"画布交接数据保存失败，请先复制方案"; }

@@ -26,6 +26,7 @@
 
 <script setup lang="ts">
 import { AVCanvas } from "@webav/av-canvas";
+import { sessionSignal } from "@/utils/session";
 import { Combinator, OffscreenSprite, MP4Clip, AudioClip, ImgClip, VisibleSprite, renderTxt2ImgBitmap } from "@webav/av-cliper";
 import axios from "@/utils/axios";
 import projectStore from "@/stores/project";
@@ -1549,14 +1550,14 @@ function captureOutputArchiveContext(): OutputArchiveContext | null {
     projectName: project?.name || "成片",
     resolution: `${props.canvasWidth}x${props.canvasHeight}`,
     ownerId: localStorage.getItem("userId") || "",
-    token: localStorage.getItem("token") || "",
+    token: sessionSignal() || "",
   };
 }
 
 function archiveOwnerUnchanged(context: OutputArchiveContext): boolean {
   return !!context.ownerId && !!context.token
     && localStorage.getItem("userId") === context.ownerId
-    && localStorage.getItem("token") === context.token;
+    && sessionSignal() === context.token;
 }
 
 interface ExportSegment {

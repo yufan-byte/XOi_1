@@ -7,7 +7,7 @@ import { Button, Segmented } from "antd";
 import { ModelPicker } from "@/components/model-picker";
 import { ModelQuote } from "@/xoi/model-quote";
 import { isAutoDLConfig } from "@/lib/autodl";
-import { defaultConfig, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { defaultConfig, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
@@ -18,6 +18,7 @@ import type { CanvasGenerationMode, CanvasNodeData, CanvasNodeMetadata } from ".
 
 type CanvasConfigNodePanelProps = {
     node: CanvasNodeData;
+    canvasConfig?: AiConfig;
     isRunning: boolean;
     inputSummary: { textCount: number; imageCount: number; videoCount: number; audioCount: number };
     videoFrameOptions?: CanvasVideoFrameOption[];
@@ -25,11 +26,12 @@ type CanvasConfigNodePanelProps = {
     onConfigChange: (nodeId: string, patch: Partial<CanvasNodeMetadata>) => void;
     onGenerate: (nodeId: string) => void;
     onComposerToggle: () => void;
+    onOpenCanvasModels: () => void;
 };
 
-export function CanvasConfigNodePanel({ node, isRunning, inputSummary, videoFrameOptions = [], videoResourceOptions = [], onConfigChange, onGenerate, onComposerToggle }: CanvasConfigNodePanelProps) {
+export function CanvasConfigNodePanel({ node, canvasConfig, isRunning, inputSummary, videoFrameOptions = [], videoResourceOptions = [], onConfigChange, onGenerate, onComposerToggle, onOpenCanvasModels }: CanvasConfigNodePanelProps) {
     const globalConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+    const nodeDefaults = canvasConfig || globalConfig;
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const mode = node.metadata?.generationMode || "image";
     const config = buildNodeConfig(globalConfig, node, mode);
@@ -47,7 +49,7 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, videoFram
                         size="small"
                         className="canvas-config-mode !rounded-md !p-0.5"
                         value={mode}
-                        onChange={(value) => onConfigChange(node.id, modePatch(globalConfig, value as CanvasGenerationMode))}
+                        onChange={(value) => onConfigChange(node.id, modePatch(nodeDefaults, value as CanvasGenerationMode))}
                         options={[
                             {
                                 value: "image",
@@ -102,7 +104,7 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, videoFram
             </div>
 
             <div className={`mb-2 grid min-w-0 cursor-default items-center gap-2 ${mode === "image" || mode === "video" ? "grid-cols-[minmax(0,1fr)_148px_92px]" : mode === "audio" ? "grid-cols-[minmax(0,1fr)_148px]" : "grid-cols-1"}`} onMouseDown={(event) => event.stopPropagation()}>
-                <ModelPicker className="canvas-compact-control h-10" config={config} value={config.model} channelId={modelChannelId(config, mode)} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability={mode} showPriceInTrigger={mode === "image" || mode === "video"} onMissingConfig={() => openConfigDialog(true)} fullWidth />
+                <ModelPicker className="canvas-compact-control h-10" config={config} value={config.model} channelId={modelChannelId(config, mode)} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability={mode} showPriceInTrigger={mode === "image" || mode === "video"} onMissingConfig={onOpenCanvasModels} fullWidth />
                 {mode === "video" ? (
                     <CanvasVideoSettingsPopover config={config} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" frameOptions={videoFrameOptions} resourceOptions={videoResourceOptions} metadata={node.metadata} firstFrameNodeId={node.metadata?.firstFrameNodeId} lastFrameNodeId={node.metadata?.lastFrameNodeId} onFrameChange={(patch) => onConfigChange(node.id, patch)} onMetadataChange={(patch) => onConfigChange(node.id, patch)} onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
                 ) : mode === "image" ? (
@@ -195,10 +197,11 @@ function modelChannelId(config: AiConfig, mode: CanvasGenerationMode) {
 }
 
 function modePatch(config: AiConfig, mode: CanvasGenerationMode): Partial<CanvasNodeMetadata> {
-    if (mode === "image") return { generationMode: mode, model: config.imageModel, channelId: config.imageChannelId };
-    if (mode === "video") return { generationMode: mode, model: config.videoModel, channelId: config.videoChannelId };
-    if (mode === "text") return { generationMode: mode, model: config.textModel, channelId: config.textChannelId };
-    return { generationMode: mode, model: config.audioModel, channelId: config.audioChannelId || config.activeChannelId };
+    const defaults = config as AiConfig & Record<string, any>;
+    if (mode === "image") return { generationMode: mode, model: defaults.imageModel, channelId: defaults.imageChannelId, quality: defaults.quality, size: defaults.size, count: Number(defaults.canvasImageCount || defaults.count) || 1 };
+    if (mode === "video") return { generationMode: mode, model: defaults.videoModel, channelId: defaults.videoChannelId, size: defaults.videoSize, seconds: defaults.videoSeconds, vquality: defaults.vquality, mode: defaults.videoMode, negativePrompt: defaults.videoNegativePrompt, multiShot: defaults.videoMultiShot, shotType: defaults.videoShotType, generateAudio: defaults.videoGenerateAudio, characterOrientation: defaults.videoCharacterOrientation, watermark: defaults.videoWatermark };
+    if (mode === "text") return { generationMode: mode, model: defaults.textModel, channelId: defaults.textChannelId };
+    return { generationMode: mode, model: defaults.audioModel, channelId: defaults.audioChannelId || defaults.activeChannelId, audioVoice: defaults.audioVoice, audioFormat: defaults.audioFormat, audioSpeed: defaults.audioSpeed, audioInstructions: defaults.audioInstructions, grokTtsVoice: defaults.grokTtsVoice, grokTtsLanguage: defaults.grokTtsLanguage, grokTtsFormat: defaults.grokTtsFormat, grokTtsSpeed: defaults.grokTtsSpeed, glmTtsVoice: defaults.glmTtsVoice, glmTtsFormat: defaults.glmTtsFormat, glmTtsSpeed: defaults.glmTtsSpeed, mimoTtsVoice: defaults.mimoTtsVoice, mimoTtsFormat: defaults.mimoTtsFormat, mimoVoiceDesignPrompt: defaults.mimoVoiceDesignPrompt, geminiTtsVoice: defaults.geminiTtsVoice };
 }
 
 function videoConfigPatch(key: keyof AiConfig, value: string) {

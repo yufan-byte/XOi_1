@@ -88,6 +88,7 @@ const NO_ID_TABLES = new Set([
   "xoi_release_instances",
   "xoi_storage_usage",
   "xoi_model_leases",
+  "xoi_media_request_links",
   "o_setting",
   "o_assets2Storyboard",
   "o_skillAttribution",

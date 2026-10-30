@@ -194,6 +194,9 @@ function familyKey(name: string): string {
 export function selectCatalogModel(models: CatalogModel[], requested: string, type: ModelKind): CatalogModel | undefined {
   const exact = models.find(m => m.modelName === requested && m.type === type && m.selectable);
   if (exact) return exact;
+  // Video models can have different billing units, resolutions and prices. A
+  // missing explicit selection must never silently become another paid model.
+  if (type === "video" && requested) return undefined;
   if (isAgnesModel(requested)) return undefined; // restricted test models never fall through to a paid model
   const candidates = models.filter(m => m.type === type && m.selectable && !isAgnesModel(m.modelName));
   const family = familyKey(requested);
@@ -234,6 +237,9 @@ export function quoteModel(model: CatalogModel, input: Record<string, any> = {},
   const c = Number(input.outputTokens ?? 800);
   if (![p, c].every(v => Number.isFinite(v) && v >= 0 && v <= 10_000_000)) throw new Error("文本用量无效");
   const resolution = String(input.resolution ?? params.resolution ?? input.size ?? "").toLowerCase().replace(/^(480|720|1080)$/, "$1p");
+  if (/^seedance2\.[05]-line1(?:-fast)?-xoi$/i.test(model.modelName) && !["480p", "720p"].includes(resolution)) {
+    throw new Error("该专线此清晰度的计费尚未核实，暂不可报价或生成");
+  }
   const usage = { seconds, upstream_cost: 0, billing_resolution: resolution, billing_quality: input.quality ?? params.quality ?? "", billing_mode: input.mode ?? params.mode ?? "text-to-video", billing_ref_video: input.hasReferenceVideo === true ? "true" : "false", billing_generate_audio: String(input.generate_audio ?? "false"), billing_aspect_ratio: input.aspect_ratio ?? params.aspect_ratio ?? "16:9", billing_model_variant: input.model_variant ?? params.model_variant ?? "", billing_tier: input.tier ?? params.tier ?? "" };
   const pricing = model.pricing;
   let yuan: number;

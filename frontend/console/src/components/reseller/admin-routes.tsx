@@ -44,7 +44,7 @@ import { AgentsPanel } from "@/components/reseller/team/agents-panel";
 import { AgentInvite, AgentMarkup } from "@/components/reseller/agent/agent-views";
 import { SkillReview, WorkReview } from "@/components/reseller/moderation/skill-review";
 import { useResellerMe, useResellerScope, useIsReseller } from "@/lib/reseller/client";
-import { api, hasSession } from "@/lib/api";
+import { api, hasSession, loadAuth } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { createLoginUrl } from "../../../../../shared/loginNavigation";
 import {ReleasesView} from "@/components/reseller/admin/releases";
@@ -181,7 +181,8 @@ const AdminUsersPage = () => <ResellerShell><AdminOnly title="用户管理"><Adm
 const AdminStatsPage = () => <ResellerShell><AdminOnly title="收益总览"><DailyStatsView /></AdminOnly></ResellerShell>;
 const AdminSecurityPage = () => <ResellerShell><AdminOnly title="安全检测"><SecurityView /></AdminOnly></ResellerShell>;
 const AdminReleasesPage=()=> <ResellerShell><ReleasesView/></ResellerShell>;
-const TeamWorkspacePage=()=> <ResellerShell><TeamWorkspaceContent embedded/></ResellerShell>;
+// 团队空间仅管理员：批量下发账号/密码导出属高危能力，非管理员直接弹回控制台首页（2026-10-28 安全收紧）
+const TeamWorkspacePage=()=> <ResellerShell>{(loadAuth()?.user.role??0)>=10?<TeamWorkspaceContent embedded/>:<Navigate to="/reseller/admin/stats" replace />}</ResellerShell>;
 const AdminTopupsPage = () => <ResellerShell><AdminOnly title="充值记录"><AdminTopupsView /></AdminOnly></ResellerShell>;
 const AdminRedemptionsPage = () => <ResellerShell><AdminOnly title="兑换码"><AdminRedemptionsView /></AdminOnly></ResellerShell>;
 const AdminPolicyPage = () => <ResellerShell><AdminOnly title="运营设置"><AdminPolicyView /></AdminOnly></ResellerShell>;

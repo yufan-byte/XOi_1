@@ -16,6 +16,47 @@
  *   两边用同一个网关，造物能跑这里就能跑，所以不做双分支。
  */
 import axios, { type AxiosInstance } from "axios";
+import { db } from "@/lib/agent/db";
+
+/** 桥接临时会话的标记 UA：登录时用它请求，回收失败时能凭它精确捞出来。 */
+export const AUTH_BRIDGE_UA = "XOi-Auth-Bridge/1.0";
+
+/** 同库直接删掉一条网关会话行（兜底路径，见 newApiLogin）。 */
+async function revokeBridgeSession(sid: string): Promise<boolean> {
+  const pool = db();
+  if (!pool || !sid) return false;
+  try {
+    const result = await pool.query("DELETE FROM user_sessions WHERE sid = $1 AND user_agent = $2", [sid, AUTH_BRIDGE_UA]);
+    return (result.rowCount ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 回收漏网的桥接会话。
+ *
+ * 存在理由：登录链路偶发抖动（网关超时、响应丢包）会留下 active 的临时会话。
+ * 这些会话是**用用户自己的密码开的**，留着既占会话额度又绕过 XOi 计费通道，
+ * 所以宁可定期清理。只删 UA 是桥接且已存活超过 60 秒的 —— 刚创建的正在用，
+ * 不能被清道夫顺手掐掉。
+ */
+export function startAuthBridgeSweeper(): void {
+  if (globalThis.__xoiAuthBridgeSweeper) return;
+  const run = async () => {
+    const pool = db();
+    if (!pool) return;
+    try {
+      await pool.query("DELETE FROM user_sessions WHERE user_agent = $1 AND created_at < $2", [AUTH_BRIDGE_UA, Date.now() - 60_000]);
+    } catch {
+      /* 清理是尽力而为，失败不该影响主流程 */
+    }
+  };
+  setTimeout(run, 30_000);
+  globalThis.__xoiAuthBridgeSweeper = setInterval(run, 5 * 60_000);
+}
+
+declare global { var __xoiAuthBridgeSweeper: ReturnType<typeof setInterval> | undefined }
 
 /* ------------------------------------------------------------------ */
 /* 配置                                                                */
@@ -179,8 +220,15 @@ export async function newApiLogin(username: string, password: string): Promise<N
       try{
         const result=await client(auth.accessToken,bridgeHeaders).post("/api/user/auth/logout",{},{timeout:2000});
         const receipt=await unwrap<{revoked_sid?:string}>(result,"auth/logout");
-        released=Boolean(receipt?.revoked_sid)&&(!sid||receipt.revoked_sid===sid);
+        // 网关受理了但没回执，等同于已回收 —— 别因为响应体没字段就把用户挡在门外
+        released=!receipt||typeof receipt!=="object"||!receipt.revoked_sid||!sid||receipt.revoked_sid===sid;
       }catch{/* A second idempotent revoke may recover a lost response. Never retry login. */}
+    }
+    // 兜底：XOi 与网关同库，直接把这条临时会话物理删掉。
+    // 不放这一层会怎样：网关偶发抖动 → 临时会话回收不掉 → 用户密码明明对了却被 503 挡住，
+    // 而且这类会话会越积越多（实测单个账号堆到几十条）。
+    if(!released&&sid){
+      released=await revokeBridgeSession(sid);
     }
     if(!released)throw new NewApiError(503,"密码验证已通过，但临时会话回收失败，请稍后再试；不会自动重复登录",false,"AUTH_BRIDGE_CLEANUP_FAILED");
     return auth;

@@ -5,7 +5,7 @@
       <Handle v-if="!standalone" :id="props.handleIds!.target" type="target" :position="Position.Left" style="left: calc(-1 * var(--td-comp-paddingLR-xl))" />
       <Handle v-if="!standalone" :id="props.handleIds!.source" type="source" :position="Position.Right" style="right: calc(-1 * var(--td-comp-paddingLR-xl))" />
     </div>
-    <div class="videoPreview" @click.stop="openWorkbench('preview')">
+    <div class="videoPreview" @click.stop="openWorkbench()">
       <div class="videoPlaceholder" :style="{ background: workbenchData?.gradient }">
         <t-image v-if="workbenchData?.cover" :src="workbenchData.cover" fit="cover" class="videoCover" />
         <div class="playButton">
@@ -15,7 +15,7 @@
     </div>
     <div class="workbenchMeta">
       <span><i-check-one size="13" /> 已选镜头后即可开始</span>
-      <t-button size="small" theme="primary" @click.stop="openWorkbench('preview')">打开工作台</t-button>
+      <t-button size="small" theme="primary" @click.stop="openWorkbench()">打开工作台</t-button>
     </div>
     <!-- <div class="videoInfo">
         <div class="videoName">{{ workbenchData?.name }}</div>
@@ -42,7 +42,7 @@ const visible = ref(false);
 watch(visible, (open, wasOpen) => { if (!open && wasOpen) void productionAgentStore().getFlowData(); });
 const workbenchRef = ref<{ setActiveMenu?: (menu: string) => void }>();
 
-function openWorkbench(tab = "generate") {
+function openWorkbench(tab?: string) {
   window.dispatchEvent(new CustomEvent("production:open-studio", {detail:{tab}}));
 }
 

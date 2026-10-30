@@ -517,10 +517,10 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 13px;
   color: var(--studio-text);
   background: var(--studio-white);
-  padding: 23px 18px 16px;
+  padding: 20px 16px 15px;
   box-sizing: border-box;
 }
 .tracksHeading {
@@ -530,11 +530,11 @@ watch(
   gap: 8px;
 }
 .tracksHeading strong {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
 }
 .tracksHeading > span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--studio-muted);
   white-space: nowrap;
 }
@@ -550,9 +550,9 @@ watch(
 .studioShot {
   position: relative;
   flex: none;
-  padding: 7px;
+  padding: 9px;
   border: 1px solid var(--studio-line);
-  border-radius: 11px;
+  border-radius: 15px;
   background: var(--studio-bg);
   transition: border-color 0.15s;
 }
@@ -564,7 +564,7 @@ watch(
   display: flex;
   width: 100%;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   padding: 0;
   border: 0;
   text-align: left;
@@ -574,8 +574,8 @@ watch(
   cursor: pointer;
 }
 .shotPick > strong {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.6;
   overflow: hidden;
   display: -webkit-box;
@@ -587,7 +587,7 @@ watch(
   position: relative;
   width: 100%;
   aspect-ratio: 16/9;
-  border-radius: 6px;
+  border-radius: 11px;
   overflow: hidden;
   background: var(--studio-field);
 }
@@ -615,7 +615,7 @@ watch(
   font-size: 10px;
 }
 .shotDetails {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--studio-muted);
   line-height: 1.5;
   padding-bottom: 2px;

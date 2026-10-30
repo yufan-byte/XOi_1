@@ -13,7 +13,12 @@ function cookie(header:string,name:string){
 /** JWT cookies authorize media GET/HEAD only. API writes never accept cookie authentication. */
 export function privateMedia(db:Knex,root:string,secret:()=>Promise<string>,loadUser:(id:number)=>Promise<Identity|undefined>):RequestHandler{
   return async(req,res,next)=>{
-    res.setHeader('Cache-Control','private, no-store');res.setHeader('Referrer-Policy','no-referrer');
+    // 缓存策略（2026-10-26 性能）：原先是 `private, no-store`，等于禁止浏览器保存任何副本，
+    // 每次滚动/翻页都要把整张原图重下（200KB 起步，视频更大）。
+    // 改成 `private, no-cache` 后：允许存副本，但**每次使用前必须回源校验**——文件没变时
+    // 服务器只回 304 空响应（几十字节），省掉 99% 流量；鉴权仍然每次都跑（本中间件在
+    // express.static 之前），换号后访问别人的 URL 依旧 403，不会命中本地缓存越权显示。
+    res.setHeader('Cache-Control','private, no-cache');res.setHeader('Referrer-Policy','no-referrer');
     if(!['GET','HEAD'].includes(req.method))return res.status(405).end();
     try{
       const p=mediaPath(req.path),shared=/^\/artStyle\/[A-Za-z0-9-]+\.(png|jpg|jpeg|webp)$/i.test(p);

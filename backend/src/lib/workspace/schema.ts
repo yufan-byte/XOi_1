@@ -4,6 +4,10 @@ import { ensureCanvasDatabase } from "./canvasDatabase";
 /** Shared PostgreSQL storage. IF NOT EXISTS also supports concurrent application startup. */
 export async function ensureWorkspaceTables(db: Knex) {
   await ensureCanvasDatabase(db);
+  await db.raw(`CREATE TABLE IF NOT EXISTS xoi_canvas_handoffs (
+    id VARCHAR(36) PRIMARY KEY, user_id BIGINT NOT NULL,
+    payload TEXT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)`);
+  await db.raw(`CREATE INDEX IF NOT EXISTS xoi_canvas_handoffs_owner ON xoi_canvas_handoffs(user_id, updated_at DESC)`);
   await db.raw(`CREATE TABLE IF NOT EXISTS xoi_workspace_documents (
     id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL, kind VARCHAR(32) NOT NULL,
     document_id VARCHAR(160) NOT NULL, title VARCHAR(160) NOT NULL,

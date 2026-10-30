@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 
 import type { CanvasAgentPhase } from "../types";
+import { assembleFacePrompt, FACE_SPEC_TOOL_PROPERTY, parseFacePromptSpec } from "./face-prompt-assembler";
 
 export const CANVAS_AGENT_ACTION_NAMES = [
     "get_canvas_summary",
@@ -140,16 +141,17 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("arrange_nodes", "整理指定节点；不传 nodeIds 时整理当前画布顶层节点。", { nodeIds: STRING_ARRAY }),
     defineTool(
         "generate_image",
-        "创建图片并按自动生成设置提交任务。已有空白或明确未提交成功的节点请传nodeId原位生成，无需删除重建；已提交任务会返回现有状态而不重复调用。sourceNodeIds仅放真实直接来源，独立生成传空数组。",
+        "创建图片并按自动生成设置提交任务。nodeId仅用于复用空白或明确提交失败的节点；已有图片内容的节点传nodeId会被拒绝并保留原图——绝不要把画布上已有图片当作本轮生成结果向用户汇报，需要新结果时省略nodeId新建节点。sourceNodeIds仅放真实直接来源，独立生成传空数组。人物/角色/肖像/定妆照必须传faceSpec表单（系统自动装配完整九段提示词），不要自己手写长文；prompt仅作补充要求或非人物画面使用。",
         {
             nodeId: STRING,
-            prompt: STRING,
+            prompt: { type: "string", description: "图片提示词。人物/角色/定妆照类改用 faceSpec 表单（系统自动装配九段长文），本字段可留空或只写补充要求；非人物画面写清主体特征、场景、构图、光线、材质。" },
+            faceSpec: { ...FACE_SPEC_TOOL_PROPERTY },
             title: STRING,
             sourceNodeIds: STRING_ARRAY,
             size: STRING,
             count: { type: "integer", minimum: 1, maximum: 15 },
         },
-        ["prompt", "sourceNodeIds"],
+        ["sourceNodeIds"],
     ),
     defineTool(
         "edit_image",
@@ -159,7 +161,7 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     ),
     defineTool(
         "generate_video",
-        "创建视频并按自动生成设置提交任务。已有空白或明确未提交成功的节点可传nodeId原位生成，已提交任务只返回状态而不重复调用。sourceNodeIds只放真实直接来源，独立生成传空数组；图片视频音频各自按顺序编号。",
+        "创建视频并按自动生成设置提交任务。nodeId仅用于复用空白或明确未提交成功的节点；已提交任务只返回状态而不重复调用，返回的已有内容属于此前生成，不要当作本轮新结果向用户汇报。sourceNodeIds只放真实直接来源，独立生成传空数组；图片视频音频各自按顺序编号。",
         {
             nodeId: STRING,
             prompt: { type: "string", description: "完整视频提示词，可包含多个内部镜头。有已确认定稿且用户未要求修改时，直接完整填入定稿，不得摘要、删减或另写一版；保留镜头顺序、时间区间、对白/旁白全文和资产引用说明。各镜头时长之和须等于本次视频总时长；不能将各镜统一改成默认 videoSeconds，也不因有分镜就强制拆成多个生成任务。" },
@@ -335,9 +337,15 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
         case "generate_image":
         case "edit_image": {
             const sourceNodeIds = optionalStringArray(input.sourceNodeIds, "sourceNodeIds");
+            let promptText = typeof input.prompt === "string" ? input.prompt.trim() : "";
+            // 方案A：模型提交人物表单 → 代码确定性装配九段完整提示词，格式不依赖模型自觉。
+            if (actionName === "generate_image" && input.faceSpec !== undefined && input.faceSpec !== null) {
+                promptText = assembleFacePrompt(parseFacePromptSpec(input.faceSpec), promptText);
+            }
+            if (!promptText) throw new Error("generate_image 需要 prompt 或 faceSpec（人物定妆照用 faceSpec 表单，系统自动装配完整提示词）");
             normalized = {
                 ...(actionName === "generate_image" && optionalString(input.nodeId) ? { nodeId: optionalString(input.nodeId) } : {}),
-                prompt: requiredString(input.prompt, "prompt"),
+                prompt: promptText,
                 ...(sourceNodeIds ? { sourceNodeIds } : {}),
                 ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
                 ...(optionalString(input.size) ? { size: optionalString(input.size) } : {}),

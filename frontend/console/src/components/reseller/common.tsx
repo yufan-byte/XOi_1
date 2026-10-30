@@ -98,3 +98,38 @@ export function ResellerGate({ title }: { title: string }) {
     </section>
   );
 }
+
+/** 分页页码序列：1 … p-1 p p+1 … n（页数多时中间折叠，避免长列表把页脚撑爆）。 */
+function pageWindow(page: number, pageCount: number): Array<number | "gap"> {
+  const picked = Array.from(new Set([1, pageCount, page - 1, page, page + 1])).filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+  const out: Array<number | "gap"> = [];
+  picked.forEach((n, i) => { if (i > 0 && n - (picked[i - 1] as number) > 1) out.push("gap"); out.push(n); });
+  return out;
+}
+
+/**
+ * 通用分页条。列表一页装得下时不渲染（避免空页脚），
+ * 超过一页时给出「上一页 / 页码 / 下一页」和总数说明。
+ */
+export function Pager({ page, pageCount, total, onChange, unit = "条", className }: {
+  page: number; pageCount: number; total: number; onChange: (page: number) => void; unit?: string; className?: string;
+}) {
+  if (pageCount <= 1) return null;
+  const safe = Math.min(Math.max(1, page), pageCount);
+  const move = (next: number) => { if (next >= 1 && next <= pageCount && next !== safe) onChange(next); };
+  const navBtn = "inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40";
+  return (
+    <nav className={cn("mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-border/45 pt-3", className)} aria-label="分页">
+      <span className="text-[11px] text-muted-foreground">共 {total} {unit} · 第 {safe} / {pageCount} 页</span>
+      <div className="flex items-center gap-1.5">
+        <button type="button" className={navBtn} disabled={safe <= 1} onClick={() => move(safe - 1)}>上一页</button>
+        {pageWindow(safe, pageCount).map((item, index) => item === "gap"
+          ? <span key={`gap-${index}`} className="px-1 text-xs text-muted-foreground">…</span>
+          : <button key={item} type="button" aria-current={item === safe ? "page" : undefined}
+              className={cn(navBtn, item === safe && "border-primary/50 bg-primary/10 text-primary")}
+              onClick={() => move(item)}>{item}</button>)}
+        <button type="button" className={navBtn} disabled={safe >= pageCount} onClick={() => move(safe + 1)}>下一页</button>
+      </div>
+    </nav>
+  );
+}

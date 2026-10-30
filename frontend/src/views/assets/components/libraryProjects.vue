@@ -30,17 +30,17 @@
     </div>
 
     <div v-else-if="filteredProjects.length" class="projectGrid">
-      <button v-for="(item, index) in filteredProjects" :key="item.id" type="button" class="projectAssetCard" @click="openProject(item)">
+      <button v-for="(item, index) in pagedProjects" :key="item.id" type="button" class="projectAssetCard" @click="openProject(item)">
         <div class="cardVisual" :class="item.projectType === 'novel' ? 'novel' : 'script'">
           <div v-if="coverThumbs(item).length" class="thumbWall" aria-hidden="true">
-            <img v-for="(img, i) in coverThumbs(item)" :key="i" :src="img" alt="" loading="lazy" />
+            <img v-for="(img, i) in coverThumbs(item)" :key="i" :src="thumbUrl(img, 400)" alt="" loading="lazy" />
           </div>
           <div class="visualShade" aria-hidden="true"></div>
           <div class="visualMeta">
             <span>{{ item.projectType === "novel" ? "NOVEL PROJECT" : "SCRIPT PROJECT" }}</span>
             <b>{{ creativePreferenceLabel(item.artStyle) }}</b>
           </div>
-          <strong>{{ String(index + 1).padStart(2, "0") }}</strong>
+          <strong>{{ String((safePage - 1) * PAGE_SIZE + index + 1).padStart(2, "0") }}</strong>
         </div>
         <div class="cardTitleRow">
           <strong>{{ item.name || "未命名项目" }}</strong>
@@ -60,6 +60,7 @@
         </footer>
       </button>
     </div>
+    <Pager v-if="!loading" v-model:page="page" :total="filteredProjects.length" :page-size="PAGE_SIZE" unit="个项目" />
 
     <div v-else class="libraryState emptyState">
       <t-icon name="folder-open" size="42px" />
@@ -73,10 +74,11 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
 import axios from "@/utils/axios";
+import { thumbUrl } from "@/utils/mediaUrl";
 import projectStore from "@/stores/project";
 import libraryArt from "@/assets/hero/library-art.webp";
 import { creativePreferenceLabel } from '../../../../../shared/creativePreference';
-
+import Pager from "@/components/Pager.vue";
 interface AssetProject {
   id: string | number;
   name: string;
@@ -103,6 +105,17 @@ const filteredProjects = computed(() => {
 function assetTotal(item: AssetProject) {
   return Number(item.progress?.asset?.total || 0);
 }
+
+/** 项目库分页：3 列卡片每页 9 个，翻页后卡片编号接着全局序号往下排。 */
+const PAGE_SIZE = 9;
+const page = ref(1);
+const safePage = computed(() => Math.min(Math.max(1, page.value), Math.max(1, Math.ceil(filteredProjects.value.length / PAGE_SIZE))));
+const pagedProjects = computed(() => {
+  const start = (safePage.value - 1) * PAGE_SIZE;
+  return filteredProjects.value.slice(start, start + PAGE_SIZE);
+});
+watch(searchText, () => { page.value = 1; });
+watch(() => filteredProjects.value.length, () => { page.value = 1; });
 
 /** 后端 getProject 附带的资产缩略图（最多 4 张），有出图项目直接铺图墙 */
 function coverThumbs(item: AssetProject): string[] {

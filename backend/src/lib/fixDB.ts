@@ -49,13 +49,25 @@ export default async (knex: Knex): Promise<void> => {
   // 添加新字段
   await addColumn("o_imageFlow", "userId", "bigInteger");
   await addColumn("o_prompt", "useData", "text");
+  // o_tasks.relatedObjects 早期建表是 varchar(255)，但画布/工作流会把整个请求体
+  // （提示词 + 参考图地址 + 规格）JSON 化后写进这一列。带 3 张参考图时 JSON 就 400+ 字符，
+  // PostgreSQL 直接拒绝 insert（value too long for type character varying(255)），
+  // 表现为「点了生图没反应/报一条 SQL 错误」。这里迁成 text；已是 text 时再 alter 也无害。
+  await alterColumnType("o_tasks", "relatedObjects", "text");
   // 添加新字段
   await addColumn("o_agentDeploy", "type", "string");
   // 添加新字段
   await addColumn("o_agentDeploy", "temperature", "integer");
   // 添加新字段
   await addColumn("o_agentDeploy", "maxOutputTokens", "integer");
-  await addColumn("o_assets", "audioBindState", "integer");
+  // 音频匹配状态使用“生成中 / 已完成 / 生成失败”等文本，旧库可能误建为整数。
+  await addColumn("o_assets", "audioBindState", "text");
+  if (String(knex.client.config.client).includes("pg") && await knex.schema.hasTable("o_assets")) {
+    const audioStateColumn = (await knex("o_assets").columnInfo()).audioBindState;
+    if (audioStateColumn && !["text", "character varying", "varchar"].includes(audioStateColumn.type)) {
+      await alterColumnType("o_assets", "audioBindState", "text");
+    }
+  }
   await addColumn("o_project", "textModel", "string");
   await addColumn("o_modelPrompt", "fileName", "string");
   await addColumn("o_modelPrompt", "path", "string");

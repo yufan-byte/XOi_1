@@ -40,6 +40,8 @@ export type CanvasNodeMetadata = {
     excludeUpstreamText?: boolean;
     status?: CanvasNodeStatus;
     errorDetails?: string;
+    /** 局部遮罩编辑：带蓝色标记的参考图（dataUrl），供参考内容面板展示真实送审图 */
+    markedReference?: string;
     fontSize?: number;
     generationMode?: CanvasGenerationMode;
     generationType?: CanvasImageGenerationType;
@@ -274,6 +276,8 @@ export type CanvasAssistantMessage = {
     text: string;
     status?: CanvasAssistantMessageStatus;
     activity?: string;
+    /** 思考型模型的思维链过程（流式累积）；生成中实时展示，完成后可折叠查看。 */
+    reasoning?: string;
     references?: CanvasAssistantReference[];
     images?: CanvasAssistantImage[];
     skills?: CanvasAgentSkillSelection[];

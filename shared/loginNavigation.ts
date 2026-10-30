@@ -24,8 +24,16 @@ export function normalizeLoginTarget(raw: unknown): string {
       const hashPath = url.hash.slice(2).split(/[?#]/, 1)[0];
       return mainRoutes.has(hashPath) && !url.search ? "/" + url.hash : DEFAULT_LOGIN_TARGET;
     }
-    if (url.hash) return DEFAULT_LOGIN_TARGET;
+    if (url.hash) {
+      // one-stop 是独立的 hash 路由应用（/one-stop/#/comic 等），
+      // 作为登录回跳目标放行；hash 白名单约束到路径字符，防注入。
+      if (/^\/one-stop\/?$/.test(url.pathname) && (!url.hash || /^#\/[A-Za-z0-9/_-]*$/.test(url.hash))) {
+        return `/one-stop/${url.hash || "#/comic"}${url.search}`;
+      }
+      return DEFAULT_LOGIN_TARGET;
+    }
     const path = url.pathname.replace(/^\/console\//, "/").slice(1);
+    if (path.replace(/\/$/, "") === "one-stop") return `/one-stop/${url.hash || "#/comic"}${url.search}`;
     if (consoleRoutes.test(path)) return `/console/${path}${url.search}`;
     if (mainRoutes.has(path)) return `/#/${path}${url.search}`;
   } catch { /* Malformed input always falls back to the workspace. */ }

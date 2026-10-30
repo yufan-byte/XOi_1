@@ -8,7 +8,9 @@
 import type { PoolClient } from "pg";
 import { db, normalizeEmail } from "@/lib/agent/db";
 import { adjustQuota, flushUsers, QuotaError, userQuota, withTx } from "@/lib/agent/quota";
-import { adminCreateUser, adminDeleteUser, adminSetUserStatus, adminUpdateUser } from "@/utils/newapi";
+import { adminCreateUser, adminDeleteUser, adminSetUserStatus } from "@/utils/newapi";
+import { generatePassword, passwordPolicyError, setPasswordDirect } from "./credentials";
+import { pruneExpiredBatches } from "./batchStore";
 import { invalidateQuotaCache, QUOTA_PER_UNIT } from "@/utils/quota";
 
 export const MAX_SEATS = 2000;
@@ -43,7 +45,16 @@ export function ensureTeamTables(): Promise<void> {
     CREATE TABLE IF NOT EXISTS mc_team_ledger (
       id bigserial PRIMARY KEY, team_id integer NOT NULL, kind text NOT NULL, user_id integer, amount bigint NOT NULL,
       pool_after bigint NOT NULL, actor_id integer, created_at bigint NOT NULL);
-    CREATE INDEX IF NOT EXISTS mc_team_ledger_team ON mc_team_ledger (team_id, created_at DESC);`)
+    CREATE INDEX IF NOT EXISTS mc_team_ledger_team ON mc_team_ledger (team_id, created_at DESC);
+    -- 2026-10-28 多团队：一个管理员可开多个团队（班级/项目各一个），去掉 1:1 约束。
+    ALTER TABLE mc_teams DROP CONSTRAINT IF EXISTS mc_teams_owner_id_key;
+    CREATE INDEX IF NOT EXISTS mc_teams_owner ON mc_teams (owner_id);
+    -- 批量下发的账号用自动生成的登录名，不强制邮箱（登录走网关 username）。
+    ALTER TABLE mc_team_members ALTER COLUMN email DROP NOT NULL;
+    ALTER TABLE mc_team_members ADD COLUMN IF NOT EXISTS username text;
+    -- 首次登录强制改密标记：管理员代建的账号必须由本人改掉初始密码。
+    ALTER TABLE mc_team_members ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false;
+    CREATE INDEX IF NOT EXISTS mc_team_members_user ON mc_team_members (user_id);`)
     .then(() => undefined)
     .catch((error) => {
       ready = null;
@@ -54,7 +65,8 @@ export function ensureTeamTables(): Promise<void> {
 
 export interface Team { id: number; owner_id: number; name: string; pool: number; isolate: boolean; created_at: number }
 export interface Member {
-  id: number; team_id: number; user_id: number; nickname: string; email: string;
+  id: number; team_id: number; user_id: number; nickname: string; email: string | null;
+  username: string | null; must_change_password: boolean;
   limit_quota: number; period: Period; can_view_all: boolean;
   status: "active" | "disabled" | "deleted"; joined_at: number;
 }
@@ -65,15 +77,66 @@ const teamRow = (row: Record<string, unknown>): Team => ({
   isolate: !!row.isolate, created_at: n(row.created_at),
 });
 const memberRow = (row: Record<string, unknown>): Member => ({
-  id: n(row.id), team_id: n(row.team_id), user_id: n(row.user_id), nickname: String(row.nickname), email: String(row.email),
+  id: n(row.id), team_id: n(row.team_id), user_id: n(row.user_id), nickname: String(row.nickname),
+  email: row.email == null ? null : String(row.email),
+  username: row.username == null ? null : String(row.username),
+  must_change_password: !!row.must_change_password,
   limit_quota: n(row.limit_quota), period: (row.period as Period) || "month", can_view_all: !!row.can_view_all,
   status: row.status as Member["status"], joined_at: n(row.joined_at),
 });
 
+/**
+ * 一个管理员最多可开的团队数（班级/项目各一个的常见用法，留足余量）。
+ * 席位上限仍由 MAX_SEATS 约束单个团队。
+ */
+export const MAX_TEAMS = 20;
+
 export async function teamOfOwner(ownerId: number): Promise<Team | null> {
   await ensureTeamTables();
-  const result = await db()!.query("SELECT * FROM mc_teams WHERE owner_id = $1", [ownerId]);
+  const result = await db()!.query("SELECT * FROM mc_teams WHERE owner_id = $1 ORDER BY id LIMIT 1", [ownerId]);
   return result.rows[0] ? teamRow(result.rows[0]) : null;
+}
+
+/** 多团队：按 id + 所有者双重校验，避免越权访问别人的团队。 */
+export async function teamForOwner(teamId: number, ownerId: number): Promise<Team> {
+  if (!Number.isSafeInteger(teamId) || teamId <= 0) throw new TeamError("团队不存在", 404);
+  await ensureTeamTables();
+  const result = await db()!.query("SELECT * FROM mc_teams WHERE id = $1 AND owner_id = $2", [teamId, ownerId]);
+  if (!result.rows[0]) throw new TeamError("团队不存在，或你不是该团队的管理员", 404);
+  return teamRow(result.rows[0]);
+}
+
+export interface TeamListItem { id: number; name: string; pool: number; members: number; active: number; created_at: number }
+
+/** 团队列表（名称搜索 + 分页），带成员数与积分池。 */
+export async function listTeams(ownerId: number, keyword = "", page = 1, size = 12): Promise<{ items: TeamListItem[]; total: number; page: number; size: number }> {
+  await ensureTeamTables();
+  const clean = keyword.trim().slice(0, 40);
+  const safeSize = Math.min(50, Math.max(1, Math.trunc(Number(size) || 12)));
+  const safePage = Math.max(1, Math.trunc(Number(page) || 1));
+  const like = `%${clean.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
+  const [rows, total] = await Promise.all([
+    db()!.query(
+      `SELECT t.id, t.name, t.pool, t.created_at,
+        count(m.id) FILTER (WHERE m.status <> 'deleted') AS members,
+        count(m.id) FILTER (WHERE m.status = 'active') AS active
+       FROM mc_teams t LEFT JOIN mc_team_members m ON m.team_id = t.id
+       WHERE t.owner_id = $1${clean ? " AND t.name ILIKE $4" : ""}
+       GROUP BY t.id ORDER BY t.id DESC LIMIT $2 OFFSET $3`,
+      clean ? [ownerId, safeSize, (safePage - 1) * safeSize, like] : [ownerId, safeSize, (safePage - 1) * safeSize],
+    ),
+    // 计数走独立参数位，别复用上面的 $4（否则无关键字搜索时会拿错占位符）
+    db()!.query(`SELECT count(*)::text AS total FROM mc_teams t WHERE t.owner_id = $1${clean ? " AND t.name ILIKE $2" : ""}`, clean ? [ownerId, like] : [ownerId]),
+  ]);
+  return {
+    page: safePage,
+    size: safeSize,
+    total: Number(total.rows[0]?.total ?? 0),
+    items: rows.rows.map((row) => ({
+      id: n(row.id), name: String(row.name), pool: n(row.pool), created_at: n(row.created_at),
+      members: n(row.members), active: n(row.active),
+    })),
+  };
 }
 
 export async function membershipOf(userId: number): Promise<{ team: Team; member: Member } | null> {
@@ -93,13 +156,16 @@ export async function membersOf(teamId: number, onlyUserId?: number): Promise<Me
 export async function createTeam(ownerId: number, name: string): Promise<Team> {
   if (!enabled()) throw new TeamError("团队功能暂未开放", 403);
   await ensureTeamTables();
+  // 一个账号可以开多个团队（一个班 / 一个项目各一个），但不能同时是别人团队的成员。
   if (await membershipOf(ownerId)) throw new TeamError("你已经是其他团队的成员，不能再开通团队");
+  const owned = await db()!.query<{ count: string }>("SELECT count(*) AS count FROM mc_teams WHERE owner_id = $1", [ownerId]);
+  if (Number(owned.rows[0]?.count ?? 0) >= MAX_TEAMS) throw new TeamError(`最多可创建 ${MAX_TEAMS} 个团队`);
   const clean = name.trim().slice(0, 40) || "我的团队";
-  await db()!.query(
-    "INSERT INTO mc_teams (owner_id, name, created_at) VALUES ($1, $2, $3) ON CONFLICT (owner_id) DO NOTHING",
+  const inserted = await db()!.query<{ id: number }>(
+    "INSERT INTO mc_teams (owner_id, name, created_at) VALUES ($1, $2, $3) RETURNING id",
     [ownerId, clean, Date.now()],
   );
-  return (await teamOfOwner(ownerId))!;
+  return teamForOwner(Number(inserted.rows[0].id), ownerId);
 }
 
 async function ledger(client: PoolClient, teamId: number, kind: string, userId: number | null, amount: number, actorId: number | null) {
@@ -222,17 +288,20 @@ async function bindMemberEmail(username: string, email: string): Promise<boolean
 export interface NewMember { nickname: string; email: string; password: string; limitQuota: number; period: Period; canViewAll: boolean }
 
 export async function addMember(team: Team, input: NewMember): Promise<Member> {
-  const email = normalizeEmail(input.email);
+  const email = normalizeEmail(input.email || "");
   if (!input.nickname.trim()) throw new TeamError("请填写成员昵称");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new TeamError("登录邮箱格式不对");
+  // 邮箱改为可选：批量下发的账号用自动生成的登录名，学员没有邮箱也能用。
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new TeamError("登录邮箱格式不对");
   if (input.password.length < 8 || input.password.length > 20) throw new TeamError("初始密码需 8~20 位");
   if (!Number.isSafeInteger(input.limitQuota) || input.limitQuota < 0) throw new TeamError("消费额度需为 0 或正数");
   if (!["month", "day", "total"].includes(input.period)) throw new TeamError("额度周期不对");
   const pool = db()!;
   const seats = await pool.query<{ count: string }>("SELECT count(*) AS count FROM mc_team_members WHERE team_id = $1 AND status <> 'deleted'", [team.id]);
   if (Number(seats.rows[0]?.count) >= MAX_SEATS) throw new TeamError(`席位已满（${MAX_SEATS}）`);
-  const taken = await pool.query("SELECT 1 FROM users WHERE (lower(email) = $1 OR lower(username) = $1) AND deleted_at IS NULL LIMIT 1", [email]);
-  if (taken.rowCount) throw new TeamError("这个邮箱已经注册过账号，请换一个");
+  if (email) {
+    const taken = await pool.query("SELECT 1 FROM users WHERE (lower(email) = $1 OR lower(username) = $1) AND deleted_at IS NULL LIMIT 1", [email]);
+    if (taken.rowCount) throw new TeamError("这个邮箱已经注册过账号，请换一个");
+  }
 
   let username = "";
   for (let index = 0; index < 5; index += 1) {
@@ -245,17 +314,86 @@ export async function addMember(team: Team, input: NewMember): Promise<Member> {
   const created = await pool.query<{ id: number }>("SELECT id FROM users WHERE username = $1", [username]);
   const userId = Number(created.rows[0]?.id);
   if (!userId) throw new TeamError("成员账号创建失败，请重试", 502);
-  if (!(await bindMemberEmail(username, email))) {
+  if (email && !(await bindMemberEmail(username, email))) {
     await adminDeleteUser(userId).catch(() => undefined);
     throw new TeamError("这个邮箱已经注册过账号，请换一个");
   }
   const inserted = await pool.query(
-    "INSERT INTO mc_team_members (team_id, user_id, nickname, email, limit_quota, period, can_view_all, joined_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
-    [team.id, userId, input.nickname.trim().slice(0, 40), email, input.limitQuota, input.period, input.canViewAll, Date.now()],
+    "INSERT INTO mc_team_members (team_id, user_id, nickname, email, username, must_change_password, limit_quota, period, can_view_all, joined_at) VALUES ($1,$2,$3,$4,$5,true,$6,$7,$8,$9) RETURNING *",
+    [team.id, userId, input.nickname.trim().slice(0, 40), email || null, username, input.limitQuota, input.period, input.canViewAll, Date.now()],
   );
   await flushUsers([userId]);
   await settleTeam(team.id, team.owner_id);
   return memberRow(inserted.rows[0]);
+}
+
+export interface BatchMemberInput {
+  count: number; prefix: string; nicknameBase: string; limitQuota: number; period: Period; canViewAll: boolean;
+}
+export interface BatchMemberResult {
+  id: number; userId: number; username: string; nickname: string; password: string; limitQuota: number; period: Period;
+}
+
+/**
+ * 批量下发团队账号（一个班/一批学员）。
+ *
+ * 安全与一致性约定：
+ *  · 只有团队所有者 + 已通过密码二次确认（sudo）才能调用；
+ *  · 每个人拿到**互不相同**的随机强密码，明文只出现在本次响应里，服务端不落库；
+ *  · 创建前先校验团队池余额是否足够「人数 × 每人额度」，不足直接拒绝，绝不半途而废；
+ *  · 单个账号创建失败会中止剩余创建并如实回报已创建列表，不猜测成功。
+ */
+export async function batchCreateMembers(team: Team, input: BatchMemberInput): Promise<{ created: BatchMemberResult[]; failed: number; requiredQuota: number }> {
+  const count = Math.trunc(Number(input.count));
+  if (!Number.isSafeInteger(count) || count < 1 || count > 200) throw new TeamError("单批人数需在 1~200 之间");
+  const prefix = String(input.prefix || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_-]{1,11}$/.test(prefix)) throw new TeamError("账号前缀需 2~12 位小写字母/数字/下划线/短横线");
+  if (!Number.isSafeInteger(input.limitQuota) || input.limitQuota < 0) throw new TeamError("每人额度需为 0 或正数");
+  if (!["month", "day", "total"].includes(input.period)) throw new TeamError("额度周期不对");
+
+  const pool = db()!;
+  const seats = await pool.query<{ count: string }>("SELECT count(*) AS count FROM mc_team_members WHERE team_id = $1 AND status <> 'deleted'", [team.id]);
+  if (Number(seats.rows[0]?.count) + count > MAX_SEATS) throw new TeamError(`席位不足：当前 ${Number(seats.rows[0]?.count ?? 0)}/${MAX_SEATS}，本次需要 ${count} 个`);
+
+  const requiredQuota = input.limitQuota * count;
+  const current = await pool.query<{ pool: string }>("SELECT pool FROM mc_teams WHERE id = $1", [team.id]);
+  const available = Number(current.rows[0]?.pool ?? 0);
+  if (requiredQuota > available) {
+    throw new TeamError(`团队池余额不足：需要 ${requiredQuota} 额度，当前仅 ${available}，请先划入积分`);
+  }
+
+  // 登录名：prefix-01、prefix-02…；先算出候选再统一查重，避免逐个往返。
+  const width = String(count).length >= 2 ? String(count).length : 2;
+  const candidates = Array.from({ length: count }, (_, i) => `${prefix}-${String(i + 1).padStart(width, "0")}`);
+  const clash = await pool.query<{ username: string }>("SELECT username FROM users WHERE username = ANY($1::text[])", [candidates]);
+  if (clash.rowCount) throw new TeamError(`账号名已被占用：${clash.rows.slice(0, 3).map((r) => r.username).join("、")}，请换一个前缀`);
+
+  const created: BatchMemberResult[] = [];
+  let failed = 0;
+  for (const username of candidates) {
+    const nickname = `${String(input.nicknameBase || prefix).trim().slice(0, 30)} ${created.length + 1}`;
+    const password = generatePassword();
+    try {
+      await adminCreateUser(username, password, nickname);
+      const row = await pool.query<{ id: number }>("SELECT id FROM users WHERE username = $1", [username]);
+      const userId = Number(row.rows[0]?.id);
+      if (!userId) throw new Error("账号回读失败");
+      const inserted = await pool.query<{ id: number }>(
+        "INSERT INTO mc_team_members (team_id, user_id, nickname, email, username, must_change_password, limit_quota, period, can_view_all, joined_at) VALUES ($1,$2,$3,NULL,$4,true,$5,$6,$7,$8) RETURNING id",
+        [team.id, userId, nickname, username, input.limitQuota, input.period, input.canViewAll, Date.now()],
+      );
+      created.push({ id: Number(inserted.rows[0].id), userId, username, nickname, password, limitQuota: input.limitQuota, period: input.period });
+    } catch (error) {
+      failed += 1;
+      console.error("[team] batch create failed", username, error instanceof Error ? error.message : error);
+      break; // 连续失败没有意义，直接停下并如实回报
+    }
+  }
+  if (created.length) {
+    await flushUsers(created.map((item) => item.userId));
+    await settleTeam(team.id, team.owner_id);
+  }
+  return { created, failed, requiredQuota };
 }
 
 export type MemberAction =
@@ -271,8 +409,12 @@ export async function memberAction(team: Team, memberId: number, action: MemberA
   if (!found.rows[0]) throw new TeamError("成员不存在", 404);
   const member = memberRow(found.rows[0]);
   if (action.action === "password") {
-    if (action.password.length < 8 || action.password.length > 20) throw new TeamError("新密码需 8~20 位");
-    await adminUpdateUser(member.user_id, { password: action.password });
+    const problem = passwordPolicyError(action.password);
+    if (problem) throw new TeamError(problem);
+    // 网关的 PUT /api/user/ 有 sudo 验证闸门（系统令牌永远过不了），改走同库直写。
+    await setPasswordDirect(member.user_id, action.password);
+    // 管理员代设的密码一律视为临时密码：成员下次登录必须先改掉。
+    await pool.query("UPDATE mc_team_members SET must_change_password = true WHERE id = $1", [member.id]);
     return;
   }
   if (action.action === "disable" || action.action === "delete") {
@@ -344,7 +486,21 @@ function categoryOf(other: string): string {
   return "other";
 }
 
-/** Lightweight shell summary: do not scan consumption logs just to show team membership. */
+/** 登录时判断该账号是否必须改密（管理员代建 / 被重置过密码的成员）。 */
+export async function mustChangePasswordOf(userId: number): Promise<boolean> {
+  try {
+    await ensureTeamTables();
+    const result = await db()!.query<{ must_change_password: boolean }>(
+      "SELECT must_change_password FROM mc_team_members WHERE user_id = $1 AND status <> 'deleted' LIMIT 1",
+      [userId],
+    );
+    return !!result.rows[0]?.must_change_password;
+  } catch {
+    // 团队表还没建 / 数据库异常都不能拦住正常登录。
+    return false;
+  }
+}
+
 export async function teamSummary(team: Team) {
   const result = await db()!.query<{ used: string; active: string; disabled: string }>(
     `SELECT count(*) AS used, count(*) FILTER (WHERE status = 'active') AS active,
@@ -401,7 +557,8 @@ export async function dashboard(team: Team, month: string, onlyUserId?: number) 
     days.push({ day, quota: daily.get(day) ?? 0 });
   }
   const list = members.map((member) => ({
-    id: member.id, userId: member.user_id, nickname: member.nickname, email: member.email, status: member.status,
+    id: member.id, userId: member.user_id, nickname: member.nickname, email: member.email, username: member.username,
+    mustChangePassword: member.must_change_password, status: member.status,
     limitQuota: member.limit_quota, period: member.period, canViewAll: member.can_view_all,
     periodUsed: periodUsed.get(member.user_id) ?? 0, monthUsed: byMember.get(member.user_id) ?? 0,
     wallet: quotas.get(member.user_id) ?? 0, joinedAt: member.joined_at,
@@ -449,6 +606,8 @@ export function startTeamSweeper(): void {
     try {
       await ensureTeamTables();
       const pool = db()!;
+      // 过期的批量凭据：物理删除，不留存任何历史明文
+      await pruneExpiredBatches().catch((error) => console.error("[team] prune batches:", (error as Error).message));
       const client = await pool.connect();
       try {
         const lock = await client.query<{ ok: boolean }>("SELECT pg_try_advisory_lock(727001) AS ok");

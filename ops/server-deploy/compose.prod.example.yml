@@ -95,6 +95,8 @@ services:
       XOI_INSTANCE_LABEL: ${XOI_INSTANCE_LABEL:-xoi-node}
       XOI_RELEASE_START_MODE: ${XOI_RELEASE_START_MODE:-active}
       XOI_RELEASE_CLUSTER: ${XOI_RELEASE_CLUSTER:-xoi-prod}
+      # 全新安装留 empty（跳过旧站 reseller.json 迁移校验）；从旧站迁移请先迁移再删掉此行
+      XOI_SITE_CONFIG_BOOTSTRAP: ${XOI_SITE_CONFIG_BOOTSTRAP:-empty}
     volumes:
       - /opt/xoi/data:/app/backend/data
     depends_on:

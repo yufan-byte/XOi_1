@@ -39,11 +39,24 @@ const nextTarget = (path: string) => (typeof window === "undefined" ? path : pat
 export function ResellerShell({ children }: { children: React.ReactNode; title?: string }) {
   const path = usePathname(); const router = useRouter(); const setUser = useApp((s) => s.setUser); const user = useApp((s) => s.user); const brand = useBrand();
   const [collapsed, setCollapsed] = useState(false); const [mobileOpen, setMobileOpen] = useState(false); const [open, setOpen] = useState<Record<string, boolean>>({});
+  /**
+   * 顶栏「返回」：裸 router.back() 会吃浏览器历史 —— 从 XOi 主站整页跳进控制台时，
+   * 上一条历史就是主站首页，一点返回直接弹出控制台。react-router v7 会在每个历史条目
+   * 写入 state.idx（本次 SPA 会话内的序号，落地页 replace 成 0，应用内每 push 一次 +1），
+   * 因此 idx>0 才说明上一条一定还是控制台页面；否则落到控制台首页兜底。
+   */
+  const goBack = () => {
+    const idx = typeof window === "undefined" ? 0 : (window.history.state?.idx as number | undefined) ?? 0;
+    if (idx > 0) router.back();
+    else router.replace("/reseller/admin/stats");
+  };
   useEffect(() => { const loginPath = () => createLoginUrl(nextTarget(path)).replace(/^\/console/, ""); const a = loadAuth(); if (a) { setUser(a.user); if (Date.now() > a.expiresAt - 60_000) refreshAuth().then((r) => { if (!r) { setUser(null); router.replace(loginPath()); } }); } else router.replace(loginPath()); }, [setUser, router, path]);
   useEffect(() => { setMobileOpen(false); }, [path]);
   const scope = useResellerScope(); const isAgent = scope === "agent";
   const root=useResellerMe().data?.root===true;
-  const menu = (isAgent ? AGENT_MENU : NEW_MENU).filter(item=>!item.rootOnly||root);
+  // adminOnly：XOi 管理员专属（loadAuth 的 role 来自登录态，10 = admin）
+  const isAdmin=(loadAuth()?.user.role??0)>=10;
+  const menu = (isAgent ? AGENT_MENU : NEW_MENU).filter(item=>(!item.rootOnly||root)&&(!item.adminOnly||isAdmin));
   const hrefs = menu.flatMap((it) => [it.href, ...(it.children?.map((c) => c.href) ?? [])]).filter(Boolean) as string[];
   /** 最长前缀匹配：只高亮最具体的一项 */
   const best = hrefs.filter((h) => path === h || path.startsWith(`${h}/`)).sort((x, y) => y.length - x.length)[0];
@@ -114,7 +127,7 @@ export function ResellerShell({ children }: { children: React.ReactNode; title?:
         <div className="xoi-admin-topbar relative shrink-0 border-b border-border bg-card [&>header]:static [&>header]:h-16 [&>header]:bg-transparent [&>header]:backdrop-blur-none [&>header>div:first-child>*]:hidden">
           <TopBar management />
           <button aria-label="打开后台导航" onClick={() => { setCollapsed(false); setMobileOpen(true); }} className="absolute left-3 top-1/2 z-50 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg hover:bg-muted md:hidden"><PanelLeftOpen size={17} /></button>
-          <div className="absolute left-14 md:left-5 top-1/2 z-40 flex -translate-y-1/2 items-center gap-3"><button onClick={() => router.back()} aria-label="返回上一页" className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><ArrowLeft size={16} /></button><span aria-hidden className="hidden h-4 w-px bg-border sm:block" /><span className="hidden text-[13px] font-medium sm:block">{pageTitle}</span></div>
+          <div className="absolute left-14 md:left-5 top-1/2 z-40 flex -translate-y-1/2 items-center gap-3"><button onClick={goBack} aria-label="返回上一页" className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><ArrowLeft size={16} /></button><span aria-hidden className="hidden h-4 w-px bg-border sm:block" /><span className="hidden text-[13px] font-medium sm:block">{pageTitle}</span></div>
         </div>
         <main id="management-content" className="xoi-admin-content min-w-0 flex-1 overflow-y-auto bg-background p-4 md:p-6 xl:p-7">
           {user ? children : <div className="h-[60vh] rounded-2xl shimmer" />}

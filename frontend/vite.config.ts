@@ -83,6 +83,14 @@ export default defineConfig({
       },
     },
   },
+  /**
+   * 2026-10-26 实测结论：这里**不要**用 manualChunks 拆 markdown/高亮类依赖。
+   * 试过把 codemirror/highlight/katex/mermaid 抽成 vendor-markdown-render，
+   * 结果该 chunk 仍被 useChat **静态 import** —— 打开聊天页要下 2.2MB + 2.5MB，
+   * 比原来单文件 3.24MB 更慢（多一个串行请求、总量还变大）。
+   * 要真正省下这部分，必须把 md-editor 改成 defineAsyncComponent 让它在需要时才载，
+   * 那是代码级改造，不是打包配置能解决的。
+   */
   server: {
     port: 50188,
     proxy: {

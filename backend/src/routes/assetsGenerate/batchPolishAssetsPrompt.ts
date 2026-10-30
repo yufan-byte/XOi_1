@@ -6,8 +6,12 @@ import { error, success } from "@/lib/responseFormat";
 import { validateFields } from "@/middleware/middleware";
 import { getUserPoints, getActionPoints, deductPoints } from "@/utils/points";
 import { resolveTextModelKey } from "@/utils/textModel";
-import { promptRejectionReason } from "@/utils/promptQuality";
+import { promptRejectionReason, normalizePromptOutput } from "@/utils/promptQuality";
+import { buildSkillContext, SkillContextError } from "@/utils/skillContext";
+import { PROMPT_HARD_RULES, resolveAssetStyle, type AssetStyleMode } from "@/utils/assetStyleGuide";
+import { friendlyTextModelError } from "@/utils/modelError";
 const router = express.Router();
+
 interface OutlineItem {
   description: string;
   name: string;
@@ -29,6 +33,11 @@ interface NovelChapter {
 }
 
 type ItemType = "characters" | "props" | "scenes";
+const selectedSkillSchema = zod.union([
+  zod.string(),
+  zod.object({ path: zod.string(), category: zod.enum(["character", "scene", "prop", "general"]) }),
+]);
+const assetSkillCategory: Record<string, "character" | "scene" | "prop"> = { role: "character", scene: "scene", tool: "prop" };
 
 //润色提示词
 export default router.post(
@@ -40,16 +49,25 @@ export default router.post(
         type: zod.string(),
         name: zod.string(),
         describe: zod.string(),
+        styleMode: zod.enum(["project", "custom", "free"]).optional(),
+        styleDescription: zod.string().max(3000).optional(),
       }),
     ),
     projectId: zod.number(),
     concurrentCount: zod.number().int().min(1).optional(),
     otherTextPrompt: zod.string(),
     textModel: zod.string().optional(),
+    styleMode: zod.enum(["project", "custom", "free"]).optional(),
+    styleDescription: zod.string().max(3000).optional(),
+    /** 用户勾选的 Skill；带分类时只注入匹配当前资产的正文。 */
+    skills: zod.array(selectedSkillSchema).max(8).optional(),
   }),
   async (req, res) => {
     const userId = (req as any).user?.id;
-    const { projectId, items, concurrentCount, otherTextPrompt, textModel } = req.body;
+    const { projectId, items, concurrentCount, otherTextPrompt, textModel, skills, styleMode, styleDescription } = req.body;
+    if (items.some((item: { styleMode?: AssetStyleMode; styleDescription?: string }) => (item.styleMode || styleMode || "project") === "custom" && !String(item.styleDescription ?? styleDescription ?? "").trim())) {
+      return res.status(400).send(error("请填写自定义画风，或选择自由创作"));
+    }
 
     // 检查积分（每个资产扣一次）
     if (userId) {
@@ -78,8 +96,28 @@ export default router.post(
     const assetsDataList = await u.db("o_assets").whereIn("id", assetsIds).select("id", "assetsId");
     if (!assetsDataList || assetsDataList.length === 0) return res.status(500).send(error("资产不存在"));
     const assetsDataMap = new Map(assetsDataList.map((a: any) => [a.id, a]));
+    // Validate every selected skill before accepting or charging for the batch.
+    // Each category has its own complete context; never trust the category sent by the client.
+    const skillContexts: Record<string, string> = {};
+    try {
+      for (const category of ["character", "scene", "prop"] as const) {
+        skillContexts[category] = await buildSkillContext(skills, {
+          userId: Number(userId) || null,
+          category,
+          header: "\n\n【本次生成启用的 Skills】请严格采用其中与当前资产相关的设计方法；不得把人物、场景、道具的规则互相串用：",
+        });
+      }
+    } catch (e) {
+      if (e instanceof SkillContextError) return res.status(400).send(error(e.message));
+      throw e;
+    }
     // 所有前置检测通过后，再批量更新状态为生成中
     await u.db("o_assets").whereIn("id", assetsIds).update({ promptState: "生成中" });
+
+    const extraInstruction = String(otherTextPrompt || "").trim()
+      ? `\n\n【用户附加指令】\n${String(otherTextPrompt).trim()}`
+      : "";
+    const warnings: string[] = [];
 
     const getTypeConfig = (
       isDerivative: boolean,
@@ -109,7 +147,7 @@ export default router.post(
 
     // 后台异步并发生成，不阻塞响应
     const limit = pLimit(concurrentCount ?? 1);
-    const tasks = items.map((item: { assetsId: number; type: string; name: string; describe: string }) =>
+    const tasks = items.map((item: { assetsId: number; type: string; name: string; describe: string; styleMode?: AssetStyleMode; styleDescription?: string }) =>
       limit(async () => {
         // 任何提前返回 / 异常都必须落到终态，否则前端会永远停在"生成中"
         let settled = false;
@@ -128,16 +166,19 @@ export default router.post(
           const typeConfig = getTypeConfig(!!assetData.assetsId);
           const config = typeConfig[item.type];
           if (!config) return await fail("未知资产类型，无法生成提示词");
-          //获取到视觉手册
-          const visualManual = await u.getArtPrompt(project.artStyle as string, "art_skills", config.visualManual);
-          if (!visualManual) return await fail("视觉手册未定义");
+          const category = assetSkillCategory[item.type];
+          const skillContext = skillContexts[category] || "";
+          const styleBlock = await resolveAssetStyle({
+            mode: item.styleMode || styleMode,
+            description: item.styleDescription ?? styleDescription,
+            project: project as any,
+            manualKey: config.visualManual,
+            loadManual: async (artStyle, key) => u.getArtPrompt(artStyle, "art_skills", key),
+          });
 
           const { _output } = (await u.Ai.Text(aiKey).invoke({
             system:
-              visualManual +
-              "\n" +
-              otherTextPrompt +
-              "\n\n【硬性要求】即使素材设定与全局风格约束存在冲突，也必须按项目既定的画风/年代/质感改写后直接输出可出图的画面提示词；禁止用\"无法生成\"、\"违反规则\"之类的话拒答，禁止输出解释说明或免责声明。只输出提示词正文。",
+              [styleBlock, skillContext, extraInstruction].filter(Boolean).join("\n") + PROMPT_HARD_RULES,
             messages: [
               {
                 role: "user",
@@ -153,10 +194,15 @@ export default router.post(
           const rejected = promptRejectionReason(_output);
           if (rejected) return await fail(rejected);
 
-          await u.db("o_assets").where("id", item.assetsId).update({ prompt: _output, promptState: "已完成", promptErrorReason: null });
+          // 技能输出常带 Markdown 标题/围栏，落库前收敛成纯提示词
+          const promptText = normalizePromptOutput(_output);
+          const rejectedAfterClean = promptRejectionReason(promptText);
+          if (rejectedAfterClean) return await fail(rejectedAfterClean);
+
+          await u.db("o_assets").where("id", item.assetsId).update({ prompt: promptText, promptState: "已完成", promptErrorReason: null });
           settled = true;
         } catch (e: any) {
-          await fail(u.error(e).message);
+          await fail(friendlyTextModelError(u.error(e).message));
         }
       }),
     );
@@ -187,6 +233,6 @@ export default router.post(
       }
     }
 
-    return res.status(200).send(success({ total: items.length, pointsDeducted, balance }));
+    return res.status(200).send(success({ total: items.length, pointsDeducted, balance, warnings }));
   },
 );

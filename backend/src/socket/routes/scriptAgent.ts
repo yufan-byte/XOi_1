@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import u from "@/utils";
 import { Namespace, Socket } from "socket.io";
 import * as agent from "@/agents/scriptAgent/index";
@@ -6,25 +5,14 @@ import ResTool from "@/socket/resTool";
 import { resolveUserCatalogModel } from "@/lib/model-catalog";
 import {releaseLifecycle} from "@/utils/releaseLifecycle";
 
-async function verifyToken(rawToken: string): Promise<Boolean> {
-  const setting = await u.db("o_setting").where("key", "tokenKey").select("value").first();
-  if (!setting) return false;
-  const { value: tokenKey } = setting;
-  if (!rawToken) return false;
-  const token = rawToken.replace(/^(Bearer\s+)+/i, "").trim();
-  try {
-    jwt.verify(token, tokenKey as string);
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
-
 export default (nsp: Namespace) => {
   nsp.on("connection", async (socket: Socket) => {
-    const token = socket.handshake.auth.token;
-    if (!token || !(await verifyToken(token))) {
-      console.log("[scriptAgent] 连接失败，token无效");
+    // 身份已在 socket/index.ts 的命名空间中间件里统一解析（header 优先、httpOnly cookie 兜底）。
+    // 这里以前又拿 socket.handshake.auth.token 二次验签，F3 把 JWT 从前端移走后 auth.token
+    // 恒为空 → 每次连接都被自己踢掉，前端就永远显示「未连接」。不要再加回来。
+    const identity = (socket.data as { user?: { id: number; role: string } }).user;
+    if (!identity?.id) {
+      console.log("[scriptAgent] 连接失败，缺少已认证身份");
       socket.disconnect();
       return;
     }

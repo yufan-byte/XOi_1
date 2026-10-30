@@ -51,11 +51,11 @@
     </div>
     <!-- 项目列表 -->
     <div v-else-if="filteredProjects.length > 0" class="list">
-      <t-card hoverShadow class="card" v-for="project in filteredProjects" :key="project.id" :class="`card-${project.projectType}`" @click="openProject(project.id)">
+      <t-card hoverShadow class="card" v-for="project in pagedProjects" :key="project.id" :class="`card-${project.projectType}`" @click="openProject(project.id)">
         <!-- 封面带：有出图资产的项目直接展示缩略图墙，一眼看到作品质感 -->
         <div class="projectCover" :class="`cover-${project.projectType}`">
           <div v-if="coverPreviews(project).length" class="coverThumbs" aria-hidden="true">
-            <img v-for="(img, i) in coverPreviews(project)" :key="i" :src="img" alt="" loading="lazy" />
+            <img v-for="(img, i) in coverPreviews(project)" :key="i" :src="thumbUrl(img, 400)" alt="" loading="lazy" />
           </div>
           <div class="coverShade" aria-hidden="true"></div>
           <div class="coverInfo">
@@ -101,6 +101,9 @@
         <span class="quick-create-title">创建新项目</span>
         <span class="quick-create-desc">从一个新的故事开始</span>
       </button>
+      <!-- 分页条跨整行；「创建新项目」卡不参与分页，永远跟在本页卡片后面，
+           这样翻到任何一页都能直接新建，也不会把项目数算错。 -->
+      <Pager class="listPager" v-model:page="projectPage" :total="filteredProjects.length" :page-size="PROJECT_PAGE_SIZE" unit="个项目" />
     </div>
     <!-- 空态 -->
     <div v-else class="empty">
@@ -118,12 +121,14 @@
 
 <script setup lang="ts">
 import CreationModeSwitcher from "@/components/CreationModeSwitcher.vue";
+import Pager from "@/components/Pager.vue";
 import stripArt from "@/assets/hero/director-desk.webp";
 import { defineAsyncComponent } from "vue";
 const projectDialog = defineAsyncComponent(() => import("./components/projectDialog.vue"));
 import dayjs from "dayjs";
 import { warmPage } from "@/router/pageLoading";
 import axios from "@/utils/axios";
+import { thumbUrl } from "@/utils/mediaUrl";
 import { creativePreferenceLabel } from '../../../../shared/creativePreference';
 import projectStore, { type ProjectProgress } from "@/stores/project";
 import imageListCacheStore from "@/stores/imageListCache";
@@ -166,8 +171,20 @@ const filteredProjects = computed(() => {
   }
   return result;
 });
-const editProjectData = ref<{
-  id: string;
+
+/** 项目分页：3 列布局下每页 12 个（4 行）；「创建新项目」卡不参与计数，始终跟在当前页卡片后面。 */
+const PROJECT_PAGE_SIZE = 12;
+const projectPage = ref(1);
+const projectPageCount = computed(() => Math.max(1, Math.ceil(filteredProjects.value.length / PROJECT_PAGE_SIZE)));
+const pagedProjects = computed(() => {
+  const page = Math.min(projectPage.value, projectPageCount.value);
+  const start = (page - 1) * PROJECT_PAGE_SIZE;
+  return filteredProjects.value.slice(start, start + PROJECT_PAGE_SIZE);
+});
+// 搜索、切 tab、项目增减都回到第一页，免得停在一个已经被筛空的页码上。
+watch([searchQuery, activeTab, () => filteredProjects.value.length], () => { projectPage.value = 1; });
+
+const editProjectData = ref<{  id: string;
   name: string;
   intro: string;
   type: string;
@@ -468,6 +485,8 @@ function delProjcer(projectId: string | undefined) {
     gap: 18px;
     align-items: stretch;
   }
+  /* 分页条横跨整个栅格，不被当成一个卡片列 */
+  .listPager { grid-column: 1 / -1; }
 
   :deep(.t-card.card) {
     display: flex; flex-direction: column;

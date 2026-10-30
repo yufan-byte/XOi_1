@@ -2,12 +2,15 @@ import type {Pool,PoolClient} from "pg";
 import crypto from "node:crypto";
 
 export class TeamManagementError extends Error {constructor(message:string,public status=400){super(message);}}
-export type TeamOperation="member.add"|"member.update"|"member.password"|"member.disable"|"member.enable"|"member.delete"|"team.rename";
-const ACTIONS:TeamOperation[]=["member.add","member.update","member.password","member.disable","member.enable","member.delete","team.rename"];
+export type TeamOperation="member.add"|"member.update"|"member.password"|"member.disable"|"member.enable"|"member.delete"|"team.rename"|"batch.export";
+const ACTIONS:TeamOperation[]=["member.add","member.update","member.password","member.disable","member.enable","member.delete","team.rename","batch.export"];
 function safeDetails(raw:Record<string,unknown>){
   const out:Record<string,unknown>={};
-  for(const key of ["nickname","name","previousName"]){if(typeof raw[key]==="string")out[key]=(raw[key] as string).slice(0,40);}
+  for(const key of ["nickname","name","previousName","batchId"]){if(typeof raw[key]==="string")out[key]=(raw[key] as string).slice(0,40);}
   if(typeof raw.limitQuota==="number"&&Number.isSafeInteger(raw.limitQuota)&&raw.limitQuota>=0)out.limitQuota=raw.limitQuota;
+  if(typeof raw.teamId==="number"&&Number.isSafeInteger(raw.teamId)&&raw.teamId>0)out.teamId=raw.teamId;
+  if(typeof raw.rows==="number"&&Number.isSafeInteger(raw.rows)&&raw.rows>=0)out.rows=raw.rows;
+  if(typeof raw.downloadNo==="number"&&Number.isSafeInteger(raw.downloadNo)&&raw.downloadNo>=0)out.downloadNo=raw.downloadNo;
   if(["day","month","total"].includes(String(raw.period)))out.period=raw.period;
   if(typeof raw.canViewAll==="boolean")out.canViewAll=raw.canViewAll;
   return out;
@@ -29,15 +32,18 @@ export class TeamManagement {
       await c.query("COMMIT");
     }catch(e){await c.query("ROLLBACK").catch(()=>{});throw e;}finally{c.release();}
   }
-  private async owned(ownerId:number,c:Pool|PoolClient=this.pool,lock=false){
+  private async owned(ownerId:number,teamId?:number,c:Pool|PoolClient=this.pool,lock=false){
     if(!Number.isSafeInteger(ownerId)||ownerId<1)throw new TeamManagementError("请先登录",401);
-    const r=await c.query(`SELECT id,name FROM mc_teams WHERE owner_id=$1${lock?" FOR UPDATE":""}`,[ownerId]);
+    // 多团队：指定 teamId 时按 id + owner 双重校验；不指定则退回「该账号的第一个团队」（兼容旧调用）。
+    const filter=teamId!==undefined?"id=$2 AND owner_id=$1":"owner_id=$1";
+    if(teamId!==undefined&&(!Number.isSafeInteger(teamId)||teamId<1))throw new TeamManagementError("团队不存在",404);
+    const r=await c.query(`SELECT id,name FROM mc_teams WHERE ${filter} ORDER BY id${lock?" FOR UPDATE":""}`,teamId!==undefined?[ownerId,teamId]:[ownerId]);
     if(!r.rowCount)throw new TeamManagementError("只有团队所有者可以查看管理记录或修改团队设置",403);
     return r.rows[0] as {id:number;name:string};
   }
-  async start(ownerId:number,action:TeamOperation,target:number|undefined,details:Record<string,unknown>={}){
+  async start(ownerId:number,action:TeamOperation,target:number|undefined,details:Record<string,unknown>={},teamId?:number){
     if(!ACTIONS.includes(action)||action==="team.rename")throw new TeamManagementError("无效的团队操作");
-    await this.ensure();const team=await this.owned(ownerId);
+    await this.ensure();const team=await this.owned(ownerId,teamId);
     if(target!==undefined){
       if(!Number.isSafeInteger(target)||target<1)throw new TeamManagementError("成员不存在",404);
       const found=await this.pool.query("SELECT 1 FROM mc_team_members WHERE id=$1 AND team_id=$2 AND status<>'deleted'",[target,team.id]);
@@ -53,18 +59,28 @@ export class TeamManagement {
       FROM mc_teams t WHERE e.id=$1 AND e.team_id=t.id AND t.owner_id=$2 AND e.actor_id=$2 AND e.status='started' RETURNING e.id`,[id,ownerId,status,Date.now()]);
     if(!r.rowCount)throw new TeamManagementError("操作记录不存在或已完成",409);
   }
-  async track<T>(ownerId:number,action:TeamOperation,target:number|undefined,details:Record<string,unknown>,run:()=>Promise<T>){
-    const id=await this.start(ownerId,action,target,details);let value:T;
+  /**
+   * 纯审计写入（不包事务）：用于导出这类「没有失败回滚语义、但必须留痕」的动作。
+   * 每条 credentials 清单被下载都应看得见谁、什么时候、下载了第几次。
+   */
+  async record(ownerId:number,action:TeamOperation,target:number|undefined,details:Record<string,unknown>={},teamId?:number){
+    if(!ACTIONS.includes(action))throw new TeamManagementError("无效的团队操作");
+    await this.ensure();const team=await this.owned(ownerId,teamId);
+    const now=Date.now();
+    await this.pool.query("INSERT INTO xoi_team_operations(id,team_id,actor_id,action,target_member_id,status,details,created_at,updated_at) VALUES($1,$2,$3,$4,$5,'confirmed',$6::jsonb,$7,$7)",[crypto.randomUUID(),team.id,ownerId,action,target??null,JSON.stringify(safeDetails(details)),now]);
+  }
+  async track<T>(ownerId:number,action:TeamOperation,target:number|undefined,details:Record<string,unknown>,run:()=>Promise<T>,teamId?:number){
+    const id=await this.start(ownerId,action,target,details,teamId);let value:T;
     try{value=await run();}catch(e){await this.finish(ownerId,id,"needs_review").catch(()=>{});throw e;}
     try{await this.finish(ownerId,id,"confirmed");}
     catch{throw new TeamManagementError("操作结果暂未确认，请刷新成员和管理记录核对，不要重复提交",502);}
     return value;
   }
-  async rename(ownerId:number,name:string,expectedName:string){
+  async rename(ownerId:number,name:string,expectedName:string,teamId?:number){
     const clean=name.trim();if(!clean||clean.length>40)throw new TeamManagementError("团队名称需 1–40 字");
     await this.ensure();const c=await this.pool.connect();
     try{
-      await c.query("BEGIN");const team=await this.owned(ownerId,c,true);
+      await c.query("BEGIN");const team=await this.owned(ownerId,teamId,c,true);
       if(team.name!==expectedName)throw new TeamManagementError("团队名称已被更新，请刷新后再修改",409);
       if(clean!==team.name){
         await c.query("UPDATE mc_teams SET name=$2 WHERE id=$1",[team.id,clean]);
@@ -74,9 +90,9 @@ export class TeamManagement {
       await c.query("COMMIT");return {name:clean};
     }catch(e){await c.query("ROLLBACK").catch(()=>{});throw e;}finally{c.release();}
   }
-  async list(ownerId:number,view:"ledger"|"operations",page:number){
+  async list(ownerId:number,view:"ledger"|"operations",page:number,teamId?:number){
     if(!["ledger","operations"].includes(view)||!Number.isInteger(page)||page<1||page>100000)throw new TeamManagementError("分页参数无效");
-    await this.ensure();const team=await this.owned(ownerId),offset=(page-1)*20;
+    await this.ensure();const team=await this.owned(ownerId,teamId),offset=(page-1)*20;
     if(view==="ledger"){
       const [rows,count]=await Promise.all([
         this.pool.query(`SELECT l.id::text,l.kind,l.user_id,l.amount,l.pool_after,l.actor_id,l.created_at,m.nickname

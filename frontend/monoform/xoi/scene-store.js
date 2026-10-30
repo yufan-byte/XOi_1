@@ -82,15 +82,16 @@ export async function startSceneStore({ sceneId, userId, token }) {
   let status = "loading";
   let conflict = false;
   let disposed = false;
+  let transferId = "";
   let timer;
   let pending;
   let latestCloud = null;
 
   /** 绕过自己的包装写本地（用于 hydrate / 元数据 / 备份） */
-  const writeNative = (key, value) => originalSetItem.call(localStorage, key, value);
+  const writeNative = (key, value) => { assertAlive(); originalSetItem.call(localStorage, key, value); };
 
   const assertAlive = () => {
-    if (disposed || localStorage.getItem("token") !== token) {
+    if (disposed || localStorage.getItem("xoi_session") !== token) {
       throw new Error("账号或场景已切换，请重新打开");
     }
   };
@@ -99,7 +100,8 @@ export async function startSceneStore({ sceneId, userId, token }) {
     assertAlive();
     const response = await fetch(`/api/director-scenes/${encodeURIComponent(sceneId)}`, {
       method,
-      headers: { Authorization: token, "Content-Type": "application/json" },
+      credentials: "same-origin", cache: "no-store",
+      headers: { "X-Xoi-Expected-User": String(userId), "Content-Type": "application/json" },
       ...(body ? { body: JSON.stringify(body) } : {}),
       // 首次读取要快（别让用户盯着白屏），之后的写入允许久一点
       signal: AbortSignal.timeout(status === "loading" ? 3000 : 12000),
@@ -113,6 +115,7 @@ export async function startSceneStore({ sceneId, userId, token }) {
     } catch {
       throw new Error("场景同步服务尚未就绪，本机草稿保留");
     }
+    assertAlive();
     if (!response.ok) {
       throw Object.assign(new Error(value.message || "场景同步失败，本机草稿保留"), {
         status: response.status,
@@ -198,6 +201,7 @@ export async function startSceneStore({ sceneId, userId, token }) {
       emit("dirty");
     }
   } catch (error) {
+    if (error.status === 410) conflict = true;
     emit("offline", error instanceof Error ? error.message : "云端暂不可用");
   }
 
@@ -301,7 +305,7 @@ export async function startSceneStore({ sceneId, userId, token }) {
 
   function schedule() {
     clearTimeout(timer);
-    if (!conflict && !disposed) timer = setTimeout(() => void flush().catch(() => {}), PUSH_DELAY_MS);
+    if (!conflict && !disposed && !transferId) timer = setTimeout(() => void flush().catch(() => {}), PUSH_DELAY_MS);
   }
 
   /**
@@ -312,6 +316,7 @@ export async function startSceneStore({ sceneId, userId, token }) {
    */
   localStorage.setItem = function (key, value) {
     const isProject = key === nativeKey;
+    if (isProject) assertAlive();
     const previous = isProject ? localStorage.getItem(key) : null;
     originalSetItem.call(this, key, value);
     if (isProject && previous !== String(value) && status !== "loading") {
@@ -321,6 +326,15 @@ export async function startSceneStore({ sceneId, userId, token }) {
   };
 
   const api = {
+    beginTransfer(id) {
+      assertAlive();if(transferId||typeof id!=="string"||!/^[\w-]{1,160}$/.test(id))throw new Error("已有交接正在进行");
+      transferId=id;clearTimeout(timer);
+    },
+    prepareRestore() {
+      assertAlive();disposed=true;clearTimeout(timer);
+      // Keep this old document's guarded writer installed: its delayed autosave
+      // must not overwrite the parent's restored snapshot during navigation.
+    },
     /** 供宿主「带到画布」调用：确认最新工程已落盘并同步，返回可引用的快照 */
     async checkpoint() {
       assertAlive();
@@ -374,7 +388,7 @@ export async function startSceneStore({ sceneId, userId, token }) {
   addEventListener(
     "pagehide",
     () => {
-      if (!disposed && !conflict) void flush().catch(() => {});
+      if (!disposed && !conflict && !transferId) void flush().catch(() => {});
     },
     { once: true },
   );

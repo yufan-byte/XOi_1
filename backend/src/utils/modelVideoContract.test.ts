@@ -61,3 +61,24 @@ test('invalid, excessive and oversized inline references never reach a video sub
     assert.equal(calls.length,0);
   }
 });
+
+test("first/last frame intent reaches the keyframe request with ordered frames", async () => {
+  const { api, calls } = adapter();
+  await api.videoRequest({ duration: 5, resolution: "720p", aspectRatio: "16:9", prompt: "离线验证", referenceList: [{ type: "image", base64: "data:image/png;base64,YQ==" }, { type: "image", base64: "data:image/png;base64,Yg==" }], mode: ["startEndRequired"] }, { modelName: "fixture-keyframe" });
+  assert.equal(calls[0].body.mode, "keyframe");
+  assert.equal(calls[0].body.input_reference, "data:image/png;base64,YQ==");
+  assert.equal(calls[0].body.end_image_url, "data:image/png;base64,Yg==");
+});
+
+test("fixed image pixel size and upstream errors survive the adapter", async () => {
+  const calls: any[] = [];
+  const sandbox: any = { exports: {}, Buffer, axios: { post: async (_url: string, body: any) => { calls.push(body); return { data: { data: [{ url: "https://fixture.invalid/result.png" }] } }; } } };
+  const source = fs.readFileSync(path.resolve(__dirname, "../../data/vendor/newapi.ts"), "utf8");
+  vm.runInNewContext(transform(source, { transforms: ["typescript"] }).code.replace(/export\s*\{\s*\};?/g, ""), sandbox);
+  sandbox.exports.vendor.inputValues = { baseUrl: "https://offline.example.test", apiKey: "offline-dummy" };
+  await sandbox.exports.imageRequest({ prompt: "离线验证", size: "1K", aspectRatio: "7:4", exactSize: "1792x1024", inputMode: "multi-reference" }, { modelName: "fixture-image" });
+  assert.equal(calls[0].size, "1792x1024");
+  assert.equal(calls[0].mode, "multi-reference");
+  sandbox.axios.post = async () => { throw { message: "Request failed with status code 500", response: { status: 500, data: { error: { message: "参考图格式不支持" } } } }; };
+  await assert.rejects(() => sandbox.exports.imageRequest({ prompt: "离线验证", size: "1K", aspectRatio: "1:1" }, { modelName: "fixture-image" }), /参考图格式不支持/);
+});

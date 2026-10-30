@@ -45,7 +45,11 @@ export async function uploadAssetMediaFile(file: File, prefix = "asset-media"): 
 
 export async function downloadRemoteMedia(url: string) {
     const token = useUserStore.getState().token;
-    const response = await fetch(getProxyUrl(url), token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+    // token 可能是「uid:nonce」会话信号而非真 JWT：塞进 Authorization 会让后端
+    // 鉴权直接 401（header 优先、cookie 兜不住）。非三段点分的一律不带 header，
+    // 交给同源 cookie（xoi_session / 媒体 cookie）完成认证。
+    const credential = token && token.split(".").length === 3 ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+    const response = await fetch(getProxyUrl(url), credential);
     if (!response.ok) throw new Error(`媒体下载失败：${response.status}`);
     const blob = await response.blob();
     if (blob.type.includes("json") || blob.type.startsWith("text/")) {

@@ -1,11 +1,11 @@
 <template>
   <div class="productionWorkspace">
   <div v-if="contextReady && episodesId" v-show="viewMode === 'studio'" class="studioPage" :class="{'withAssistant':openShowVisible}">
-    <ShotStudio :key="episodesId" ref="studioRef" embedded :episodes-options="episodesOptions" :episode-switching="episodeSwitching" @stage-change="studioStage = $event" @episode-change="handleEpisodesChange" @show-overview="viewMode = 'canvas'" @toggle-assistant="openShowVisible = !openShowVisible" />
+    <ShotStudio :key="episodesId" ref="studioRef" embedded :episodes-options="episodesOptions" :episode-switching="episodeSwitching" @stage-change="studioStage = $event" @episode-change="handleEpisodesChange" @show-overview="leaveWorkspace" @toggle-assistant="openShowVisible = !openShowVisible" @leave-workspace="leaveWorkspace" />
     <aside v-if="openShowVisible" class="studioAssistant"><rightChatBox docked :title="title" :stage="studioStage" @close="openShowVisible=false" /></aside>
   </div>
   <div v-else-if="viewMode === 'studio'" class="studioPageLoading"><t-loading/><span>正在打开本集工作台…</span></div>
-  <div v-if="viewMode === 'canvas'" class="productionStage">
+  <div v-if="viewMode === 'canvas' && contextReady" class="productionStage">
     <VueFlow
       class="flowMain"
       :class="{ 'is-interacting': isInteracting && otherSetting.interacting, 'space-dragging': isSpacePressed }"
@@ -99,7 +99,8 @@
               </t-button>
             </t-tooltip>
             <t-button v-if="episodesId" variant="text" class="overviewBtn" @click="showOverview">导演总览</t-button>
-            <t-button v-if="episodesId" variant="text" class="overviewBtn modeSwitch" @click="openStudio()">← 返回制作流程</t-button>
+            <t-button v-if="episodesId" variant="text" class="overviewBtn modeSwitch" @click="openStudio()">⛶ 展开分镜成片</t-button>
+            <t-button v-if="episodesId" variant="text" class="overviewBtn" @click="openEditor">剪辑台 ↗</t-button>
             <i-loading-four class="spin" size="16" v-show="loading"></i-loading-four>          </div>
           <div v-if="episodesId" class="productionStatus" aria-label="制作进度">
             <span class="statusDivider" />
@@ -125,6 +126,7 @@
       <span>导演助理</span>
     </button>
   </div>
+  <div v-else-if="viewMode === 'canvas' && !contextReady" class="studioPageLoading"><t-loading/><span>正在读取本集关系画布…</span></div>
   </div>
 </template>
 
@@ -148,6 +150,9 @@ import outputNode from "./node/output.vue";
 import rightChatBox from "./components/rightChatBox/index.vue";
 import type { StudioStage } from "./utils/studioWorkflow";
 import ShotStudio from "./components/workbench/index.vue";
+import { onBeforeRouteLeave } from "vue-router";
+import { sessionUserId } from "@/utils/session";
+import { studioStageFor } from "./utils/studioWorkflow";
 import { useLayout } from "./utils/dagre";
 import { useFlowBuilder } from "./utils/flowBuilder";
 import { directorProgressKey, getDirectorProgress } from "./utils/directorProgress";
@@ -158,12 +163,13 @@ const { project } = storeToRefs(projectStore());
 import settingStore from "@/stores/setting";
 const { canvasWheelEvent, otherSetting } = storeToRefs(settingStore());
 // 两种平行工作方式：工作台负责顺序制作，关系画布负责跨步骤总览与联动。
-const viewMode = ref<"studio" | "canvas">("studio");
+const viewMode = ref<"studio" | "canvas">("canvas");
 const studioStage = ref<StudioStage>("planning");
 const contextReady = ref(false);
-const studioRef = ref<{ setActiveMenu: (menu:string) => void; openDocument: (value:string) => Promise<void> }>();
+const studioRef = ref<{ setActiveMenu: (menu:string) => void; openDocument: (value:string) => Promise<void>; flushDrafts: () => Promise<void> }>();
 async function openStudio(menu?: string) {
   viewMode.value = "studio";
+  if (route.query.view !== "studio") await router.replace({ query: { ...route.query, view: "studio" } });
   await nextTick();
   if (menu) studioRef.value?.setActiveMenu(menu);
 }
@@ -258,10 +264,37 @@ const { layout } = useLayout("mainFlowBox");
 
 import productionAgentStore from "@/stores/productionAgent";
 import { guardProduction } from "@/utils/pipelineGuard";
-const { episodesId, flowData, status } = storeToRefs(productionAgentStore());
+const agentStore = productionAgentStore();
+const { episodesId, flowData, status } = storeToRefs(agentStore);
 provide(directorProgressKey, computed(() => getDirectorProgress(flowData.value)));
 const router = useRouter();
 const route = useRoute();
+const progressKey = () => `production-progress:${sessionUserId()}:${String(project.value?.id || route.query.projectId || "")}`;
+const stageKey = (episode: number) => `${progressKey()}:episode:${episode}`;
+function savedProgress(): { episode?: number; stage?: StudioStage } {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(progressKey()) || "{}");
+    return { episode: Number(value.episode) || undefined, stage: studioStageFor(value.stage) };
+  } catch { return {}; }
+}
+function savedStage(episode: number): StudioStage | undefined {
+  try { return studioStageFor(sessionStorage.getItem(stageKey(episode))); } catch { return undefined; }
+}
+async function leaveWorkspace() {
+  try { await studioRef.value?.flushDrafts(); }
+  catch { window.$message.error("视频提示词保存失败，请检查网络后重试，当前内容仍保留在页面中"); return; }
+  viewMode.value = "canvas";
+  await router.replace({ query: { ...route.query, view: "canvas", episode: String(episodesId.value || "") } });
+}
+function openEditor() {
+  const returnTo = router.resolve({ path: "/production", query: { ...route.query, view: "canvas" } }).fullPath;
+  void router.push({ path: "/editor", query: { projectId: String(project.value?.id || route.query.projectId || ""), episode: String(episodesId.value || ""), returnTo } });
+}
+watch(() => route.query.view, (view) => { viewMode.value = view === "studio" ? "studio" : "canvas"; }, { immediate: true });
+onBeforeRouteLeave(async () => {
+  try { await studioRef.value?.flushDrafts(); return true; }
+  catch { window.$message.error("视频提示词保存失败，请检查网络后重试，当前内容仍保留在页面中"); return false; }
+});
 provide("episodesId", episodesId);
 provide('productionEpisodeTitle', computed(() => episodesOptions.value.find(option => option.value === episodesId.value)?.label || '当前分集'));
 async function focusStudioContext(event: Event) {
@@ -332,6 +365,12 @@ onMounted(async () => {
     return;
   }
   await loadEpisodeContext();
+  const saved = savedProgress();
+  const requestedStage = studioStageFor(route.query.stage);
+  const restoredStage = requestedStage || savedStage(episodesId.value) || (saved.episode === episodesId.value ? saved.stage : undefined);
+  if (String(route.query.episode || "") !== String(episodesId.value) || (!requestedStage && restoredStage)) {
+    await router.replace({ query: { ...route.query, episode: String(episodesId.value), ...(restoredStage ? { stage: restoredStage } : {}) } });
+  }
   contextReady.value = true;
 
   if (viewMode.value === "canvas") {
@@ -394,9 +433,13 @@ const episodeSwitching = ref(false);
 function handleEpisodesChange(value: unknown) {
   const rawValue = Array.isArray(value) ? value[0] : value;
   const nextEpisodesId = Number(rawValue);
-  if (!Number.isFinite(nextEpisodesId) || nextEpisodesId === episodesId.value || episodeSwitching.value) return;
+  if (!episodesOptions.value.some((item) => item.value === nextEpisodesId) || nextEpisodesId === episodesId.value || episodeSwitching.value) return;
   episodeSwitching.value = true;
   void (async () => {
+    const previousEpisode = episodesId.value;
+    const previousQuery = { ...route.query, episode: String(previousEpisode || "") };
+    let contextChanged = false;
+    let loaded = false;
     try {
       if (!(await confirmEpisodesSwitch())) {
         if (String(route.query.episode || "") !== String(episodesId.value || "")) {
@@ -404,15 +447,32 @@ function handleEpisodesChange(value: unknown) {
         }
         return;
       }
+      await studioRef.value?.flushDrafts();
       contextReady.value = false;
       await nextTick();
       episodesId.value = nextEpisodesId;
-      await router.replace({ path: "/production", query: { ...route.query, projectId: String(project.value?.id || ""), episode: String(nextEpisodesId) } });
+      contextChanged = true;
+      const query: Record<string, any> = { ...route.query, projectId: String(project.value?.id || ""), episode: String(nextEpisodesId) };
+      const nextStage = savedStage(nextEpisodesId);
+      if (nextStage) query.stage = nextStage; else delete query.stage;
+      await router.replace({ path: "/production", query });
       await loadEpisodeContext();
-      await layoutGraph();
+      loaded = true;
     } catch (error: any) {
       window.$message.error(error?.message || "分集加载失败，请重试");
-    } finally { contextReady.value = true; episodeSwitching.value = false; }
+      if (contextChanged && previousEpisode) {
+        try {
+          episodesId.value = previousEpisode;
+          await router.replace({ path: "/production", query: previousQuery });
+          await loadEpisodeContext();
+          loaded = true;
+        } catch { window.$message.error("原分集也暂时无法读取，请刷新重试"); }
+      } else loaded = true;
+    } finally {
+      contextReady.value = loaded;
+      episodeSwitching.value = false;
+      if (loaded && viewMode.value === "canvas") { await nextTick(); await waitForNodesReady(); await layoutGraph(); }
+    }
   })();
 }
 // Keep browser history and episode deep links working when the page stays mounted.
@@ -433,15 +493,23 @@ async function getScriptData() {
   }));
   if (episodesOptions.value.length) {
     // 返回制作页时优先恢复原分集；无效或已删除的分集才回退到第一集。
-    const requestedEpisode = Number(route.query.episode);
+    const requestedEpisode = Number(route.query.episode) || savedProgress().episode;
     episodesId.value = episodesOptions.value.find((ep) => ep.value === requestedEpisode)?.value ?? episodesOptions.value[0].value;
   }
 }
 
+watch([contextReady, episodesId, studioStage], ([ready, episode, stage]) => {
+  if (!ready || !episode) return;
+  try {
+    sessionStorage.setItem(progressKey(), JSON.stringify({ episode, stage }));
+    if (viewMode.value === "studio") sessionStorage.setItem(stageKey(episode), stage);
+  } catch { /* storage unavailable */ }
+});
+
 async function loadEpisodeContext() {
   // 显式读取一次，避免切回同一分集时 ref 值不变、watcher 不触发而沿用上个项目的数据。
-  await Promise.all([productionAgentStore().getFlowData(), productionAgentStore().getHistory()]);
-  productionAgentStore().updateContext();
+  await Promise.all([agentStore.getFlowData(), agentStore.getHistory()]);
+  agentStore.updateContext();
 }
 
 async function layoutGraph(direction: "LR" | "TB" = "LR") {
@@ -576,13 +644,13 @@ const productionProgress = computed(() => {
 });
 
 async function refFlowData() {
-  await productionAgentStore().getFlowData();
+  await agentStore.getFlowData();
   layoutGraph();
 }
 </script>
 <style lang="scss" scoped>
 .productionWorkspace { height:100%; min-height:0; display:flex; flex-direction:column; background:#f7f5f1; }
-.studioPage{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}.studioPage.withAssistant{grid-template-columns:minmax(0,1fr) 400px}.studioAssistant{min-height:0;overflow:hidden;border:1px solid var(--td-border-level-1-color);border-radius:14px;background:var(--td-bg-color-container)}@media(max-width:1100px){.studioPage.withAssistant{grid-template-columns:minmax(0,1fr)}.studioAssistant{position:absolute;right:20px;top:92px;bottom:20px;width:min(420px,calc(100% - 40px));z-index:20;box-shadow:0 12px 60px #30201022}}
+.studioPage{position:relative;flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:0}.studioPage.withAssistant{grid-template-columns:minmax(0,1fr) 400px}.studioAssistant{min-height:0;overflow:hidden;border-left:1px solid var(--td-border-level-1-color);background:var(--td-bg-color-container)}@media(max-width:1100px){.studioPage.withAssistant{grid-template-columns:minmax(0,1fr)}.studioAssistant{position:absolute;right:12px;top:64px;bottom:12px;width:min(420px,calc(100% - 24px));z-index:20;border:1px solid var(--td-border-level-1-color);border-radius:14px;box-shadow:0 12px 60px #30201022}}
 .studioPageLoading { flex:1; min-height:0; display:flex; gap:12px; align-items:center; justify-content:center; color:var(--td-text-color-secondary); font-size:13px; }
 .productionStage {
   position: relative;

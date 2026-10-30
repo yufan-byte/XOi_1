@@ -27,6 +27,7 @@ export const billableRoutes: Record<string, BillableOperation> = {
   "/aiAssistant/chat/stream": { label: "参考素材 AI 分析", kind: "text", multiple: true },
   "/aiAssistant/director/plan": { label: "AI 导演方案", kind: "text" },
   "/aiAssistant/director/compose": { label: "AI 场景搭建与调整", kind: "text" },
+  "/aiAssistant/director/scene-tasks": { label: "场景图识别白模", kind: "text" },
   "/canvas-image-tasks": { label: "画布生图", kind: "image" },
   "/canvas-video": { label: "画布生成视频", kind: "video" },
   "/v1/canvas/image-tasks": { label: "画布生图", kind: "image" },

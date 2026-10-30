@@ -11,6 +11,7 @@ import { getPlatformPolicy } from "@/utils/platformPolicy";
 import { auditLogin, upsertMirrorUser } from "@/lib/userMirror";
 import { NewApiError, adjustQuota, bindEmail, emailTaken, newApiLogin, newApiRegister, newApiSelfByAdmin, type NewApiUser } from "@/utils/newapi";
 import { agentByCode, agentByHost, bindInvitedUser, type Agent } from "@/lib/agent/store";
+import { setSessionCookie, setMediaCookies } from "@/utils/sessionCookie";
 import u from "@/utils";
 
 const router = express.Router();
@@ -161,6 +162,10 @@ export default router.post(
     // 注册成功 ── 清解此 IP 总线持守回到基线免码状态
     releaseHolds(makeComboKey(clientIp, username), clientIp);
     void auditLogin({ uid: mirror.id, name: loginId, ip: clientIp, ua, result: "ok", reason: "register" });
+
+    // F3：注册即登录，同样下发 httpOnly 会话 cookie（与 login 一致）。
+    setSessionCookie(req, res, token);
+    setMediaCookies(req, res, mirror.id, token);
 
     return res.status(200).send(
       success(

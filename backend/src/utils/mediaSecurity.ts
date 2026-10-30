@@ -8,6 +8,8 @@ export function isAllowedMedia(buffer: Buffer, ext: string): boolean {
     case "gif": return ["GIF87a", "GIF89a"].includes(ascii(0, 6));
     case "webp": return ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP";
     case "mp4": return buffer.length >= 12 && ascii(4, 8) === "ftyp";
+    case "mov": return buffer.length >= 12 && ["ftyp", "moov", "mdat", "wide"].includes(ascii(4, 8));
+    case "ogg": return ascii(0, 4) === "OggS";
     // m4a 与 mp4 同属 ISOBMFF，文件头一致；两者都是容器，不构成脚本执行面
     case "m4a": return buffer.length >= 12 && ascii(4, 8) === "ftyp";
     case "webm": return buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));

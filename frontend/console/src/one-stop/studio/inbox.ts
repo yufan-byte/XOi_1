@@ -1,7 +1,8 @@
 // 站内邮箱：生成任务的完成 / 失败通知（zaowu lib/inbox 同款机制）。
 // 消息存本浏览器；未读数挂顶栏信封徽标，打开抽屉即全部已读。
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { accountStorageKey, accountLocalStorage } from "../adapters/request";
 
 export type InboxModule = "video" | "image" | "audio" | "platform";
 export interface InboxMessage { id: string; module: InboxModule; title: string; body?: string; href?: string; createdAt: number; read?: boolean; tone?: "success" | "error" | "info" }
@@ -30,7 +31,7 @@ export const useInbox = create<InboxState>()(persist((set, get) => ({
   markAllRead: () => set((s) => ({ messages: s.messages.map((x) => (x.read ? x : { ...x, read: true })) })),
   remove: (id) => set((s) => ({ messages: s.messages.filter((x) => x.id !== id) })),
   clearAll: () => set({ messages: [] }),
-}), { name: "xoi-one-stop-inbox", version: 1 }));
+}), { name: accountStorageKey("xoi-one-stop-inbox"), storage: createJSONStorage(accountLocalStorage), version: 1 }));
 
 export const unreadCount = (s: Pick<InboxState, "messages">) => s.messages.reduce((n, m) => n + (m.read ? 0 : 1), 0);
 
@@ -40,10 +41,11 @@ export function notifyWork(w: { id: string; kind: string; prompt: string; status
   const mod = KIND_MODULE[w.kind];
   if (!mod || (w.status !== "done" && w.status !== "failed")) return;
   const ok = w.status === "done"; const what = MODULE_LABEL[mod];
+  const uncertain = !ok && /待核|无法确认/.test(w.error ?? "");
   const brief = w.prompt.length > 40 ? `${w.prompt.slice(0, 40)}…` : w.prompt;
   useInbox.getState().push({
-    id: `work:${w.id}:${w.status}`, module: mod, tone: ok ? "success" : "error",
-    title: ok ? `${what}生成完成` : `${what}生成失败`,
+    id: `work:${w.id}:${w.status}`, module: mod, tone: ok ? "success" : uncertain ? "info" : "error",
+    title: ok ? `${what}生成完成` : uncertain ? `${what}结果待核对` : `${what}生成失败`,
     body: ok ? brief : `${brief}${w.error ? ` —— ${w.error}` : ""}`,
     href: KIND_PAGE[w.kind],
   });

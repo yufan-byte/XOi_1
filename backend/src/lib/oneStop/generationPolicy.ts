@@ -71,6 +71,7 @@ export function generationRejection(error: any, submitted: boolean): string | un
 export function videoParameters(
   p: Project,
   model: {
+    modelName?: string;
     defaults: Record<string, any>;
     durationResolutionMap: { duration: number[]; resolution: string[] }[];
   },
@@ -78,6 +79,9 @@ export function videoParameters(
 ) {
   const tiers = model.durationResolutionMap;
   const resolutions = [...new Set(tiers.flatMap((t) => t.resolution))];
+  if (/^seedance2\.[05]-line1(?:-fast)?-xoi$/i.test(model.modelName || "") && p.resolution && !["480p", "720p"].includes(p.resolution.toLowerCase())) {
+    throw new OneStopError("该专线此清晰度的计费尚未核实，请重新选择清晰度；本次未提交");
+  }
   const legacy = p.spec === "高清" ? "1080p" : "720p";
   const explicit =
     p.resolution &&

@@ -1,5 +1,6 @@
 import { billingExpressionUpperBound } from "../lib/model-catalog/expression";
 import { QUOTA_PER_YUAN } from "./creditUnits";
+import { boundedVisionPayload, VISION_IMAGE_TOKEN_BOUND } from "./gptVisionBudget";
 export const BUDGET_MAX_CALLS = 20;
 // 输出上限：4096 时 DeepSeek 思考模型的思维链会把额度吃光，正文被截成空内容
 // （实测 completion_tokens 恰好 4096、finish_reason=length）。放宽到 8192，上游实测可接受。
@@ -11,7 +12,8 @@ export class BillingBudgetError extends Error {
   constructor(message: string) { super(message); this.name = "BillingBudgetError"; }
 }
 export function normalizeBudgetPath(path: string) { return path.split("?")[0].replace(/^\/api(?=\/)/i, "").replace(/\/$/, "").toLowerCase(); }
-export function budgetCallLimit(path:string){return /^\/aiassistant\/director\/(plan|compose)$/.test(normalizeBudgetPath(path))?1:BUDGET_MAX_CALLS;}
+export function budgetCallLimit(path:string){return /^\/aiassistant\/director\/(plan|compose|scene-tasks)$/.test(normalizeBudgetPath(path))?1:BUDGET_MAX_CALLS;}
+export function directorBudgetDecision(path:string,automatic:boolean){return automatic&&budgetCallLimit(path)===1?'导演任务必须确认单次费用，不能使用批量自动预算':undefined;}
 export function budgetModelDecision(boundModel:string|null|undefined,actualModel:string,allowedModels?:unknown){if(allowedModels!==undefined&&allowedModels!==null&&(!Array.isArray(allowedModels)||!allowedModels.includes(actualModel)))return '当前模型不在本轮确认的组合中，请重新确认费用';return boundModel&&boundModel!==actualModel?"本轮只授权所确认的模型，禁止更换型号；请重新确认费用":undefined;}
 /** Automatic consent is valid ONLY for a verifiably free, explicitly priced model. */
 export function freeBudgetDecision(pricing:Record<string,any>,quota=0){
@@ -26,7 +28,7 @@ export function budgetDecision(row: {state:string;expires_at:string|Date;reserve
   if (!row.automatic && Number(row.reserved_quota) + quota > Number(row.limit_quota)) return "剩余预算不足，已停止后续模型调用；继续需要重新确认";
 }
 /** Upper-bound reservation, NOT a debit. No refund/release on unknown settlement or failed transport. */
-export function boundGatewayRequest(path: string, source: Record<string, any>, pricing: Record<string, any>, factor: number, cacheFactor = 1) {
+export function boundGatewayRequest(path: string, source: Record<string, any>, pricing: Record<string, any>, factor: number, cacheFactor = 1, allowRemoteImage?:(url:string)=>boolean) {
   if (!/\/v1\/(chat\/completions|responses|images\/(generations|edits)|videos|audio\/speech)$/.test(path)) throw new BillingBudgetError("该模型接口尚未验证费用上限，未提交收费请求");
   // Only top-level output parameters are changed; avoid copying large reference images twice.
   const body = {...source};
@@ -58,12 +60,13 @@ export function boundGatewayRequest(path: string, source: Record<string, any>, p
     if (n!==1) throw new BillingBudgetError("文本模型每次只允许一条输出，请拆分为独立任务");
     // Plain text is bounded by serialized UTF-8 bytes plus framing/tool overhead.
     // Non-text token inputs need an authoritative tokenizer/context bound first.
-    const payload = JSON.stringify(body);
     const paidToken = !perRequest || !!expression;
+    const vision = paidToken && /\/chat\/completions$/.test(path) ? boundedVisionPayload(body,allowRemoteImage) : null;
+    const payload = vision?.payload || JSON.stringify(body);
     if (paidToken && /"type"\s*:\s*"(?:image|input_image|image_url|video|audio|input_audio)|"(?:image_url|audio_url|video_url)"\s*:/.test(payload)) throw new BillingBudgetError("参考图片、视频或音频的 Token 上限尚未验证，本次不自动调用；请改为纯文本或已支持的定价模型");
     if (body.web_search_options || body.audio || body.modalities?.some((item:string)=>item!=="text") || body.tools?.some((tool:any)=>tool.type!=="function")) throw new BillingBudgetError("内置搜索、音频等额外费用尚无可靠上限，本次不自动调用");
     if (paidToken && (body.previous_response_id || body.conversation || /"(?:file_id|file_url|file_data)"\s*:/.test(payload))) throw new BillingBudgetError("远程历史或文件的 Token 用量无法可靠封顶，请提交明确的纯文本内容");
-    if (paidToken) for (const message of [...(Array.isArray(body.messages)?body.messages:[]),...(Array.isArray(body.input)?body.input:[])]) {
+    if (paidToken && !vision) for (const message of [...(Array.isArray(body.messages)?body.messages:[]),...(Array.isArray(body.input)?body.input:[])]) {
       const content=message?.content;
       if (content!==undefined && content!==null && typeof content!=="string" && (!Array.isArray(content) || content.some((part:any)=>!["text","input_text","output_text"].includes(part?.type) || typeof part.text!=="string"))) throw new BillingBudgetError("非文本内容的 Token 上限尚未验证，本次不自动调用");
     }
@@ -72,7 +75,7 @@ export function boundGatewayRequest(path: string, source: Record<string, any>, p
     // 落在 DeepSeek 128K 上下文之内，同时给输出留余量。
     // 之前的 128KB（≈4.3 万汉字）比模型真实上下文小太多，画布长对话会被提前拦死。
     if (bytes > (paidToken ? 350_000 : 16 * 1024 * 1024)) throw new BillingBudgetError("上下文过长，无法在本轮预算内安全执行，请拆分内容");
-    inputTokens = bytes * 2 + 4096;
+    inputTokens = bytes * 2 + 4096 + (vision?.images || 0) * VISION_IMAGE_TOKEN_BOUND;
     const requested = Number(body.max_completion_tokens ?? body.max_output_tokens ?? body.max_tokens ?? BUDGET_OUTPUT_TOKENS);
     if (!Number.isFinite(requested) || requested <= 0) throw new BillingBudgetError("输出长度参数无效");
     const output = Math.max(1, Math.min(BUDGET_OUTPUT_TOKENS, Math.floor(requested)));

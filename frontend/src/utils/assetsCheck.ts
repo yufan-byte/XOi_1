@@ -29,10 +29,12 @@ export interface AssetsSelectOptions {
   /** 弹窗标题 */
   title?: string;
   selectorMode?: boolean;
+  /** 弹窗层级；用于从全屏编辑器等高层浮层中打开素材选择器 */
+  zIndex?: number;
 }
 
 export default function openAssetsSelector(options: AssetsSelectOptions = {}): Promise<Asset[]> {
-  const { types, clipMediaTypes, multiple = true, title = window.$t("common.selectAssets"), selectorMode = false } = options;
+  const { types, clipMediaTypes, multiple = true, title = window.$t("common.selectAssets"), selectorMode = false, zIndex } = options;
   return new Promise((resolve) => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -62,6 +64,7 @@ export default function openAssetsSelector(options: AssetsSelectOptions = {}): P
           header: title,
           width: "80%",
           top: "5vh",
+          zIndex,
           destroyOnClose: true,
           confirmBtn: window.$t("common.confirm"),
           cancelBtn: window.$t("common.cancel"),

@@ -7,10 +7,15 @@
 #  用法：
 #    上传目录到服务器后执行：
 #      bash bootstrap.sh --domain studio.example.com --image xoi:20261026-r1
+#    ★ 还没有域名？--domain 直接填公网 IP（如 39.96.61.15），会生成
+#      XOI_ALLOWED_ORIGINS=https://39.96.61.15；此时必须自签证书才能走 HTTPS
+#      （生产闸门只认 https origin）。详见 docs/宝塔部署-仅IP自签证书.md
 #    起容器后同步反向代理来源 IP（可选但推荐）：
 #      bash bootstrap.sh --sync-trust-proxy
 #    2G 内存机器建议同时建 2G swap（可选）：
 #      bash bootstrap.sh --with-swap
+#    想换目录（默认 /opt/xoi/deploy 与 /opt/xoi/data）：
+#      --dir /www/wwwroot/xoi/deploy --data-dir /www/wwwroot/xoi/data
 # =====================================================================
 set -euo pipefail
 
@@ -29,7 +34,7 @@ while [ $# -gt 0 ]; do
     --data-dir) DATA_DIR="${2:-}"; shift 2 ;;
     --sync-trust-proxy) SYNC_TRUST_PROXY=1; shift ;;
     --with-swap) WITH_SWAP=1; shift ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
     *) echo "未知参数：$1（--help 看用法）" >&2; exit 1 ;;
   esac
 done
@@ -61,7 +66,7 @@ docker compose version >/dev/null 2>&1 || die "docker compose（v2 插件）不�
 [ -n "$IMAGE" ] || die "缺少 --image，例如 --image xoi:20261026-r1"
 
 case "$DOMAIN" in
-  *://*|*/*) die "域名不要带 https:// 或路径，只写 studio.example.com" ;;
+  *://*|*/*) die "域名不要带 https:// 或路径，只写 studio.example.com（没有域名就填公网 IP）" ;;
 esac
 
 # 镜像是否已在宿主机（没导入不算错，只是提醒）
@@ -81,6 +86,12 @@ else
   echo "compose.prod.yml 已存在，保留不动"
 fi
 cp -f "$SRC_DIR/compose.2c2g.override.yml" "$DEPLOY_DIR/compose.2c2g.override.yml"
+
+# 自定义 --data-dir 时同步改挂载点（模板默认 /opt/xoi/data，不改就挂到旧路径上）
+if [ "$DATA_DIR" != "/opt/xoi/data" ] && grep -q '/opt/xoi/data:/app/backend/data' "$DEPLOY_DIR/compose.prod.yml"; then
+  sed -i "s|/opt/xoi/data:/app/backend/data|${DATA_DIR}:/app/backend/data|" "$DEPLOY_DIR/compose.prod.yml"
+  echo "已把 xoi 数据挂载改为 $DATA_DIR"
+fi
 
 # ── .env：绝不覆盖已有文件（避免把在用的密钥冲掉）──
 if [ -f "$DEPLOY_DIR/.env" ]; then

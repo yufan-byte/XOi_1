@@ -42,7 +42,7 @@ const uid = (req: express.Request): number | null => {
  * 这里若直接 404，控制台审核页（GET/POST /api/skills/review）就永远打不开；
  * 放行后请求会继续往下命中真正的 review 路由。
  */
-const RESERVED = new Set(["save", "import", "review"]);
+const RESERVED = new Set(["save", "import", "review", "catalog", "content"]);
 
 /** 只取白名单字符，防目录穿越；UUID / s_xxx 形态原样保留 */
 const safeId = (raw: string) => raw.replace(/[^a-zA-Z0-9_-]/g, "");
@@ -94,15 +94,44 @@ router.post<{ id: string }>("/install", async (req, res, next) => {
   try {
     let body: string | null = null;
     let name = id;
-    const row = await getSkill(id, me);
-    if (row) {
-      body = row.body;
-      name = row.name || id;
+    const skill = await getSkill(id, me);
+    if (skill) {
+      body = skill.body;
+      name = skill.name || id;
     } else {
       const file = staticBodyFile(id);
       if (file) body = fs.readFileSync(file, "utf-8");
     }
     if (!body) return res.status(404).json({ success: false, message: "Skill 不存在" });
+
+    // Database-owned skills remain in their permission-checked store, not the shared
+    // community folder. The virtual path keeps existing clients compatible.
+    if (skill) {
+      await setInstalled(me, id, true);
+      return res.json({ success: true, data: { path: `community/${id}.md`, name } });
+    }
+
+    // 自建 Skill 的正文原本没有 frontmatter；安装时补齐名称、简介和角色场景专用分类，
+    // 这样生成页只读文件元数据就能稳定分到「人物 / 场景 / 道具」。
+    if (!/^\uFEFF?---\s*\r?\n/.test(body)) {
+      const rawCategory = "general";
+      const category = ["character", "role", "person"].includes(rawCategory)
+        ? "character"
+        : ["scene", "environment", "location"].includes(rawCategory)
+          ? "scene"
+          : ["prop", "object", "tool", "product"].includes(rawCategory)
+            ? "prop"
+            : "general";
+      body = [
+        "---",
+        `name: ${JSON.stringify(name)}`,
+        `description: ${JSON.stringify("创作 Skill")}`,
+        `category: ${category}`,
+        "---",
+        "",
+        body,
+      ].join("\n");
+    }
 
     const dir = path.join(u.getPath("skills"), "community");
     fs.mkdirSync(dir, { recursive: true });

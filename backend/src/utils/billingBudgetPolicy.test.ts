@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {billingExpressionUpperBound} from "../lib/model-catalog/expression";
-import {boundGatewayRequest,budgetDecision,normalizeBudgetPath,budgetCallLimit,BUDGET_OUTPUT_TOKENS} from "./billingBudgetPolicy";
+import {boundGatewayRequest,budgetDecision,normalizeBudgetPath,budgetCallLimit,directorBudgetDecision,BUDGET_OUTPUT_TOKENS} from "./billingBudgetPolicy";
+test('director single-call authorization cannot opt into a bulk automatic budget',()=>{
+ for(const path of ['/api/aiAssistant/director/scene-tasks','/aiassistant/director/plan','/aiassistant/director/compose']){assert.ok(directorBudgetDecision(path,true));assert.equal(directorBudgetDecision(path,false),undefined);assert.equal(budgetCallLimit(path),1);}
+ assert.equal(directorBudgetDecision('/workflow/one-stop',true),undefined);
+});
 test("interval bounds cover all token tiers/cache branches, not just the optimistic estimate",()=>{
   const expression='max(len, cr + cc) > 100 ? tier("long", p * 10 + c * 20 + cr * 2) : tier("normal", p * 1 + c * 2)';
   assert.equal(billingExpressionUpperBound(expression,{p:100,c:50,len:150,cr:100,cc:100},{},{}),2200);

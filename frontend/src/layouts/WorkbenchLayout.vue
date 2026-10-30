@@ -3,7 +3,7 @@
   <div class="appShell">
     <!-- 全站公告横幅：横贯整页顶部（侧栏也在它下面），管理员在控制台发布 -->
     <Transition name="drop">
-      <div v-if="showSiteBanner && !isEditorWorkspace" class="siteBanner" :class="`theme-${siteBanner?.theme || 'brand'}`" role="region" aria-label="全站公告横幅">
+      <div v-if="showSiteBanner && !isFullWorkspace" class="siteBanner" :class="`theme-${siteBanner?.theme || 'brand'}`" role="region" aria-label="全站公告横幅">
         <span class="siteBannerText">{{ siteBanner?.text }}</span>
         <button v-if="siteBanner?.ctaLabel && siteBanner?.link" type="button" class="siteBannerCta" @click="handleBannerCta">
           {{ siteBanner.ctaLabel }}<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -11,7 +11,7 @@
         <button type="button" class="siteBannerClose" aria-label="关闭横幅" @click="dismissSiteBanner"><i-close size="14px" /></button>
       </div>
     </Transition>
-  <div class="main" :class="{ 'menu-collapsed': menuCollapsed, 'canvas-fullscreen': isCanvasFullscreen, 'canvas-nav-open': canvasNavOpen, 'editor-fullscreen': isEditorWorkspace }" :style="{ height: showSiteBanner && !isEditorWorkspace ? 'calc(100vh - 44px)' : '100vh', '--sidebar-width': menuCollapsed ? '72px' : '272px' }">
+  <div class="main" :class="{ 'menu-collapsed': menuCollapsed, 'canvas-fullscreen': isCanvasFullscreen, 'canvas-nav-open': canvasNavOpen, 'editor-fullscreen': isFullWorkspace }" :style="{ height: showSiteBanner && !isFullWorkspace ? 'calc(100vh - 44px)' : '100vh', '--sidebar-width': menuCollapsed ? '72px' : '272px' }">
     <!-- 背景装饰 - 纸面质感点阵 -->
     <div class="bg-decoration"></div>
 
@@ -363,6 +363,7 @@ import projectStore from "@/stores/project";
 const { project } = storeToRefs(projectStore());
 import userStore from "@/stores/user";
 import { formatPoints, yuanToPoints } from "@/utils/points";
+import { clearSession } from "@/utils/session";
 // aiAssistant 页运行期逃生口：让 isImmersive 白名单对该路由网开一面以显出全局导航（详见 stores/uiPrefs.ts）
 import uiPrefsStore from "@/stores/uiPrefs";
 import settingStore from "@/stores/setting";
@@ -377,7 +378,8 @@ const scriptQuickDestination = ref('/script/one-stop');
 provide('scriptQuickDestination', scriptQuickDestination);
 const PlatformWelcome = defineAsyncComponent(() => import("@/components/PlatformWelcome.vue"));
 const welcomeOpen = ref(false);
-const welcomeKey = () => `xoi.platform-welcome.v1:${uStore.userId || "current"}`;
+// v2：2026-10-27 介绍内容更新（新增一站式创作入口），升版本让老用户再看一次。
+const welcomeKey = () => `xoi.platform-welcome.v2:${uStore.userId || "current"}`;
 function completeWelcome() { try { localStorage.setItem(welcomeKey(), "done"); } catch {} }
 const uStore = userStore();
 const { username, userId, displayId, isAdmin, balance } = storeToRefs(uStore);
@@ -498,9 +500,10 @@ function toggleSidebar() {
  * director3d/canvas 两路继续硬性强制沉浸不可破例（外溢风险最低）。
  */
 const isEditorWorkspace = computed(() => route.path === "/editor");
+const isFullWorkspace = computed(() => isEditorWorkspace.value || (route.path === "/production" && route.query.view === "studio"));
 const isImmersive = computed(() =>
   // /editor（剪辑成片）是独立工作台：它自带顶栏，这里压掉面包屑让预览拿到整块高度。
-  ['/aiAssistant', '/director3d', '/canvas', '/editor'].includes(route.path)
+  (['/aiAssistant', '/director3d', '/canvas', '/editor'].includes(route.path) || (route.path === '/production' && route.query.view === 'studio'))
     && !(route.path === '/aiAssistant' && uiPrefs.aiAssistantChromeVisible)
 );
 // 画布中心保留外层侧栏，只有打开具体画布编辑器后才进入全屏沉浸模式。
@@ -720,21 +723,55 @@ function goConsoleAdmin() {
 // 未读逻辑：最新一条的 id 与 localStorage 记录不一致即显示小红点，打开弹窗即标记已读。
 interface NoticeItem { id: string; title: string; content: string; type?: string; published_at?: string; created_at?: string }
 // 全站顶部横幅：控制台「官方公告」页发布，随 /announcements.json 一起下发。
-// 关闭按横幅 id 记忆（管理员换一条新横幅 = 换 id，会重新出现）。
-interface SiteBanner { id?: string; enabled?: boolean; text?: string; ctaLabel?: string; link?: string; theme?: string }
+// 关闭策略由管理员在控制台选：每天 / 每次打开或登录 / 每次刷新 / 不再出现；
+// 换一条新横幅（id 变化）一律重新出现。
+type BannerDismissMode = "day" | "session" | "refresh" | "never";
+interface SiteBanner { id?: string; enabled?: boolean; text?: string; ctaLabel?: string; link?: string; theme?: string; dismissMode?: BannerDismissMode }
 const siteBanner = ref<SiteBanner | null>(null);
-const BANNER_DISMISS_KEY = "xoi_banner_dismissed_id";
-const bannerDismissedId = ref("");
-try { bannerDismissedId.value = localStorage.getItem(BANNER_DISMISS_KEY) || ""; } catch {}
+const BANNER_DISMISS_KEY = "xoi_banner_dismissed_v2";
+const bannerDismissed = ref<{ id: string; at: number } | null>(null);
+function bannerDismissMode(b: SiteBanner | null): BannerDismissMode {
+  const m = b?.dismissMode;
+  return m === "session" || m === "refresh" || m === "never" ? m : "day";
+}
+/** 老版本存的是纯 id 字符串，解析时兼容：否则升级后会被当成「已关闭」永久消失。 */
+function parseBannerDismiss(raw: string | null): { id: string; at: number } | null {
+  if (!raw) return null;
+  try { const v = JSON.parse(raw); if (v && typeof v.id === "string") return { id: v.id, at: Number(v.at) || 0 }; } catch {}
+  return { id: raw, at: 0 };
+}
+function loadBannerDismiss() {
+  const mode = bannerDismissMode(siteBanner.value);
+  bannerDismissed.value = null;
+  if (mode === "refresh") return; // 刷新就重来：本策略下不写任何存储
+  try {
+    bannerDismissed.value = parseBannerDismiss((mode === "session" ? sessionStorage : localStorage).getItem(BANNER_DISMISS_KEY));
+  } catch {}
+}
+function sameDay(ts: number) {
+  if (!ts) return false;
+  const a = new Date(ts), b = new Date();
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
 const showSiteBanner = computed(() => {
   const b = siteBanner.value;
-  return !!b && b.enabled === true && !!b.text && bannerDismissedId.value !== (b.id || "banner");
+  if (!b || b.enabled !== true || !b.text) return false;
+  const dismissed = bannerDismissed.value;
+  if (!dismissed) return true;
+  if (dismissed.id !== (b.id || "banner")) return true; // 换了一条新横幅
+  const mode = bannerDismissMode(b);
+  if (mode === "never") return false;
+  if (mode === "day") return !sameDay(dismissed.at);     // 跨天自动重新出现
+  return false;                                          // session：本次会话/登录内不再出现
 });
 function dismissSiteBanner() {
   const b = siteBanner.value;
   if (!b) return;
-  bannerDismissedId.value = b.id || "banner";
-  try { localStorage.setItem(BANNER_DISMISS_KEY, b.id || "banner"); } catch {}
+  const mode = bannerDismissMode(b);
+  const record = { id: b.id || "banner", at: Date.now() };
+  bannerDismissed.value = record;
+  if (mode === "refresh") return;
+  try { (mode === "session" ? sessionStorage : localStorage).setItem(BANNER_DISMISS_KEY, JSON.stringify(record)); } catch {}
 }
 /** 横幅跳转：https 外链新窗口（noopener），站内路径走 router（兼容 /#/hash 与纯 path 两种形态） */
 function handleBannerCta() {
@@ -762,7 +799,7 @@ async function loadNotices() {
     const json: any = await res.json();
     const list: NoticeItem[] = Array.isArray(json) ? json : (json?.data ?? []);
     notices.value = list.filter((n) => n && n.id && n.title);
-    if (json?.banner && typeof json.banner === "object") siteBanner.value = json.banner;
+    if (json?.banner && typeof json.banner === "object") { siteBanner.value = json.banner; loadBannerDismiss(); }
   } catch { /* 静态资源缺失时静默降级为「暂无公告」 */ }
 }
 function openNotices() {
@@ -785,11 +822,22 @@ function noticeDate(n: NoticeItem) {
 
 // 退出登录
 function handleLogout() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("userId");
-  localStorage.removeItem("role");
-  localStorage.removeItem("username");
-  window.location.reload();
+  // F3：凭据存在 httpOnly cookie 里，前端删不掉，必须由后端清。
+  // scope=local 只作废本浏览器这一份会话（不 bump session_version），与改造前
+  // 「只清本机 localStorage」的语义一致，不会把手机/其他电脑一起踢下线。
+  void axios
+    .post("/login/logout", { scope: "local" })
+    .catch(() => {})
+    .finally(() => {
+      clearSession();
+      localStorage.removeItem("userId");
+      localStorage.removeItem("role");
+      localStorage.removeItem("displayId");
+      localStorage.removeItem("username");
+      // 「每次登录重新出现」的横幅要在退出时清掉会话级记录，否则下次登录仍是关闭态。
+      try { sessionStorage.removeItem(BANNER_DISMISS_KEY); localStorage.removeItem(BANNER_DISMISS_KEY); } catch {}
+      window.location.reload();
+    });
 }
 
 // 个人信息（改密码已收敛到网关侧，这里只支持改显示名称）
@@ -2282,6 +2330,7 @@ async function handleUpdateProfile() {
 .siteBanner .siteBannerClose { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 8px; background: transparent; color: rgba(255, 255, 255, .75); cursor: pointer; transition: background .15s ease, color .15s ease; }
 .siteBanner .siteBannerClose:hover { background: rgba(255, 255, 255, .16); color: #fff; }
 .siteBanner.theme-brand { background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 55%, #8b5cf6 100%); }
+.siteBanner.theme-orange { background: linear-gradient(90deg, #ff9b45 0%, #f26432 55%, #e8542a 100%); }
 .siteBanner.theme-dark { background: linear-gradient(90deg, #17181c, #2a2c33); }
 .siteBanner.theme-green { background: linear-gradient(90deg, #059669, #14b8a6); }
 .main .menu .sidebar-account-row .user-menu-chevron { display:block; }

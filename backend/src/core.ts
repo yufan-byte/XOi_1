@@ -54,6 +54,8 @@ export const ROUTE_WHITELIST: string[] = [
   "one-stop",
   "one-stop-uploads",
   "model-health",
+  // 按「线路」（new-api 渠道）统计的真实成功率：稳定/价格/速度优先排序要用
+  "model-lines",
   // 画布（atelier 后端）
   "canvas",
   "canvas-files",

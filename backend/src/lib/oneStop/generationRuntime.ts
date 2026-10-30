@@ -241,7 +241,7 @@ export async function submitGeneration(userId: number, input: any) {
       const old = JSON.parse(previous.request || "{}");
       old.request ||= savedTask?.request;
       if (
-        old.request &&
+        !savedTask || savedTask.projectId !== request.projectId || !old.request ||
         JSON.stringify(old.request) !== JSON.stringify(request)
       )
         throw new OneStopError("任务编号已被其他操作使用", 409);

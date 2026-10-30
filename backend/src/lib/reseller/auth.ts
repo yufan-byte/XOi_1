@@ -17,6 +17,7 @@ import u from "@/utils";
 import { resolveIdentity } from "@/utils/authIdentity";
 import { loadAuthUser } from "@/utils/loadAuthUser";
 import { newApiSelfByAdmin, assertConfigured, type NewApiUser } from "@/utils/newapi";
+import { cookieAuthAllowed, readSessionToken } from "@/utils/sessionCookie";
 
 const baseURL = () => (process.env.NEWAPI_BASE_URL || "http://127.0.0.1:3000").trim().replace(/\/+$/, "");
 const adminToken = () => (process.env.NEWAPI_ADMIN_TOKEN || "").trim();
@@ -31,12 +32,22 @@ async function currentUid(req: Request): Promise<number | null> {
   if (memo !== undefined) return memo;
   let uid: number | null = null;
   try {
-    const rawToken = req.headers.authorization || "";
-    if (rawToken) {
-      const tokenKey = (await u.db("o_setting").where("key", "tokenKey").select("value").first())?.value as string | undefined;
-      if (tokenKey) {
-        const identity = await resolveIdentity(rawToken, tokenKey, loadAuthUser);
-        uid = identity.id ?? null;
+    // 本 Router 挂在全局鉴权之前，拿不到 req.user，只能自己解析。
+    // F3：凭据可能只在 httpOnly cookie 里（header 为空），所以 cookie 也是合法来源；
+    // header 里若是历史遗留的「非凭据」会话信号，验签失败后再回落到 cookie。
+    const headerToken = String(req.headers.authorization || "").replace(/^(Bearer\s+)+/i, "");
+    const cookieToken = cookieAuthAllowed(req) ? readSessionToken(req) : "";
+    const tokenKey = (await u.db("o_setting").where("key", "tokenKey").select("value").first())?.value as string | undefined;
+    if (tokenKey) {
+      for (const candidate of [headerToken, cookieToken]) {
+        if (!candidate) continue;
+        try {
+          const identity = await resolveIdentity(candidate, tokenKey, loadAuthUser);
+          uid = identity.id ?? null;
+        } catch {
+          continue;
+        }
+        if (uid) break;
       }
     }
   } catch { /* 无效 / 过期 / 已踢下线 → null */ }

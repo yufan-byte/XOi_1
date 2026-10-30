@@ -13,12 +13,10 @@ export default router.post(
   validateFields({
     projectId: z.number(),
     assetsIds: z.array(z.number()),
-    concurrentCount: z.number().min(1).optional(),
+    concurrentCount: z.number().int().min(1).max(10).optional(),
   }),
   async (req, res) => {
     const { projectId, assetsIds, concurrentCount } = req.body;
-    const assetsData = await u.db("o_assets").whereIn("id", assetsIds).andWhere("projectId", projectId).select("id", "name", "describe", "type");
-
     const audioData = await u
       .db("o_assets")
       .where("type", "audio")
@@ -26,25 +24,49 @@ export default router.post(
       .andWhere("projectId", projectId)
       .select("id", "name", "describe");
 
+    const { assetsData, queuedIds, skippedBoundIds, skippedNonRoleIds, skippedBusyIds } = await u.db.transaction(async trx => {
+      const selectedAssets = await trx("o_assets").whereIn("id", assetsIds).andWhere("projectId", projectId).orderBy("id").forUpdate().select("id", "name", "describe", "type", "audioBindState");
+      const existing = await trx("o_assetsRole2Audio").whereIn("assetsRoleId", selectedAssets.map(a => a.id)).select("assetsRoleId");
+      const boundIds = new Set(existing.map(row => Number(row.assetsRoleId)));
+      const assetsData = selectedAssets.filter(a => a.type === "role" && !boundIds.has(Number(a.id)) && a.audioBindState !== "生成中");
+      const skippedBoundIds = selectedAssets.filter(a => a.type === "role" && boundIds.has(Number(a.id))).map(a => Number(a.id));
+      const skippedNonRoleIds = selectedAssets.filter(a => a.type !== "role").map(a => Number(a.id));
+      const skippedBusyIds = selectedAssets.filter(a => a.type === "role" && !boundIds.has(Number(a.id)) && a.audioBindState === "生成中").map(a => Number(a.id));
+      const queuedIds = assetsData.map(a => Number(a.id));
+      if (queuedIds.length && audioData.length) await trx("o_assets").whereIn("id", queuedIds).update("audioBindState", "生成中");
+      return { assetsData, queuedIds, skippedBoundIds, skippedNonRoleIds, skippedBusyIds };
+    });
+    if (!queuedIds.length) return res.status(200).send(success({ queuedIds, skippedBoundIds, skippedNonRoleIds, skippedBusyIds }));
     if (!audioData.length) return res.status(400).send(error("暂无设置音频，请先前往资产中心上传音频"));
 
     const batchSize = concurrentCount ?? 1;
 
     async function processAsset(asset: (typeof assetsData)[number]) {
+      let submitted = false;
       try {
         const resultTool = tool({
           description: "匹配完成后必须调用此工具提交结果",
           inputSchema: jsonSchema<{ id: number; audioId: number }>(
             z
               .object({
-                audioId: z.number().nullable().optional().describe("与该资产匹配的音频ID列表，若无合适匹配则返回空数组"),
+                audioId: z.number().nullable().optional().describe("合适的音频 ID；无合适音频时返回 null"),
               })
               .toJSONSchema(),
           ),
           execute: async (result) => {
-            await u.db("o_assetsRole2Audio").where("assetsRoleId", asset.id).delete();
-            if (result?.audioId) await u.db("o_assetsRole2Audio").insert({ assetsRoleId: asset.id, assetsAudioId: result.audioId });
-            await u.db("o_assets").where("id", asset.id).update("audioBindState", "已完成");
+            if (submitted) return "已经提交结果";
+            submitted = true;
+            // 人工选择和批量匹配共享同一资产行锁，等待期间用户的新选择始终优先。
+            await u.db.transaction(async trx => {
+              const current = await trx("o_assets").where({ id: asset.id, projectId, type: "role" }).forUpdate().first("id", "audioBindState");
+              if (!current || current.audioBindState !== "生成中") return;
+              const existingBinding = await trx("o_assetsRole2Audio").where("assetsRoleId", asset.id).first("assetsAudioId");
+              const audioId = Number(result?.audioId);
+              if (!existingBinding && audioData.some(audio => Number(audio.id) === audioId)) {
+                await trx("o_assetsRole2Audio").insert({ assetsRoleId: asset.id, assetsAudioId: audioId });
+              }
+              await trx("o_assets").where("id", asset.id).update("audioBindState", existingBinding || audioData.some(audio => Number(audio.id) === audioId) ? "已完成" : "生成失败");
+            });
             return "无需回复用户任何内容";
           },
         });
@@ -57,7 +79,7 @@ export default router.post(
         } else {
           audioBindPrompt = promptData?.data ?? undefined;
         }
-        const { text } = await u.Ai.Text(await resolveTextModelKey({ projectId })).invoke({
+        await u.Ai.Text(await resolveTextModelKey({ projectId })).invoke({
           messages: [
             {
               role: "system",
@@ -78,8 +100,9 @@ export default router.post(
           ],
           tools: { resultTool },
         });
+        if (!submitted) await u.db("o_assets").where({ id: asset.id, audioBindState: "生成中" }).update("audioBindState", "生成失败");
       } catch (e) {
-        await u.db("o_assets").where("id", asset.id).update("audioBindState", "生成失败");
+        await u.db("o_assets").where({ id: asset.id, audioBindState: "生成中" }).update("audioBindState", "生成失败");
         console.error(`[bindAudio] 资产 ${asset.id} 处理失败:`, e);
       }
     }
@@ -91,14 +114,7 @@ export default router.post(
         await Promise.all(batch.map((asset) => processAsset(asset)));
       }
     }
-    await u
-      .db("o_assets")
-      .whereIn(
-        "id",
-        assetsData.map((i) => i.id),
-      )
-      .update("audioBindState", "生成中");
-    runWithConcurrency();
-    res.status(200).send(success());
+    void runWithConcurrency().catch(e => console.error("[bindAudio] 批量匹配异常:", e));
+    res.status(200).send(success({ queuedIds, skippedBoundIds, skippedNonRoleIds, skippedBusyIds }));
   },
 );

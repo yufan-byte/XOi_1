@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import u from "@/utils";
+import crypto from "node:crypto";
+import {saveCanvasAssetResult} from "@/lib/workspace/canvasAssetResult";
+import {saveBase64Media} from "@/utils/mediaWrite";
 
 /**
  * POST /assetsGenerate/saveCanvasResult
@@ -7,32 +10,16 @@ import u from "@/utils";
  */
 export default async function saveCanvasResult(req: Request, res: Response) {
   try {
-    const { id, filePath } = req.body;
-    if (!id || !filePath) {
-      return res.status(400).json({ error: "缺少必要参数" });
-    }
-
-    // 验证资产存在
-    const asset = await u.db("o_assets").where("id", id).first();
-    if (!asset) {
-      return res.status(404).json({ error: "资产不存在" });
-    }
-
-    // 创建新的图片记录
-    const [newImageId] = await u.db("o_image").insert({
-      filePath: filePath,
-      state: "已完成",
-      assetsId: id,
+    const userId=Number((req as any).user?.id);
+    if(!userId)return res.status(401).json({message:"请先登录"});
+    if (req.body?.candidateOnly !== undefined && typeof req.body.candidateOnly !== "boolean") return res.status(400).json({message:"候选图参数无效"});
+    const data=await saveCanvasAssetResult({db:u.db,userId,assetId:req.body?.id,projectId:req.body?.projectId,filePath:req.body?.filePath,candidateOnly:req.body?.candidateOnly === true,
+      read:path=>u.oss.getFile(path),
+      archive:async(projectId,bytes)=>(await saveBase64Media({userId,scope:"project",base64:bytes.toString("base64"),autoDetect:true,maxBytes:10*1024*1024,relPath:ext=>`/${projectId}/canvas-return/${crypto.randomUUID()}.${ext}`})).relPath,
     });
-
-    // 更新资产关联的图片
-    await u.db("o_assets").where("id", id).update({
-      imageId: newImageId,
-    });
-
-    res.json({ success: true, message: "画布结果已保存", imageId: newImageId });
-  } catch (error) {
+    res.json({ success: true, message: data.candidateOnly ? "画布结果已保存为候选图" : "画布结果已保存", data, imageId:data.imageId });
+  } catch (error: any) {
     console.error("保存画布结果失败:", error);
-    res.status(500).json({ error: "保存失败" });
+    res.status(error.status||500).json({ message:error.status?error.message:"保存失败，原图保留" });
   }
 }

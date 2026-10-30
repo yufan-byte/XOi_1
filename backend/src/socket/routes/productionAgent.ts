@@ -1,29 +1,16 @@
-import jwt from "jsonwebtoken";
 import u from "@/utils";
 import {releaseLifecycle} from "@/utils/releaseLifecycle";
 import { Namespace, Socket } from "socket.io";
 import * as agent from "@/agents/productionAgent/index";
 import ResTool from "@/socket/resTool";
 
-async function verifyToken(rawToken: string): Promise<Boolean> {
-  const setting = await u.db("o_setting").where("key", "tokenKey").select("value").first();
-  if (!setting) return false;
-  const { value: tokenKey } = setting;
-  if (!rawToken) return false;
-  const token = rawToken.replace("Bearer ", "");
-  try {
-    jwt.verify(token, tokenKey as string);
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
-
 export default (nsp: Namespace) => {
   nsp.on("connection", async (socket: Socket) => {
-    const token = socket.handshake.auth.token;
-    if (!token || !(await verifyToken(token))) {
-      console.log("[productionAgent] 连接失败，token无效");
+    // 与 scriptAgent 同因同解：身份统一由 socket/index.ts 的命名空间中间件解析，
+    // 这里再拿 auth.token 二次验签会在 F3（JWT 移入 httpOnly cookie）之后必然失败。
+    const identity = (socket.data as { user?: { id: number; role: string } }).user;
+    if (!identity?.id) {
+      console.log("[productionAgent] 连接失败，缺少已认证身份");
       socket.disconnect();
       return;
     }

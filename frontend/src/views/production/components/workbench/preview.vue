@@ -162,7 +162,7 @@
               @click="selectShot(index)">
               <t-checkbox v-model="shot.selected" class="shotCheckbox" @click.stop @mousedown.stop />
               <div class="shotImageWrapper">
-                <img v-if="shot.filePath" :src="shot.filePath" :alt="shot.description" class="shotImage" />
+                <img v-if="shot.filePath" :src="thumbUrl(shot.filePath, 320)" :alt="shot.description" class="shotImage" loading="lazy" decoding="async" />
                 <div v-else class="shotPlaceholder">
                   <i-pic theme="outline" size="24" fill="#999" />
                 </div>
@@ -182,6 +182,7 @@ import { ref, computed, watch, nextTick, onUnmounted, type Ref } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { DialogPlugin } from "tdesign-vue-next";
 import axios from "@/utils/axios";
+import { thumbUrl } from "@/utils/mediaUrl";
 import JSZip from "jszip";
 import projectStore from "@/stores/project";
 const { project } = storeToRefs(projectStore());
